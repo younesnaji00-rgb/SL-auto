@@ -3,14 +3,19 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  ArrowLeft, Save, Download, Loader2, Type, Minus,
+  ArrowLeft, Save, Download, Type, Minus,
   MousePointer2, Trash2, ZoomIn, ZoomOut, Eraser,
   RotateCw, RotateCcw, Columns2, Stamp, Plus, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Kbd } from '@/components/ui/kbd';
+import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
 import ReferencePanel from './reference-panel';
 import { useFirestore, useStorage } from '@/firebase';
 import { doc, updateDoc, serverTimestamp, getDoc, collection, getDocs } from 'firebase/firestore';
@@ -45,7 +50,11 @@ interface SavedStamp {
   dataUrl: string;
 }
 
-const COLORS = [
+// DOCUMENT ink, not UI colour: these hexes are what the user draws on the
+// page and they are burned into the exported PDF (pdf-lib), so they are
+// deliberately outside the token system. The one named constant every swatch
+// and stroke reads from.
+const DOCUMENT_INK_COLORS = [
   { name: 'Rouge', value: '#dc2626' },
   { name: 'Bleu', value: '#2563eb' },
   { name: 'Noir', value: '#000000' },
@@ -54,7 +63,56 @@ const COLORS = [
   { name: 'Violet', value: '#7c3aed' },
 ];
 
+// Lightbox zoom rules (document-preview-lightbox): 25 % button steps, % = fit,
+// wheel one notch ≈ ×1.3.
+const ZOOM_MIN = 0.3;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.25;
+
 const STAMPS_STORAGE_KEY = 'editor-custom-stamps';
+
+type ToolButtonProps = Omit<React.ComponentProps<typeof Button>, 'variant' | 'size'> & {
+  /** Tooltip text — names the ACTION, not the icon (M3 icon buttons); doubles as the aria-label. */
+  label: string;
+  /** Optional shortcut hint rendered as a <Kbd> chip in the tooltip. */
+  kbd?: string;
+  /** Toggle state: pressed = tonal fill + aria-pressed (two cues, never colour alone). */
+  active?: boolean;
+};
+
+/**
+ * Toolbar icon button — element-specs §18 (Apple HIG toolbars: prefer
+ * symbols with a tooltip) + Material 3 icon buttons ("on hover, the icon
+ * button displays a tooltip describing its action"; selection shown by a
+ * fill, not colour alone): 36 px `ghost`, `tonal` when pressed.
+ */
+const ToolButton = React.forwardRef<HTMLButtonElement, ToolButtonProps>(function ToolButton(
+  { label, kbd, active, className, children, ...props },
+  ref,
+) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          ref={ref}
+          type="button"
+          variant={active ? 'tonal' : 'ghost'}
+          size="icon"
+          className={cn('h-9 w-9', className)}
+          aria-label={label}
+          aria-pressed={active}
+          {...props}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="flex items-center gap-2">
+        <span>{label}</span>
+        {kbd ? <Kbd>{kbd}</Kbd> : null}
+      </TooltipContent>
+    </Tooltip>
+  );
+});
 
 function loadStamps(): SavedStamp[] {
   try {
@@ -120,7 +178,7 @@ export default function EditorPage() {
   const [fileUrl, setFileUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [tool, setTool] = useState<Tool>('select');
-  const [color, setColor] = useState(COLORS[0].value);
+  const [color, setColor] = useState(DOCUMENT_INK_COLORS[0].value);
   const [fontSize, setFontSize] = useState(16);
   const [lineThickness, setLineThickness] = useState(3);
   const [zoom, setZoom] = useState(1);
@@ -154,6 +212,8 @@ export default function EditorPage() {
   const [savedStamps, setSavedStamps] = useState<SavedStamp[]>([]);
   const [activeStampUrl, setActiveStampUrl] = useState<string | null>(null);
   const stampInputRef = useRef<HTMLInputElement>(null);
+  // Drag-over ring for the stamp picker button (it is also the drop target).
+  const [stampDragOver, setStampDragOver] = useState(false);
 
   // Load stamps from localStorage on mount
   useEffect(() => {
@@ -341,6 +401,28 @@ export default function EditorPage() {
     };
   }, [pdfDoc, isImage, pageCount, pageDimensions.length, renderScale]);
 
+  // ── Ctrl/⌘ + wheel zoom ───────────────────────────────────────────────────
+  // One notch (100 px of accumulated deltaY, so multi-event wheels and
+  // trackpads count once) = ×1.3 / ÷1.3. A plain wheel keeps scrolling the
+  // pages. Native listener because React wheel events are passive. Pattern:
+  // dossier-timeline/step-2-information.tsx compare pane.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let acc = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      acc += e.deltaY;
+      if (Math.abs(acc) < 100) return;
+      const direction = acc < 0 ? 1 : -1;
+      acc = 0;
+      setZoom((prev) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [loading]);
+
   // ── Get position relative to a page ────────────────────────────────────────
   const getPagePos = useCallback((e: React.MouseEvent, pageIndex: number) => {
     const pageEl = document.getElementById(`editor-page-${pageIndex}`);
@@ -495,11 +577,12 @@ export default function EditorPage() {
   };
 
   // ── Stamp helpers ─────────────────────────────────────────────────────────
-  const handleImportStamp = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
+  // Shared by the file input (click) and the picker button's drop handler.
+  const importStampFiles = async (files: File[]) => {
+    const images = files.filter((f) => f.type.startsWith('image/'));
+    if (images.length === 0) return;
     const newStamps: SavedStamp[] = [];
-    for (const file of files) {
+    for (const file of images) {
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
@@ -521,6 +604,10 @@ export default function EditorPage() {
       setActiveStampUrl(last.dataUrl);
       setTool('stamp');
     }
+  };
+
+  const handleImportStamp = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await importStampFiles(Array.from(e.target.files ?? []));
     e.target.value = '';
   };
 
@@ -763,37 +850,58 @@ export default function EditorPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="h-screen flex flex-col bg-background">
-        <div className="border-b bg-card px-3 py-2 flex items-center gap-3">
-          <div className="h-8 w-16 animate-pulse rounded bg-muted" />
-          <div className="h-4 w-px bg-border" />
-          <div className="h-7 w-[180px] animate-pulse rounded bg-muted" />
+      // Skeleton §15 (NN/g: mirror the final layout) — the two restored bars,
+      // the dark canvas with one page, the status strip.
+      <div className="flex h-screen flex-col bg-background" aria-busy="true">
+        <div className="flex min-h-[48px] shrink-0 items-center gap-2 glass-bar border-b border-hairline px-4 sm:px-6">
+          <Skeleton className="h-8 w-20 rounded-md" />
+          <Skeleton className="h-9 w-[150px] rounded-md" />
+          <Skeleton className="h-9 w-[220px] rounded-md" />
           <div className="flex-1" />
-          <div className="h-8 w-24 animate-pulse rounded bg-muted" />
-          <div className="h-8 w-28 animate-pulse rounded bg-muted" />
+          <Skeleton className="h-9 w-28 rounded-md" />
+          <Skeleton className="h-9 w-32 rounded-md" />
         </div>
-        <div className="flex-1 flex items-center justify-center bg-slate-200 dark:bg-slate-800 p-8">
-          <div className="h-[70vh] w-full max-w-3xl animate-pulse rounded-lg bg-white dark:bg-slate-700 shadow-lg" />
+        <div className="flex min-h-[40px] shrink-0 items-center gap-2 glass-bar border-b border-hairline px-4 sm:px-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 w-8 rounded-md" />
+          ))}
+          <div className="h-6 w-px bg-hairline" />
+          <Skeleton className="h-4 w-40" />
+          <div className="flex-1" />
+          <Skeleton className="h-7 w-24 rounded-md" />
         </div>
-        <div className="bg-card border-t px-4 py-1.5 h-7" />
+        <div className="flex flex-1 items-start justify-center overflow-hidden bg-ink-solid p-8">
+          <Skeleton className="h-[calc(70vh/var(--app-zoom))] w-full max-w-3xl rounded-sm bg-card/80" />
+        </div>
+        <div className="h-8 glass-bar border-t border-hairline" />
       </div>
     );
   }
 
+  const toolLabel = tool === "select" ? t("Sélection") : tool === "text" ? t("Texte") : tool === "stamp" ? t("Tampon") : t("Ligne");
+
   return (
-    <div className="flex flex-col h-screen bg-slate-100 dark:bg-slate-900 select-none">
-      {/* ── Top toolbar — Row 1: Navigation & Files ─────────────────────────── */}
-      <div className="bg-card border-b px-3 py-1.5 flex items-center gap-2 shrink-0 z-50 shadow-sm">
-        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs px-2" onClick={() => router.back()}>
-          <ArrowLeft className="h-3 w-3" /> {t('Retour')}
+    <div className="flex h-screen select-none flex-col bg-background">
+      {/* ── Bar 1: navigation · file · actions ───────────────────────────────
+          Original 3d5629a layout restored: TWO sibling bars. Element-specs §18
+          (Apple HIG toolbars: leading = navigation, centre = the view's
+          controls, trailing = the important items; "prefer symbols… except
+          for actions like edit" → the back button keeps its « Retour » label)
+          and §23 (the two bars together are this page's one sticky chrome:
+          ≤ 48 px + ≤ 40 px, `.glass-bar` + hairline, gutters 16/24). ONE
+          filled button (Exporter PDF) at the right end; Enregistrer is
+          `outline` and visible at every width. */}
+      <div className="z-40 flex min-h-[48px] shrink-0 flex-wrap items-center gap-2 glass-bar border-b border-hairline px-4 sm:px-6">
+        <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4" /> {t("Retour")}
         </Button>
 
-        <div className="h-5 w-px bg-border" />
+        <Separator orientation="vertical" className="h-6" aria-hidden />
 
-        {/* Type filter — always visible */}
+        {/* Type filter */}
         <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
-          <SelectTrigger className="h-7 w-[150px] text-xs" data-tour="edp-doc-filter">
-            <SelectValue placeholder={t('Type de document')} />
+          <SelectTrigger className="h-9 w-[150px] text-xs" aria-label={t("Type de document")} data-tour="edp-doc-filter">
+            <SelectValue placeholder={t("Type de document")} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">{t('Tous les types')} ({allFiles.length})</SelectItem>
@@ -807,14 +915,14 @@ export default function EditorPage() {
 
         {/* File switcher */}
         <Select value={String(currentFileIndex)} onValueChange={(v) => handleFileSwitch(Number(v))}>
-          <SelectTrigger className="h-7 w-[200px] text-xs" data-tour="edp-file-switcher">
+          <SelectTrigger className="h-9 w-[220px] text-xs" aria-label={t("Fichier")} data-tour="edp-file-switcher">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {filteredFileIndices.map((i) => (
               <SelectItem key={i} value={String(i)}>
                 <span className="flex items-center gap-1.5 truncate">
-                  {allFiles[i].source === 'dossier' && <span className="text-[9px] bg-muted px-1 rounded font-semibold text-muted-foreground shrink-0">{t('Dossier')}</span>}
+                  {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">{t("Dossier")}</span>}
                   {allFiles[i].name}
                 </span>
               </SelectItem>
@@ -822,208 +930,259 @@ export default function EditorPage() {
           </SelectContent>
         </Select>
         {pageCount > 0 && (
-          <span className="text-[10px] text-muted-foreground whitespace-nowrap">({pageCount} p.)</span>
+          <span className="t-caption whitespace-nowrap tabular-nums">({pageCount} p.)</span>
+        )}
+        {/* Read-only chip — §11 status pair + label (read-only IS the exception). */}
+        {!isChiffrageFile && (
+          <Badge variant="warning" className="shrink-0" title={t("Fichier du dossier : les annotations ne sont pas enregistrées")}>
+            {t("Lecture seule")}
+          </Badge>
         )}
 
-        <div className="h-5 w-px bg-border" />
+        <Separator orientation="vertical" className="h-6" aria-hidden />
 
-        {/* Comparison toggle */}
+        {/* Comparison toggle — outline ⇄ tonal, aria-pressed (two cues). */}
         {dossierId && (
           <Button
-            variant={comparisonOpen ? 'default' : 'ghost'}
+            variant={comparisonOpen ? 'tonal' : 'outline'}
             size="sm"
-            className="h-7 text-xs gap-1 px-2"
+            className="gap-1.5"
             onClick={() => setComparisonOpen(v => !v)}
+            aria-pressed={comparisonOpen}
             data-tour="edp-comparison"
           >
-            <Columns2 className="h-3 w-3" />
-            {t('Comparaison')}
+            <Columns2 className="h-4 w-4" />
+            {t("Comparaison")}
           </Button>
         )}
 
         <div className="flex-1" />
 
-        {/* Save & Export */}
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleSave} loading={isSaving} disabled={!isChiffrageFile} title={!isChiffrageFile ? t('Lecture seule (fichier dossier)') : ''} data-tour="edp-save">
-          {isSaving ? null : <Save className="h-3 w-3" />}
-          {t('Enregistrer')}
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleSave} loading={isSaving} disabled={!isChiffrageFile} title={!isChiffrageFile ? t("Lecture seule (fichier dossier)") : undefined} data-tour="edp-save">
+          {isSaving ? null : <Save className="h-4 w-4" />}
+          {t("Enregistrer")}
         </Button>
-        <Button variant="default" size="sm" className="h-7 text-xs gap-1 px-2" onClick={handleExport} loading={isExporting} data-tour="edp-export">
-          {isExporting ? null : <Download className="h-3 w-3" />}
-          {t('Exporter PDF')}
+        <Button variant="default" size="sm" className="gap-1.5" onClick={handleExport} loading={isExporting} data-tour="edp-export">
+          {isExporting ? null : <Download className="h-4 w-4" />}
+          {t("Exporter PDF")}
         </Button>
       </div>
 
-      {/* ── Top toolbar — Row 2: Tools ──────────────────────────────────────── */}
-      <div className="bg-card border-b px-3 py-1 flex items-center gap-2 shrink-0 z-40">
-        {/* Tools */}
-        <div className="flex items-center gap-0.5 bg-muted/50 p-0.5 rounded-md">
-          <Button variant={tool === 'select' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('select')} title={t('Sélectionner / Déplacer')} data-tour="edp-tool-select">
-            <MousePointer2 className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant={tool === 'text' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('text')} title={t('Ajouter du texte')} data-tour="edp-tool-text">
-            <Type className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant={tool === 'line' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" onClick={() => setTool('line')} title={t('Tracer une ligne')} data-tour="edp-tool-line">
-            <Minus className="h-3.5 w-3.5" />
-          </Button>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant={tool === 'stamp' ? 'default' : 'ghost'} size="sm" className="h-7 w-7 p-0" title={t('Tampon')} data-tour="edp-tool-stamp">
-                <Stamp className="h-3.5 w-3.5" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-3" align="start">
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('Tampons')}</p>
-                {savedStamps.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {savedStamps.map(s => (
-                      <div
-                        key={s.id}
-                        className={cn(
-                          'relative group rounded-lg border-2 p-1 cursor-pointer hover:border-primary transition-colors aspect-square flex items-center justify-center bg-muted/30',
-                          activeStampUrl === s.dataUrl && tool === 'stamp' ? 'border-primary ring-2 ring-primary/30' : 'border-border'
-                        )}
-                        onClick={() => handleSelectStamp(s.dataUrl)}
-                      >
-                        <img src={s.dataUrl} alt={s.name} className="max-w-full max-h-full object-contain" draggable={false} />
-                        <button
-                          className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity shadow"
-                          onClick={(e) => { e.stopPropagation(); handleDeleteStamp(s.id); }}
-                        >
-                          <X className="h-2.5 w-2.5" />
-                        </button>
-                        <span className="absolute bottom-0 inset-x-0 text-[8px] text-center truncate px-0.5 text-muted-foreground">{s.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic text-center py-3">{t('Aucun tampon importé')}</p>
-                )}
-                <input
-                  ref={stampInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImportStamp}
+      {/* ── Bar 2: tools ─────────────────────────────────────────────────────
+          §18: ≤ 3 groups separated by hairline Separators — [tools] | [ink:
+          colour · text size · line weight] · spacer · [trailing: delete ·
+          clear · zoom · rotation]. Icon buttons are 36 px `ghost` with
+          tooltips (M3 icon buttons: the tooltip names the action; pressed =
+          tonal fill + aria-pressed — two cues, never colour alone). */}
+      <TooltipProvider delayDuration={300}>
+        <div className="z-30 flex min-h-[40px] shrink-0 flex-wrap items-center gap-2 glass-bar border-b border-hairline px-4 py-0.5 sm:px-6">
+          <div className="flex items-center gap-0.5" role="group" aria-label={t("Outils")}>
+            <ToolButton label={t("Sélectionner / déplacer")} active={tool === "select"} onClick={() => setTool("select")} data-tour="edp-tool-select">
+              <MousePointer2 className="h-4 w-4" />
+            </ToolButton>
+            <ToolButton label={t("Ajouter du texte")} active={tool === "text"} onClick={() => setTool("text")} data-tour="edp-tool-text">
+              <Type className="h-4 w-4" />
+            </ToolButton>
+            <ToolButton label={t("Tracer une ligne")} active={tool === "line"} onClick={() => setTool("line")} data-tour="edp-tool-line">
+              <Minus className="h-4 w-4" />
+            </ToolButton>
+            <Popover>
+              <PopoverTrigger asChild>
+                <ToolButton label={t("Tampon")} active={tool === "stamp"} data-tour="edp-tool-stamp">
+                  <Stamp className="h-4 w-4" />
+                </ToolButton>
+              </PopoverTrigger>
+              {/* Stamp popover — §13-lite: `glass-strong` (the PopoverContent
+                  default), `t-label` heading, 3-col tiles per §21 (raised
+                  tiles, 10 px radius, hover-revealed delete), and ONE plain
+                  « Ajouter un tampon » button that is also the drop target
+                  (blueprint §6 file-picker rule: ring on drag-over, no banner,
+                  no dashed panel). Empty = one line + that action (§12). */}
+              <PopoverContent className="w-64 p-4" align="start">
+                <div className="space-y-3">
+                  <p className="t-label">{t("Tampons")}</p>
+                  {savedStamps.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-2">
+                      {savedStamps.map(s => {
+                        const active = activeStampUrl === s.dataUrl && tool === 'stamp';
+                        return (
+                          <div
+                            key={s.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={active}
+                            className={cn(
+                              'group relative flex aspect-square cursor-pointer items-center justify-center rounded-[10px] bg-card p-1 shadow-rim transition-[box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                              active && 'ring-2 ring-ring'
+                            )}
+                            onClick={() => handleSelectStamp(s.dataUrl)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectStamp(s.dataUrl); } }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={s.dataUrl} alt={s.name} className="max-h-full max-w-full object-contain" draggable={false} />
+                            <button
+                              type="button"
+                              className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 shadow-rim-filled transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteStamp(s.id); }}
+                              aria-label={`${t('Supprimer le tampon')} ${s.name}`}
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                            <span className="absolute inset-x-0 bottom-0 truncate px-0.5 text-center text-[11px] text-ink-3">{s.name}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="t-caption py-2 text-center">{t("Aucun tampon importé")}</p>
+                  )}
+                  <input
+                    ref={stampInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImportStamp}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn('w-full gap-1.5', stampDragOver && 'ring-2 ring-ring')}
+                    onClick={() => stampInputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); setStampDragOver(true); }}
+                    onDragLeave={() => setStampDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setStampDragOver(false);
+                      void importStampFiles(Array.from(e.dataTransfer.files));
+                    }}
+                  >
+                    <Plus className="h-4 w-4" /> {t("Ajouter un tampon")}
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <Separator orientation="vertical" className="h-6" aria-hidden />
+
+          {/* Ink settings. Colour swatches — Apple HIG colour wells ("the
+              colour well updates to show the new colour") + M3 toggle icon
+              buttons (selection by two cues: ring + aria-pressed); the hexes
+              are DOCUMENT ink (see DOCUMENT_INK_COLORS), not UI colour. Sliders — M3
+              sliders (a label, immediate effect, the current value shown
+              beside the handle): `t-label` + live tabular readout. */}
+          <div className="flex flex-wrap items-center gap-3" role="group" aria-label={t("Encre")}>
+            <div className="flex items-center gap-1.5" role="group" aria-label={t("Couleur")} data-tour="edp-colors">
+              {DOCUMENT_INK_COLORS.map(c => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => {
+                    setColor(c.value);
+                    if (selectedId) updateSelected({ color: c.value });
+                  }}
+                  className={cn(
+                    'h-5 w-5 rounded-full shadow-rim transition-[box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    color === c.value && 'ring-2 ring-ring ring-offset-2 ring-offset-card'
+                  )}
+                  style={{ backgroundColor: c.value }}
+                  title={t(c.name)}
+                  aria-label={t(c.name)}
+                  aria-pressed={color === c.value}
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-7 text-xs gap-1.5"
-                  onClick={() => stampInputRef.current?.click()}
-                >
-                  <Plus className="h-3 w-3" /> {t('Ajouter un tampon')}
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span id="editor-text-size-label" className="t-label">{t("Texte")}</span>
+              <Slider
+                value={[selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize]}
+                onValueChange={([v]) => {
+                  setFontSize(v);
+                  if (selectedId && selectedAnnotation?.type === 'text') updateSelected({ fontSize: v });
+                }}
+                min={10}
+                max={48}
+                step={1}
+                className="w-20"
+                aria-labelledby="editor-text-size-label"
+              />
+              <span className="w-5 text-right text-xs tabular-nums text-ink-2">
+                {selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span id="editor-line-weight-label" className="t-label">{t("Trait")}</span>
+              <Slider
+                value={[selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness]}
+                onValueChange={([v]) => {
+                  setLineThickness(v);
+                  if (selectedId && selectedAnnotation?.type === 'line') updateSelected({ thickness: v });
+                }}
+                min={1}
+                max={8}
+                step={1}
+                className="w-14"
+                aria-labelledby="editor-line-weight-label"
+              />
+              <span className="w-3 text-xs tabular-nums text-ink-2">
+                {selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex-1" />
+
+          {/* Trailing group: delete / clear (restored Trash2 + Eraser, 3d5629a),
+              then the zoom pill (owner ruling: −/%/+, 25 % steps, % = fit,
+              Ctrl + wheel ≈ ×1.3 per notch) and rotation. */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0.5" role="group" aria-label={t("Annotations")}>
+              <ToolButton label={t("Supprimer la sélection")} className="text-ink-3 hover:text-destructive" onClick={deleteSelected} disabled={!selectedId}>
+                <Trash2 className="h-4 w-4" />
+              </ToolButton>
+              <ToolButton label={t("Tout effacer")} className="text-ink-3 hover:text-destructive" onClick={clearAll} disabled={annotations.length === 0}>
+                <Eraser className="h-4 w-4" />
+              </ToolButton>
+            </div>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label={t("Zoom")} data-tour="edp-zoom">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label={t("Zoom arrière")}>
+                    <ZoomOut className="h-3.5 w-3.5" />
+                  </Button>
+                  <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`${t('Zoom')} ${Math.round(zoom * 100)} % — ${t('réinitialiser')}`}>
+                    {Math.round(zoom * 100)} %
+                  </button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label={t("Zoom avant")}>
+                    <ZoomIn className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="flex items-center gap-2">
+                <span>{t("Zoom — cliquer le % pour réinitialiser")}</span>
+                <Kbd>Ctrl</Kbd><span>{t("+ molette")}</span>
+              </TooltipContent>
+            </Tooltip>
+
+            <div className="flex items-center gap-0.5" role="group" aria-label={t("Rotation")}>
+              <ToolButton label={t("Rotation −90°")} onClick={() => setRotation(r => (r - 90 + 360) % 360)}>
+                <RotateCcw className="h-4 w-4" />
+              </ToolButton>
+              <span className="t-caption w-7 text-center tabular-nums">{rotation}°</span>
+              <ToolButton label={t("Rotation +90°")} onClick={() => setRotation(r => (r + 90) % 360)}>
+                <RotateCw className="h-4 w-4" />
+              </ToolButton>
+            </div>
+          </div>
         </div>
-
-        <div className="h-5 w-px bg-border" />
-
-        {/* Colors */}
-        <div className="flex items-center gap-1" data-tour="edp-colors">
-          {COLORS.map(c => (
-            <button
-              key={c.value}
-              onClick={() => {
-                setColor(c.value);
-                if (selectedId) updateSelected({ color: c.value });
-              }}
-              className={cn(
-                'w-5 h-5 rounded-full border-2 transition-all hover:scale-110',
-                color === c.value ? 'border-foreground scale-110 ring-2 ring-primary/30' : 'border-transparent'
-              )}
-              style={{ backgroundColor: c.value }}
-              title={t(c.name)}
-            />
-          ))}
-        </div>
-
-        <div className="h-5 w-px bg-border" />
-
-        {/* Font size */}
-        <div className="flex items-center gap-1.5">
-          <Type className="h-3 w-3 text-muted-foreground" />
-          <Slider
-            value={[selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize]}
-            onValueChange={([v]) => {
-              setFontSize(v);
-              if (selectedId && selectedAnnotation?.type === 'text') updateSelected({ fontSize: v });
-            }}
-            min={10}
-            max={48}
-            step={1}
-            className="w-20"
-          />
-          <span className="text-[10px] font-mono text-muted-foreground w-5 text-right">
-            {selectedAnnotation?.type === 'text' ? (selectedAnnotation.fontSize || 16) : fontSize}
-          </span>
-        </div>
-
-        <div className="h-5 w-px bg-border" />
-
-        {/* Line thickness */}
-        <div className="flex items-center gap-1.5">
-          <Minus className="h-3 w-3 text-muted-foreground" />
-          <Slider
-            value={[selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness]}
-            onValueChange={([v]) => {
-              setLineThickness(v);
-              if (selectedId && selectedAnnotation?.type === 'line') updateSelected({ thickness: v });
-            }}
-            min={1}
-            max={8}
-            step={1}
-            className="w-14"
-          />
-          <span className="text-[10px] font-mono text-muted-foreground w-3">
-            {selectedAnnotation?.type === 'line' ? (selectedAnnotation.thickness || lineThickness) : lineThickness}
-          </span>
-        </div>
-
-        <div className="flex-1" />
-
-        {/* Delete / Clear */}
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10" onClick={deleteSelected} disabled={!selectedId} title={t('Supprimer')}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10" onClick={clearAll} disabled={annotations.length === 0} title={t('Tout effacer')}>
-          <Eraser className="h-3.5 w-3.5" />
-        </Button>
-
-        <div className="h-5 w-px bg-border" />
-
-        {/* Zoom */}
-        <div className="flex items-center gap-0.5 bg-muted/50 rounded-md px-1 py-0.5" data-tour="edp-zoom">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}>
-            <ZoomOut className="h-3 w-3" />
-          </Button>
-          <span className="text-[10px] font-bold w-8 text-center">{Math.round(zoom * 100)}%</span>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom(z => Math.min(3, z + 0.1))}>
-            <ZoomIn className="h-3 w-3" />
-          </Button>
-        </div>
-
-        <div className="h-5 w-px bg-border" />
-
-        {/* Rotation */}
-        <div className="flex items-center gap-0.5 bg-muted/50 rounded-md px-1 py-0.5">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRotation(r => (r - 90 + 360) % 360)} title={t('Rotation -90°')}>
-            <RotateCcw className="h-3 w-3" />
-          </Button>
-          <span className="text-[10px] font-bold w-6 text-center">{rotation}°</span>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRotation(r => (r + 90) % 360)} title={t('Rotation +90°')}>
-            <RotateCw className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
+      </TooltipProvider>
 
       {/* ── Main content area (comparison panel + canvas) ───────────────────── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
         {/* Reference panel for side-by-side comparison */}
         {comparisonOpen && dossierId && (
           <ReferencePanel
@@ -1033,10 +1192,10 @@ export default function EditorPage() {
           />
         )}
 
-        {/* Canvas area — all pages stacked */}
+        {/* Canvas area — dark functional backdrop (lightbox media area); all pages stacked */}
         <div
           ref={containerRef}
-          className="flex-1 overflow-auto flex flex-col items-center gap-6 p-8 bg-slate-200 dark:bg-slate-800"
+          className="flex flex-1 flex-col items-center gap-6 overflow-auto bg-ink-solid p-8"
         >
           {/* Image file — single page */}
           {isImage && fileUrl && (
@@ -1063,10 +1222,11 @@ export default function EditorPage() {
               }
               onDeleteSelected={deleteSelected}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={fileUrl}
                 alt={fileName}
-                className="w-full h-full object-contain"
+                className="h-full w-full object-contain"
                 crossOrigin="anonymous"
                 draggable={false}
               />
@@ -1103,7 +1263,7 @@ export default function EditorPage() {
                 style={{ display: 'block' }}
               />
               {/* Page number label */}
-              <div className="absolute bottom-2 right-3 text-[10px] text-slate-400 font-mono pointer-events-none">
+              <div className="pointer-events-none absolute bottom-2 right-3 font-mono text-[11px] tabular-nums text-ink-4">
                 Page {i + 1} / {pageCount}
               </div>
             </PageWrapper>
@@ -1112,14 +1272,14 @@ export default function EditorPage() {
       </div>
 
       {/* ── Status bar ──────────────────────────────────────────────────────── */}
-      <div className="bg-card border-t px-4 py-1.5 flex items-center justify-between text-[10px] text-muted-foreground shrink-0" data-tour="edp-status">
+      <div className="flex shrink-0 items-center justify-between glass-bar border-t border-hairline px-4 py-1.5 text-xs text-ink-3" data-tour="edp-status">
         <div className="flex items-center gap-4">
-          <span>{annotations.length} {annotations.length !== 1 ? t('éléments') : t('élément')}</span>
-          {selectedId && <span className="text-primary font-semibold">{t('1 sélectionné — glissez pour déplacer')}</span>}
+          <span className="tabular-nums">{annotations.length} {annotations.length !== 1 ? t('éléments') : t('élément')}</span>
+          {selectedId && <span className="font-semibold text-ink">{t('1 sélectionné — glissez pour déplacer')}</span>}
         </div>
-        <div className="flex items-center gap-4">
-          <span>{t('Outil :')} {tool === 'select' ? t('Sélection') : tool === 'text' ? t('Texte') : tool === 'stamp' ? t('Tampon') : t('Ligne')}</span>
-          {!isChiffrageFile && <span className="text-amber-500 font-semibold">{t('Lecture seule')}</span>}
+        <div className="flex items-center gap-4 tabular-nums">
+          <span>{t('Outil :')} {toolLabel}</span>
+          {!isChiffrageFile && <span className="font-semibold text-status-warning-fg">{t('Lecture seule')}</span>}
           <span>{t('Zoom :')} {Math.round(zoom * 100)}%</span>
           {rotation !== 0 && <span>{t('Rotation :')} {rotation}°</span>}
         </div>
@@ -1172,10 +1332,11 @@ const PageWrapper = memo(function PageWrapper({
         flexShrink: 0,
       }}
     >
+    {/* The page is the document (white by nature), raised off the dark backdrop. */}
     <div
       id={`editor-page-${pageIndex}`}
       className={cn(
-        'relative bg-white shadow-2xl',
+        'relative bg-white shadow-raised',
         tool === 'text' && 'cursor-crosshair',
         tool === 'line' && 'cursor-crosshair',
         tool === 'stamp' && 'cursor-copy',
@@ -1287,11 +1448,11 @@ const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSel
               backgroundColor: a.color,
             }}
           />
-          {/* Hover highlight */}
+          {/* Hover / selection highlight — the focus ring is the selection cue */}
           <div
             className={cn(
-              'absolute inset-0 rounded transition-colors',
-              isSelected ? 'bg-primary/10 ring-2 ring-primary' : 'hover:bg-primary/5'
+              'absolute inset-0 rounded transition-colors duration-150',
+              isSelected ? 'bg-accent/40 ring-2 ring-ring' : 'hover:bg-accent/25'
             )}
           />
         </>
@@ -1326,8 +1487,9 @@ const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSel
       {a.type === 'stamp' && a.stampUrl && (
         <div className={cn(
           'w-full h-full',
-          isSelected ? 'ring-2 ring-primary ring-offset-1' : ''
+          isSelected ? 'ring-2 ring-ring ring-offset-1' : ''
         )}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={a.stampUrl}
             alt={t('tampon')}
@@ -1340,11 +1502,13 @@ const AnnotationElement = memo(function AnnotationElement({ annotation: a, isSel
       {/* Delete button — visible on hover or selection */}
       {(isSelected || a.type === 'line' || a.type === 'stamp') && (
         <button
+          type="button"
           className={cn(
-            'absolute -top-3 -right-3 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-lg hover:scale-110 transition-all',
+            'absolute -right-3 -top-3 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground shadow-rim-filled transition-opacity duration-150',
             isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}
           onClick={e => { e.stopPropagation(); onDelete(); }}
+          aria-label={t("Supprimer l'annotation")}
         >
           ×
         </button>

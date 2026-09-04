@@ -1,25 +1,33 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
-import { Send, MapPin, Inbox, Loader2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Sheet } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 import { useCollection, useFirestore } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
-import { format } from 'date-fns';
-import { useT, dateFnsLocale } from '@/i18n';
+import { UserNameLink } from '@/components/user-name-link';
+import {
+  HistoryEmpty,
+  HistoryField,
+  HistoryLoading,
+  HistoryRow,
+  HistorySheetContent,
+  formatDateTime,
+} from './status-history-sheet';
+import { useT } from '@/i18n';
 import { auditText } from '@/lib/audit-i18n';
 
 type AssignmentHistorySheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   dossier: any | null;
+};
+
+// Visit type → status pair (same mapping as the Planifications tab).
+const MISSION_CHIP: Record<string, string> = {
+  Avant: 'bg-status-info-bg text-status-info-fg',
+  'En cours': 'bg-status-warning-bg text-status-warning-fg',
+  Après: 'bg-status-success-bg text-status-success-fg',
 };
 
 export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: AssignmentHistorySheetProps) {
@@ -48,16 +56,6 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
 
   if (!dossier) return null;
 
-  const formatDate = (ts: any) => {
-    if (!ts) return '-';
-    const date = ts.toDate ? ts.toDate() : new Date(ts);
-    try {
-      return format(date, "dd MMM yyyy 'à' HH:mm", { locale: dateFnsLocale() });
-    } catch {
-      return '-';
-    }
-  };
-
   // Filter historique to only assignment-related entries
   const assignmentEntries = (allHistorique || []).filter((e: any) =>
     e.type === 'assignation' ||
@@ -69,11 +67,11 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
   const planificationEntries = (planifications || []).map((p: any) => ({
     id: p.id,
     type: 'planification',
-    agent: p.agentTerrain || 'N/A',
+    agent: p.agentTerrain || '',
     mission: p.typeMission || '',
     zone: p.zone || '',
     date: p.createdAt,
-    modifiedBy: p.modifiedByName || p.modifiedBy || 'N/A',
+    modifiedBy: p.modifiedByName || p.modifiedBy || '',
   }));
 
   const loading = loadingH || loadingP;
@@ -81,78 +79,78 @@ export default function AssignmentHistorySheet({ open, onOpenChange, dossier }: 
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>{t('Assignations')} — {dossier.refExpert || t('Dossier')}</SheetTitle>
-          <SheetDescription>
-            {t('Historique des assignations chiffrage et planification.')}
-          </SheetDescription>
-        </SheetHeader>
-        <div className="py-6 pr-4 space-y-6 overflow-y-auto max-h-[calc(100vh-150px)]">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground italic">{t('Chargement...')}</p>
-            </div>
-          ) : !hasData ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 border-2 border-dashed rounded-xl bg-muted/20">
-              <Inbox className="h-10 w-10 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground italic px-6">
-                {t('Aucune assignation pour ce dossier.')}
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Chiffrage assignments */}
-              {assignmentEntries.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                    <Send className="h-3.5 w-3.5" /> {t('Chiffrage')}
-                  </h3>
-                  <div className="space-y-3">
-                    {assignmentEntries.map((entry: any) => (
-                      <div key={entry.id} className="p-3 rounded-lg border bg-card space-y-1">
-                        <p className="text-sm font-medium">{auditText(entry.action, t)}</p>
+      <HistorySheetContent
+        title={t('Assignations')}
+        description={t('Historique des assignations chiffrage et planification.')}
+        refExpert={dossier.refExpert}
+      >
+        {loading ? (
+          <HistoryLoading />
+        ) : !hasData ? (
+          <HistoryEmpty title={t('Aucune assignation')} description={t('Les envois au chiffrage et les planifications apparaissent ici.')} />
+        ) : (
+          <div className="space-y-6">
+            {/* Chiffrage assignments — group label is quiet, rows hairline-separated. */}
+            {assignmentEntries.length > 0 && (
+              <section>
+                <h3 className="t-label mb-2">{t('Chiffrage')}</h3>
+                <ul className="divide-y divide-hairline">
+                  {assignmentEntries.map((entry: any) => (
+                    <HistoryRow key={entry.id} date={entry.date}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-ink">{auditText(entry.action, t)}</span>
+                        <span className="t-caption tabular-nums">{formatDateTime(entry.date)}</span>
+                      </div>
+                      <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                        <HistoryField label={t('Par')}>
+                          {entry.userNom || entry.user ? <UserNameLink entry={entry} /> : <span className="font-normal text-ink-4">—</span>}
+                        </HistoryField>
                         {entry.details && (
-                          <p className="text-xs text-muted-foreground">{auditText(entry.details, t)}</p>
+                          <HistoryField label={t('Détails')} className="sm:col-span-2">
+                            <span className="whitespace-pre-wrap break-words font-normal text-ink">{auditText(entry.details, t)}</span>
+                          </HistoryField>
                         )}
-                        <p className="text-[11px] text-muted-foreground">
-                          {formatDate(entry.date)} {t('par')} <span className="font-semibold text-primary">{entry.user}</span>
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                      </dl>
+                    </HistoryRow>
+                  ))}
+                </ul>
+              </section>
+            )}
 
-              {/* Planification assignments */}
-              {planificationEntries.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5" /> {t('Planification')}
-                  </h3>
-                  <div className="space-y-3">
-                    {planificationEntries.map((entry: any) => (
-                      <div key={entry.id} className="p-3 rounded-lg border bg-card space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{t('Agent :')} {entry.agent}</span>
-                          {entry.mission && <Badge variant="outline" className="text-[10px]">{t(entry.mission)}</Badge>}
-                        </div>
-                        {entry.zone && (
-                          <p className="text-xs text-muted-foreground">{t('Zone :')} {entry.zone}</p>
+            {/* Planification assignments */}
+            {planificationEntries.length > 0 && (
+              <section className={cn(assignmentEntries.length > 0 && 'border-t border-hairline pt-6')}>
+                <h3 className="t-label mb-2">{t('Planification')}</h3>
+                <ul className="divide-y divide-hairline">
+                  {planificationEntries.map((entry) => (
+                    <HistoryRow key={entry.id} date={entry.date}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {entry.mission && (
+                          <span className={cn('inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium', MISSION_CHIP[entry.mission] ?? 'bg-surface-3 text-ink-2')}>
+                            {t('Visite')} {t(String(entry.mission)).toLowerCase()}
+                          </span>
                         )}
-                        <p className="text-[11px] text-muted-foreground">
-                          {formatDate(entry.date)} {t('par')} <span className="font-semibold text-primary">{entry.modifiedBy}</span>
-                        </p>
+                        <span className="t-caption tabular-nums">{formatDateTime(entry.date)}</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </SheetContent>
+                      <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                        <HistoryField label={t('Agent de terrain')}>
+                          {entry.agent || <span className="font-normal text-ink-4">—</span>}
+                        </HistoryField>
+                        <HistoryField label={t('Zone')}>
+                          {entry.zone || <span className="font-normal text-ink-4">—</span>}
+                        </HistoryField>
+                        <HistoryField label={t('Par')}>
+                          {entry.modifiedBy || <span className="font-normal text-ink-4">—</span>}
+                        </HistoryField>
+                      </dl>
+                    </HistoryRow>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+        )}
+      </HistorySheetContent>
     </Sheet>
   );
 }

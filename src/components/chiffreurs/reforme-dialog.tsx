@@ -207,29 +207,36 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideCloseButton className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      {/* Dialog — element-specs §13 (M3 dialogs: brief headline + one-line
+          supporting text; the confirm is closest to the edge with the
+          dismissive `outline` to its left; never more than two actions). */}
+      <DialogContent hideCloseButton className="max-h-[calc(90vh/var(--app-zoom))] overflow-y-auto lg:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{t('Réforme')}</DialogTitle>
-          <DialogDescription>
-            {t('Renseignez les valeurs de réforme du véhicule. Les montants dérivés sont calculés automatiquement.')}
+          <DialogTitle className="t-title">{t("Réforme")}</DialogTitle>
+          <DialogDescription className="t-caption">
+            {t("Renseignez les valeurs de réforme du véhicule. Les montants dérivés sont calculés automatiquement.")}
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
           <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 py-3">
+          // Form — element-specs §9 (GOV.UK text input: visible label above,
+          // sentence case; NN/g: labels quiet, rows 16 apart, 40 px fields).
+          // Two short columns of related amounts (not a dense grid); derived
+          // amounts are read-only values (§10 summary list), not disabled inputs.
+          <div className="grid grid-cols-1 gap-x-6 gap-y-4 py-2 md:grid-cols-2">
             {/* Left column */}
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="typeReforme">{t('Type Réforme')}</Label>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="typeReforme" className="t-label">{t("Type de réforme")}</Label>
                 <Select
                   value={state.typeReforme || 'Technique'}
                   onValueChange={(v) => set('typeReforme', v)}
                 >
-                  <SelectTrigger id="typeReforme"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
+                  <SelectTrigger id="typeReforme" className="mt-1 h-10"><SelectValue placeholder={t("Choisir")} /></SelectTrigger>
                   <SelectContent>
                     {REFORME_TYPES.map((rt) => (
                       <SelectItem key={rt} value={rt}>{t(rt)}</SelectItem>
@@ -238,33 +245,27 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
                 </Select>
               </div>
 
-              <NumberField id="valeurVenale" label={t('Valeur vénale (avec TVA)')} value={state.valeurVenale} onChange={(v) => set('valeurVenale', v)} parse={num} />
-              <NumberField id="valeurEpave" label={t('Valeur épave')} value={state.valeurEpave} onChange={(v) => set('valeurEpave', v)} parse={num} />
-              <NumberField id="valeurAchat" label={t("Valeur D'achat")} value={state.valeurAchat} onChange={(v) => set('valeurAchat', v)} parse={num} />
-              <NumberField id="valeurCommerciale" label={t('Valeur commerciale')} value={state.valeurCommerciale} onChange={(v) => set('valeurCommerciale', v)} parse={num} />
+              <NumberField id="valeurVenale" label={t("Valeur vénale (avec TVA)")} value={state.valeurVenale} onChange={(v) => set('valeurVenale', v)} parse={num} />
+              <NumberField id="valeurEpave" label={t("Valeur épave")} value={state.valeurEpave} onChange={(v) => set('valeurEpave', v)} parse={num} />
+              <NumberField id="valeurAchat" label={t("Valeur d'achat")} value={state.valeurAchat} onChange={(v) => set('valeurAchat', v)} parse={num} />
+              <NumberField id="valeurCommerciale" label={t("Valeur commerciale")} value={state.valeurCommerciale} onChange={(v) => set('valeurCommerciale', v)} parse={num} />
 
-              <div className="space-y-1.5">
-                <Label htmlFor="difference">{t('La différence des valeurs')}</Label>
-                <Input id="difference" disabled value={difference} className="bg-muted" />
-              </div>
+              <ComputedField label={t("Différence des valeurs")} value={difference} />
 
-              <div className="space-y-1.5">
-                <Label htmlFor="methodeCalcul">{t('La methode de calcul')}</Label>
-                <Input id="methodeCalcul" value={state.methodeCalcul} onChange={(e) => set('methodeCalcul', e.target.value)} />
+              <div>
+                <Label htmlFor="methodeCalcul" className="t-label">{t("Méthode de calcul")}</Label>
+                <Input id="methodeCalcul" className="mt-1" value={state.methodeCalcul} onChange={(e) => set('methodeCalcul', e.target.value)} />
               </div>
             </div>
 
             {/* Right column */}
-            <div className="space-y-3">
-              <NumberField id="montantAccord" label={t('Montant Accord')} value={state.montantAccord} onChange={(v) => set('montantAccord', v)} parse={num} />
-              <NumberField id="franchise" label={t('Franchise')} value={state.franchise} onChange={(v) => set('franchise', v)} parse={num} />
-              <NumberField id="montantDeplacement" label={t('Montant Déplacement')} value={state.montantDeplacement} onChange={(v) => set('montantDeplacement', v)} parse={num} />
-              <NumberField id="montantHonoraires" label={t('Montant Honoraires')} value={state.montantHonoraires} onChange={(v) => set('montantHonoraires', v)} parse={num} />
+            <div className="space-y-4">
+              <NumberField id="montantAccord" label={t("Montant accord")} value={state.montantAccord} onChange={(v) => set('montantAccord', v)} parse={num} />
+              <NumberField id="franchise" label={t("Franchise")} value={state.franchise} onChange={(v) => set('franchise', v)} parse={num} />
+              <NumberField id="montantDeplacement" label={t("Montant déplacement")} value={state.montantDeplacement} onChange={(v) => set('montantDeplacement', v)} parse={num} />
+              <NumberField id="montantHonoraires" label={t("Montant honoraires")} value={state.montantHonoraires} onChange={(v) => set('montantHonoraires', v)} parse={num} />
 
-              <div className="space-y-1.5">
-                <Label htmlFor="totalIndemnisation">{t("Total D'indemnisation")}</Label>
-                <Input id="totalIndemnisation" disabled value={totalIndemnisation} className="bg-muted font-semibold" />
-              </div>
+              <ComputedField label={t("Total d'indemnisation")} value={totalIndemnisation} emphasis />
             </div>
           </div>
         )}
@@ -273,9 +274,8 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             {t('Annuler')}
           </Button>
-          <Button onClick={handleSave} disabled={loading || saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            {t('Déposer Le Dossier')}
+          <Button onClick={handleSave} loading={saving} disabled={loading}>
+            {t("Déposer le dossier")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -290,15 +290,31 @@ function NumberField({
   onChange: (v: number) => void; parse: (s: string) => number;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+    <div>
+      <Label htmlFor={id} className="t-label">{label}</Label>
       <Input
         id={id}
         type="number"
         inputMode="decimal"
+        className="mt-1 tabular-nums"
         value={Number.isFinite(value) ? value : 0}
         onChange={(e) => onChange(parse(e.target.value))}
       />
+    </div>
+  );
+}
+
+/**
+ * Derived amount — element-specs §10 (GOV.UK summary list: a key over a
+ * value; a read-only derived figure is TEXT, not a disabled input). The
+ * emphasised total is a detail-tile figure (§6 / dataviz stat-tile contract:
+ * Inter 600, 24 px, never Outfit on a number), tabular digits.
+ */
+function ComputedField({ label, value, emphasis }: { label: string; value: number; emphasis?: boolean }) {
+  return (
+    <div className="border-t border-hairline pt-3">
+      <p className="t-label">{label}</p>
+      <p className={emphasis ? 'mt-1 text-2xl font-semibold tabular-nums text-ink' : 't-body mt-1 font-semibold tabular-nums'}>{value}</p>
     </div>
   );
 }

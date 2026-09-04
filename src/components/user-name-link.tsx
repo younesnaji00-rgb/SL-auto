@@ -12,6 +12,9 @@ interface UserNameLinkProps {
   entry: { userNom?: string | null; user?: string | null } | null | undefined;
   /** Optional extra classes for the rendered span. */
   className?: string;
+  /** Optional custom rendering of the name (e.g. stacked over two rows);
+   *  the link / fallback logic is unchanged. */
+  children?: React.ReactNode;
 }
 
 /**
@@ -22,11 +25,12 @@ interface UserNameLinkProps {
  * If no email is present on the entry, renders an unwrapped span (no
  * broken link).
  */
-export function UserNameLink({ entry, className }: UserNameLinkProps) {
+export function UserNameLink({ entry, className, children }: UserNameLinkProps) {
   const t = useT();
   const rawLabel = displayUserName(entry);
   // Translate only the known fallback — real user names pass through untouched.
-  const label = rawLabel === 'Utilisateur inconnu' ? t('Utilisateur inconnu') : rawLabel;
+  const label =
+    children ?? (rawLabel === 'Utilisateur inconnu' ? t('Utilisateur inconnu') : rawLabel);
   const email = entry?.user?.trim();
   const linkClass = cn(
     'text-foreground hover:text-primary hover:underline underline-offset-2',

@@ -1,102 +1,303 @@
 'use client';
 
-import React from 'react';
-import { Search } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  CommandDialog,
-  CommandEmpty,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandLoading,
-} from '@/components/ui/command';
+/**
+ * ⌘K command palette — a navigation layer, not a chat box (Vercel Geist /
+ * Linear): recents, records by ref · plaque · assuré, pages, actions. The AI
+ * assistant is an explicit last row, never the default result.
+ */
+
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTheme } from 'next-themes';
+import { Bell, Calculator, FolderOpen, Keyboard, MessageSquare, Moon, Plus, Sun, ArrowRight, Clock } from 'lucide-react';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command';
+import { Badge } from '@/components/ui/badge';
+import { Kbd } from '@/components/ui/kbd';
+import { useVisibleNav } from '@/hooks/use-visible-nav';
+import { useWorkspaceStore, useWorkspaceTabs, TAB_KINDS } from '@/hooks/use-workspace-tabs';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { useDossiers } from '@/hooks/use-dossiers';
+import { normalizePlate } from '@/lib/plate-match';
+import { assureName, dossierLabel } from '@/lib/dossier-label';
+import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { getAiSuggestion } from '@/lib/actions/ai-search';
-import { useDebounce } from '@/hooks/use-debounce';
+import { formatKeys } from '@/hooks/use-hotkeys';
 import { useT } from '@/i18n';
+import { cn } from '@/lib/utils';
+import type { Dossier } from '@/lib/dossiers-data';
 
-const GlobalSearch = () => {
+export interface CommandPaletteProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialQuery?: string;
+  onOpenShortcuts?: () => void;
+  onCreateDossier?: () => void;
+}
+
+function fold(s: string): string {
+  return (s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
+/** Subsequence fuzzy match ("asc" ⊂ "assignations chiffrage") + plain includes. */
+function fuzzy(haystack: string, needle: string): boolean {
+  const h = fold(haystack);
+  const n = fold(needle).replace(/\s+/g, '');
+  if (!n) return true;
+  if (h.includes(fold(needle))) return true;
+  let i = 0;
+  for (const ch of h) {
+    if (ch === n[i]) i++;
+    if (i === n.length) return true;
+  }
+  return false;
+}
+
+const dossierTabLabel = dossierLabel;
+
+const MAX_RESULTS = 8;
+
+function DossierResults({ query, onPick }: { query: string; onPick: (d: Dossier) => void }) {
   const t = useT();
-  const [open, setOpen] = React.useState(false);
-  const [query, setQuery] = React.useState('');
-  const [suggestion, setSuggestion] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const debouncedQuery = useDebounce(query, 500);
+  const { profile } = useCurrentUser();
+  const userCompagnies = profile?.compagnies || [];
+  const { dossiers, loading } = useDossiers(userCompagnies.length > 0 ? userCompagnies : undefined);
 
-  React.useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        setOpen((open) => !open);
+  const results = useMemo(() => {
+    const q = query.trim();
+    if (q.length < 2) return [];
+    const qf = fold(q);
+    const qp = normalizePlate(q);
+    const out: Dossier[] = [];
+    for (const d of dossiers) {
+      const ref = fold(d.refExpert || '');
+      const name = fold(assureName(d.assure));
+      const comp = fold(d.compagnie || '');
+      const plate = qp ? normalizePlate(d.matricule) : '';
+      if (ref.includes(qf) || name.includes(qf) || comp.includes(qf) || (qp.length >= 3 && plate.includes(qp))) {
+        out.push(d);
+        if (out.length >= MAX_RESULTS) break;
       }
-    };
-    document.addEventListener('keydown', down);
-    return () => document.removeEventListener('keydown', down);
-  }, []);
-  
-  const runSearch = React.useCallback(async (searchQuery: string) => {
-    if (!searchQuery) {
-      setSuggestion(null);
-      return;
     }
-    setLoading(true);
-    const { suggestion: aiSuggestion, error } = await getAiSuggestion(searchQuery);
-    if(error) {
-        setSuggestion(t("Erreur : suggestion indisponible."));
-    } else {
-        setSuggestion(aiSuggestion);
+    return out;
+  }, [dossiers, query]);
+
+  if (query.trim().length < 2) return null;
+  return (
+    <CommandGroup heading={t('Dossiers')}>
+      {loading && results.length === 0 && (
+        <div className="t-caption px-2 py-1.5">{t('Recherche…')}</div>
+      )}
+      {!loading && results.length === 0 && (
+        <div className="t-caption px-2 py-1.5">{t('Aucun dossier ne correspond à')} « {query.trim()} ».</div>
+      )}
+      {results.map((d) => (
+        <CommandItem key={d.id} value={`dossier:${d.id}`} onSelect={() => onPick(d)} className="gap-3">
+          <FolderOpen className="h-4 w-4 shrink-0 text-ink-3" />
+          <span className="min-w-0 flex-1 truncate">
+            <span className="t-mono font-medium">{d.refExpert || t('Sans réf.')}</span>
+            {assureName(d.assure) && <span className="text-ink-2"> · {assureName(d.assure)}</span>}
+            {d.compagnie && <span className="text-ink-3"> · {d.compagnie}</span>}
+          </span>
+          {d.matricule && <span className="t-mono hidden text-ink-3 sm:inline">{d.matricule}</span>}
+          {d.statut && (
+            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut), 'hidden shrink-0 sm:inline-flex')}>
+              {t(d.statut)}
+            </Badge>
+          )}
+        </CommandItem>
+      ))}
+    </CommandGroup>
+  );
+}
+
+export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenShortcuts, onCreateDossier }: CommandPaletteProps) {
+  const t = useT();
+  const router = useRouter();
+  const { theme, setTheme } = useTheme();
+  const { items: navItems, isVisible } = useVisibleNav();
+  const { recents } = useWorkspaceStore();
+  const dossierTabs = useWorkspaceTabs('dossier');
+  const chiffrageTabs = useWorkspaceTabs('chiffrage');
+  const [query, setQuery] = useState(initialQuery);
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setQuery(initialQuery);
+      setAiAnswer(null);
     }
-    setLoading(false);
-  }, [t]);
+  }, [open, initialQuery]);
 
-  React.useEffect(() => {
-    runSearch(debouncedQuery);
-  }, [debouncedQuery, runSearch]);
+  const close = () => onOpenChange(false);
+  const go = (href: string) => {
+    close();
+    router.push(href);
+  };
 
-  const handleInputChange = (value: string) => {
-    setQuery(value);
-    if (!value) {
-      setSuggestion(null);
-      setLoading(false);
+  const q = query.trim();
+  const showRecents = q.length === 0;
+
+  const recentEntries = useMemo(
+    () =>
+      recents
+        .filter((r) => (r.kind === 'dossier' ? isVisible('/dossiers') : isVisible('/assignations-chiffrage')))
+        .slice(0, 6),
+    [recents, isVisible],
+  );
+
+  const openTabs = useMemo(
+    () => [
+      ...dossierTabs.tabs.map((t) => ({ kind: 'dossier' as const, id: t.id, label: t.label })),
+      ...chiffrageTabs.tabs.map((t) => ({ kind: 'chiffrage' as const, id: t.id, label: t.label })),
+    ],
+    [dossierTabs.tabs, chiffrageTabs.tabs],
+  );
+
+  const navMatches = useMemo(() => navItems.filter((i) => fuzzy(`${i.label} ${i.title ?? ''}`, q)), [navItems, q]);
+
+  const actions = useMemo(() => {
+    const list: { id: string; label: string; icon: React.ElementType; keys?: string; run: () => void }[] = [];
+    if (onCreateDossier) list.push({ id: 'new-dossier', label: t('Nouveau dossier'), icon: Plus, keys: 'c', run: () => { close(); onCreateDossier(); } });
+    if (isVisible('/mes-rappels')) list.push({ id: 'rappels', label: t('Voir mes rappels'), icon: Bell, keys: 'g r', run: () => go('/mes-rappels') });
+    list.push({ id: 'theme', label: theme === 'dark' ? t('Passer en mode clair') : t('Passer en mode sombre'), icon: theme === 'dark' ? Sun : Moon, keys: 'shift+d', run: () => { setTheme(theme === 'dark' ? 'light' : 'dark'); close(); } });
+    if (onOpenShortcuts) list.push({ id: 'shortcuts', label: t('Raccourcis clavier'), icon: Keyboard, keys: '?', run: () => { close(); onOpenShortcuts(); } });
+    return list.filter((a) => fuzzy(a.label, q));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onCreateDossier, onOpenShortcuts, isVisible, theme, q, t]);
+
+  const pickDossier = (d: Dossier) => {
+    dossierTabs.openTab(d.id, dossierTabLabel(d));
+    go(`/dossiers/${d.id}`);
+  };
+
+  const askAssistant = async () => {
+    if (!q) return;
+    setAiLoading(true);
+    setAiAnswer(null);
+    try {
+      const { suggestion, error } = await getAiSuggestion(q);
+      setAiAnswer(error ? t('Suggestion indisponible pour le moment.') : suggestion || t('Aucune suggestion.'));
+    } catch {
+      setAiAnswer(t('Suggestion indisponible pour le moment.'));
+    } finally {
+      setAiLoading(false);
     }
   };
 
+  const nothing = !showRecents && navMatches.length === 0 && actions.length === 0;
+  // Precomputed: the `openTabs`/`recents` maps below bind their own `t`
+  // (the tab), which shadows the translator inside those callbacks.
+  const ouvertLabel = t('ouvert');
 
   return (
-    <>
-      <Button
-        variant="outline"
-        className="w-full max-w-sm justify-between text-muted-foreground hover:text-foreground"
-        onClick={() => setOpen(true)}
-      >
-        <div className="flex items-center gap-2">
-          <Search className="h-4 w-4" />
-          <span>{t('Rechercher...')}</span>
-        </div>
-        <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-          <span className="text-xs">⌘</span>K
-        </kbd>
-      </Button>
-      <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput 
-          placeholder={t('Que cherchez-vous ?')}
-          value={query}
-          onValueChange={handleInputChange}
-        />
-        <CommandList>
-          {!suggestion && !loading && !query && (
-            <CommandEmpty>Start typing to search.</CommandEmpty>
-          )}
-          {loading && <CommandLoading>Thinking...</CommandLoading>}
-          {suggestion && !loading && (
-            <CommandItem onSelect={() => setOpen(false)}>
-              <span>{suggestion}</span>
-            </CommandItem>
-          )}
-        </CommandList>
-      </CommandDialog>
-    </>
-  );
-};
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="top-[12%] translate-y-0 overflow-hidden p-0 sm:max-w-xl" onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}>
+        <DialogTitle className="sr-only">{t('Rechercher et naviguer')}</DialogTitle>
+        {/* Group headings = t-label (spelled out: `.t-*` are component classes,
+            so they can't be applied through an arbitrary variant) — 12 px,
+            sentence case, ink-3, never uppercase. Rows = t-body-sm. */}
+        <Command shouldFilter={false} loop className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-normal [&_[cmdk-group-heading]]:normal-case [&_[cmdk-group-heading]]:tracking-normal [&_[cmdk-group-heading]]:text-ink-3 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item]]:text-ink [&_[cmdk-item]_svg]:text-ink-2">
+          <CommandInput ref={inputRef} placeholder={t('Réf., plaque, assuré, page ou action…')} value={query} onValueChange={setQuery} />
+          <CommandList className="max-h-[calc(60vh/var(--app-zoom))]">
+            {nothing && q.length < 2 && <CommandEmpty>{t('Aucun résultat.')}</CommandEmpty>}
 
-export default GlobalSearch;
+            {showRecents && (openTabs.length > 0 || recentEntries.length > 0) && (
+              <CommandGroup heading={t('Récents')}>
+                {openTabs.slice(0, 4).map((t) => (
+                  <CommandItem key={`tab:${t.kind}:${t.id}`} value={`tab:${t.kind}:${t.id}`} onSelect={() => go(TAB_KINDS[t.kind].detailHref(t.id))} className="gap-3">
+                    {t.kind === 'dossier' ? <FolderOpen className="h-4 w-4 text-ink-3" /> : <Calculator className="h-4 w-4 text-ink-3" />}
+                    <span className="min-w-0 flex-1 truncate">{t.label}</span>
+                    <span className="t-caption">{ouvertLabel}</span>
+                  </CommandItem>
+                ))}
+                {recentEntries
+                  .filter((r) => !openTabs.some((t) => t.kind === r.kind && t.id === r.id))
+                  .map((r) => (
+                    <CommandItem key={`recent:${r.kind}:${r.id}`} value={`recent:${r.kind}:${r.id}`} onSelect={() => go(TAB_KINDS[r.kind].detailHref(r.id))} className="gap-3">
+                      <Clock className="h-4 w-4 text-ink-3" />
+                      <span className="min-w-0 flex-1 truncate">{r.label}</span>
+                    </CommandItem>
+                  ))}
+              </CommandGroup>
+            )}
+
+            {open && <DossierResults query={query} onPick={pickDossier} />}
+
+            {navMatches.length > 0 && (
+              <CommandGroup heading={t('Aller à')}>
+                {navMatches.map((i) => {
+                  const Icon = i.icon;
+                  return (
+                    <CommandItem key={i.href} value={`nav:${i.href}`} onSelect={() => go(i.href)} className="gap-3">
+                      <Icon className="h-4 w-4 text-ink-3" />
+                      <span className="min-w-0 flex-1 truncate">{i.title ?? i.label}</span>
+                      {i.hotkey && (
+                        <span className="flex items-center gap-1">
+                          {formatKeys(i.hotkey).map((k, idx) => (
+                            <Kbd key={idx}>{k}</Kbd>
+                          ))}
+                        </span>
+                      )}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+
+            {actions.length > 0 && (
+              <CommandGroup heading={t('Actions')}>
+                {actions.map((a) => {
+                  const Icon = a.icon;
+                  return (
+                    <CommandItem key={a.id} value={`action:${a.id}`} onSelect={a.run} className="gap-3">
+                      <Icon className="h-4 w-4 text-ink-3" />
+                      <span className="min-w-0 flex-1 truncate">{a.label}</span>
+                      {a.keys && (
+                        <span className="flex items-center gap-1">
+                          {formatKeys(a.keys).map((k, idx) => (
+                            <Kbd key={idx}>{k}</Kbd>
+                          ))}
+                        </span>
+                      )}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+
+            {q.length >= 3 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading={t('Assistant')}>
+                  <CommandItem value="ai:ask" onSelect={askAssistant} className="gap-3" disabled={aiLoading}>
+                    {/* Neutral icon: sparkle/AI glyphs are banned on actions (element-specs §8). */}
+                    <MessageSquare className="h-4 w-4 text-ink-3" />
+                    <span className="min-w-0 flex-1 truncate">
+                      {aiLoading ? t('Réflexion…') : <>{t('Demander à l’assistant :')} « {q} »</>}
+                    </span>
+                    <ArrowRight className="h-3.5 w-3.5 text-ink-3" />
+                  </CommandItem>
+                  {aiAnswer && <p className="px-3 pb-2 pt-1 text-sm text-ink">{aiAnswer}</p>}
+                </CommandGroup>
+              </>
+            )}
+          </CommandList>
+          <div className="t-caption flex items-center justify-between gap-3 border-t border-hairline px-3 py-2">
+            <span className="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> {t('naviguer')}</span>
+            <span className="flex items-center gap-1.5"><Kbd>↵</Kbd> {t('ouvrir')}</span>
+            <span className="flex items-center gap-1.5"><Kbd>Échap</Kbd> {t('fermer')}</span>
+          </div>
+        </Command>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** @deprecated kept for older imports; the palette is mounted by ShellUiProvider. */
+export default CommandPalette;

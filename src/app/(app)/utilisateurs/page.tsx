@@ -1,19 +1,16 @@
-'use client';
-
+import { Suspense } from 'react';
 import UtilisateursClientPage from './client-page';
-import { useT } from '@/i18n';
+import Loading from './loading';
 
+// The page header (title · count) is rendered by the client page because the
+// count comes from the live users query. The header carries NO action: the
+// page primary is the inline « Ajouter un utilisateur » form's submit
+// (element-specs §1/§8 — one filled button per screen; GOV.UK button:
+// "avoid using multiple default buttons on a single page").
 export default function UtilisateursPage() {
-  const t = useT();
   return (
-    <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t('Utilisateurs')}</h1>
-          <p className="text-muted-foreground">
-            {t('Ajouter, gérer et assigner des rôles aux utilisateurs.')}
-          </p>
-        </div>
+    <Suspense fallback={<Loading />}>
       <UtilisateursClientPage />
-    </div>
+    </Suspense>
   );
 }

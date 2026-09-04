@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
+import { ChevronDown } from 'lucide-react';
 import { useT } from '@/i18n';
-import { cn } from '@/lib/utils';
 import {
   SlotCard,
   type ExtraSlotKind,
@@ -10,6 +10,8 @@ import {
 } from './slot-card';
 import type { DocFamily } from '@/lib/doc-family';
 import { parseAccordDocType } from '@/lib/docType-accorde';
+import { cn } from '@/lib/utils';
+import type { DocDragPayload } from '@/components/documents/typed-doc';
 
 interface FamilyRowProps {
   /** The family group (parent + ordered slot labels) to render as a row. */
@@ -27,11 +29,12 @@ interface FamilyRowProps {
   onCreateNextCardinal: (slot: string) => void;
   onCreateExtraSlot: (kind: ExtraSlotKind, files: File[]) => void;
   onRenameExtraSlot: (slot: string) => void;
-  onPreview: (d: TypedDoc) => void;
+  /** Lightbox open; `pages` (upload order) lets the host enable paging across the slot's files. */
+  onPreview: (d: TypedDoc, pages?: TypedDoc[]) => void;
   /**
-   * Optional action rendered as a floating element absolutely positioned at
-   * the top-right of the family row, overlapping (bleeding into) the slot
-   * cards below. Used on the chiffreur side for the "Éditer web" button.
+   * Optional action rendered inline at the right end of the family header
+   * band (next to the name + pill). Used on the chiffreur side for the
+   * "Éditer web" button. Lives OUTSIDE the collapse toggle button.
    */
   topAction?: React.ReactNode;
   /**
@@ -57,15 +60,22 @@ interface FamilyRowProps {
    * structured editor scoped to that specific slot.
    */
   onEditSlot?: (slot: string) => void;
+  /** Scopes the per-family collapse persistence (sessionStorage). */
+  dossierId?: string;
+  /**
+   * Socket-to-socket drag (reclassify): called with the target slot and the
+   * dragged document payload. Forwarded to each uploadable `SlotCard`.
+   */
+  onDocDrop?: (slot: string, payload: DocDragPayload) => void;
 }
 
 /**
  * Renders a single family (one garage + its accord/proposition variants) as
- * a horizontal row with `overflow-x-auto` so children scroll when they
- * outgrow the container.
- *
- * `topAction`, if provided, is rendered as an absolutely-positioned floating
- * element at the top-right of the row container, overlapping the slot cards.
+ * a collapsible navy header band (chevron · name · ordinal medallion for
+ * extra garages · "n/m reçus" pill · optional `topAction`) followed by a
+ * responsive grid of inventory slot sockets. Collapsing hides the grid and
+ * keeps the band; the state persists per `dossier:family` in sessionStorage
+ * (default expanded).
  */
 export function FamilyRow({
   group,
@@ -88,8 +98,23 @@ export function FamilyRow({
   hideExtraSlotPlus,
   cardinalFilter = 'all',
   onEditSlot,
+  dossierId,
+  onDocDrop,
 }: FamilyRowProps) {
   const t = useT();
+  const storageKey = `docfam-collapsed:${dossierId ?? 'dossier'}:${group.parent}`;
+  const [collapsed, setCollapsed] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try { return window.sessionStorage.getItem(storageKey) === 'true'; } catch { return false; }
+  });
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try { window.sessionStorage.setItem(storageKey, String(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  };
+
   const visibleSlots = cardinalFilter === 'all'
     ? group.slots
     : group.slots.filter((s) => {
@@ -101,35 +126,64 @@ export function FamilyRow({
 
   if (visibleSlots.length === 0) return null;
 
-  const totalDocs = visibleSlots.reduce(
-    (acc, s) => acc + (docsByType[s]?.length || 0),
-    0,
-  );
+  // "n/m reçus" — filled sockets over total sockets in this family.
+  const receivedCount = visibleSlots.filter((s) =>
+    (docsByType[s] || []).some((d) => !!d.url && !d.pendingUpload),
+  ).length;
 
   return (
-    <div className="relative border rounded-lg bg-muted/10 p-2">
-      {topAction && (
-        <div className="absolute top-3 right-3 z-30 drop-shadow-md">
-          {topAction}
-        </div>
-      )}
-      <div className="flex items-center justify-between px-1 pb-2 pr-32">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {t(group.parent)}
-        </h3>
-        <span className="text-[10px] text-muted-foreground font-medium">
-          {totalDocs} doc{totalDocs === 1 ? '' : 's'}
-        </span>
-      </div>
-      <div className="flex gap-3 overflow-x-auto scroll-smooth pb-1 snap-x snap-mandatory">
-        {visibleSlots.map((slot) => (
-          <div
-            key={slot}
+    <section
+      className="space-y-3 border-t border-hairline pt-5 first:border-t-0 first:pt-0"
+      aria-label={t(group.parent)}
+    >
+      {/* Navy header band — the page's third colour. Whole band toggles the
+          collapse; `topAction` sits outside the toggle button. */}
+      <div className="flex min-h-10 items-center gap-2 rounded-lg bg-surface-2 pr-2 text-ink">
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-label={`${collapsed ? t('Développer') : t('Réduire')} ${t(group.parent)}`}
+          className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
+          <ChevronDown
             className={cn(
-              'min-w-[300px] w-[300px] shrink-0 snap-start',
+              'h-4 w-4 shrink-0 text-ink-3 transition-transform duration-150',
+              collapsed && '-rotate-90',
             )}
+            aria-hidden
+          />
+          <h3 className="min-w-0 truncate text-[13px] font-semibold text-ink" title={t(group.parent)}>
+            {t(group.parent)}
+          </h3>
+          {/* Ordinal medallion — extra garages carry their round number. */}
+          {group.parentOrdinal >= 2 && (
+            <span
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-tertiary-bg text-[11px] font-semibold tabular-nums text-tertiary-deep"
+              title={`${t('Garage')} ${group.parentOrdinal}`}
+              aria-label={`${t('Garage numéro')} ${group.parentOrdinal}`}
+            >
+              {group.parentOrdinal}
+            </span>
+          )}
+          <span className="shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-ink-2">
+            {receivedCount}/{visibleSlots.length} {receivedCount > 1 ? t('reçus') : t('reçu')}
+          </span>
+        </button>
+        {topAction && (
+          <div
+            className="ml-auto flex shrink-0 items-center"
+            onClick={(e) => e.stopPropagation()}
           >
+            {topAction}
+          </div>
+        )}
+      </div>
+      {!collapsed && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {visibleSlots.map((slot) => (
             <SlotCard
+              key={slot}
               slot={slot}
               docs={docsByType[slot] || []}
               canEdit={canEdit}
@@ -148,10 +202,11 @@ export function FamilyRow({
               hideCardinalPlus={hideCardinalPlus}
               hideExtraSlotPlus={hideExtraSlotPlus}
               onEdit={onEditSlot ? () => onEditSlot(slot) : undefined}
+              onDocDrop={onDocDrop ? (payload) => onDocDrop(slot, payload) : undefined}
             />
-          </div>
-        ))}
-      </div>
-    </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

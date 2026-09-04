@@ -13,7 +13,7 @@ export function OfflineIndicator() {
 
   if (!isOnline) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-amber-100/60 dark:bg-amber-950/50 border-b border-amber-200/70 dark:border-amber-800/60 text-amber-800 dark:text-amber-200 text-sm">
+      <div role="status" className="flex items-center gap-2 border-b border-status-warning-fg/30 bg-status-warning-bg px-4 py-2 text-[13px] text-status-warning-fg">
         <WifiOff className="h-4 w-4 shrink-0" />
         <span>
           {t('Mode hors ligne — Vos modifications seront synchronisées automatiquement une fois reconnecté.')}
@@ -29,8 +29,8 @@ export function OfflineIndicator() {
 
   // Online but with pending uploads
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-[hsl(var(--primary)/0.08)] text-[hsl(var(--primary))] border-b border-[hsl(var(--primary)/0.2)] text-sm">
-      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+    <div role="status" className="flex items-center gap-2 border-b border-status-info-fg/30 bg-status-info-bg px-4 py-2 text-[13px] text-status-info-fg">
+      <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" />
       <CloudUpload className="h-4 w-4 shrink-0" />
       <span>
         {t('Synchronisation en cours —')} {pendingCount}{' '}

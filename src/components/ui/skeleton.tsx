@@ -6,7 +6,9 @@ function Skeleton({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      // Surface-3 placeholder that pulses (opacity only). Skeleton frames are
+      // solid paper shapes — never glass (the blur would cost GPU for nothing).
+      className={cn("animate-pulse rounded-md bg-surface-3 motion-reduce:animate-none", className)}
       {...props}
     />
   )
@@ -15,7 +17,7 @@ function Skeleton({
 function SkeletonRow({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex h-12 w-full items-center gap-4 border-b border-border/60 px-4", className)}
+      className={cn("flex h-11 w-full items-center gap-4 border-b border-hairline px-4 last:border-b-0", className)}
       {...props}
     >
       <Skeleton className="h-4 w-24" />
@@ -29,7 +31,7 @@ function SkeletonRow({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
 function SkeletonCard({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex flex-col gap-3 rounded-lg border bg-card p-5 shadow-sm", className)}
+      className={cn("flex flex-col gap-3 rounded-xl border border-hairline bg-card p-6", className)}
       {...props}
     >
       <Skeleton className="h-5 w-40" />
@@ -43,7 +45,7 @@ function SkeletonChart({ className, ...props }: React.HTMLAttributes<HTMLDivElem
   const heights = ["40%", "70%", "55%", "85%", "60%"]
   return (
     <div
-      className={cn("flex h-48 w-full items-end gap-3 rounded-lg border bg-card p-4 shadow-sm", className)}
+      className={cn("flex h-48 w-full items-end gap-3 rounded-xl border border-hairline bg-card p-6", className)}
       {...props}
     >
       {heights.map((h, i) => (

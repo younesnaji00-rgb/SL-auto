@@ -1,97 +1,97 @@
 /**
- * Centralized dossier status color mapping for the canonical 15-label set.
- * Returns Tailwind classes for Badge styling with rounded-full pill shape.
- * Palette tuned to the warm cream + teal design system (2026-04-24).
+ * Centralized dossier status colour mapping for the canonical 15-label set.
+ * Every status resolves to one SEMANTIC STATUS PAIR (or the neutral surface
+ * step) — `status-{success,warning,danger,info}-{bg,fg}` from globals.css,
+ * ≥ 4.5:1 in both themes. No palette classes (blueprint §1: semantic colour
+ * is separate from the accent; hand-picked hues were retired 2026-09-01).
  *
- * Family mapping (see task #2 for rationale):
- *   - Création dossier              → neutral/stone (gray-ish)
- *   - Planification programmée *   → sky/blue
- *   - Planification expertise *    → indigo
- *   - Chiffrage en cours           → amber
- *   - Accord / 2ème accord / 3ème accord        → green
- *   - Proposition d'accord / 2ème / 3ème        → teal
- *   - Accord envoyé                             → emerald (closed-ish)
+ * Family → tone (de-saturated 2026-09-03, owner-approved; research
+ * docs/research/dossiers-attention-efficiency.md + dossiers-color-type-polish.md:
+ * colour is the page's only preattentive channel — spend it on the 2–3
+ * states that mean something, keep passive/progress states in ink. Few:
+ * "subdued and neutral, except… especially important"):
+ *   - Création dossier                       → neutral (not started)
+ *   - Planification programmée / expertise   → neutral (scheduled — passive)
+ *   - Proposition d'accord / 2ème / 3ème     → neutral (awaiting the other side)
+ *   - Chiffrage en cours                     → warning (work in flight)
+ *   - Accord / 2ème / 3ème accord            → success (agreed)
+ *   - Accord envoyé                          → success (closed-ish)
+ * The label text always disambiguates the stage within a family.
  */
 
-const ACCORD_GREEN_SET: ReadonlySet<string> = new Set([
+type StatusTone = 'neutral' | 'info' | 'warning' | 'success' | 'danger';
+
+const ACCORD_SET: ReadonlySet<string> = new Set([
   'Accord',
   '2ème accord',
   '3ème accord',
 ]);
 
-const PROPOSITION_TEAL_SET: ReadonlySet<string> = new Set([
+const PROPOSITION_SET: ReadonlySet<string> = new Set([
   'Proposition d\'accord',
   '2ème proposition d\'accord',
   '3ème proposition d\'accord',
 ]);
 
-export function getStatusBadgeStyles(status: string): string {
+/** Family classification shared by the badge, header and dot helpers. */
+export function getStatusTone(status: string): StatusTone {
   const s = (status || '').trim();
-
-  if (s === 'Création dossier') {
-    return 'bg-stone-100 text-stone-700 border-stone-200/70 dark:bg-stone-900/30 dark:text-stone-300 dark:border-stone-700/60';
-  }
-
-  if (s.startsWith('Planification programmée')) {
-    return 'bg-sky-50 text-sky-700 border-sky-200/70 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-800/60';
-  }
-
-  if (s.startsWith('Planification expertise')) {
-    return 'bg-indigo-50 text-indigo-700 border-indigo-200/70 dark:bg-indigo-900/30 dark:text-indigo-200 dark:border-indigo-800/60';
-  }
-
-  if (s === 'Chiffrage en cours') {
-    return 'bg-amber-50 text-amber-700 border-amber-200/70 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/60';
-  }
-
-  if (ACCORD_GREEN_SET.has(s)) {
-    return 'bg-green-50 text-green-700 border-green-200/70 dark:bg-green-900/30 dark:text-green-200 dark:border-green-800/60';
-  }
-
-  if (PROPOSITION_TEAL_SET.has(s)) {
-    return 'bg-teal-50 text-teal-700 border-teal-200/70 dark:bg-teal-900/30 dark:text-teal-200 dark:border-teal-800/60';
-  }
-
-  if (s === 'Accord envoyé') {
-    return 'bg-emerald-50 text-emerald-700 border-emerald-200/70 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-800/60';
-  }
-
-  // --- DEFAULT: warm neutral fallback ---
-  return 'bg-stone-50 text-stone-700 border-stone-200/70 dark:bg-stone-900/30 dark:text-stone-300 dark:border-stone-700/60';
+  if (s === 'Création dossier') return 'neutral';
+  if (s.startsWith('Planification programmée')) return 'neutral';
+  if (s.startsWith('Planification expertise')) return 'neutral';
+  if (s === 'Chiffrage en cours') return 'warning';
+  if (PROPOSITION_SET.has(s)) return 'neutral';
+  if (ACCORD_SET.has(s)) return 'success';
+  if (s === 'Accord envoyé') return 'success';
+  // Réforme = the exceptional verdict (véhicule économiquement irréparable) —
+  // the one state that warrants the danger pair (previously fell through to
+  // neutral, hiding it).
+  if (s === 'Réforme') return 'danger';
+  return 'neutral';
 }
 
-/** Standard className for a colored status pill badge */
-export const STATUS_BADGE_CLASS = 'text-[10px] py-0.5 px-2.5 rounded-full border font-semibold';
+/** Tinted pill: soft bg + deep fg, hairline in the fg colour at 30 %. */
+const BADGE_BY_TONE: Record<StatusTone, string> = {
+  neutral: 'bg-surface-3 text-ink-2 border-transparent',
+  info: 'bg-status-info-bg text-status-info-fg border-status-info-fg/30',
+  warning: 'bg-status-warning-bg text-status-warning-fg border-status-warning-fg/30',
+  success: 'bg-status-success-bg text-status-success-fg border-status-success-fg/30',
+  danger: 'bg-status-danger-bg text-status-danger-fg border-status-danger-fg/30',
+};
+
+/** Solid variant (deep fg as the fill, soft bg as the text) for header bands. */
+const HEADER_BY_TONE: Record<StatusTone, string> = {
+  neutral: 'bg-ink-solid text-on-ink',
+  info: 'bg-status-info-fg text-status-info-bg',
+  warning: 'bg-status-warning-fg text-status-warning-bg',
+  success: 'bg-status-success-fg text-status-success-bg',
+  danger: 'bg-status-danger-fg text-status-danger-bg',
+};
+
+const DOT_BY_TONE: Record<StatusTone, string> = {
+  neutral: 'bg-ink-4',
+  info: 'bg-status-info-fg',
+  warning: 'bg-status-warning-fg',
+  success: 'bg-status-success-fg',
+  danger: 'bg-status-danger-fg',
+};
+
+export function getStatusBadgeStyles(status: string): string {
+  return BADGE_BY_TONE[getStatusTone(status)];
+}
+
+/** Standard className for a status pill badge (11 px / 500, pill). */
+export const STATUS_BADGE_CLASS = 'text-[11px] py-0.5 px-2 rounded-full border font-medium whitespace-nowrap tabular-nums';
 
 /**
- * Saturated, solid header bar (white text) variant. Same family classification
- * as getStatusBadgeStyles so colors stay coordinated across the UI.
+ * Solid header-band variant. Same family classification as
+ * getStatusBadgeStyles so colours stay coordinated across the UI.
  */
 export function getStatusHeaderStyles(status: string): string {
-  const s = (status || '').trim();
-
-  if (s === 'Création dossier') return 'bg-stone-500 text-white';
-  if (s.startsWith('Planification programmée')) return 'bg-sky-600 text-white';
-  if (s.startsWith('Planification expertise')) return 'bg-indigo-600 text-white';
-  if (s === 'Chiffrage en cours') return 'bg-amber-600 text-white';
-  if (ACCORD_GREEN_SET.has(s)) return 'bg-green-600 text-white';
-  if (PROPOSITION_TEAL_SET.has(s)) return 'bg-teal-600 text-white';
-  if (s === 'Accord envoyé') return 'bg-emerald-600 text-white';
-
-  return 'bg-stone-500 text-white';
+  return HEADER_BY_TONE[getStatusTone(status)];
 }
 
-/** Small dot indicator color — same family classification. */
+/** Small dot indicator colour — same family classification. */
 export function getStatusDotColor(status: string): string {
-  const s = (status || '').trim();
-
-  if (s === 'Création dossier') return 'bg-stone-400';
-  if (s.startsWith('Planification programmée')) return 'bg-sky-500';
-  if (s.startsWith('Planification expertise')) return 'bg-indigo-500';
-  if (s === 'Chiffrage en cours') return 'bg-amber-500';
-  if (ACCORD_GREEN_SET.has(s)) return 'bg-green-500';
-  if (PROPOSITION_TEAL_SET.has(s)) return 'bg-teal-500';
-  if (s === 'Accord envoyé') return 'bg-emerald-500';
-
-  return 'bg-stone-400';
+  return DOT_BY_TONE[getStatusTone(status)];
 }

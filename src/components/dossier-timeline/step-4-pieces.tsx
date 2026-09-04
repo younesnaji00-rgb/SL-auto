@@ -2,12 +2,11 @@
 
 import React, { useMemo } from 'react';
 import { collection, type DocumentReference } from 'firebase/firestore';
-import { Camera, ChevronDown, FileText, FolderOpen, Send, Upload } from 'lucide-react';
+import { Camera, ChevronDown, Send, Upload } from 'lucide-react';
 
 import DocumentsTab from '@/app/(app)/dossiers/[id]/documents-tab';
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
-import TypedDocumentsGrid, { REQUIRED_SOURCE_SLOTS, GARAGE_DOC_SLOTS } from './typed-documents-grid';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import TypedDocumentsGrid from './typed-documents-grid';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -16,7 +15,23 @@ import { useT } from '@/i18n';
 import { useAuth, useCollection, useFirestore } from '@/firebase';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { materializeMissing2emeSlots } from '@/lib/cardinal-materialize';
+import { computeRequiredDocsStatus } from '@/lib/required-docs';
+import SmartInbox from './smart-inbox';
 
+/**
+ * Pièces step.
+ *
+ * Default (merged) surface, top → bottom:
+ *   1. Boîte de dépôt (`SmartInbox`) — the import path (AI filing).
+ *   2. Documents browser (`DocumentsTab`) — type list with Reçu / À déposer
+ *      chips, requirement summary, thumbnail grid, manual typed Importer,
+ *      and the single primary "Envoyer vers chiffrage".
+ *   3. Photos collapsible.
+ *
+ * `onlyImportTab` keeps the slot board (`TypedDocumentsGrid`) for the accord /
+ * réforme contexts (steps 6 and 11). The slot-board props below are forwarded
+ * ONLY in that mode; in the merged surface they are accepted but unused.
+ */
 export interface Step4PiecesProps {
   dossierId: string;
   dossier: Record<string, any> | null | undefined;
@@ -24,31 +39,32 @@ export interface Step4PiecesProps {
   readOnly?: boolean;
   onSendToChiffrage?: () => void;
   hidePhotos?: boolean;
+  /** Slot board only (`onlyImportTab`). No-op in the merged surface. */
   hideAccordSlots?: boolean;
+  /** Slot board only (`onlyImportTab`). No-op in the merged surface. */
   showOnlyAccordSlots?: boolean;
   /**
    * When true, the cardinal `+` pimple button on devis/facture accord slots
-   * is not rendered. Forwarded to `TypedDocumentsGrid`. Used by step 6 to
-   * lock the cardinal chain to the current revision.
+   * is not rendered. Forwarded to `TypedDocumentsGrid` (`onlyImportTab`).
+   * Used by step 6 to lock the cardinal chain to the current revision.
    */
   hideCardinalPlus?: boolean;
   /**
    * When true, render only the typed-documents grid directly (no Documents
-   * collapsible header, no Documents/Importer tabs, no DocumentsTab browser).
-   * Used in step 6 (Accord) to surface the import cards as the primary affordance.
+   * browser, no Boîte de dépôt). Used in steps 6 / 11 (Accord) to surface the
+   * import cards as the primary affordance.
    */
   onlyImportTab?: boolean;
-  /** Forwarded to TypedDocumentsGrid → FamilyRow to filter slots by cardinal ordinal. */
-  cardinalFilter?: 'all' | '1-only' | '2-plus';
-  /** Forwarded to TypedDocumentsGrid — render base devis/facture display-only slots. */
-  showBaseGarageSlots?: boolean;
-  /** Forwarded to TypedDocumentsGrid — suppress "Autres documents" section (step 1). */
-  hideOtherSlots?: boolean;
   /**
-   * Forwarded to TypedDocumentsGrid — surface Rapport / Réforme / "Autres
-   * documents" sections in addition to the gated default flow. Used in step 1
-   * (Création de mission) to expose every non-accord document type.
+   * Forwarded to TypedDocumentsGrid → FamilyRow (`onlyImportTab`). Also drives
+   * the 2ème-slot materialisation before sending to chiffrage.
    */
+  cardinalFilter?: 'all' | '1-only' | '2-plus';
+  /** Slot board only (`onlyImportTab`). No-op in the merged surface. */
+  showBaseGarageSlots?: boolean;
+  /** Slot board only (`onlyImportTab`). No-op in the merged surface. */
+  hideOtherSlots?: boolean;
+  /** Slot board only (`onlyImportTab`). No-op in the merged surface. */
   showAllNonAccordSlots?: boolean;
   /**
    * When true, the "Assigner au chiffrage" button (in `onlyImportTab` mode) is
@@ -58,15 +74,21 @@ export interface Step4PiecesProps {
    * first round is in.
    */
   requireFirstAccordFilled?: boolean;
-  /**
-   * Forwarded to TypedDocumentsGrid — surface the Réforme (technique +
-   * économique) row even in `showOnlyAccordSlots` mode. Used in the Accord
-   * step (id 6) so the deposited réforme report shows alongside the accord docs.
-   */
+  /** Slot board only (`onlyImportTab`). No-op in the merged surface. */
   showReformeSlots?: boolean;
+  /**
+   * When true, the merged surface does NOT render its own `SmartInbox` drop
+   * box. Used by step 1's Documents tab, where `Step1Import` already shows
+   * the drop box with AI pre-fill above.
+   */
+  hideInbox?: boolean;
+  /** Replay: frozen documents list forwarded to the slot board / documents browser. */
+  docsOverride?: any[];
+  /** Replay: frozen photos list forwarded to the documents browser / photos section. */
+  photosOverride?: any[];
 }
 
-function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolean, (v: boolean) => void] {
+function useSectionOpen(dossierId: string, key: 'photos'): [boolean, (v: boolean) => void] {
   const storageKey = `pieces-${dossierId}-${key}-open`;
   const [open, setOpen] = React.useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
@@ -80,21 +102,23 @@ function useSectionOpen(dossierId: string, key: 'documents' | 'photos'): [boolea
   return [open, setOpen];
 }
 
-export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, requireFirstAccordFilled, showReformeSlots }: Step4PiecesProps) {
+export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChiffrage, hidePhotos, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, onlyImportTab, cardinalFilter, showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, requireFirstAccordFilled, showReformeSlots, hideInbox, docsOverride, photosOverride }: Step4PiecesProps) {
   const t = useT();
-  const [docsOpen, setDocsOpen] = useSectionOpen(dossierId, 'documents');
   const [photosOpen, setPhotosOpen] = useSectionOpen(dossierId, 'photos');
 
-  // Subscribe to documents so we can gate the "Assigner au chiffrage" button
-  // on (a) the 7 required source slots being filled (item 023) and (b) when
-  // `requireFirstAccordFilled` is set, at least one 1er accord/proposition.
+  // Subscribe to documents so we can gate the "Envoyer / Assigner au
+  // chiffrage" button on (a) the required source slots being filled (item
+  // 023) and (b) when `requireFirstAccordFilled` is set, at least one 1er
+  // accord/proposition.
   const db = useFirestore();
   const auth = useAuth();
   const docsQuery = useMemo(() => {
-    if (!db || !dossierId) return null;
+    if (!db || !dossierId || docsOverride !== undefined) return null;
     return collection(db, 'dossiers', dossierId, 'documents');
-  }, [db, dossierId]);
-  const { data: docs } = useCollection<any>(docsQuery);
+  }, [db, dossierId, docsOverride]);
+  const { data: liveDocs } = useCollection<any>(docsQuery);
+  // Replay override: frozen data — no live subscription.
+  const docs = docsOverride !== undefined ? docsOverride : liveDocs;
   const firstRoundFilled = useMemo(() => {
     if (!requireFirstAccordFilled) return true;
     if (!docs) return false;
@@ -109,29 +133,11 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
     }
     return false;
   }, [docs, requireFirstAccordFilled]);
-  // Item 023 — source-doc slot gating. The 5 mandatory slots must each have
-  // a non-pending document, AND at least one of Devis Garage / Facture
-  // Garage must be filled (either-or). "Autre" is intentionally excluded
-  // (optional slot).
-  const filledTypes = useMemo<Set<string>>(() => {
-    const filled = new Set<string>();
-    if (!docs) return filled;
-    for (const d of docs) {
-      if (!d?.url || d.pendingUpload) continue;
-      const type = (d.type || d.typeDocument || '').trim();
-      if (type) filled.add(type);
-    }
-    return filled;
-  }, [docs]);
-  const missingRequired = useMemo<string[]>(() => {
-    if (!docs) return [...REQUIRED_SOURCE_SLOTS];
-    return REQUIRED_SOURCE_SLOTS.filter((slot) => !filledTypes.has(slot));
-  }, [docs, filledTypes]);
-  const garageFilled = useMemo<boolean>(() => {
-    if (!docs) return false;
-    return GARAGE_DOC_SLOTS.some((slot) => filledTypes.has(slot));
-  }, [docs, filledTypes]);
-  const allRequiredFilled = missingRequired.length === 0 && garageFilled;
+  // Item 023 — shared predicate with the documents browser (`lib/required-docs`).
+  const { missingRequired, garageFilled, allRequiredFilled } = useMemo(
+    () => computeRequiredDocsStatus(docs ?? null),
+    [docs],
+  );
   const assignerDisabled = (!!requireFirstAccordFilled && !firstRoundFilled) || !allRequiredFilled;
 
   const handleSendToChiffrage = async () => {
@@ -147,53 +153,50 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
     onSendToChiffrage();
   };
 
-  if (onlyImportTab) {
-    const showAssigner = !readOnly && !!onSendToChiffrage;
-    const buttonNode = (
-      <Button
-        size="sm"
-        onClick={handleSendToChiffrage}
-        disabled={assignerDisabled}
-        className="gap-1.5"
-        data-tour="dosd-assign-chiffrage"
-      >
-        <Send className="h-3.5 w-3.5" /> {t('Assigner au chiffrage')}
+  // Why the gate is closed — shared by both surfaces.
+  const gateReason = !allRequiredFilled ? (
+    <>
+      {missingRequired.length > 0 && (
+        <>{t('Documents requis manquants')}&nbsp;: {missingRequired.map((s) => t(s)).join(', ')}.</>
+      )}
+      {missingRequired.length > 0 && !garageFilled && <br />}
+      {!garageFilled && (
+        <>{t('Au moins un Devis Garage ou une Facture Garage est requis.')}</>
+      )}
+    </>
+  ) : (
+    <>{t("Au moins un 1er accord ou une 1ère proposition doit être rempli avant d'assigner.")}</>
+  );
+
+  const gatedButton = (label: string, tour?: string) => {
+    const node = (
+      <Button size="sm" onClick={handleSendToChiffrage} disabled={assignerDisabled} className="gap-1.5" data-tour={tour}>
+        <Send className="h-3.5 w-3.5" /> {t(label)}
       </Button>
     );
+    if (!assignerDisabled) return node;
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span tabIndex={0}>{node}</span>
+          </TooltipTrigger>
+          <TooltipContent>{gateReason}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
+  if (onlyImportTab) {
+    const showAssigner = !readOnly && !!onSendToChiffrage;
     return (
       <div className="space-y-4">
         {showAssigner && (
-          <div className="flex justify-end">
-            {assignerDisabled ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span tabIndex={0}>{buttonNode}</span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {!allRequiredFilled ? (
-                      <>
-                        {missingRequired.length > 0 && (
-                          <>{t('Documents requis manquants')}&nbsp;: {missingRequired.map((s) => t(s)).join(', ')}.</>
-                        )}
-                        {missingRequired.length > 0 && !garageFilled && <br />}
-                        {!garageFilled && (
-                          <>{t('Au moins un Devis Garage ou une Facture Garage est requis.')}</>
-                        )}
-                      </>
-                    ) : (
-                      <>{t("Au moins un 1er accord ou une 1ère proposition doit être rempli avant d'assigner.")}</>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : (
-              buttonNode
-            )}
-          </div>
+          <div className="flex justify-end">{gatedButton('Assigner au chiffrage', 'dosd-assign-chiffrage')}</div>
         )}
         <TypedDocumentsGrid
           dossierId={dossierId}
+          docsOverride={docsOverride}
           hideAccordSlots={hideAccordSlots}
           showOnlyAccordSlots={showOnlyAccordSlots}
           hideCardinalPlus={hideCardinalPlus}
@@ -209,57 +212,37 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
 
   return (
     <div className="space-y-8">
-      <Collapsible open={docsOpen} onOpenChange={setDocsOpen}>
-        <CollapsibleTrigger asChild>
-          <button type="button" className="flex items-center gap-2 mb-3 w-full">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-base font-semibold">{t('Documents')}</h3>
-            <ChevronDown className={cn('h-4 w-4 ml-auto transition-transform', !docsOpen && '-rotate-90')} />
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <Tabs defaultValue="browse" className="w-full">
-            <div className="flex items-center justify-between gap-2">
-              <TabsList>
-                <TabsTrigger value="browse" className="gap-1.5">
-                  <FolderOpen className="h-4 w-4" /> {t('Documents')}
-                </TabsTrigger>
-                <TabsTrigger value="import" className="gap-1.5" data-tour="dosd-docs-import-tab">
-                  <Upload className="h-4 w-4" /> {t('Importer un document')}
-                </TabsTrigger>
-              </TabsList>
-              {!readOnly && onSendToChiffrage && (
-                assignerDisabled ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span tabIndex={0}>
-                          <Button size="sm" disabled className="gap-1.5">
-                            <Send className="h-3.5 w-3.5" /> {t('Envoyer vers chiffrage')}
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {t('Documents requis manquants')} : {missingRequired.map((s) => t(s)).join(', ')}.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : (
-                  <Button size="sm" onClick={handleSendToChiffrage} className="gap-1.5">
-                    <Send className="h-3.5 w-3.5" /> {t('Envoyer vers chiffrage')}
-                  </Button>
-                )
+      {/* The picker is the toolbar's action (right end, where the eye lands —
+          user ruling 2026-09-01): solid teal while required pieces are
+          missing, teal tint once all are in. */}
+      <DocumentsTab
+        dossierId={dossierId}
+        docsOverride={docsOverride}
+        photosOverride={photosOverride}
+        primaryAction={
+          !readOnly && (!hideInbox || onSendToChiffrage) ? (
+            <>
+              {!hideInbox && (
+                // `dosd-docs-import-tab` (tour anchor) used to sit on the
+                // "Importer un document" tab; the merged surface replaced the
+                // tabs with this picker, so the anchor rides it.
+                <span data-tour="dosd-docs-import-tab" className="inline-flex">
+                  <SmartInbox
+                    buttonLabel={t('Ajouter des pièces')}
+                    dossierId={dossierId}
+                    dossier={dossier}
+                    readOnly={readOnly}
+                    emphasis={allRequiredFilled ? 'tonal' : 'primary'}
+                    icon={<Upload className="h-4 w-4" />}
+                    className="space-y-0"
+                  />
+                </span>
               )}
-            </div>
-            <TabsContent value="browse" className="mt-4">
-              <DocumentsTab dossierId={dossierId} />
-            </TabsContent>
-            <TabsContent value="import" className="mt-4">
-              <TypedDocumentsGrid dossierId={dossierId} hideAccordSlots={hideAccordSlots} showOnlyAccordSlots={showOnlyAccordSlots} hideCardinalPlus={hideCardinalPlus} cardinalFilter={cardinalFilter} showBaseGarageSlots={showBaseGarageSlots} hideOtherSlots={hideOtherSlots} showAllNonAccordSlots={showAllNonAccordSlots} showReformeSlots={showReformeSlots} />
-            </TabsContent>
-          </Tabs>
-        </CollapsibleContent>
-      </Collapsible>
+              {onSendToChiffrage && gatedButton('Envoyer vers chiffrage')}
+            </>
+          ) : undefined
+        }
+      />
 
       {!hidePhotos && (
         <Collapsible open={photosOpen} onOpenChange={setPhotosOpen}>
@@ -271,7 +254,7 @@ export default function Step4Pieces({ dossierId, readOnly, onSendToChiffrage, hi
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <PhotosTab dossierId={dossierId} />
+            <PhotosTab dossierId={dossierId} photosOverride={photosOverride} />
           </CollapsibleContent>
         </Collapsible>
       )}

@@ -14,7 +14,18 @@ const wordmarkLines = (() => {
   return [first, rest.join(' ')];
 })();
 
-const Logo = ({ collapsed = false, className = '' }: { collapsed?: boolean; className?: string }) => {
+const Logo = ({
+  collapsed = false,
+  className = '',
+  onDark = false,
+}: {
+  collapsed?: boolean;
+  className?: string;
+  /** Render for a dark surface regardless of theme (e.g. the navy sidebar). */
+  onDark?: boolean;
+}) => {
+  const invert = onDark ? 'invert' : 'dark:invert';
+
   if (!BRAND.logoSrc) {
     return (
       <div
@@ -22,7 +33,7 @@ const Logo = ({ collapsed = false, className = '' }: { collapsed?: boolean; clas
         aria-label={BRAND.productName}
       >
         <span
-          className={`shrink-0 grid place-items-center rounded-lg bg-teal-700 text-white font-bold transition-all duration-300 ${
+          className={`shrink-0 grid place-items-center rounded-lg bg-teal-700 text-white font-bold transition-[height,width,font-size] duration-300 motion-reduce:transition-none ${
             collapsed ? 'h-8 w-8 text-base' : 'h-9 w-9 text-lg'
           }`}
           style={{ fontFamily: WORDMARK_FONT }}
@@ -31,11 +42,19 @@ const Logo = ({ collapsed = false, className = '' }: { collapsed?: boolean; clas
         </span>
         {!collapsed && (
           <span className="flex min-w-0 flex-col leading-tight" style={{ fontFamily: WORDMARK_FONT }}>
-            <span className="truncate text-lg font-bold tracking-tight text-foreground">
+            <span
+              className={`truncate text-lg font-bold tracking-tight ${
+                onDark ? 'text-white' : 'text-foreground'
+              }`}
+            >
               {wordmarkLines[0]}
             </span>
             {wordmarkLines[1] && (
-              <span className="truncate text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <span
+                className={`truncate text-[11px] font-medium uppercase tracking-[0.18em] ${
+                  onDark ? 'text-white/70' : 'text-muted-foreground'
+                }`}
+              >
                 {wordmarkLines[1]}
               </span>
             )}
@@ -53,13 +72,13 @@ const Logo = ({ collapsed = false, className = '' }: { collapsed?: boolean; clas
       <img
         src={BRAND.logoSrc}
         alt={BRAND.productName}
-        className={`dark:invert shrink-0 object-contain transition-all duration-300 ${collapsed ? 'h-8 w-8' : 'h-10 w-auto'}`}
+        className={`${invert} shrink-0 object-contain transition-[height,width] duration-300 motion-reduce:transition-none ${collapsed ? 'h-8 w-8' : 'h-10 w-auto'}`}
       />
       {!collapsed && BRAND.logoWordmarkSrc && (
         <img
           src={BRAND.logoWordmarkSrc}
           alt=""
-          className="h-6 w-auto dark:invert min-w-0 object-contain"
+          className={`h-6 w-auto ${invert} min-w-0 object-contain`}
         />
       )}
     </div>

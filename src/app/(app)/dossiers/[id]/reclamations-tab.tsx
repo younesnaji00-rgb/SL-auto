@@ -81,24 +81,33 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
 
     return (
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>{t('Réclamations')}</CardTitle>
-                <Button variant="destructive" size="sm" onClick={handleAdd}><Plus className="mr-2 h-4 w-4" /> {t('Déposer une réclamation')}</Button>
+            <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+                <CardTitle className="flex items-center gap-2">
+                    {t('Réclamations')}
+                    {list && list.length > 0 && (
+                        <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-2">{list.length}</span>
+                    )}
+                </CardTitle>
+                {/* One primary action per block (accent budget) — the réclamation
+                    itself isn't a destructive act. */}
+                <Button size="sm" onClick={handleAdd}><Plus className="mr-2 h-4 w-4" /> {t('Déposer une réclamation')}</Button>
             </CardHeader>
             <CardContent>
-                <div className="space-y-6">
+                <div className="space-y-4">
                     {!list || list.length === 0 ? (
                         <EmptyState
                             key="empty-reclamations"
                             icon={<AlertTriangle />}
                             title={t('Aucune réclamation')}
                             description={t('Déposez une première réclamation avec le bouton ci-dessus.')}
+                            dashed={false}
                         />
                     ) : (
                         list.map((r: any) => (
-                            <div key={r.id} className="p-4 border rounded-lg space-y-4 group relative">
+                            // Nested in paper → hairline outline, never a second tonal card.
+                            <div key={r.id} className="group relative space-y-4 rounded-lg border border-hairline p-4">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                    <div className="t-caption flex items-center gap-3">
                                         {r.createdBy && (
                                             <span className="flex items-center gap-1">
                                                 <User className="h-3 w-3" /> {r.createdBy}
@@ -114,7 +123,7 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7"
+                                            className="h-7 w-7 text-ink-3 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 group-focus-within:opacity-100"
                                             onClick={() => setDeleteId(r.id)}
                                         >
                                             <Trash2 className="h-4 w-4" />

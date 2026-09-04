@@ -6,18 +6,26 @@ import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-150 motion-safe:active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  // Accent budget (DESIGN.md §10): only `default` carries teal. Outline /
+  // secondary / ghost hover on neutral surface steps, never on the accent tint.
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-[color,background-color,border-color,box-shadow,transform] duration-150 motion-safe:active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-primary text-primary-foreground shadow-rim-filled hover:brightness-[1.06] active:brightness-[0.94]",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+          "bg-destructive text-destructive-foreground shadow-rim-filled hover:brightness-[1.06] active:brightness-[0.94]",
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          "bg-card text-ink shadow-rim hover:bg-surface-2 hover:text-ink",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+          "bg-surface-2 text-ink shadow-rim hover:bg-surface-3",
+        // Material 3 "filled tonal": the strongest control inside a section
+        // that is not THE page primary (accent tint, dark-teal text).
+        // Hover/press via brightness like the filled variants (element-specs
+        // §8) — an `/80` alpha would let the page background bleed through
+        // and change the tint per surface.
+        tonal: "bg-accent text-accent-foreground shadow-rim hover:brightness-[1.06] active:brightness-[0.94]",
+        ghost: "text-ink-2 shadow-rim hover:bg-surface-3 hover:text-ink",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

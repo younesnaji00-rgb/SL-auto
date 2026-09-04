@@ -38,10 +38,11 @@ export function useReplayHighlight(): ReplayHighlightValue {
   return useContext(ReplayHighlightContext);
 }
 
+// Semantic status pairs (DESIGN.md §10) — light/dark handled by the tokens.
 const STATUS_BG: Record<Exclude<ChangeStatus, null>, string> = {
-  added: 'bg-green-100/70 ring-1 ring-inset ring-green-400/60 dark:bg-green-900/30 dark:ring-green-600/50',
-  modified: 'bg-yellow-100/70 ring-1 ring-inset ring-yellow-400/60 dark:bg-yellow-900/30 dark:ring-yellow-600/50',
-  removed: 'bg-red-100/70 ring-1 ring-inset ring-red-400/60 dark:bg-red-900/30 dark:ring-red-600/50',
+  added: 'bg-status-success-bg ring-1 ring-inset ring-status-success-fg/30',
+  modified: 'bg-status-warning-bg ring-1 ring-inset ring-status-warning-fg/30',
+  removed: 'bg-status-danger-bg ring-1 ring-inset ring-status-danger-fg/30',
 };
 
 export const STATUS_LABEL: Record<Exclude<ChangeStatus, null>, string> = {
@@ -51,9 +52,9 @@ export const STATUS_LABEL: Record<Exclude<ChangeStatus, null>, string> = {
 };
 
 export const STATUS_TEXT: Record<Exclude<ChangeStatus, null>, string> = {
-  added: 'text-green-700 dark:text-green-300',
-  modified: 'text-yellow-700 dark:text-yellow-300',
-  removed: 'text-red-700 dark:text-red-300',
+  added: 'text-status-success-fg',
+  modified: 'text-status-warning-fg',
+  removed: 'text-status-danger-fg',
 };
 
 /** Tailwind classes for a given change status (empty string when none). */
@@ -68,7 +69,7 @@ export function ChangeBadge({ status, className }: { status: ChangeStatus; class
   return (
     <span
       className={cn(
-        'text-[9px] font-semibold uppercase tracking-wide rounded px-1 py-px',
+        'text-[11px] font-medium rounded px-1 py-px',
         STATUS_TEXT[status],
         className,
       )}

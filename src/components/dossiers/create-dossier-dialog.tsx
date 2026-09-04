@@ -34,6 +34,7 @@ import {
 } from '@/lib/create-empty-dossier';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 import { useT } from '@/i18n';
+import { BRAND } from '@/lib/brand';
 import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 
 // Radix Select disallows empty-string values on <SelectItem>.
@@ -172,6 +173,12 @@ export function CreateDossierDialog({
       );
       resetForm();
       onOpenChange(false);
+      // Arrival moment (motion-spec §1.2 F3 — a dossier is born a few times a
+      // day at most): the detail page reads this flag once and gives the new
+      // ref one teal value-flash so the navigation lands somewhere visibly new.
+      try {
+        window.sessionStorage.setItem('dossier_just_created', id);
+      } catch { /* ignore */ }
       onCreated?.(id);
     } catch (e: any) {
       console.error('Create dossier error:', e);
@@ -189,16 +196,21 @@ export function CreateDossierDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto" {...tourDialogGuard()}>
+      {/* Dialog — element-specs §13 (M3 dialogs: brief headline + one line of
+          supporting text; ≤ 560 px for a form; confirm at the edge with the
+          dismissive `outline` to its left; bottom sheet below `lg`). */}
+      <DialogContent className="max-h-[calc(85vh/var(--app-zoom))] overflow-y-auto lg:max-w-lg" {...tourDialogGuard()}>
         <DialogHeader>
-          <DialogTitle>{t('Nouveau dossier')}</DialogTitle>
+          <DialogTitle className="t-title">{t('Nouveau dossier')}</DialogTitle>
           <DialogDescription>
             {t("Choisissez la compagnie et votre rôle d'expert. Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.")}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-5 py-2">
-          <div className="grid gap-2" data-tour="dos-create-compagnie">
+        {/* Form — element-specs §9 (GOV.UK: visible label above each 40 px
+            control, rows 16 apart, placeholder only as a format cue). */}
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-1" data-tour="dos-create-compagnie">
             <Label htmlFor="create-compagnie">{t('Compagnie')}</Label>
             <Select
               value={compagnie}
@@ -219,7 +231,7 @@ export function CreateDossierDialog({
             </Select>
           </div>
 
-          <div className="grid gap-2" data-tour="dos-create-role">
+          <div className="grid gap-1" data-tour="dos-create-role">
             <Label>{t('Rôle')}</Label>
             <RadioGroup
               value={expertRole}
@@ -231,24 +243,27 @@ export function CreateDossierDialog({
                 <label
                   key={role}
                   htmlFor={`role-${role}`}
-                  className="flex items-center gap-3 rounded-md border p-3 cursor-pointer hover:bg-accent/40"
+                  className="flex cursor-pointer items-center gap-3 rounded-md border border-hairline bg-card p-3 transition-colors hover:bg-surface-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-accent/40"
                 >
                   <RadioGroupItem value={role} id={`role-${role}`} />
-                  <span className="text-sm font-medium">{t(EXPERT_ROLE_LABELS[role])}</span>
+                  <span className="text-sm font-medium text-ink">{t(EXPERT_ROLE_LABELS[role])}</span>
                 </label>
               ))}
             </RadioGroup>
           </div>
 
+          {/* Role sections — flat `surface-2` wells (nested-solid rule inside
+              the glass-strong dialog), `t-heading` title, 16 px between fields. */}
           {rolesToRender.map((role) => (
-            <div
+            <section
               key={role}
-              className="grid gap-3 rounded-md border bg-muted/20 p-3"
+              aria-label={t(EXPERT_ROLE_LABELS[role])}
+              className="grid gap-4 rounded-lg bg-surface-2 p-4"
             >
-              <div className="text-sm font-semibold">{t(EXPERT_ROLE_LABELS[role])}</div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-nom`} className="text-xs">{t('Nom complet')}</Label>
+              <h3 className="t-heading">{t(EXPERT_ROLE_LABELS[role])}</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-1">
+                  <Label htmlFor={`${role}-nom`}>{t('Nom complet')}</Label>
                   <Input
                     id={`${role}-nom`}
                     value={experts[role].nom}
@@ -256,17 +271,19 @@ export function CreateDossierDialog({
                     disabled={isCreating}
                   />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-telephone`} className="text-xs">{t('Téléphone')}</Label>
+                <div className="grid gap-1">
+                  <Label htmlFor={`${role}-telephone`}>{t('Téléphone')}</Label>
                   <Input
                     id={`${role}-telephone`}
+                    type="tel"
+                    placeholder={BRAND.phonePlaceholder}
                     value={experts[role].telephone}
                     onChange={(e) => updateExpert(role, 'telephone', e.target.value)}
                     disabled={isCreating}
                   />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-email`} className="text-xs">{t('Email')}</Label>
+                <div className="grid gap-1">
+                  <Label htmlFor={`${role}-email`}>{t('Email')}</Label>
                   <Input
                     id={`${role}-email`}
                     type="email"
@@ -275,8 +292,8 @@ export function CreateDossierDialog({
                     disabled={isCreating}
                   />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor={`${role}-compagnie`} className="text-xs">{t('Compagnie')}</Label>
+                <div className="grid gap-1">
+                  <Label htmlFor={`${role}-compagnie`}>{t('Compagnie')}</Label>
                   <Input
                     id={`${role}-compagnie`}
                     value={experts[role].compagnie}
@@ -285,11 +302,13 @@ export function CreateDossierDialog({
                   />
                 </div>
               </div>
-            </div>
+            </section>
           ))}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        {/* Footer §13: [Annuler outline] [Créer default] — the dismissive
+            action stays visible (outline, not ghost). */}
+        <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
             {t('Annuler')}
           </Button>

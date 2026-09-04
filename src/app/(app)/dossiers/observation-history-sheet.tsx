@@ -1,13 +1,19 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { Loader2, Inbox } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Sheet } from '@/components/ui/sheet';
 import { useCollection, useFirestore } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
-import { format } from 'date-fns';
-import { useT, dateFnsLocale } from '@/i18n';
+import { UserNameLink } from '@/components/user-name-link';
+import {
+  HistoryEmpty,
+  HistoryLoading,
+  HistoryRow,
+  HistorySheetContent,
+  formatDateTime,
+  toDateSafe,
+} from './status-history-sheet';
+import { useT } from '@/i18n';
 
 type ObservationHistorySheetProps = {
   open: boolean;
@@ -28,68 +34,44 @@ export default function ObservationHistorySheet({ open, onOpenChange, dossier }:
 
   const sortedEntries = useMemo(() => {
     if (!entries) return entries;
-    const tsOf = (e: any) => {
-      const t = e.createdAt;
-      if (!t) return 0;
-      if (t.toMillis) return t.toMillis();
-      if (t.toDate) return t.toDate().getTime();
-      const n = Number(t);
-      return Number.isFinite(n) ? n : 0;
-    };
+    const tsOf = (e: any) => toDateSafe(e.createdAt)?.getTime() ?? 0;
     // Descending — latest observation first.
     return [...entries].sort((a, b) => tsOf(b) - tsOf(a));
   }, [entries]);
 
   if (!dossier) return null;
 
-  const formatDate = (ts: any) => {
-    if (!ts) return '-';
-    const date = ts.toDate ? ts.toDate() : new Date(ts);
-    try { return format(date, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }); } catch { return '-'; }
-  };
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="text-primary">{t('Observations du dossier')}</SheetTitle>
-          <SheetDescription>
-            {dossier.refExpert ? <>{t('Dossier')} <span className="font-semibold text-foreground">{dossier.refExpert}</span></> : t('Historique des observations')}
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="mt-6">
-          {loading ? (
-            <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-          ) : !sortedEntries || sortedEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-              <Inbox className="h-10 w-10 mb-3 opacity-20" />
-              <p className="text-sm">{t('Aucune observation.')}</p>
-            </div>
-          ) : (
-            <div className="relative pl-8">
-              <div className="absolute left-3 top-2 bottom-2 w-px bg-amber-200 dark:bg-amber-900" />
-              <div className="space-y-4">
-                {sortedEntries.map((e: any) => (
-                  <div key={e.id} className="relative">
-                    <div className="absolute -left-[22px] top-3 h-3 w-3 rounded-full bg-amber-500 ring-4 ring-background" />
-                    <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
-                      <div className="px-4 py-2 text-sm font-semibold bg-amber-50/60 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 flex items-center justify-between gap-2">
-                        <span className="truncate">{e.author || '—'}</span>
-                        {e.authorRole && <span className="text-[10px] uppercase tracking-wide opacity-70">{t(e.authorRole)}</span>}
-                      </div>
-                      <div className="p-4 space-y-1.5 text-sm">
-                        <p className="whitespace-pre-wrap break-words">{e.text || '—'}</p>
-                        <p className="text-xs text-muted-foreground">{formatDate(e.createdAt)}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </SheetContent>
+      <HistorySheetContent
+        title={t('Observations du dossier')}
+        description={t('Historique des observations')}
+        refExpert={dossier.refExpert}
+      >
+        {loading ? (
+          <HistoryLoading />
+        ) : !sortedEntries || sortedEntries.length === 0 ? (
+          <HistoryEmpty title={t('Aucune observation')} description={t('Les observations saisies sur le dossier apparaissent ici.')} />
+        ) : (
+          <ul className="divide-y divide-hairline">
+            {sortedEntries.map((e: any) => (
+              <HistoryRow key={e.id} date={e.createdAt}>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="text-sm font-semibold text-ink">
+                    <UserNameLink entry={{ userNom: e.author, user: e.authorEmail }} />
+                  </span>
+                  {e.authorRole && <span className="t-caption">{t(e.authorRole)}</span>}
+                  <span className="t-caption tabular-nums">· {formatDateTime(e.createdAt)}</span>
+                </div>
+                {/* The observation itself is the value: warning pair, like the list chip. */}
+                <p className="whitespace-pre-wrap break-words rounded-md bg-status-warning-bg px-3 py-2 text-sm text-status-warning-fg">
+                  {e.text || '—'}
+                </p>
+              </HistoryRow>
+            ))}
+          </ul>
+        )}
+      </HistorySheetContent>
     </Sheet>
   );
 }

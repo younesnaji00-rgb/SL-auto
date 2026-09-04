@@ -1,6 +1,8 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   collection,
   collectionGroup,
@@ -8,14 +10,27 @@ import {
   orderBy,
   query,
 } from 'firebase/firestore';
-import { Activity, Gauge, Building2, Users, RotateCcw, Search } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-import { startOfDay, endOfDay, startOfWeek, startOfMonth, isSameDay } from 'date-fns';
+import {
+  Activity,
+  Gauge,
+  Building2,
+  Users,
+  RotateCcw,
+  Search,
+  ChevronRight,
+  CheckCircle2,
+} from 'lucide-react';
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
+import { startOfDay, endOfDay, startOfWeek, startOfMonth, isSameDay, format } from 'date-fns';
 import { useT, useLocale, dateFnsLocale, t as tGlobal } from '@/i18n';
 
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useCompagnies } from '@/hooks/use-compagnies';
+import { useHolidays } from '@/hooks/use-holidays';
+import { cn } from '@/lib/utils';
+import { scrollBehavior } from '@/lib/motion';
+import { assureName } from '@/lib/dossier-label';
 import {
   Card,
   CardContent,
@@ -42,10 +57,11 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart';
 import { Button } from '@/components/ui/button';
+import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { EmptyState } from '@/components/ui/empty-state';
-import { SkeletonCard, SkeletonChart } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -59,37 +75,126 @@ import {
   STEP_KEYS,
   STEP_LABELS,
   STEP_LABELS_SHORT,
-  computePerCompagnieCounts,
-  computePerUserCounts,
-  computeStepCounts,
-  computeStepCountsHorsDelai,
   computeStepCountsRealiseAllTime,
   dossiersForStep,
-  dossiersHorsDelai,
   dossiersNotForStep,
   type FunnelDossier,
   type StepKey,
   type WorkflowLog,
 } from './funnel';
+import {
+  STAGE_HAS_SLA,
+  agingItems,
+  buildSlaItems,
+  computeCycleTimes,
+  computeHeadline,
+  computeStepMeasures,
+  dossiersForStepMeasure,
+  computePerCompagnieMeasures,
+  computePerUserMeasures,
+  computeWeeklyTrend,
+  formatBusinessHours,
+  type AgingItem,
+  type ChiffrageAssignment,
+  type TerrainMission,
+  type CycleTimeRow,
+  type GroupMeasures,
+  type Headline,
+  type WeekPoint,
+} from './metrics';
 
 type DrawerMode = 'realise' | 'nonRealise' | 'horsDelai';
 import { DossierDrawer } from './dossier-drawer';
 
 const tabular = { fontVariantNumeric: 'tabular-nums' as const };
 
+type Vue = 'global' | 'compagnie' | 'user';
+const VUES: Vue[] = ['global', 'compagnie', 'user'];
+
 /**
- * Heat-map background for numeric cells. Higher value within a column = greener.
+ * The selected period, printed in the captions ("· 1–7 sept.") so a number two
+ * screens below the filters still says which period it counts (NN/g sticky
+ * headers: persistence only pays when the element is needed constantly — a
+ * self-describing caption costs no screen space).
  */
-const heatStyle = (value: number, max: number): React.CSSProperties | undefined => {
-  if (!value || value <= 0 || max <= 0) return undefined;
-  const intensity = Math.min(value / max, 1);
-  const alpha = 0.08 + intensity * intensity * 0.42;
-  return { backgroundColor: `hsla(150, 55%, 45%, ${alpha})` };
+const formatPeriodLabel = (from: Date | null, to: Date | null): string => {
+  const thisYear = new Date().getFullYear();
+  const day = (d: Date, withMonth: boolean) => {
+    const pattern = withMonth ? (d.getFullYear() === thisYear ? 'd MMM' : 'd MMM yyyy') : 'd';
+    return format(d, pattern, { locale: dateFnsLocale() });
+  };
+  if (!from && !to) return tGlobal('toute la période');
+  if (from && to) {
+    if (isSameDay(from, to)) return day(from, true);
+    const sameMonth = from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear();
+    return sameMonth ? `${day(from, false)}–${day(to, true)}` : `${day(from, true)} – ${day(to, true)}`;
+  }
+  if (from) return `${tGlobal('depuis le')} ${day(from, true)}`;
+  return `${tGlobal("jusqu'au")} ${day(to as Date, true)}`;
 };
+
+/** Funnel step → dossier timeline section (`#step-N` anchors in dossier-timeline/timeline.tsx). */
+const STEP_SECTION: Partial<Record<StepKey, number>> = {
+  photosAvant: 4,
+  photosEnCours: 9,
+  photosApres: 10,
+  accord: 11,
+};
+
+/** Cap for the exception list — beyond this the list is a report, not a to-do. */
+const AGING_LIST_CAP = 50;
+
+/**
+ * First column frozen while the 13-column tables pan sideways (NN/g data
+ * tables: freeze the header column when the table is wider than the screen).
+ * Solid card so rows slide under it; the hairline marks the frozen edge.
+ */
+const STICKY_HEAD = 'sticky left-0 z-[2] min-w-[12rem] border-r border-hairline bg-card';
+const STICKY_CELL =
+  'sticky left-0 z-[1] border-r border-hairline bg-card font-medium [tr:hover_&]:bg-surface-2';
+
+const emptyStepCounts = (): Record<StepKey, number> =>
+  STEP_KEYS.reduce((acc, k) => {
+    acc[k] = 0;
+    return acc;
+  }, {} as Record<StepKey, number>);
+
+/** On-time share over SLA stages (mirrors metrics.ts, recomputed after row merges). */
+const respectOf = (
+  enDelai: Record<StepKey, number>,
+  horsDelai: Record<StepKey, number>,
+): number | null => {
+  let onTime = 0;
+  let late = 0;
+  for (const k of STEP_KEYS) {
+    if (!STAGE_HAS_SLA[k]) continue;
+    onTime += enDelai[k];
+    late += horsDelai[k];
+  }
+  const n = onTime + late;
+  return n === 0 ? null : Math.round((onTime / n) * 100);
+};
+
+/** The dossier objects come straight from Firestore — they carry refExpert / assure at runtime. */
+const dossierRef = (d: FunnelDossier): string => {
+  const raw = (d as any).refExpert;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : d.id;
+};
+const dossierAssure = (d: FunnelDossier): string => assureName((d as any).assure);
 
 interface UserLookup {
   byKey: Map<string, string>;
   roleByKey: Map<string, string>;
+}
+
+interface UserRow {
+  user: string;
+  role?: string;
+  enDelai: Record<StepKey, number>;
+  horsDelai: Record<StepKey, number>;
+  ouverts: number;
+  totalEnDelai: number;
+  respectPct: number | null;
 }
 
 const ROLE_FILTER_ALL = 'Tous';
@@ -122,15 +227,43 @@ export default function MonitoringPage() {
 
   const [dossiers, setDossiers] = useState<FunnelDossier[]>([]);
   const [workflowLogs, setWorkflowLogs] = useState<WorkflowLog[]>([]);
+  // The SLA sources (user ruling): chiffrage assignments + terrain missions.
+  const [chiffrages, setChiffrages] = useState<ChiffrageAssignment[]>([]);
+  const [missions, setMissions] = useState<TerrainMission[]>([]);
   const [users, setUsers] = useState<Array<{ id: string; nom?: string; email?: string; role?: string }>>([]);
   const [loading, setLoading] = useState(true);
 
-  const [dateFrom, setDateFrom] = useState<Date | null>(() => startOfDay(new Date()));
-  const [dateTo, setDateTo] = useState<Date | null>(() => endOfDay(new Date()));
+  // Default = ALL TIME (owner ruling 2026-09-02 — no silent one-day scope);
+  // « Tout » in the preset group brings it back after picking a period.
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
   const [selectedStep, setSelectedStep] = useState<StepKey | null>(null);
   const [selectedStepMode, setSelectedStepMode] = useState<DrawerMode>('realise');
   const [roleFilter, setRoleFilter] = useState<string>(ROLE_FILTER_ALL);
   const [userSearch, setUserSearch] = useState<string>('');
+  // The tab lives in the URL (`?vue=compagnie`) so it survives reload / back and
+  // can be linked from a notification (NN/g tabs: the selected tab is addressable).
+  const [vue, setVue] = useState<Vue>('global');
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('vue');
+    if (v && (VUES as string[]).includes(v)) setVue(v as Vue);
+  }, []);
+  const changeVue = (next: Vue) => {
+    setVue(next);
+    const url = new URL(window.location.href);
+    if (next === 'global') url.searchParams.delete('vue');
+    else url.searchParams.set('vue', next);
+    window.history.replaceState(window.history.state, '', url);
+  };
+  // « En retard aujourd'hui » → the list, whichever tab is open.
+  const jumpToAging = () => {
+    changeVue('global');
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() =>
+        document.getElementById('a-traiter')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' }),
+      ),
+    );
+  };
 
   const openDrawer = (step: StepKey, mode: DrawerMode) => {
     setSelectedStep(step);
@@ -183,10 +316,40 @@ export default function MonitoringPage() {
       },
     );
 
+    // Chiffrage assignments — same collection as the Chiffrage queue.
+    const unsubChiffrages = onSnapshot(
+      collection(db, 'chiffrages'),
+      (snap) => {
+        setChiffrages(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+      },
+      (err) => {
+        console.warn('Monitoring chiffrages sync error:', err);
+      },
+    );
+    // Terrain missions — the planifications of every dossier (collection group,
+    // read-only rule in firestore.rules).
+    const unsubMissions = onSnapshot(
+      collectionGroup(db, 'planifications'),
+      (snap) => {
+        setMissions(
+          snap.docs.map((d) => ({
+            id: d.id,
+            dossierId: d.ref.parent.parent?.id || '',
+            ...(d.data() as any),
+          })),
+        );
+      },
+      (err) => {
+        console.warn('Monitoring planifications sync error:', err);
+      },
+    );
+
     return () => {
       unsubDossiers();
       unsubWorkflow();
       unsubUsers();
+      unsubChiffrages();
+      unsubMissions();
     };
   }, [db, profile]);
 
@@ -223,7 +386,8 @@ export default function MonitoringPage() {
     [dateFrom, dateTo],
   );
 
-  const activePreset = useMemo<'jour' | 'semaine' | 'mois' | 'custom'>(() => {
+  const activePreset = useMemo<'tout' | 'jour' | 'semaine' | 'mois' | 'custom'>(() => {
+    if (!dateFrom && !dateTo) return 'tout';
     if (!dateFrom || !dateTo) return 'custom';
     const now = new Date();
     const today = startOfDay(now);
@@ -237,6 +401,10 @@ export default function MonitoringPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFrom, dateTo, locale]);
 
+  const applyTout = () => {
+    setDateFrom(null);
+    setDateTo(null);
+  };
   const applyJour = () => {
     setDateFrom(startOfDay(new Date()));
     setDateTo(endOfDay(new Date()));
@@ -250,15 +418,29 @@ export default function MonitoringPage() {
     setDateTo(endOfDay(new Date()));
   };
 
-  const globalCounts = useMemo(() => computeStepCounts(dossiers, range), [dossiers, range]);
-  const globalHorsDelaiCounts = useMemo(
-    () => computeStepCountsHorsDelai(dossiers),
-    [dossiers],
-  );
+  // One "now" per data/range change so every "à ce jour" measure agrees.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const now = useMemo(() => new Date(), [dossiers, range]);
+
+  const holidays = useHolidays();
+  // Every deadline on this page is one of these clocks (chiffrage assignment,
+  // terrain mission, création) — the Chiffrage/Terrain queues' own SLA rule.
+  // A clock is late the moment 24 h ouvrées pass without completion — closing it
+  // later never clears it (user ruling); a period counts the clocks ACTIVE in it
+  // (open or closed inside it), the same set the queues show.
+  const sla = useMemo(() => buildSlaItems(dossiers, chiffrages, missions, holidays, now), [dossiers, chiffrages, missions, holidays, now]);
+  // One time base for the tiles: green and amber both count completions in the period.
+  const stepMeasures = useMemo(() => computeStepMeasures(dossiers, range, sla), [dossiers, range, sla]);
+  const globalCounts = stepMeasures.enDelai;
+  const globalHorsDelaiCounts = stepMeasures.horsDelai;
   const globalRealiseAllTime = useMemo(
     () => computeStepCountsRealiseAllTime(dossiers),
     [dossiers],
   );
+  const headline = useMemo(() => computeHeadline(dossiers, range, now, sla, holidays), [dossiers, range, now, sla, holidays]);
+  const aging = useMemo(() => agingItems(sla, now, holidays), [sla, now, holidays]);
+  const cycleTimes = useMemo(() => computeCycleTimes(dossiers, range, sla, holidays), [dossiers, range, sla, holidays]);
+  const weeklyTrend = useMemo(() => computeWeeklyTrend(dossiers, range, now), [dossiers, range, now]);
   const scopedCompagnieNames = useMemo(() => {
     const allowed = (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim());
     const names = allCompagnies.map((c) => c.nom).filter((n): n is string => !!n);
@@ -266,26 +448,21 @@ export default function MonitoringPage() {
     return names.filter((n) => allowed.includes(n.toLowerCase().trim()));
   }, [allCompagnies, profile]);
   const perCompagnie = useMemo(
-    () => computePerCompagnieCounts(dossiers, range, scopedCompagnieNames),
-    [dossiers, range, scopedCompagnieNames],
+    () => computePerCompagnieMeasures(dossiers, range, sla, scopedCompagnieNames),
+    [dossiers, range, sla, scopedCompagnieNames],
   );
   const perUser = useMemo(
-    () => computePerUserCounts(dossiers, workflowLogs, range),
-    [dossiers, workflowLogs, range],
+    () => computePerUserMeasures(dossiers, workflowLogs, range, sla),
+    [dossiers, workflowLogs, range, sla],
   );
   // Merge rows that resolve to the same display name (e.g. one row keyed by
   // Firebase UID for `createdBy` + another row keyed by email for
   // `lastStatusChange.by` are the same person).
   const dedupedPerUser = useMemo(() => {
-    const merged = new Map<string, {
-      user: string;
-      role?: string;
-      realise: Record<StepKey, number>;
-      totalRealise: number;
-    }>();
+    const merged = new Map<string, UserRow>();
     for (const r of perUser) {
-      const name = resolveUserName(r.user, userLookup);
-      const trimmed = (r.user || '').trim();
+      const name = resolveUserName(r.group, userLookup);
+      const trimmed = (r.group || '').trim();
       const role =
         userLookup.roleByKey.get(trimmed) ??
         userLookup.roleByKey.get(trimmed.toLowerCase()) ??
@@ -293,16 +470,23 @@ export default function MonitoringPage() {
       const existing = merged.get(name);
       if (existing) {
         for (const key of STEP_KEYS) {
-          existing.realise[key] += r.realise[key];
+          existing.enDelai[key] += r.enDelai[key];
+          existing.horsDelai[key] += r.horsDelai[key];
         }
-        existing.totalRealise += r.totalRealise;
+        existing.totalEnDelai += r.totalEnDelai;
+        // Same person under two keys: the open sets may overlap, the sum is an upper bound.
+        existing.ouverts += r.ouverts;
+        existing.respectPct = respectOf(existing.enDelai, existing.horsDelai);
         if (!existing.role && role) existing.role = role;
       } else {
         merged.set(name, {
           user: name,
           role,
-          realise: { ...r.realise },
-          totalRealise: r.totalRealise,
+          enDelai: { ...r.enDelai },
+          horsDelai: { ...r.horsDelai },
+          ouverts: r.ouverts,
+          totalEnDelai: r.totalEnDelai,
+          respectPct: r.respectPct,
         });
       }
     }
@@ -320,14 +504,14 @@ export default function MonitoringPage() {
       merged.set(name, {
         user: name,
         role: u.role,
-        realise: STEP_KEYS.reduce((acc, k) => {
-          acc[k] = 0;
-          return acc;
-        }, {} as Record<StepKey, number>),
-        totalRealise: 0,
+        enDelai: emptyStepCounts(),
+        horsDelai: emptyStepCounts(),
+        ouverts: 0,
+        totalEnDelai: 0,
+        respectPct: null,
       });
     }
-    return Array.from(merged.values()).sort((a, b) => b.totalRealise - a.totalRealise);
+    return Array.from(merged.values()).sort((a, b) => b.totalEnDelai - a.totalEnDelai);
   }, [perUser, userLookup, users]);
 
   const filteredPerUser = useMemo(() => {
@@ -344,71 +528,74 @@ export default function MonitoringPage() {
   const drawerRows = useMemo(() => {
     if (!selectedStep) return [];
     if (selectedStepMode === 'horsDelai') {
-      return dossiersHorsDelai(dossiers, workflowLogs, selectedStep);
+      return dossiersForStepMeasure(dossiers, workflowLogs, sla, range, selectedStep, 'horsDelai');
     }
     if (selectedStepMode === 'nonRealise') {
       return dossiersNotForStep(dossiers, workflowLogs, selectedStep);
     }
+    // Same rows as the green bar: SLA steps from the clocks, the rest from the funnel.
+    if (STAGE_HAS_SLA[selectedStep]) {
+      return dossiersForStepMeasure(dossiers, workflowLogs, sla, range, selectedStep, 'enDelai');
+    }
     return dossiersForStep(dossiers, workflowLogs, range, selectedStep);
-  }, [selectedStep, selectedStepMode, dossiers, workflowLogs, range]);
+  }, [selectedStep, selectedStepMode, dossiers, workflowLogs, range, sla]);
 
   const totalDossiersInScope = dossiers.length;
+  const periodLabel = useMemo(() => formatPeriodLabel(dateFrom, dateTo), [dateFrom, dateTo]);
 
   const resetRange = () => {
-    setDateFrom(startOfDay(new Date()));
-    setDateTo(endOfDay(new Date()));
+    // Reset = the default = all time (owner 2026-09-02).
+    setDateFrom(null);
+    setDateTo(null);
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <header className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="font-headline text-2xl font-semibold tracking-tight">{t("Suivi d'équipe")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t('Funnel des étapes — combien de dossiers ont franchi chaque étape.')}
-          </p>
-        </div>
+    <div className="space-y-8">
+      <PageHeader
+        title={t("Suivi d'équipe")}
+        subtitle={t('Étapes franchies et délais tenus — les délais sont ceux des assignations chiffrage et terrain (24 h ouvrées).')}
+        filters={
         <div data-tour="mon-periode" className="flex flex-wrap items-end gap-2">
-          <div className="flex items-center gap-1 rounded-md border p-0.5 self-end h-10">
-            <Button
-              size="sm"
-              variant={activePreset === 'jour' ? 'default' : 'ghost'}
-              className="h-8"
-              onClick={applyJour}
-            >
-              {t('Jour')}
-            </Button>
-            <Button
-              size="sm"
-              variant={activePreset === 'semaine' ? 'default' : 'ghost'}
-              className="h-8"
-              onClick={applySemaine}
-            >
-              {t('Semaine')}
-            </Button>
-            <Button
-              size="sm"
-              variant={activePreset === 'mois' ? 'default' : 'ghost'}
-              className="h-8"
-              onClick={applyMois}
-            >
-              {t('Mois')}
-            </Button>
-            <Button
-              size="sm"
-              variant={activePreset === 'custom' ? 'default' : 'ghost'}
-              className="h-8"
-              disabled
-            >
-              {t('Personnalisé')}
-            </Button>
+          {/* Sliding thumb carries the selection (motion-spec addendum ter);
+              the buttons stay ghost and only recolour. « Tout » = the all-time
+              default (owner 2026-09-02). */}
+          <div className="relative isolate flex h-10 items-center gap-1 self-end rounded-md bg-surface-2 p-0.5" role="group" aria-label={t('Période')}>
+            <SlidingThumb className="rounded-md bg-primary shadow-rim-filled" deps={[activePreset]} />
+            {(
+              [
+                ['tout', 'Tout', applyTout, false],
+                ['jour', 'Jour', applyJour, false],
+                ['semaine', 'Semaine', applySemaine, false],
+                ['mois', 'Mois', applyMois, false],
+                ['custom', 'Personnalisé', undefined, true],
+              ] as const
+            ).map(([key, label, onClick, disabled]) => {
+              const active = activePreset === key;
+              return (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant="ghost"
+                  className={cn(
+                    'relative z-[1] h-8',
+                    active && 'text-primary-foreground hover:bg-transparent hover:text-primary-foreground',
+                  )}
+                  data-seg-active={active || undefined}
+                  aria-pressed={active}
+                  onClick={onClick}
+                  disabled={disabled && !active}
+                >
+                  {t(label)}
+                </Button>
+              );
+            })}
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('Du')}</label>
+            <label className="t-label">{t('Du')}</label>
             <DatePicker value={dateFrom} onChange={setDateFrom} placeholder={t('Date de début')} className="w-44" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('Au')}</label>
+            <label className="t-label">{t('Au')}</label>
             <DatePicker value={dateTo} onChange={setDateTo} placeholder={t('Date de fin')} className="w-44" />
           </div>
           <Button variant="outline" size="sm" onClick={resetRange} className="h-10">
@@ -416,9 +603,29 @@ export default function MonitoringPage() {
             {t('Réinitialiser')}
           </Button>
         </div>
-      </header>
+        }
+      />
 
-      <Tabs defaultValue="global" className="space-y-4">
+      {/* Page summary (Few: summary before detail) — above the tabs so the four
+          numbers stay in view while a breakdown is compared against them
+          (NN/g tabs: never make the reader switch tabs to compare). */}
+      {loading ? (
+        <div aria-busy="true" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="paper space-y-3 p-4">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-9 w-16" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        totalDossiersInScope > 0 && (
+          <HeadlineRow headline={headline} periodLabel={periodLabel} onJumpToAging={jumpToAging} />
+        )
+      )}
+
+      <Tabs value={vue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-6">
         <TabsList data-tour="mon-tabs">
           <TabsTrigger value="global" data-tour="mon-tab-global" className="gap-2">
             <Gauge className="h-4 w-4" />
@@ -434,12 +641,49 @@ export default function MonitoringPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="global" className="space-y-4">
+        <TabsContent value="global" className="space-y-6">
           {loading ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {Array.from({ length: STEP_KEYS.length }).map((_, i) => (
-                <SkeletonCard key={i} />
-              ))}
+            <div aria-busy="true" className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+                {Array.from({ length: STEP_KEYS.length }).map((_, i) => (
+                  <div key={i} className="paper space-y-3 p-4">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-7 w-16" />
+                    <Skeleton className="h-2 w-full" />
+                    <Skeleton className="h-2 w-full" />
+                  </div>
+                ))}
+              </div>
+              <div className="paper p-5">
+                <Skeleton className="mb-4 h-4 w-40" />
+                <Skeleton className="h-64 w-full" />
+              </div>
+              {/* À traiter + Délais par étape */}
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="paper p-5 lg:col-span-2">
+                  <Skeleton className="mb-4 h-4 w-44" />
+                  <div className="space-y-3">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4">
+                        <Skeleton className="h-10 w-14 rounded-lg" />
+                        <Skeleton className="h-4 flex-1" />
+                        <Skeleton className="h-4 w-20" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="paper p-5">
+                  <Skeleton className="mb-4 h-4 w-32" />
+                  <div className="space-y-3">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4">
+                        <Skeleton className="h-4 flex-1" />
+                        <Skeleton className="h-4 w-10" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <GlobalView
@@ -447,20 +691,24 @@ export default function MonitoringPage() {
               horsDelaiCounts={globalHorsDelaiCounts}
               realiseAllTimeCounts={globalRealiseAllTime}
               totalDossiers={totalDossiersInScope}
+              periodLabel={periodLabel}
+              aging={aging}
+              cycleTimes={cycleTimes}
+              trend={weeklyTrend}
               loading={loading}
               onSelectStep={openDrawer}
             />
           )}
         </TabsContent>
 
-        <TabsContent value="compagnie" className="space-y-4">
-          <CompagnieView rows={perCompagnie} loading={loading} />
+        <TabsContent value="compagnie" className="space-y-6">
+          <CompagnieView rows={perCompagnie} loading={loading} periodLabel={periodLabel} />
         </TabsContent>
 
-        <TabsContent value="user" className="space-y-4">
+        <TabsContent value="user" className="space-y-6">
           <div data-tour="mon-user-filtres" className="flex flex-wrap items-end gap-2">
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('Rôle')}</label>
+              <label className="t-label">{t('Rôle')}</label>
               <Select value={roleFilter} onValueChange={setRoleFilter}>
                 <SelectTrigger className="h-10 w-56">
                   <SelectValue />
@@ -476,9 +724,9 @@ export default function MonitoringPage() {
               </Select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t('Utilisateur')}</label>
+              <label className="t-label">{t('Utilisateur')}</label>
               <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
                 <Input
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
@@ -488,7 +736,7 @@ export default function MonitoringPage() {
               </div>
             </div>
           </div>
-          <UserView rows={filteredPerUser} loading={loading} userLookup={userLookup} />
+          <UserView rows={filteredPerUser} loading={loading} userLookup={userLookup} periodLabel={periodLabel} />
         </TabsContent>
       </Tabs>
 
@@ -509,6 +757,10 @@ function GlobalView({
   horsDelaiCounts,
   realiseAllTimeCounts,
   totalDossiers,
+  periodLabel,
+  aging,
+  cycleTimes,
+  trend,
   loading,
   onSelectStep,
 }: {
@@ -516,18 +768,15 @@ function GlobalView({
   horsDelaiCounts: Record<StepKey, number>;
   realiseAllTimeCounts: Record<StepKey, number>;
   totalDossiers: number;
+  periodLabel: string;
+  aging: AgingItem[];
+  cycleTimes: CycleTimeRow[];
+  trend: WeekPoint[];
   loading: boolean;
   onSelectStep: (step: StepKey, mode: DrawerMode) => void;
 }) {
   const t = useT();
-  const chartData = STEP_KEYS.map((key) => ({
-    step: t(STEP_LABELS_SHORT[key]),
-    value: counts[key],
-  }));
-
-  const chartConfig = {
-    value: { label: t('Dossiers'), color: 'hsl(var(--chart-5))' },
-  };
+  const volumeMax = Math.max(0, ...STEP_KEYS.map((key) => counts[key]));
 
   if (totalDossiers === 0 && !loading) {
     return (
@@ -541,7 +790,11 @@ function GlobalView({
 
   return (
     <>
-      <div data-tour="mon-kpis" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPI tiles: one paper card per step in a 16 px gutter grid (Carbon KPI tiles,
+          Material cards) — the card edge is the separation (user ruling: a clear
+          separation on each card). Never the featured surface for a row of tiles.
+          Ten steps → 5 × 2 from xl so the grid ends on a full row. */}
+      <div data-tour="mon-kpis" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
         {STEP_KEYS.map((key, idx) => {
           const realiseEnDelai = counts[key];
           const horsDelai = horsDelaiCounts[key] ?? 0;
@@ -553,6 +806,7 @@ function GlobalView({
               key={key}
               index={idx + 1}
               label={t(STEP_LABELS[key])}
+              hasSla={STAGE_HAS_SLA[key]}
               realiseEnDelai={realiseEnDelai}
               horsDelai={horsDelai}
               nonRealise={nonRealise}
@@ -565,36 +819,172 @@ function GlobalView({
         })}
       </div>
 
+      {/* Volume (throughput) and Délais (cycle time) are the two per-stage
+          period measures → one shared row, half width each (owner 2026-09-02:
+          the bar list alone was too big for its data). items-start: each card
+          hugs its content instead of stretching to the taller table. */}
+      <div className="grid items-start gap-6 lg:grid-cols-2">
       <Card data-tour="mon-chart">
         <CardHeader>
-          <CardTitle className="text-base">{t('Volume par étape')}</CardTitle>
+          <CardTitle>{t('Volume par étape')}</CardTitle>
+          <p className="t-caption">{t('Étapes franchies en délai')} · {periodLabel}</p>
         </CardHeader>
         <CardContent>
-          {chartData.every((d) => d.value === 0) ? (
+          {volumeMax === 0 ? (
             <EmptyState
               title={t('Aucune activité dans cette plage')}
               description={t("Aucun dossier n'a réalisé une étape dans la période sélectionnée.")}
             />
           ) : (
-            <ChartContainer config={chartConfig} className="h-72 w-full">
-              <BarChart data={chartData} margin={{ top: 8, right: 16, left: -8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="step" tickLine={false} axisLine={false} fontSize={12} />
-                <YAxis tickLine={false} axisLine={false} fontSize={12} allowDecimals={false} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ChartContainer>
+            /* Horizontal bar list, pipeline order (owner ruling 2026-09-02;
+               Few / NN/g / Datawrapper): many categories with long French
+               labels → horizontal bars from a shared zero baseline, the count
+               printed at the bar tip instead of an axis + hover tooltip. The
+               faint full-width track carries the shared scale; the busiest
+               stage alone gets the deeper teal. */
+            <div className="space-y-0.5">
+              {STEP_KEYS.map((key) => {
+                const value = counts[key];
+                const frac = value / volumeMax;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => onSelectStep(key, 'realise')}
+                    title={`${t(STEP_LABELS[key])} : ${value} ${t('en délai — voir les dossiers')}`}
+                    className="flex w-full items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {/* Half-width card: the label column tightens (full name in the title). */}
+                    <span className="w-36 shrink-0 truncate text-xs text-ink-2 xl:w-44">
+                      {t(STEP_LABELS[key])}
+                    </span>
+                    <span className="relative block h-6 min-w-0 flex-1">
+                      {/* 2.25rem right reserve keeps the tip label inside the card at 100 %. */}
+                      <span
+                        className="absolute inset-y-[7px] left-0 right-9 rounded-full bg-surface-3/70"
+                        aria-hidden
+                      />
+                      {value > 0 && (
+                        <span
+                          className={cn(
+                            'absolute inset-y-[7px] left-0 rounded-full',
+                            value === volumeMax ? 'bg-primary' : 'bg-chart-1',
+                          )}
+                          style={{ width: `calc((100% - 2.25rem) * ${frac})` }}
+                          aria-hidden
+                        />
+                      )}
+                      <span
+                        className={cn(
+                          'absolute inset-y-0 flex items-center pl-2 text-xs font-semibold tabular-nums',
+                          value === 0 ? 'text-ink-4' : 'text-ink',
+                        )}
+                        style={{ left: `calc((100% - 2.25rem) * ${frac})` }}
+                      >
+                        {value}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
+      <CycleTimeCard rows={cycleTimes} periodLabel={periodLabel} />
+      </div>
+
+      {/* NN/g dashboards: exceptions (what is late now) sit above trends. */}
+      <AgingCard items={aging} />
+
+      <TrendCard points={trend} />
     </>
+  );
+}
+
+/**
+ * Headline row — Few: a dashboard is summary + exception on one screen; NN/g: the
+ * top-left carries the few numbers that matter (≤ 5–7 headline KPIs). Kanban flow
+ * metrics: throughput (période), SLA compliance (période), WIP (now), age (now).
+ */
+function HeadlineRow({
+  headline,
+  periodLabel,
+  onJumpToAging,
+}: {
+  headline: Headline;
+  periodLabel: string;
+  onJumpToAging: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <HeadlineTile label={t('Dossiers traités')} value={headline.traites} caption={`${t('rapport déposé')} · ${periodLabel}`} />
+      <HeadlineTile
+        label={t('Respect des délais')}
+        value={headline.respectPct == null ? '—' : `${headline.respectPct} %`}
+        title={t('Assignations chiffrage · terrain · création, 24 h ouvrées')}
+        caption={
+          headline.respectPct == null
+            ? `${t('aucune assignation décidée')}${headline.respectPending > 0 ? ` · ${headline.respectPending} ${t('en attente')}` : ''} · ${periodLabel}`
+            : `${headline.respectOnTime} ${t('en délai')} · ${headline.respectLate} ${t('hors délai')}${headline.respectPending > 0 ? ` · ${headline.respectPending} ${t('en attente')}` : ''} · ${periodLabel}`
+        }
+      />
+      <HeadlineTile label={t('En attente')} value={headline.enAttente} caption={`${t('sans rapport déposé')} · ${t("aujourd'hui")}`} />
+      {/* Exception tile — the status colour only when there IS an exception (Few:
+          bright colour for highlighting only; no red/green pair), and a jump to the list. */}
+      <Card className="min-w-0 p-0">
+        <button
+          type="button"
+          onClick={onJumpToAging}
+          className="block w-full rounded-xl p-4 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title={t("Voir la liste « À traiter aujourd'hui »")}
+        >
+          <p className="t-label">{t("En retard aujourd'hui")}</p>
+          <p
+            className={cn(
+              'mt-2 text-[36px] font-semibold leading-none',
+              headline.enRetard > 0 ? 'text-status-danger-fg' : 'text-ink',
+            )}
+          >
+            {headline.enRetard}
+          </p>
+          <p className="t-caption mt-2">{t('assignations au-delà de 24 h ouvrées · maintenant')}</p>
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+/**
+ * Headline stat tile — label · 36 px proportional figure (M3 display-small; the
+ * summary tier above the 24 px step tiles) · caption. 16 px padding (Carbon
+ * tile / M3 card); content cards keep 24.
+ */
+function HeadlineTile({
+  label,
+  value,
+  caption,
+  title,
+}: {
+  label: string;
+  value: number | string;
+  caption: string;
+  title?: string;
+}) {
+  return (
+    <Card className="min-w-0 p-4" title={title}>
+      <p className="t-label">{label}</p>
+      <p className="mt-2 text-[36px] font-semibold leading-none text-ink">{value}</p>
+      <p className="t-caption mt-2">{caption}</p>
+    </Card>
   );
 }
 
 function KpiCard({
   index,
   label,
+  hasSla,
   realiseEnDelai,
   horsDelai,
   nonRealise,
@@ -605,6 +995,7 @@ function KpiCard({
 }: {
   index: number;
   label: string;
+  hasSla: boolean;
   realiseEnDelai: number;
   horsDelai: number;
   nonRealise: number | null;
@@ -620,116 +1011,344 @@ function KpiCard({
   const pctNonRealise = nonRealise != null ? (nonRealise / denominator) * 100 : 0;
 
   return (
-    <Card className="overflow-hidden transition hover:border-primary/40 hover:shadow-sm">
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary"
-            style={tabular}
-          >
-            {index}
-          </span>
-          <CardTitle className="text-sm font-semibold">{label}</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-1.5 pb-3">
+    <Card className="min-w-0 p-4">
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] font-semibold text-ink-2 shadow-rim"
+          style={tabular}
+        >
+          {index}
+        </span>
+        <p className="t-label truncate">{label}</p>
+      </div>
+      {/* Stat-tile value: 24 px (M3 headline-small — the detail tier under the 36 px
+          headline row), sans semibold, proportional figures (tabular only in columns). */}
+      <p className="mt-2 text-2xl font-semibold leading-none text-ink">
+        {realiseEnDelai}
+        <span className="t-caption ml-1.5 font-normal">{t('en délai')}</span>
+      </p>
+      <div className="mt-3 space-y-1.5">
+        {/* Magnitude in the accent hue, not a status green: ten green bars on one
+            screen would leave nothing to highlight (Few). Amber is the page's one
+            status colour — the exception. */}
         <KpiBarRow
           label={t('en délai')}
           count={realiseEnDelai}
           pct={pctEnDelai}
-          fillClass="bg-emerald-500"
-          textClass="text-emerald-700 dark:text-emerald-300"
-          swatchClass="bg-emerald-500"
+          fillClass="bg-chart-1"
           onClick={onSelectRealise}
         />
-        <KpiBarRow
-          label={t('hors délai')}
-          count={horsDelai}
-          pct={pctHorsDelai}
-          fillClass="bg-amber-500"
-          textClass="text-amber-700 dark:text-amber-300"
-          swatchClass="bg-amber-500"
-          onClick={onSelectHorsDelai}
-        />
-        {nonRealise != null && (
+        {hasSla ? (
           <KpiBarRow
-            label={t('non réalisé')}
+            label={t('hors délai')}
+            title={t('Délai de 24 h ouvrées dépassé — assignation clôturée ou non')}
+            count={horsDelai}
+            pct={pctHorsDelai}
+            fillClass="bg-status-warning-fg"
+            onClick={onSelectHorsDelai}
+          />
+        ) : (
+          // No SLA on this stage: say so instead of a false amber zero (keeps tile height).
+          <div className="flex items-center gap-2 text-[11px] text-ink-4">
+            <span className="inline-block h-2 w-2 shrink-0 rounded-sm bg-surface-3" aria-hidden />
+            <span className="t-caption text-ink-4">{t('Pas de délai défini')}</span>
+          </div>
+        )}
+        {nonRealise != null && (
+          // Backlog measure (Kanban WIP): counted as of today, not over the period.
+          <KpiBarRow
+            label={t('en attente')}
+            title={t('Non réalisé à ce jour (hors période)')}
             count={nonRealise}
             pct={pctNonRealise}
-            fillClass="bg-muted-foreground/30"
-            textClass="text-muted-foreground"
-            swatchClass="bg-muted-foreground/30"
+            fillClass="bg-ink-4"
             onClick={onSelectNonRealise}
           />
         )}
-      </CardContent>
+      </div>
     </Card>
   );
 }
 
 function KpiBarRow({
   label,
+  title,
   count,
   pct,
   fillClass,
-  textClass,
-  swatchClass,
   onClick,
 }: {
   label: string;
+  title?: string;
   count: number;
   pct: number;
   fillClass: string;
-  textClass: string;
-  swatchClass: string;
   onClick: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 text-[10px]">
-      <span className={`flex w-20 shrink-0 items-center gap-1 ${textClass}`}>
-        <span className={`inline-block h-2 w-2 rounded-sm ${swatchClass}`} />
-        <span>{label}</span>
+    <div className="flex items-center gap-2 text-[11px] text-ink-3" title={title}>
+      <span className="flex w-20 shrink-0 items-center gap-1.5">
+        <span className={`inline-block h-2 w-2 shrink-0 rounded-sm ${fillClass}`} aria-hidden />
+        <span className="truncate">{label}</span>
       </span>
-      <div className="relative h-3 flex-1 overflow-hidden rounded-md border border-border/40 bg-muted">
+      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-surface-3">
         {pct > 0 && (
           <button
             type="button"
             onClick={onClick}
-            className={`absolute inset-y-0 left-0 ${fillClass} transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+            className={`absolute inset-y-0 left-0 rounded-full ${fillClass} transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
             style={{ width: `${pct}%` }}
-            title={`${label} : ${count}`}
+            title={title ? `${title} : ${count}` : `${label} : ${count}`}
           />
         )}
       </div>
-      <span className="w-6 shrink-0 text-right font-semibold tabular-nums text-foreground">
+      <span className="w-6 shrink-0 text-right font-semibold tabular-nums text-ink">
         {count}
       </span>
     </div>
   );
 }
 
+/**
+ * « À traiter aujourd'hui » — Kanban work-item age (ProKanban): the LEADING
+ * indicator, what is past the SLA right now and not done. Row anatomy follows
+ * the planification date-block pattern (tinted block + rim as the row anchor).
+ */
+function AgingCard({ items, className }: { items: AgingItem[]; className?: string }) {
+  const t = useT();
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
+  /* Owner rollup (owner ruling 2026-09-02, «À traiter» option 2 — support-desk
+     queue practice: the LIST stays flat and oldest-first, grouping lives in a
+     filter layer above it). '' keys the unassigned bucket. */
+  const owners = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const it of items) {
+      const k = it.owner ?? '';
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'fr'));
+  }, [items]);
+  // A stale filter (its owner cleared their queue) silently deactivates.
+  const activeOwner =
+    ownerFilter != null && owners.some(([k]) => k === ownerFilter) ? ownerFilter : null;
+  const filtered =
+    activeOwner == null ? items : items.filter((it) => (it.owner ?? '') === activeOwner);
+  const shown = filtered.slice(0, AGING_LIST_CAP);
+  const rest = filtered.length - shown.length;
+  return (
+    <Card id="a-traiter" className={cn('overflow-hidden', className)}>
+      <CardHeader className="gap-2 space-y-0">
+        <CardTitle className="flex items-center gap-2">
+          <span>{t("À traiter aujourd'hui")}</span>
+          <span className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium tabular-nums text-ink-2">
+            {items.length}
+          </span>
+        </CardTitle>
+        {/* One chip per porteur, click = filter (toggle). Rendered only when
+            there is something to discriminate. F0: no animation on filters. */}
+        {owners.length >= 2 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            {owners.map(([k, n]) => (
+              <button
+                key={k || '__none'}
+                type="button"
+                aria-pressed={activeOwner === k}
+                onClick={() => setOwnerFilter(activeOwner === k ? null : k)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  activeOwner === k
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-surface-2 text-ink-2 hover:bg-surface-3',
+                )}
+              >
+                <span className={cn(!k && 'italic')}>{k || t('non affecté')}</span>
+                <span className="font-semibold tabular-nums">{n}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </CardHeader>
+      <CardContent className="p-0">
+        {items.length === 0 ? (
+          <EmptyState
+            icon={<CheckCircle2 />}
+            title={t('Rien en retard')}
+            description={t("Aucune étape n'a dépassé 24 h ouvrées.")}
+            dashed={false}
+            className="border-0 bg-transparent py-8 [&>div:first-child]:bg-status-success-bg [&>div:first-child]:text-status-success-fg"
+          />
+        ) : (
+          <>
+            <ul className="divide-y divide-hairline">
+              {shown.map((item) => {
+                const danger = item.ageHours > 72;
+                const section = STEP_SECTION[item.step];
+                const href = section ? `/dossiers/${item.dossier.id}#step-${section}` : `/dossiers/${item.dossier.id}`;
+                const assure = dossierAssure(item.dossier);
+                return (
+                  <li key={`${item.dossier.id}-${item.step}`}>
+                    <Link
+                      href={href}
+                      className="flex items-center gap-4 px-6 py-3 transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    >
+                      <div
+                        className={cn(
+                          'flex w-16 shrink-0 flex-col items-center justify-center rounded-lg px-2 py-1.5 shadow-rim',
+                          danger
+                            ? 'bg-status-danger-bg text-status-danger-fg'
+                            : 'bg-status-warning-bg text-status-warning-fg',
+                        )}
+                      >
+                        <span className="text-base font-semibold leading-none tabular-nums">
+                          {formatBusinessHours(item.ageHours)}
+                        </span>
+                        <span className="mt-1 text-[11px] leading-none">{t('ouvrées')}</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="t-mono font-semibold">{dossierRef(item.dossier)}</span>
+                          {assure && <span className="truncate text-sm text-ink-2">{assure}</span>}
+                          <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-ink-2">
+                            {item.kind === 'chiffrage' ? `${t('Chiffrage')} · ` : `${t('Terrain')} · `}
+                            {t(STEP_LABELS_SHORT[item.step])}
+                          </span>
+                        </div>
+                        <p className="t-caption mt-0.5 truncate">
+                          {item.owner ? <>{item.kind === 'chiffrage' ? t('chiffreur') : t('agent')} <b className="font-medium text-ink-2">{item.owner}</b> · </> : null}
+                          {t('depuis')} {format(item.since, 'dd/MM HH:mm')}
+                          {item.dossier.compagnie ? ` · ${item.dossier.compagnie}` : ''}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            {rest > 0 && (
+              <p className="t-caption border-t border-hairline px-6 py-3 tabular-nums">+{rest} {t('autres')}</p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** « Délais par étape » — claims-operations KPI: cycle time by stage (median, business hours). */
+function CycleTimeCard({ rows, periodLabel }: { rows: CycleTimeRow[]; periodLabel: string }) {
+  const t = useT();
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader>
+        <CardTitle>{t('Délais par étape')}</CardTitle>
+        <p className="t-caption">{t('Heures ouvrées entre le déclencheur et la réalisation')} · {periodLabel}</p>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('Étape')}</TableHead>
+              <TableHead className="text-right">{t('Médiane')}</TableHead>
+              <TableHead className="text-right">{t('Dossiers')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={r.key}>
+                <TableCell className={cn(r.key === 'total' && 'font-medium')}>
+                  {r.key === 'total' ? t('Total (création → rapport)') : t(STEP_LABELS[r.key])}
+                </TableCell>
+                <TableCell className="text-right font-semibold tabular-nums">
+                  {r.medianHours == null ? (
+                    <span className="font-normal text-ink-4">—</span>
+                  ) : (
+                    formatBusinessHours(r.medianHours)
+                  )}
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-ink-2">{r.n}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** « Créés vs déposés par semaine » — dataviz: trend over time → line; ≥ 2 series → legend. */
+function TrendCard({ points }: { points: WeekPoint[] }) {
+  const t = useT();
+  if (points.length < 2) return null;
+  const config = {
+    crees: { label: t('Créés'), color: 'hsl(var(--chart-1))' },
+    deposes: { label: t('Rapports déposés'), color: 'hsl(var(--chart-2))' },
+  };
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('Créés vs déposés par semaine')}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={config} className="h-64 w-full">
+          <LineChart data={points} margin={{ top: 8, right: 16, left: -8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--hairline))" />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} />
+            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} allowDecimals={false} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Line type="monotone" dataKey="crees" stroke="var(--color-crees)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
+            <Line type="monotone" dataKey="deposes" stroke="var(--color-deposes)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
+          </LineChart>
+        </ChartContainer>
+        {/* Legend always present for ≥ 2 series (same pattern as the dashboard). */}
+        <ul className="mt-4 flex flex-wrap justify-center gap-x-3 gap-y-1.5">
+          {(Object.keys(config) as Array<keyof typeof config>).map((k) => (
+            <li key={k} className="t-caption flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: config[k].color }} aria-hidden />
+              <span>{config[k].label}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Step cell shared by both tables: on-time count + late count on a second line.
+ * Numbers right-aligned with their headers (Polaris / Carbon data tables); the
+ * amber "+n" is the only colour in the cell — no heat-map competing with it.
+ */
+function StepCell({
+  value,
+  late,
+  emphasis,
+}: {
+  value: number;
+  late: number;
+  emphasis?: boolean;
+}) {
+  return (
+    <TableCell className={cn('text-right', emphasis && 'font-semibold')} style={tabular}>
+      <div>{value || <span className="font-normal text-ink-4">—</span>}</div>
+      {late > 0 && (
+        <div className="text-[11px] font-normal text-status-warning-fg tabular-nums">+{late} hors délai</div>
+      )}
+    </TableCell>
+  );
+}
+
 function CompagnieView({
   rows,
   loading,
+  periodLabel,
 }: {
-  rows: Array<{ compagnie: string; counts: Record<StepKey, number> }>;
+  rows: GroupMeasures[];
   loading: boolean;
+  periodLabel: string;
 }) {
   const t = useT();
-  const columnMax = useMemo(() => {
-    const max: Record<StepKey, number> = STEP_KEYS.reduce((acc, k) => {
-      acc[k] = 0;
-      return acc;
-    }, {} as Record<StepKey, number>);
-    for (const r of rows) {
-      for (const k of STEP_KEYS) {
-        if (r.counts[k] > max[k]) max[k] = r.counts[k];
-      }
-    }
-    return max;
-  }, [rows]);
-
-  if (loading) return <SkeletonChart />;
+  if (loading) return <TablePaperSkeleton />;
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -743,36 +1362,40 @@ function CompagnieView({
   return (
     <Card data-tour="mon-compagnie-table">
       <CardHeader>
-        <CardTitle className="text-base">{t('Répartition par compagnie')}</CardTitle>
+        <CardTitle>{t('Répartition par compagnie')}</CardTitle>
+        <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
-        <Table>
+        <Table regionLabel={t('Répartition par compagnie')}>
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-[12rem]">{t('Compagnie')}</TableHead>
+              <TableHead className={STICKY_HEAD}>{t('Compagnie')}</TableHead>
               {STEP_KEYS.map((key) => (
-                <TableHead key={key} className="text-center text-xs">
+                <TableHead key={key} className="text-right">
                   {t(STEP_LABELS_SHORT[key])}
                 </TableHead>
               ))}
+              <TableHead className="text-right" title={`${t('Part des assignations à temps')} · ${periodLabel}`}>
+                {t('Respect')}
+              </TableHead>
+              <TableHead className="text-right" title={t('Dossiers sans rapport déposé · à ce jour')}>
+                {t('En attente')}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map(({ compagnie, counts }) => (
-              <TableRow key={compagnie} className="hover:bg-accent/30">
-                <TableCell className="font-medium">{t(compagnie)}</TableCell>
-                {STEP_KEYS.map((key) => {
-                  const v = counts[key];
-                  return (
-                    <TableCell
-                      key={key}
-                      className="text-center font-semibold"
-                      style={{ ...tabular, ...heatStyle(v, columnMax[key]) }}
-                    >
-                      {v || <span className="font-normal text-muted-foreground/50">—</span>}
-                    </TableCell>
-                  );
-                })}
+            {rows.map((r) => (
+              <TableRow key={r.group}>
+                <TableCell className={STICKY_CELL}>{r.group}</TableCell>
+                {STEP_KEYS.map((key) => (
+                  <StepCell key={key} value={r.enDelai[key]} late={r.horsDelai[key]} emphasis />
+                ))}
+                <TableCell className="text-right font-semibold" style={tabular}>
+                  {r.respectPct == null ? <span className="font-normal text-ink-4">—</span> : `${r.respectPct} %`}
+                </TableCell>
+                <TableCell className="text-right" style={tabular}>
+                  {r.enAttente || <span className="text-ink-4">—</span>}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -786,32 +1409,15 @@ function UserView({
   rows,
   loading,
   userLookup,
+  periodLabel,
 }: {
-  rows: Array<{
-    user: string;
-    realise: Record<StepKey, number>;
-    totalRealise: number;
-  }>;
+  rows: UserRow[];
   loading: boolean;
   userLookup: UserLookup;
+  periodLabel: string;
 }) {
   const t = useT();
-  const columnMax = useMemo(() => {
-    const realiseMax: Record<StepKey, number> = STEP_KEYS.reduce((acc, k) => {
-      acc[k] = 0;
-      return acc;
-    }, {} as Record<StepKey, number>);
-    let totalMax = 0;
-    for (const r of rows) {
-      for (const k of STEP_KEYS) {
-        if (r.realise[k] > realiseMax[k]) realiseMax[k] = r.realise[k];
-      }
-      if (r.totalRealise > totalMax) totalMax = r.totalRealise;
-    }
-    return { realise: realiseMax, total: totalMax };
-  }, [rows]);
-
-  if (loading) return <SkeletonChart />;
+  if (loading) return <TablePaperSkeleton />;
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -825,44 +1431,52 @@ function UserView({
   return (
     <Card data-tour="mon-user-table">
       <CardHeader>
-        <CardTitle className="text-base">{t('Activité par utilisateur')}</CardTitle>
+        <CardTitle>{t('Activité par utilisateur')}</CardTitle>
+        <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
-        <Table>
+        <Table regionLabel={t('Activité par utilisateur')}>
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-[14rem]">{t('Utilisateur')}</TableHead>
+              <TableHead className={cn(STICKY_HEAD, 'min-w-[14rem]')}>{t('Utilisateur')}</TableHead>
               {STEP_KEYS.map((key) => (
-                <TableHead key={key} className="text-center text-xs">
+                <TableHead key={key} className="text-right">
                   {t(STEP_LABELS_SHORT[key])}
                 </TableHead>
               ))}
-              <TableHead className="text-center text-xs">{t('Total')}</TableHead>
+              <TableHead className="text-right">{t('Total')}</TableHead>
+              <TableHead className="text-right" title={`${t('Part des assignations à temps')} · ${periodLabel}`}>
+                {t('Respect')}
+              </TableHead>
+              <TableHead
+                className="text-right"
+                title={t("Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape")}
+              >
+                {t('Ouverts (touchés)')}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((r) => {
               const displayName = resolveUserName(r.user, userLookup);
               return (
-                <TableRow key={r.user} className="hover:bg-accent/30">
-                  <TableCell className="font-medium">{displayName}</TableCell>
-                  {STEP_KEYS.map((key) => {
-                    const v = r.realise[key];
-                    return (
-                      <TableCell
-                        key={key}
-                        className="text-center"
-                        style={{ ...tabular, ...heatStyle(v, columnMax.realise[key]) }}
-                      >
-                        {v || <span className="text-muted-foreground/50">—</span>}
-                      </TableCell>
-                    );
-                  })}
+                <TableRow key={r.user}>
+                  <TableCell className={STICKY_CELL}>{displayName}</TableCell>
+                  {STEP_KEYS.map((key) => (
+                    <StepCell key={key} value={r.enDelai[key]} late={r.horsDelai[key]} />
+                  ))}
+                  <TableCell className="text-right font-semibold" style={tabular}>
+                    {r.totalEnDelai}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold" style={tabular}>
+                    {r.respectPct == null ? <span className="font-normal text-ink-4">—</span> : `${r.respectPct} %`}
+                  </TableCell>
                   <TableCell
-                    className="text-center font-semibold"
-                    style={{ ...tabular, ...heatStyle(r.totalRealise, columnMax.total) }}
+                    className="text-right"
+                    style={tabular}
+                    title={t("Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape")}
                   >
-                    {r.totalRealise}
+                    {r.ouverts || <span className="text-ink-4">—</span>}
                   </TableCell>
                 </TableRow>
               );
@@ -871,5 +1485,23 @@ function UserView({
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+/** Paper-shaped table placeholder (tonal, no border) used while a tab loads. */
+function TablePaperSkeleton() {
+  return (
+    <div className="paper p-5" aria-busy="true">
+      <Skeleton className="mb-4 h-4 w-44" />
+      <div className="space-y-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="h-4 w-12" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

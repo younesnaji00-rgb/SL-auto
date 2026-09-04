@@ -67,12 +67,14 @@ export default function VoicePlayer({ url, duree }: VoicePlayerProps) {
         {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
       </Button>
       <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+        {/* scaleX, not width: progress must never animate a layout property
+            (motion-spec §4.1). */}
         <div
-          className="h-full rounded-full bg-primary transition-all"
-          style={{ width: `${progress}%` }}
+          className="h-full w-full rounded-full bg-primary origin-left transition-transform duration-150 ease-standard motion-reduce:transition-none"
+          style={{ transform: `scaleX(${Math.min(100, Math.max(0, progress)) / 100})` }}
         />
       </div>
-      <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap">
+      <span className="text-[11px] font-mono text-muted-foreground whitespace-nowrap">
         {formatTime(duree)}
       </span>
     </div>

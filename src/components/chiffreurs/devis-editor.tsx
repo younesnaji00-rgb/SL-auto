@@ -6,12 +6,24 @@ import Link from 'next/link';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
-  ArrowLeft, Check, ChevronDown, ChevronUp, Columns2, FileText, Loader2,
-  Save, Sparkles, Trash2, X,
+  ArrowLeft, Car, CheckCircle2, ChevronDown, ChevronUp, Columns2, FileText, Loader2,
+  Plus, RefreshCw, Save, Trash2, X,
 } from 'lucide-react';
+// C1 — resizable comparison split (chiffrage-redesign-spec). v4 API: Group /
+// Panel / Separator + useDefaultLayout for the persisted ratio.
+import {
+  Group as SplitGroup,
+  Panel as SplitPanel,
+  Separator as SplitSeparator,
+  useDefaultLayout,
+  type LayoutStorage,
+} from 'react-resizable-panels';
+import { IconChip } from '@/components/ui/icon-chip';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { CellNumberInput } from '@/components/ui/cell-number-input';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -26,6 +38,9 @@ import {
 import { useFirestore, useStorage } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useHotkeys } from '@/hooks/use-hotkeys';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { getQueueContext } from '@/lib/queue-session';
 import { enqueueUpload } from '@/lib/offline/upload-queue';
 import {
   type DevisExtraColumn, type DevisHeader, type DevisRow, type DevisSnapshot, type DevisVersion, type StructuredDevis,
@@ -73,21 +88,30 @@ interface DevisEditorProps {
   accordSlot?: string;
 }
 
-const HEADER_FIELDS_LEFT: Array<{ key: keyof DevisHeader; label: string }> = [
+/**
+ * Header identity fields — addendum §4 (GOV.UK text input: "size inputs to
+ * known lengths"; NN/g forms: field width matches the input). Known-length
+ * values get a content-sized input (`inputClassName`); genuinely long values
+ * (marque/modèle libres, client, adresse, assurances, expert) stay wide.
+ * `groupStart` opens a new visual group (vehicle → expert, client →
+ * assurance/document meta): rows sit 12 px apart inside a group, 24 px
+ * between groups — the wall of equal full-width inputs is banned.
+ */
+const HEADER_FIELDS_LEFT: Array<{ key: keyof DevisHeader; label: string; inputClassName?: string; groupStart?: boolean }> = [
   { key: 'marque', label: 'Marque' },
-  { key: 'matricule', label: 'Matricule' },
+  { key: 'matricule', label: 'Matricule', inputClassName: 'max-w-[14rem]' },
   { key: 'modele', label: 'Modèle' },
-  { key: 'kilometrage', label: 'Kilométrage' },
-  { key: 'chassis', label: 'N° de châssis' },
-  { key: 'expert', label: 'Expert' },
+  { key: 'kilometrage', label: 'Kilométrage', inputClassName: 'max-w-[10rem]' },
+  { key: 'chassis', label: 'N° de châssis', inputClassName: 'max-w-[14rem]' },
+  { key: 'expert', label: 'Expert', groupStart: true },
 ];
 
-const HEADER_FIELDS_RIGHT: Array<{ key: keyof DevisHeader; label: string }> = [
+const HEADER_FIELDS_RIGHT: Array<{ key: keyof DevisHeader; label: string; inputClassName?: string; groupStart?: boolean }> = [
   { key: 'client', label: 'Client' },
   { key: 'adresse', label: 'Adresse' },
-  { key: 'ice', label: 'ICE' },
-  { key: 'telephone', label: 'Téléphone' },
-  { key: 'assurances', label: 'Assurances' },
+  { key: 'ice', label: 'ICE', inputClassName: 'max-w-[14rem]' },
+  { key: 'telephone', label: 'Téléphone', inputClassName: 'max-w-[14rem]' },
+  { key: 'assurances', label: 'Assurances', groupStart: true },
 ];
 
 const DOC_TYPE_LABEL: Record<EditableBaseDocType, { plural: string; lower: string }> = {
@@ -142,6 +166,28 @@ export function DevisEditor({
     'accord' | 'proposition-accord' | undefined
   >(undefined);
   const [previewOrdinal, setPreviewOrdinal] = useState<number | undefined>(undefined);
+
+  // C6 — post-save banner (chiffrage-redesign-spec): set after performPersist
+  // succeeds; `nextId` comes from the stored queue order (queue-session D1).
+  const [saveBanner, setSaveBanner] = useState<{ nextId: string | null } | null>(null);
+
+  // C1 — persisted split ratio via the lib's persistence API; SSR-safe
+  // localStorage shim (the lib's default reads `localStorage` at call time,
+  // which throws during server render).
+  const splitStorage = useMemo<LayoutStorage>(() => ({
+    getItem: (k: string) => {
+      try { return window.localStorage.getItem(k); } catch { return null; }
+    },
+    setItem: (k: string, v: string) => {
+      try { window.localStorage.setItem(k, v); } catch { /* ignore */ }
+    },
+  }), []);
+  const { defaultLayout: splitDefaultLayout, onLayoutChanged: onSplitLayoutChanged } = useDefaultLayout({
+    id: 'sl-auto:devis-editor-split',
+    storage: splitStorage,
+  });
+  // Below lg (1024) the compare layout stacks instead of splitting.
+  const stackedCompare = useIsMobile();
 
   // Task #33: post-scan warning / edit-lock state. `scanReviewed` defaults to
   // true so the existing persisted-reload flow is untouched. Only a fresh
@@ -458,6 +504,53 @@ export function DevisEditor({
   };
   const deleteRow = (id: string) => setRows((rs) => (rs.length <= 1 ? rs : rs.filter((r) => r.id !== id)));
 
+  // C4 — « Ajouter une ligne » (chiffrage-redesign-spec): appends a blank
+  // manual row (qte 1, désignation vide, nulls ailleurs) and focuses its
+  // Désignation cell. The row id is registered as UNCAPPED in qteScanCapRef
+  // BEFORE the state update, so the decrease-only qte lock (task #6) never
+  // applies to manual rows.
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const addRow = () => {
+    const row: DevisRow = { ...emptyRow(), ref: '', tva: null, vetuste: null };
+    qteScanCapRef.current.set(row.id, Number.POSITIVE_INFINITY);
+    setRows((rs) => [...rs, row]);
+    // Focus after React commits the new row (totals row is the last <tr>).
+    setTimeout(() => {
+      const scroller = tableScrollRef.current;
+      if (!scroller) return;
+      const trs = scroller.querySelectorAll('tbody tr');
+      const target = trs[trs.length - 2] as HTMLTableRowElement | undefined;
+      const input = target?.cells?.[1]?.querySelector('input');
+      if (input instanceof HTMLInputElement) {
+        input.focus();
+        input.scrollIntoView({ block: 'nearest' });
+      }
+    }, 0);
+  };
+
+  // C3 — spreadsheet keys (chiffrage-redesign-spec): Entrée in an editable
+  // cell commits (state is already live; formatting happens on blur) and
+  // moves focus DOWN to the same column of the next row; on the last data row
+  // focus stays (the totals row carries no inputs). Delegated on the table
+  // scroller — no per-cell wiring, no global listeners; Radix selects render
+  // buttons, not inputs, so Entrée keeps opening them.
+  const onTableKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter') return;
+    const target = e.target as HTMLElement;
+    if (!(target instanceof HTMLInputElement)) return;
+    const td = target.closest('td');
+    const tr = td?.closest('tr');
+    if (!td || !tr) return;
+    e.preventDefault();
+    const col = (td as HTMLTableCellElement).cellIndex;
+    const nextTr = tr.nextElementSibling as HTMLTableRowElement | null;
+    const nextInput = nextTr?.cells?.[col]?.querySelector('input');
+    if (nextInput instanceof HTMLInputElement && !nextInput.disabled) {
+      nextInput.focus();
+      nextInput.select();
+    }
+  };
+
   // Task #5: manual add/remove column affordances are gone. The fixed column
   // set is mandated by the Moroccan devis layout (Vétusté, Type, REF,
   // Désignation, T.V.A, Quantité, P.U.H.T, Total H.T). Counter columns still
@@ -485,6 +578,8 @@ export function DevisEditor({
   const [tvaHeaderOpen, setTvaHeaderOpen] = useState(false);
   const [tvaHeaderValue, setTvaHeaderValue] = useState<number | null>(20);
   const [sansTva, setSansTva] = useState(false);
+  // Identity card fold (owner 2026-09-02) — open by default, session-local.
+  const [infoCardOpen, setInfoCardOpen] = useState(true);
 
   // Accord totals helpers. The cap (accord PU ≤ row PUHT) is signalled
   // inline (red border + message) on the cell — no clamping or revert.
@@ -686,6 +781,7 @@ export function DevisEditor({
     const snapshot = previewSnapshot;
     if (!snapshot) return;
     setSaving(true);
+    setSaveBanner(null); // C6 — a fresh save replaces any standing banner.
     try {
       // Task #3 / Task #24: Facture Garage / Devis Garage saves target an
       // accord-variant slot — ordinal 1 upserts the legacy "accordé" slot
@@ -765,7 +861,9 @@ export function DevisEditor({
             ),
           );
         }
-        toast({ title: `${targetDocType} ${t('enregistré')}`, description: t('Ajouté aux pièces jointes du dossier.') });
+        toast({ title: `${targetDocType} ${t("enregistré")}`, description: t("Ajouté aux pièces jointes du dossier.") });
+        // C6 — gestionnaire branch succeeded: inline banner (no queue here).
+        setSaveBanner({ nextId: null });
         return;
       }
 
@@ -961,6 +1059,12 @@ export function DevisEditor({
         );
       }
 
+      // C6 — chiffreur branch succeeded (uploaded or queued offline): inline
+      // banner with the exit actions; « Dossier suivant » only when the queue
+      // page stored an order this session (queue-session D1).
+      const queueCtx = chiffrageId ? getQueueContext(chiffrageId) : null;
+      setSaveBanner({ nextId: queueCtx?.nextId ?? null });
+
       if (uploaded) {
         toast({ title: `${targetDocType} ${t('enregistre')}`, description: t('Nouvelle version generee.') });
       }
@@ -972,54 +1076,76 @@ export function DevisEditor({
     }
   };
 
-  // Keyboard: Ctrl+S to save
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        if (!saving) handleSave();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-
-  }, [saving, header, rows, extraColumns]);
+  // C3 — Ctrl/⌘+S goes through the global hotkey registry so it appears in
+  // the « ? » sheet (chiffrage-redesign-spec). allowInInput keeps it firing
+  // while typing in cells; the handler guards the preview dialog (saving
+  // there would re-open the dialog on top of itself).
+  useHotkeys(
+    [{
+      keys: 'mod+s',
+      label: t("Enregistrer"),
+      group: t("Éditeur de devis"),
+      allowInInput: true,
+      handler: () => { if (!saving && !previewOpen) handleSave(); },
+    }],
+    [saving, previewOpen, header, rows, extraColumns],
+  );
 
   // Render ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
       </div>
     );
   }
 
+  // The source caption is printed ONCE, in the title block (§18: no repeated
+  // caption). Gestionnaire = a new document; chiffreur = the merged sources.
+  const sourceCaption = isGestionnaire
+    ? `${t('Nouveau')} ${t(typeLabel.lower)} — ${t('sera ajouté aux pièces jointes du dossier.')}`
+    : devisFileNames.length > 0
+      ? `${t(typeLabel.lower)}${t('(s) fusionne(s) :')} ${devisFileNames.join(' · ')}`
+      : `${t('Aucun')} ${t(typeLabel.lower)} ${t('dans cette assignation')}`;
+  // Emphasis follows the job (GOV.UK button: "the primary is the next thing
+  // to do"): while the scan is unreviewed « J'ai vérifié » is THE filled
+  // button and « Enregistrer » drops to tonal; once reviewed, « Enregistrer »
+  // leads. Never two filled buttons in view (element-specs §8).
+  const reviewPending = canEdit && !scanReviewed;
+
   return (
-    <div className="w-full px-3 sm:px-6 py-4 space-y-4">
-      {/* Top bar */}
+    <div className="w-full space-y-4 px-4 py-4 sm:px-6">
+      {/* Toolbar — original 3d5629a layout: a NON-sticky row (this page has
+          no other sticky chrome, so nothing needs to stick — §23). Anatomy per
+          element-specs §18 (Apple HIG toolbars: leading = navigation/title,
+          trailing = important items, ≤ 3 groups): back · title block · Comparer
+          (outline ⇄ tonal toggle) · « J'ai vérifié » · Ré-extraire (outline,
+          visible — it is an edit-type action, so a labelled button, not a
+          symbol or a ⋯ item) · ONE filled Enregistrer at the right end. */}
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {!isGestionnaire && chiffrageId && (
-          <Button variant="outline" size="icon" asChild>
-            <Link href={`/assignations-chiffrage/${chiffrageId}`} aria-label={t('Retour')}>
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" asChild>
+            <Link href={`/assignations-chiffrage/${chiffrageId}`} aria-label={t("Retour")} title={t("Retour")}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
         )}
-        <div className="flex-1 min-w-0" data-tour="dev-files">
-          <h1 className="text-lg sm:text-xl font-bold truncate">{t(`Editer les ${typeLabel.plural}`)}</h1>
-          <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
-            {isGestionnaire ? (
-              <span className="truncate">{t(`Nouveau ${typeLabel.lower} — sera ajouté aux pièces jointes du dossier.`)}</span>
-            ) : devisFileNames.length > 0 ? (
-              <>
-                <Badge variant="outline" className="text-[10px]">{devisFileNames.length}</Badge>
-                <span className="truncate">{t(`${typeLabel.lower}(s) fusionne(s) :`)} {devisFileNames.join(' · ')}</span>
-              </>
-            ) : t(`Aucun ${typeLabel.lower} dans cette assignation`)}
+        {/* Title block — element-specs §1 (Polaris page: the title names the
+            page in as few words as possible; compact `t-title` on a record /
+            editor page) + the one source caption in `t-caption`. The merged
+            count is a neutral count pill (§11: `bg-surface-3 text-ink-2`,
+            tabular digits — a count is information, not a status). */}
+        <div className="min-w-0 flex-1" data-tour="dev-files">
+          <h1 className="t-title truncate">{t("Editer les")} {t(typeLabel.plural)}</h1>
+          <div className="t-caption flex min-w-0 items-center gap-1.5" title={sourceCaption}>
+            {!isGestionnaire && devisFileNames.length > 0 && (
+              <Badge variant="neutral">{devisFileNames.length}</Badge>
+            )}
+            <span className="truncate">{sourceCaption}</span>
           </div>
         </div>
         <Button
-          variant={comparisonOpen ? 'default' : 'outline'}
+          variant={comparisonOpen ? 'tonal' : 'outline'}
           size="sm"
           data-tour="dev-comparer"
           onClick={() => {
@@ -1028,10 +1154,11 @@ export function DevisEditor({
             if (opening) setAppSidebarOpen(false);
           }}
           disabled={!dossierId}
-          title={comparisonOpen ? t('Fermer la comparaison') : t('Ouvrir la comparaison')}
+          aria-pressed={comparisonOpen}
+          title={comparisonOpen ? t("Fermer la comparaison") : t("Ouvrir la comparaison")}
         >
-          <Columns2 className="h-3.5 w-3.5 mr-1.5" />
-          {t('Comparer')}
+          <Columns2 className="h-4 w-4" />
+          {t("Comparer")}
         </Button>
         {/*
           Task #33 (revised): the post-scan warning dialog is now informational
@@ -1040,7 +1167,7 @@ export function DevisEditor({
           which is the single canonical unlock entry-point. Visible only when
           the table is locked (`!scanReviewed`) and the user can edit.
         */}
-        {canEdit && !scanReviewed && (
+        {reviewPending && (
           <Button
             variant="default"
             size="sm"
@@ -1048,10 +1175,11 @@ export function DevisEditor({
             onClick={() => setScanReviewed(true)}
             title={t('Confirmer la vérification du scan et déverrouiller le tableau')}
           >
-            <Check className="h-3.5 w-3.5 mr-1.5" />
             {t("J'ai vérifié")}
           </Button>
         )}
+        {/* Ré-extraire — restored as a visible `outline` button (3d5629a);
+            RefreshCw instead of the banned sparkle icon (§8: no AI icons). */}
         {!isGestionnaire && (
           <Button
             variant="outline"
@@ -1062,75 +1190,155 @@ export function DevisEditor({
             disabled={!canEdit || devisFileNames.length === 0}
             title={t("Relancer l'extraction automatique (écrase les données)")}
           >
-            {extracting ? null : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
-            {t('Ré-extraire')}
+            {extracting ? null : <RefreshCw className="h-4 w-4" />}
+            {t("Ré-extraire")}
           </Button>
         )}
-        <Button variant="default" size="sm" data-tour="dev-save" onClick={handleSave} loading={saving} disabled={!canEdit}>
-          {saving ? null : <Save className="h-3.5 w-3.5 mr-1.5" />}
-          {t('Enregistrer')}
+        <Button variant={reviewPending ? "tonal" : "default"} size="sm" data-tour="dev-save" onClick={handleSave} loading={saving} disabled={!canEdit}>
+          {saving ? null : <Save className="h-4 w-4" />}
+          {t("Enregistrer")}
         </Button>
       </div>
 
+      {/* C6 — post-save exit velocity (chiffrage-redesign-spec): inline strip
+          directly under the toolbar — NOT a toast, it carries actions. Status
+          success pair, one-shot fade-in (ease-enter 200 ms, motion-safe);
+          existing toasts stay untouched. */}
+      {saveBanner && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 rounded-lg bg-status-success-bg px-4 py-2 text-status-success-fg animate-in fade-in-0 duration-200 ease-enter motion-reduce:animate-none"
+        >
+          <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="text-sm font-medium">
+            {isGestionnaire ? t("Document enregistré") : t("Accord enregistré")}
+          </span>
+          <span className="flex-1" aria-hidden />
+          {!isGestionnaire && chiffrageId && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`/assignations-chiffrage/${chiffrageId}`}>{t("Retour au dossier")}</Link>
+            </Button>
+          )}
+          {!isGestionnaire && saveBanner.nextId && (
+            <Button
+              variant="tonal"
+              size="sm"
+              onClick={() => router.push(`/assignations-chiffrage/${saveBanner.nextId}`)}
+            >
+              {t("Dossier suivant")} →
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={() => setSaveBanner(null)}
+            aria-label={t("Fermer la confirmation")}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
+
       {extracting && !saving && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 border rounded-lg px-3 py-2">
+        <div className="t-caption flex items-center gap-2 rounded-lg bg-surface-2 px-4 py-2.5">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           {t('Extraction automatique en cours depuis')} {devisFileNames.length} {t(`${typeLabel.lower}(s)`)}…
         </div>
       )}
 
-      <div className={cn(comparisonOpen && 'flex gap-3 items-start')}>
-        {comparisonOpen && dossierId && (
-          <ReferencePanel
-            dossierId={dossierId}
-            isOpen={comparisonOpen}
-            onClose={() => setComparisonOpen(false)}
-            initialDocType={docType}
-            className="sticky top-4 self-start h-[calc(100vh-7rem)] w-1/2 min-w-[320px] max-w-[640px] border rounded-xl overflow-hidden"
-          />
-        )}
-        <div className={cn(comparisonOpen ? 'flex-1 min-w-0 space-y-4' : 'space-y-4')}>
+      {/* Focus-mode split (step-2-information compare pane): the source
+          document is a sticky paper pane beside the table, never a thumbnail. */}
+      {/* C1 — resizable split (chiffrage-redesign-spec): react-resizable-panels
+          v4 around the comparison layout — source left (~45 %), table right,
+          drag + keyboard handle (the lib renders the ARIA separator), ratio
+          persisted via useDefaultLayout. Group and Panels force
+          overflow-visible / height-auto so the source pane's `sticky top-16`
+          height mechanics keep tracking the page scroller. Below lg the panes
+          stack; the non-compare layout is unchanged. */}
+      {(() => {
+        const editorBody = (
+          <div className="min-w-0 space-y-4">
 
-      {/* Identity block */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border rounded-xl p-3 sm:p-4 bg-card shadow-sm" data-tour="dev-header">
-        <div className="space-y-2">
-          {HEADER_FIELDS_LEFT.map((f) => (
-            <HeaderField
-              key={f.key}
-              label={t(f.label)}
-              value={header[f.key] || ''}
-              onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
-              disabled={!isEditable}
-            />
-          ))}
-        </div>
-        <div className="space-y-2">
-          {HEADER_FIELDS_RIGHT.map((f) => (
-            <HeaderField
-              key={f.key}
-              label={t(f.label)}
-              value={header[f.key] || ''}
-              onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
-              disabled={!isEditable}
-            />
-          ))}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <HeaderField
-              label={t('Devis N°')}
-              value={header.devisNumero}
-              onChange={(v) => setHeader((h) => ({ ...h, devisNumero: v }))}
-              disabled={!isEditable}
-            />
-            <HeaderField
-              label={t('Date')}
-              value={header.dateDevis}
-              onChange={(v) => setHeader((h) => ({ ...h, dateDevis: v }))}
-              disabled={!isEditable}
-              placeholder={t('JJ/MM/AAAA')}
-            />
+      {/* Identity block — original 3d5629a structure restored: a two-column
+          card (`md:grid-cols-2`), HEADER_FIELDS_LEFT in column 1,
+          HEADER_FIELDS_RIGHT + the nested N° / Date sub-grid in column 2.
+          Surface per element-specs §5 (M3 cards / NN/g cards: a container for
+          a few related facts; 24 px padding). Fields per §9 + addendum §4:
+          content-sized inputs, related rows 12 px apart, 24 px between groups
+          (véhicule → expert, client → assurance/meta) so the card reads as
+          chunks, not a slab; format-cue placeholders only — "JJ/MM/AAAA". */}
+      {/* Retractable (owner 2026-09-02): the whole identity card folds behind
+          its header so the line-item table gets the vertical room; same 200ms
+          disclosure animation as every Collapsible/Accordion. */}
+      <Card className="p-0" data-tour="dev-header">
+        <Collapsible open={infoCardOpen} onOpenChange={setInfoCardOpen}>
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 rounded-t-xl px-6 py-4 text-left transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={infoCardOpen ? t("Replier les informations") : t("Déplier les informations")}
+            >
+              <span className="flex items-center gap-2">
+                <IconChip><Car /></IconChip>
+                <span className="t-heading">{t("Informations")}</span>
+              </span>
+              <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform duration-250 ease-standard motion-reduce:transition-none', !infoCardOpen && '-rotate-90')} />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+        <div className="grid grid-cols-1 gap-x-6 gap-y-6 p-6 pt-2 md:grid-cols-2">
+          <div className="flex flex-col gap-3">
+            <h3 className="t-heading">{t("Véhicule")}</h3>
+            {HEADER_FIELDS_LEFT.map((f) => (
+              <HeaderField
+                key={f.key}
+                label={t(f.label)}
+                value={header[f.key] || ''}
+                onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
+                disabled={!isEditable}
+                inputClassName={f.inputClassName}
+                className={f.groupStart ? 'mt-3' : undefined}
+              />
+            ))}
+          </div>
+          <div className="flex flex-col gap-3">
+            {/* Second group label goes without a chip (terracotta is spent). */}
+            <h3 className="t-heading">{t("Client")}</h3>
+            {HEADER_FIELDS_RIGHT.map((f) => (
+              <HeaderField
+                key={f.key}
+                label={t(f.label)}
+                value={header[f.key] || ''}
+                onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
+                disabled={!isEditable}
+                inputClassName={f.inputClassName}
+                className={f.groupStart ? 'mt-3' : undefined}
+              />
+            ))}
+            {/* Short related fields share a row (§9: "code postal / ville" rule). */}
+            <div className="grid grid-cols-2 gap-4">
+              <HeaderField
+                label={t("Devis N°")}
+                value={header.devisNumero}
+                onChange={(v) => setHeader((h) => ({ ...h, devisNumero: v }))}
+                disabled={!isEditable}
+                inputClassName="max-w-[14rem]"
+              />
+              <HeaderField
+                label={t("Date")}
+                value={header.dateDevis}
+                onChange={(v) => setHeader((h) => ({ ...h, dateDevis: v }))}
+                disabled={!isEditable}
+                placeholder={t("JJ/MM/AAAA")}
+                inputClassName="max-w-[12rem]"
+              />
+            </div>
           </div>
         </div>
-      </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
 
       <div className="flex items-center gap-2 px-1" data-tour="dev-sans-tva">
         <Checkbox
@@ -1139,29 +1347,47 @@ export function DevisEditor({
           onCheckedChange={(v) => setSansTva(v === true)}
           disabled={!isEditable}
         />
-        <label htmlFor="sans-tva-toggle" className="text-sm font-medium select-none cursor-pointer">
-          {t('Sans TVA')}
+        <label htmlFor="sans-tva-toggle" className="cursor-pointer select-none text-sm font-medium text-ink">
+          {t("Sans TVA")}
         </label>
       </div>
 
       {/* Rows table — fixed columns. The accord/proposition column is created
           automatically when the chiffreur picks via the first-open lightbox.
-          Rows are added only via AI scan, paste, or programmatic flows (no
-          manual "add row" button). The table grows to its natural height —
-          only horizontal scroll on overflow. */}
-      <div className="border rounded-xl bg-card shadow-sm overflow-hidden" data-tour="dev-table">
-        <div className="overflow-x-auto relative">
+          Rows arrive via AI scan or programmatic flows, plus the manual
+          « Ajouter une ligne » path (C4). Owner ruling 2026-09-02: the table is
+          capped at ~20 rows tall and scrolls vertically inside its own card
+          (sticky header stays put); horizontal scroll on overflow as before. */}
+      {/* Line-item table — element-specs §3 (Polaris data table: "numerical
+          data right aligned, textual left, headers must align with their
+          related data, don't center align"; Carbon: header row matches the
+          row size; NN/g: freeze the header). Sticky `t-label` heads on the
+          surface-2 step, hairline rows only (no cell borders, no zebra),
+          tabular digits everywhere, Quantité / T.V.A / Vétusté right-aligned
+          like P.U. and the totals, totals row right-aligned. The table sits in
+          the card WITHOUT a second frame (§5). Rows are the 36 px compact size
+          (dense editing), not 44. */}
+      <Card className="overflow-hidden" data-tour="dev-table">
+        {/* ≈ 20 compact rows (36px) + sticky header. */}
+        {/* C3 — spreadsheet keys are delegated here (Entrée ↓ / Échap revert
+            in the cell components); wheel is inert on all cells because every
+            numeric cell is type=text + inputMode decimal. */}
+        <div
+          ref={tableScrollRef}
+          className="relative max-h-[47rem] overflow-x-auto overflow-y-auto"
+          onKeyDown={onTableKeyDown}
+        >
           <table className="min-w-[900px] w-full text-xs border-collapse">
-            <thead className="bg-muted/50 sticky top-0 z-10">
-              <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:font-bold [&>th]:text-[11px] [&>th]:border-b [&>th]:border-r [&>th:last-child]:border-r-0 [&>th]:bg-muted/50">
+            <thead className="sticky top-0 z-10 bg-surface-2">
+              <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:text-left [&>th]:whitespace-nowrap [&>th]:text-xs [&>th]:font-normal [&>th]:text-ink-3 [&>th]:tabular-nums [&>th]:border-b [&>th]:border-hairline [&>th]:bg-surface-2">
                 <th style={{ width: '180px' }}>
                   <Popover open={refHeaderOpen} onOpenChange={setRefHeaderOpen}>
                     <PopoverTrigger asChild>
                       <button
                         type="button"
                         disabled={!isEditable}
-                        className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={t('Définir Réparation/Remplacement pour toutes les lignes')}
+                        className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        title={t("Définir Réparation/Remplacement pour toutes les lignes")}
                       >
                         <span>{t('Réparation/Remplacement')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
@@ -1172,7 +1398,7 @@ export function DevisEditor({
                         <button
                           key={opt}
                           type="button"
-                          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                          className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                           onClick={() => {
                             setRows((rs) => rs.map((r) => ({ ...r, ref: opt })));
                             setRefHeaderOpen(false);
@@ -1191,8 +1417,8 @@ export function DevisEditor({
                       <button
                         type="button"
                         disabled={!isEditable}
-                        className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={t('Définir Type pour toutes les lignes')}
+                        className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        title={t("Définir Type pour toutes les lignes")}
                       >
                         <span>{t('Type')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
@@ -1203,7 +1429,7 @@ export function DevisEditor({
                         <button
                           key={opt}
                           type="button"
-                          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                          className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                           onClick={() => {
                             setRows((rs) => rs.map((r) => {
                               if (opt === 'Originale' && r.type !== 'Originale') return { ...r, type: 'Originale', tva: 20 };
@@ -1219,17 +1445,18 @@ export function DevisEditor({
                     </PopoverContent>
                   </Popover>
                 </th>
-                <th style={{ width: '70px' }} className="text-center">{t('Quantite')}</th>
-                <th style={{ width: '110px' }} className="text-right bg-muted/40">{t('P.U.H.T')}</th>
-                <th style={{ width: '120px' }} className="text-right">{t('Total H.T')}</th>
-                <th style={{ width: '70px' }} className="text-center">
+                {/* Numeric heads right-aligned with their data (§3). */}
+                <th style={{ width: "70px" }} className="text-right">{t("Quantite")}</th>
+                <th style={{ width: "110px" }} className="text-right">{t("P.U.H.T")}</th>
+                <th style={{ width: "120px" }} className="text-right">{t("Total H.T")}</th>
+                <th style={{ width: '70px' }} className="text-right">
                   <Popover open={tvaHeaderOpen} onOpenChange={setTvaHeaderOpen}>
                     <PopoverTrigger asChild>
                       <button
                         type="button"
                         disabled={!isEditable}
-                        className="w-full flex items-center justify-center gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={t('Définir T.V.A pour toutes les lignes')}
+                        className="flex w-full items-center justify-end gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        title={t("Définir T.V.A pour toutes les lignes")}
                       >
                         <span>{t('T.V.A')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
@@ -1241,7 +1468,7 @@ export function DevisEditor({
                         onChange={setTvaHeaderValue}
                         suffix="%"
                         decimals={0}
-                        align="center"
+                        align="right"
                         allowNull
                       />
                       <Button
@@ -1257,12 +1484,12 @@ export function DevisEditor({
                     </PopoverContent>
                   </Popover>
                 </th>
-                <th style={{ width: '80px' }} className="text-center" data-tour="dev-col-vetuste">
-                  <div className="flex items-center justify-center gap-1">
-                    <span>{t('Vetuste')}</span>
+                <th style={{ width: "80px" }} className="text-right" data-tour="dev-col-vetuste">
+                  <div className="flex items-center justify-end gap-1">
+                    <span>{t("Vetuste")}</span>
                     <button type="button" disabled={!isEditable}
-                            className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted focus:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={t('-5 sur toutes les lignes')}
+                            className="flex h-4 w-4 items-center justify-center rounded text-ink-3 hover:bg-surface-3 hover:text-ink focus:bg-surface-3 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                            title={t("-5 sur toutes les lignes")}
                             onClick={() => setRows((rs) => rs.map((r) => {
                               if (r.type === 'Occasion') return r;
                               const cur = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
@@ -1271,8 +1498,8 @@ export function DevisEditor({
                       <ChevronDown className="h-3 w-3" />
                     </button>
                     <button type="button" disabled={!isEditable}
-                            className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted focus:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={t('+5 sur toutes les lignes')}
+                            className="flex h-4 w-4 items-center justify-center rounded text-ink-3 hover:bg-surface-3 hover:text-ink focus:bg-surface-3 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                            title={t("+5 sur toutes les lignes")}
                             onClick={() => setRows((rs) => rs.map((r) => {
                               if (r.type === 'Occasion') return r;
                               const cur = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
@@ -1294,8 +1521,8 @@ export function DevisEditor({
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="truncate font-bold text-[11px] cursor-help">
-                              {`${t(col.label || (col.kind === 'accord' ? 'PUHT accordé' : 'PUHT proposé'))}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}
+                            <span className="cursor-help truncate">
+                              {`${t(col.label || (col.kind === "accord" ? "PUHT accordé" : "PUHT proposé"))}${col.kind === "proposition-accord" ? propositionExpertSuffix : ""}`}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-xs text-xs">
@@ -1311,7 +1538,7 @@ export function DevisEditor({
                         <PopoverTrigger asChild>
                           <button
                             type="button"
-                            className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary"
+                            className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             title={t("Choisir un type d'accord")}
                           >
                             <span className="truncate">{`${t(col.label || 'Choisir un accord')}${col.kind === 'proposition-accord' ? propositionExpertSuffix : ''}`}</span>
@@ -1321,7 +1548,7 @@ export function DevisEditor({
                         <PopoverContent align="start" className="w-48 p-1">
                           <button
                             type="button"
-                            className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                            className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                             onClick={() => {
                               updateExtraColumn(col.id, { label: 'PUHT accordé', kind: 'accord' });
                               setAccordHeaderOpen((s) => ({ ...s, [col.id]: false }));
@@ -1331,7 +1558,7 @@ export function DevisEditor({
                           </button>
                           <button
                             type="button"
-                            className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                            className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                             onClick={() => {
                               updateExtraColumn(col.id, {
                                 label: 'PUHT proposé',
@@ -1353,11 +1580,11 @@ export function DevisEditor({
                       <React.Fragment key={col.id}>
                         {/* data-tour: the guided tour highlights the accord
                             entry column itself, not the whole table. */}
-                        <th style={{ width: '120px' }} className="text-right bg-muted/40" data-tour="dev-col-accord">
+                        <th style={{ width: "120px" }} className="text-right" data-tour="dev-col-accord">
                           {puHeader}
                         </th>
-                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{t(`Total H.T ${tripleSuffix}`)}</th>
-                        <th style={{ width: '130px' }} className="text-right bg-muted/40">{`${t('Prix Total')} ${col.kind === 'accord' ? t('Accordé') : t('Proposé')} ${BRAND.companyName}`}</th>
+                        <th style={{ width: '130px' }} className="text-right">{`${t("Total H.T")} ${t(tripleSuffix)}`}</th>
+                        <th style={{ width: '130px' }} className="text-right">{`${t("Prix Total")} ${col.kind === "accord" ? t("Accordé") : t("Proposé")} ${BRAND.companyName}`}</th>
                       </React.Fragment>
                     );
                   }
@@ -1365,18 +1592,18 @@ export function DevisEditor({
                     <th
                       key={col.id}
                       style={{ width: '140px' }}
-                      className={cn(isCounter && 'text-destructive')}
+                      className={cn(isCounter && 'text-status-danger-fg')}
                     >
                       <div className="flex items-center gap-1">
-                        {isCounter && <span className="inline-block h-1.5 w-1.5 rounded-full bg-destructive shrink-0" aria-hidden />}
+                        {isCounter && <span className="inline-block h-1.5 w-1.5 rounded-full bg-status-danger-fg shrink-0" aria-hidden />}
                         <span className="truncate">{t(col.label)}</span>
                         {isCounter && col.sourcePdfUrl && (
                           <a
                             href={col.sourcePdfUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-destructive/70 hover:text-destructive"
-                            title={t('Ouvrir le document source')}
+                            className="text-status-danger-fg hover:text-ink"
+                            title={t("Ouvrir le document source")}
                           >
                             <FileText className="h-3 w-3" />
                           </a>
@@ -1391,8 +1618,8 @@ export function DevisEditor({
                       <button
                         type="button"
                         disabled={!isEditable}
-                        className="w-full flex items-center justify-between gap-1 font-bold text-[11px] hover:text-primary focus:outline-none focus:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={t('Définir Observation pour toutes les lignes')}
+                        className="flex w-full items-center justify-between gap-1 rounded text-xs font-normal text-ink-3 hover:text-ink focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        title={t("Définir Observation pour toutes les lignes")}
                       >
                         <span>{t('Observation')}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
@@ -1401,7 +1628,7 @@ export function DevisEditor({
                     <PopoverContent align="start" className="w-44 p-1">
                       <button
                         type="button"
-                        className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none text-muted-foreground"
+                        className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink-3 hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                         onClick={() => {
                           setRows((rs) => rs.map((r) => ({ ...r, observation: undefined })));
                           setObsHeaderOpen(false);
@@ -1413,7 +1640,7 @@ export function DevisEditor({
                         <button
                           key={opt}
                           type="button"
-                          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                          className="w-full rounded-md px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
                           onClick={() => {
                             setRows((rs) => rs.map((r) => ({ ...r, observation: opt as ObservationOption })));
                             setObsHeaderOpen(false);
@@ -1436,7 +1663,7 @@ export function DevisEditor({
                 // undefined; 0 is a valid filled-in value.
                 const vetusteMissing = (r.type === 'Adaptable' || r.type === 'Originale') && r.vetuste == null;
                 return (
-                  <tr key={r.id} className="[&>td]:px-1.5 [&>td]:py-1 [&>td]:border-b [&>td]:border-r [&>td:last-child]:border-r-0 group hover:bg-muted/30">
+                  <tr key={r.id} className="group [&>td]:px-1.5 [&>td]:py-1 [&>td]:border-b [&>td]:border-hairline hover:bg-surface-2/60">
                     <td>
                       {/* scanned values outside the enum render blank so the chiffreur picks */}
                       <div className="flex items-center gap-0.5">
@@ -1445,7 +1672,7 @@ export function DevisEditor({
                           onValueChange={(v) => updateRow(r.id, { ref: v })}
                           disabled={!isEditable}
                         >
-                          <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                          <SelectTrigger className="h-8 w-full rounded-md border-transparent bg-card px-1.5 text-xs text-ink focus:ring-1 focus:ring-ring focus:ring-offset-0">
                             <SelectValue placeholder="" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1458,8 +1685,8 @@ export function DevisEditor({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                            title={t('Effacer')}
+                            className="h-6 w-6 shrink-0 text-ink-3 hover:text-ink"
+                            title={t("Effacer")}
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { ref: '' }); }}
                           >
                             <X className="h-3 w-3" />
@@ -1489,7 +1716,7 @@ export function DevisEditor({
                           }}
                           disabled={!isEditable}
                         >
-                          <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                          <SelectTrigger className="h-8 w-full rounded-md border-transparent bg-card px-1.5 text-xs text-ink focus:ring-1 focus:ring-ring focus:ring-offset-0">
                             <SelectValue placeholder="" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1502,8 +1729,8 @@ export function DevisEditor({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                            title={t('Effacer')}
+                            className="h-6 w-6 shrink-0 text-ink-3 hover:text-ink"
+                            title={t("Effacer")}
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { type: '' }); }}
                           >
                             <X className="h-3 w-3" />
@@ -1523,25 +1750,31 @@ export function DevisEditor({
                         const ceiling = cap === undefined ? (r.qte ?? 0) : (cap ?? 0);
                         if (scanReviewed && (v ?? 0) > ceiling) return;
                         updateRow(r.id, { qte: v });
-                      }} disabled={!isEditable} decimals={0} align="center" allowNull />
+                      }} disabled={!isEditable} decimals={0} align="right" allowNull />
                     </td>
-                    <td className="bg-muted/40">
+                    <td>
                       <CellNumberInput value={r.puHT} onChange={(v) => updateRow(r.id, { puHT: v ?? 0 })} disabled={!isEditable} align="right" />
                     </td>
                     {/* Total H.T is computed — read-only, auto-updating. */}
-                    <td className="text-right font-semibold pr-2">{formatFr(total)}</td>
+                    <td className="pr-2 text-right font-semibold tabular-nums text-ink">{formatFr(total)}</td>
                     <td>
-                      <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!isEditable} suffix="%" decimals={0} align="center" allowNull />
+                      <CellNumberInput value={r.tva} onChange={(v) => updateRow(r.id, { tva: v })} disabled={!isEditable} suffix="%" decimals={0} align="right" allowNull />
                     </td>
                     <td>
-                      <div className={cn("relative rounded", vetusteMissing && "ring-1 ring-red-500")}>
+                      {/* Missing-vétusté marker — §11 / NN/g validations: the
+                          danger colour never travels alone; the ring + `*`
+                          carry a text label (title + sr-only) too. */}
+                      <div
+                        className={cn("relative rounded-md", vetusteMissing && "ring-1 ring-status-danger-fg")}
+                        title={vetusteMissing ? 'Vétusté manquante' : undefined}
+                      >
                         <CellNumberInput
                           value={r.vetuste ?? null}
                           onChange={(v) => updateRow(r.id, { vetuste: v })}
                           disabled={!isEditable || r.type === 'Occasion'}
                           suffix="%"
                           decimals={0}
-                          align="center"
+                          align="right"
                           allowNull
                           step={5}
                           min={0}
@@ -1549,12 +1782,15 @@ export function DevisEditor({
                           showSteppers
                         />
                         {vetusteMissing && (
-                          <span className="absolute -top-1 -right-1 text-red-500 text-[10px] leading-none pointer-events-none">*</span>
+                          <>
+                            <span aria-hidden className="pointer-events-none absolute -right-1 -top-1 text-[11px] leading-none text-status-danger-fg">*</span>
+                            <span className="sr-only">{t('Vétusté manquante')}</span>
+                          </>
                         )}
                       </div>
                     </td>
                     {/* Prix en TTC is computed — read-only: Total H.T * (1 + tva/100). */}
-                    <td className="text-right font-semibold pr-2">
+                    <td className="pr-2 text-right font-semibold tabular-nums text-ink">
                       {formatFr(total * (1 + (r.tva ?? 0) / 100))}
                     </td>
                     {extraColumns.map((col) => {
@@ -1571,7 +1807,7 @@ export function DevisEditor({
                         const isAccordOverCap = puAccord > 0 && puAccord > rowPuHT;
                         return (
                           <React.Fragment key={col.id}>
-                            <td className="bg-muted/40 align-top">
+                            <td className="align-top">
                               <AccordPUInput
                                 value={raw}
                                 disabled={!isEditable || col.locked === true}
@@ -1590,15 +1826,15 @@ export function DevisEditor({
                                 }}
                               />
                               {isAccordOverCap && (
-                                <p className="text-[10px] text-destructive mt-0.5 px-1.5 leading-tight">
-                                  {t('Doit être ≤ P.U.H.T')}
+                                <p className="mt-0.5 px-1.5 text-[11px] leading-tight text-status-danger-fg">
+                                  Doit être ≤ P.U.H.T
                                 </p>
                               )}
                             </td>
-                            <td className="text-right font-semibold pr-2 bg-muted/40">
+                            <td className="pr-2 text-right font-semibold tabular-nums text-ink">
                               {formatFr(totalHTAccord)}
                             </td>
-                            <td className="text-right font-semibold pr-2 bg-muted/40">
+                            <td className="pr-2 text-right font-semibold tabular-nums text-ink">
                               {formatFr(sansTva ? totalHTAccord : prixTTCAccord)}
                             </td>
                           </React.Fragment>
@@ -1610,7 +1846,7 @@ export function DevisEditor({
                             value={col.values[r.id] || ''}
                             onChange={(v) => updateExtraCell(col.id, r.id, v)}
                             disabled={!isEditable}
-                            className={col.kind === 'counter' ? 'text-destructive font-semibold' : undefined}
+                            className={col.kind === 'counter' ? 'font-semibold text-status-danger-fg' : undefined}
                           />
                         </td>
                       );
@@ -1634,13 +1870,13 @@ export function DevisEditor({
                           }}
                           disabled={!isEditable}
                         >
-                          <SelectTrigger className="h-8 w-full px-1.5 text-xs border-transparent bg-transparent focus:border-primary/50 focus:bg-background rounded">
+                          <SelectTrigger className="h-8 w-full rounded-md border-transparent bg-card px-1.5 text-xs text-ink focus:ring-1 focus:ring-ring focus:ring-offset-0">
                             <SelectValue placeholder="">
                               {r.observation ? t(OBSERVATION_LABELS[r.observation]) : ''}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__" className="text-xs text-muted-foreground">{t('(aucune)')}</SelectItem>
+                            <SelectItem value="__none__" className="text-xs text-ink-3">(aucune)</SelectItem>
                             {OBSERVATION_OPTIONS.map((opt) => (
                               <SelectItem key={opt} value={opt} className="text-xs">{t(OBSERVATION_LABELS[opt])}</SelectItem>
                             ))}
@@ -1650,8 +1886,8 @@ export function DevisEditor({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                            title={t('Effacer')}
+                            className="h-6 w-6 shrink-0 text-ink-3 hover:text-ink"
+                            title={t("Effacer")}
                             onClick={(e) => { e.stopPropagation(); updateRow(r.id, { observation: undefined }); }}
                           >
                             <X className="h-3 w-3" />
@@ -1661,8 +1897,8 @@ export function DevisEditor({
                     </td>
                     <td>
                       {canEdit && (
-                        <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" title={t('Supprimer')} onClick={() => deleteRow(r.id)}>
+                        <div className="flex items-center gap-0.5 opacity-40 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-ink-3 hover:text-destructive" title={t("Supprimer")} aria-label={t("Supprimer la ligne")} onClick={() => deleteRow(r.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -1677,22 +1913,26 @@ export function DevisEditor({
                 Per-column: Vétusté/Type/REF/Désignation/T.V.A blank;
                 Quantité = Σ; P.U.H.T = mean; Total H.T = Σ of row totals.
               */}
+              {/* C5 — the totals strip must stay visible while the inner
+                  table scrolls: sticky is applied on the <td>s as well as the
+                  <tr> because Chromium historically only honours sticky on
+                  cells (chiffrage-redesign-spec). */}
               <tr
                 className={cn(
-                  'sticky bottom-0 z-10 bg-muted/80 backdrop-blur-sm font-bold',
-                  'border-t-2 border-foreground/20',
-                  '[&>td]:px-1.5 [&>td]:py-2 [&>td]:border-t-2 [&>td]:border-foreground/20 [&>td]:bg-muted/80',
-                  '[&>td]:border-r [&>td:last-child]:border-r-0',
+                  'sticky bottom-0 z-10 bg-surface-2 font-semibold tabular-nums text-ink',
+                  '[&>td]:sticky [&>td]:bottom-0',
+                  '[&>td]:px-1.5 [&>td]:py-2 [&>td]:border-t [&>td]:border-hairline-strong [&>td]:bg-surface-2',
                 )}
               >
-                <td className="text-muted-foreground">{t('Total')}</td>
+                <td className="font-normal text-ink-3">{t("Total")}</td>
                 <td />
                 <td />
-                <td className="text-center">{formatFr(totalsRow.qteSum, 0)}</td>
+                {/* Totals row right-aligned under its numeric columns (§3). */}
+                <td className="text-right">{formatFr(totalsRow.qteSum, 0)}</td>
                 <td />
                 <td className="text-right">{formatFr(totalsRow.totalHt)}</td>
                 <td />
-                <td className="text-center text-muted-foreground">—</td>
+                <td className="text-right font-normal text-ink-4">—</td>
                 <td className="text-right">{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</td>
                 {extraColumns.map((col) => {
                   const isCounter = col.kind === 'counter';
@@ -1722,7 +1962,7 @@ export function DevisEditor({
                   // Σ for imported/extra columns, SR-tolerant.
                   const colSum = rows.reduce((acc, r) => acc + parseFr(col.values[r.id] || ''), 0);
                   return (
-                    <td key={col.id} className={cn('text-right', isCounter && 'text-destructive')}>
+                    <td key={col.id} className={cn('text-right', isCounter && 'text-status-danger-fg')}>
                       {formatFr(colSum)}
                     </td>
                   );
@@ -1733,29 +1973,94 @@ export function DevisEditor({
             </tbody>
           </table>
         </div>
+        {/* C4 — row-add path (chiffrage-redesign-spec): ghost + Plus, inside
+            the card between the table and the totals strip. Appends a blank
+            manual row and focuses its Désignation cell (see addRow). */}
+        <div className="border-t border-hairline px-2 py-1">
+          <Button variant="ghost" size="sm" onClick={addRow} disabled={!isEditable}>
+            <Plus className="h-4 w-4" />
+            {t("Ajouter une ligne")}
+          </Button>
+        </div>
         {/*
           Single-row summary below the table: Total H.T (under HT col) and
           Total TTC Expert (under Prix en TTC col). Task #16 collapsed the
           previous two-row TVA + TTC footer into this single row.
         */}
-        <div className="flex items-center p-2 border-t bg-muted/20 text-xs" data-tour="dev-summary">
-          <div className="flex-1" />
-          <div className="flex items-center gap-6">
-            <span className="font-bold">{t('Total H.T')}</span>
-            <span className="w-28 text-right font-bold">{formatFr(totals.ht)}</span>
-            {!sansTva && (
-              <>
-                <span className="font-bold">{t('Total TTC Expert')}</span>
-                <span className="w-28 text-right font-bold">{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</span>
-              </>
-            )}
+        <div className="flex items-center justify-end gap-6 border-t border-hairline bg-surface-2 px-4 py-2 text-sm" data-tour="dev-summary">
+          <span className="t-label">{t("Total H.T")}</span>
+          <span className="w-28 text-right font-semibold tabular-nums text-ink">{formatFr(totals.ht)}</span>
+          {!sansTva && (
+            <>
+              <span className="t-label">{t("Total TTC Expert")}</span>
+              <span className={cn('w-28 text-right font-semibold tabular-nums', totalTTCExpert == null ? 'text-ink-4' : 'text-ink')}>{totalTTCExpert == null ? '—' : formatFr(totalTTCExpert)}</span>
+            </>
+          )}
+        </div>
+      </Card>
+
           </div>
-        </div>
-      </div>
-
-
-        </div>
-      </div>
+        );
+        if (!(comparisonOpen && dossierId)) return editorBody;
+        const sourcePane = (cls: string) => (
+          <ReferencePanel
+            dossierId={dossierId}
+            isOpen={comparisonOpen}
+            onClose={() => setComparisonOpen(false)}
+            initialDocType={docType}
+            className={cls}
+          />
+        );
+        if (stackedCompare) {
+          // C1 — below lg: stacked, source above the table (both share the
+          // page scroll, so no sticky here).
+          return (
+            <div className="space-y-4">
+              {sourcePane('paper h-[calc((100dvh-14rem)/var(--app-zoom))] w-full overflow-hidden')}
+              {editorBody}
+            </div>
+          );
+        }
+        return (
+          <SplitGroup
+            orientation="horizontal"
+            defaultLayout={splitDefaultLayout}
+            onLayoutChanged={onSplitLayoutChanged}
+            // height:auto + overflow:visible so the group flows with the page
+            // instead of clipping the sticky source pane.
+            style={{ height: 'auto', overflow: 'visible' }}
+          >
+            <SplitPanel
+              id="source"
+              defaultSize="45%"
+              minSize="28%"
+              style={{ overflow: 'visible', maxHeight: 'none' }}
+            >
+              {sourcePane('paper sticky top-16 h-[calc((100dvh-10rem)/var(--app-zoom))] w-full overflow-hidden')}
+            </SplitPanel>
+            {/* C1 — quiet 1 px hairline handle with a grabber-dot area that
+                stays mid-viewport; hover/drag tint per spec. */}
+            <SplitSeparator
+              aria-label={t("Redimensionner la comparaison")}
+              className="relative mx-1.5 w-2 shrink-0 rounded-full transition-colors duration-150 hover:bg-surface-3 data-[separator=active]:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div aria-hidden className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-hairline" />
+              <div aria-hidden className="sticky top-[calc(50dvh/var(--app-zoom))] flex flex-col items-center gap-1">
+                <span className="h-1 w-1 rounded-full bg-ink-4" />
+                <span className="h-1 w-1 rounded-full bg-ink-4" />
+                <span className="h-1 w-1 rounded-full bg-ink-4" />
+              </div>
+            </SplitSeparator>
+            <SplitPanel
+              id="table"
+              minSize="40%"
+              style={{ overflow: 'visible', maxHeight: 'none' }}
+            >
+              {editorBody}
+            </SplitPanel>
+          </SplitGroup>
+        );
+      })()}
 
       {/*
         Task #23 — save-flow preview. Opened by the Enregistrer button (and
@@ -1804,35 +2109,58 @@ export function DevisEditor({
 // ── sub-components ────────────────────────────────────────────────────────
 
 function HeaderField({
-  label, value, onChange, disabled, placeholder,
-}: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string }) {
+  label, value, onChange, disabled, placeholder, inputClassName, className,
+}: {
+  label: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string;
+  /** Content-sizes the input (addendum §4: field width matches the known length of the value). */
+  inputClassName?: string;
+  /** Row-level spacing hook (`mt-3` on the first row of a new group). */
+  className?: string;
+}) {
+  // Original 3d5629a layout restored: the label sits LEFT of the control in a
+  // 110 px column (`grid-cols-[110px_1fr]`). Element-specs §9 (GOV.UK text
+  // input: every input has a visible label; NN/g: labels quiet, the value is
+  // the star) — label `t-label` 12/400 ink-3, value 14/600 ink in a solid
+  // 36 px field (the identity block is dense reference data, so the compact
+  // end of the 36–40 px range). Known-length fields cap the input width via
+  // `inputClassName` (GOV.UK: "size inputs to known lengths").
   return (
-    <label className="grid grid-cols-[110px_1fr] items-center gap-2 text-xs">
-      <span className="font-semibold text-muted-foreground">{label}</span>
+    <label className={cn('grid min-w-0 grid-cols-[110px_1fr] items-center gap-2', className)}>
+      <span className="t-label truncate">{label}</span>
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={placeholder}
-        className="h-8 text-xs"
+        className={cn('h-9 font-semibold text-ink', inputClassName)}
       />
     </label>
   );
 }
 
+// Cell inputs are solid `bg-card` (nested-solid rule) with no box: the row
+// hairline carries the structure and the focus ring marks the edit.
+const CELL_INPUT_CLASS =
+  'h-7 w-full rounded-md border-0 bg-card px-1.5 text-xs text-ink outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:text-ink-3';
+
 function CellInput({
   value, onChange, disabled, className,
 }: { value: string; onChange: (v: string) => void; disabled?: boolean; className?: string }) {
+  // C3 — Échap reverts to the pre-focus value (chiffrage-redesign-spec);
+  // stopPropagation only when a change is actually reverted.
+  const focusValueRef = useRef(value);
   return (
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onFocus={() => { focusValueRef.current = value; }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || value === focusValueRef.current) return;
+        e.stopPropagation();
+        onChange(focusValueRef.current);
+      }}
       disabled={disabled}
-      className={cn(
-        "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border border-transparent",
-        "focus:border-primary/50 focus:bg-background disabled:cursor-not-allowed",
-        className,
-      )}
+      className={cn(CELL_INPUT_CLASS, className)}
     />
   );
 }
@@ -1850,20 +2178,26 @@ function AccordPUInput({
   error?: boolean;
 }) {
   const t = useT();
+  // C3 — Échap reverts to the pre-focus value (chiffrage-redesign-spec).
+  const focusValueRef = useRef(value);
   return (
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onFocus={() => { focusValueRef.current = value; }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || value === focusValueRef.current) return;
+        e.stopPropagation();
+        onChange(focusValueRef.current);
+      }}
       onBlur={onBlurValidate}
       disabled={disabled}
       inputMode="decimal"
       title={error ? t('La valeur ne peut pas dépasser le P.U.H.T.') : undefined}
       className={cn(
-        "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border text-right",
-        "focus:bg-background disabled:cursor-not-allowed",
-        error
-          ? "border-destructive focus:border-destructive"
-          : "border-transparent focus:border-primary/50",
+        CELL_INPUT_CLASS,
+        'text-right tabular-nums',
+        error && 'ring-1 ring-status-danger-fg focus-visible:ring-status-danger-fg',
       )}
     />
   );

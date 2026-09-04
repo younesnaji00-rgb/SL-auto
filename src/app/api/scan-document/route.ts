@@ -4,6 +4,7 @@ import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
 import { transliterateArabic } from '@/lib/transliterate-arabic';
 import { requireAuth, authErrorResponse } from '@/lib/require-auth';
+import { retrieveFieldCorrectionGuidance } from '@/lib/ai-memory';
 import { BRAND } from '@/lib/brand';
 
 /**
@@ -145,6 +146,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Learned guidance from previous user corrections (per compagnie when known).
+    const hints: { compagnie?: string } = body.hints || {};
+    const guidance = await retrieveFieldCorrectionGuidance(hints.compagnie || null).catch(() => '');
+
     const mediaParts = rawFiles.map(f => ({
       media: { url: `data:${f.contentType || 'image/jpeg'};base64,${f.fileBase64}` }
     }));
@@ -246,6 +251,7 @@ RÈGLES STRICTES (ZÉRO TOLÉRANCE AUX ERREURS):
 11. "nature" fait référence à la nature du sinistre (ex: "Accident", "Vol", "Incendie", "Bris de glace", "Catastrophe naturelle").
 12. "refExpert" est la référence du dossier chez l'expert, "companyRef" est la référence de la compagnie d'assurance.`
         },
+        ...(guidance ? [{ text: guidance }] : []),
         ...mediaParts,
       ]
     }), { label: 'scan-document' });

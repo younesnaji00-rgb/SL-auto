@@ -1,14 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Loader2, X, Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Loader2 } from 'lucide-react';
 import { useAuth, useCollection, useFirestore, useStorage } from '@/firebase';
 import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { deleteObject, ref } from 'firebase/storage';
@@ -16,21 +9,25 @@ import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { extractAndPersistChiffrageDevis, extractAndPersistDossierDoc } from '@/lib/devis-extract';
 import { scanAndPersistCarteGrise } from '@/lib/scan-carte-grise';
 import { isEditableDocType } from '@/lib/devis-schema';
-import { parseAccordDocType, mapToAccorde, parseAccordeParent } from '@/lib/docType-accorde';
-import { buildDocFamilies, collectFamilySlotLabels } from '@/lib/doc-family';
+import { parseAccordDocType, mapToAccorde } from '@/lib/docType-accorde';
+import { buildDocFamilies } from '@/lib/doc-family';
 import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
-import { SlotCard, isImage, type ExtraSlotKind, type TypedDoc } from './slot-card';
+import { DocumentPreviewLightbox, type DocumentPreviewLightboxDoc } from '@/components/document-preview-lightbox';
+import { downloadFileFromUrl, toLightboxDoc, type DocDragPayload } from '@/components/documents/typed-doc';
+import { reclassifyDocuments } from '@/components/documents/reclassify';
+import { docTypeOf } from '@/lib/required-docs';
+import { SlotCard, type ExtraSlotKind, type TypedDoc } from './slot-card';
 import { FamilyRow } from './family-row';
 
 // Slots shown in the typed-import grid. Photos (avant / en cours / après) are
 // intentionally omitted — they have their own dedicated Photos step.
 // Task #25 — the list is now dynamic: `BASE_DOC_SLOTS` is the canonical fixed
-// skeleton (always rendered), and `computedSlots` (inside the component)
-// appends cardinal-accord and proposition-accord variants found in the live
-// Firestore docs, contiguously after the matching source-accordé slot.
+// skeleton (always rendered), and `computedSlots` logic appends cardinal-accord
+// and proposition-accord variants found in the live Firestore docs,
+// contiguously after the matching source-accordé slot.
 const BASE_DOC_SLOTS = [
   'Devis Garage',
   'Devis accordé',
@@ -55,28 +52,18 @@ const BASE_DOC_SLOTS = [
   'Autre',
 ];
 
-/**
- * Source documents the gestionnaire must import before the dossier can be
- * sent to chiffrage. The "Assigner au chiffrage" button on step 4 stays
- * disabled until ALL of these are populated. "Autre" is intentionally
- * NOT on this list — it's optional. Devis Garage and Facture Garage are
- * NOT here either — they're an either-or pair tracked by
- * {@link GARAGE_DOC_SLOTS} so the gestionnaire can send with just one of
- * the two filled. See item 023.
- */
-export const REQUIRED_SOURCE_SLOTS = [
-  'PV-Constat / Récépissé de police',
-  'Carte grise',
-  'Attestation d\'assurance',
-  'Kilométrage',
-  'Numéro de chassis',
-] as const;
+// Required-slot gate (item 023) now lives in `@/lib/required-docs` so the
+// documents browser and the step gate share one predicate. Re-exported here
+// for backward compatibility with existing importers.
+export { REQUIRED_SOURCE_SLOTS, GARAGE_DOC_SLOTS } from '@/lib/required-docs';
 
-/**
- * Either-or garage doc slots. At least one of these must be filled before
- * the dossier can be sent to chiffrage.
- */
-export const GARAGE_DOC_SLOTS = ['Devis Garage', 'Facture Garage'] as const;
+// Layout classes shared by the standalone sections (Devis et Facture, Rapport,
+// Réforme, Autres documents) so they read like the family rows: hairline +
+// 20 px padding when following another block, 12 px uppercase muted label,
+// same responsive socket grid as `FamilyRow` (no horizontal scrolling).
+const SECTION_CLASS = 'space-y-3 border-t border-hairline pt-5 first:border-t-0 first:pt-0';
+const SECTION_HEADING_CLASS = 't-label';
+const SECTION_GRID_CLASS = 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4';
 
 interface TypedDocumentsGridProps {
   dossierId: string;
@@ -104,16 +91,13 @@ interface TypedDocumentsGridProps {
   /**
    * When true, render an additional section showing two standalone base
    * `Devis Garage` / `Facture Garage` SlotCards with no cardinal `+` and no
-   * extra-slot `+`. Used in step 1 (Création de mission) so gestionnaires
-   * can collect base garage docs without spawning accord/proposition or
-   * extra ordinals from there.
+   * extra-slot `+`. Used so gestionnaires / agents can collect base garage
+   * docs without spawning accord/proposition or extra ordinals from there.
    */
   showBaseGarageSlots?: boolean;
   /**
    * When true, the "Autres documents" section (PV-Constat / Carte grise /
-   * Attestation / Kilométrage / Numéro de chassis) is not rendered. Used in
-   * step 1 (Création de mission) where only base Devis/Facture Garage slots
-   * should appear.
+   * Attestation / Kilométrage / Numéro de chassis) is not rendered.
    */
   hideOtherSlots?: boolean;
   /**
@@ -122,8 +106,7 @@ interface TypedDocumentsGridProps {
    * section (PV-Constat / Carte grise / Attestation / Kilométrage / Numéro de
    * chassis / Autre). Overrides `hideAccordSlots` / `hideOtherSlots` for those
    * sections only — the accord/proposition family rows remain governed by
-   * `hideAccordSlots`. Used in step 1 (Création de mission) so the
-   * gestionnaire can collect every supporting document before chiffrage.
+   * `hideAccordSlots`.
    */
   showAllNonAccordSlots?: boolean;
   /**
@@ -146,9 +129,11 @@ interface TypedDocumentsGridProps {
    * the fee note / invoice.
    */
   showOnlyNoteHonoraire?: boolean;
+  /** Replay: frozen documents list rendered instead of the live subscription. */
+  docsOverride?: any[];
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, hideReformeSlots, showReformeSlots, showOnlyNoteHonoraire }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, hideReformeSlots, showReformeSlots, showOnlyNoteHonoraire, docsOverride }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -177,14 +162,18 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
 
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [previewDoc, setPreviewDoc] = useState<{ url: string; nom: string } | null>(null);
+  // Lightbox: the page being shown + every page of that slot (enables ‹ › paging).
+  const [preview, setPreview] = useState<{ doc: DocumentPreviewLightboxDoc; pages: DocumentPreviewLightboxDoc[] } | null>(null);
 
   const collQuery = useMemo(() => {
-    if (!db) return null;
+    if (!db || docsOverride !== undefined) return null;
     return collection(db, 'dossiers', dossierId, 'documents');
-  }, [db, dossierId]);
+  }, [db, dossierId, docsOverride]);
 
-  const { data: allDocs, loading } = useCollection<any>(collQuery);
+  const { data: liveDocs, loading: liveLoading } = useCollection<any>(collQuery);
+  // Replay override: frozen data — no live subscription.
+  const allDocs = docsOverride !== undefined ? docsOverride : liveDocs;
+  const loading = docsOverride !== undefined ? false : liveLoading;
 
   // Group live docs into Devis / Facture families (one row each). Non-family
   // slots are rendered in a separate grid above/below the family rows.
@@ -195,10 +184,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
 
   // Split non-family slots into three labelled sections:
   //   - rapportSlots:  every "Rapport *" type — base "Rapport final" plus any
-  //                    additional rapport variant observed on live docs
-  //                    (e.g. "Rapport préliminaire", "Rapport réforme") so the
-  //                    grid grows automatically as new rapport types are
-  //                    produced by the "Générer le rapport" flow.
+  //                    additional rapport variant observed on live docs.
   //   - reformeSlots:  'Réforme technique' + 'Réforme économique' together.
   //   - otherSlots:    PV / Carte grise / Attestation / etc.
   const FAMILY_BASE_SLOTS = new Set(['Devis Garage', 'Facture Garage']);
@@ -268,18 +254,6 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     }
     return { extraDevisLabels: devis, extraFactureLabels: facture };
   }, [families]);
-
-  // Ordered slot list for the flat grid render: families first, then the
-  // standalone Rapport / Réforme / other-docs sections.
-  const computedSlots = useMemo<string[]>(() => {
-    const slots: string[] = [];
-    for (const fam of families) for (const s of fam.slots) slots.push(s);
-    for (const s of rapportSlots) slots.push(s);
-    for (const s of reformeSlots) slots.push(s);
-    for (const s of noteHonoraireSlots) slots.push(s);
-    for (const s of otherSlots) slots.push(s);
-    return slots;
-  }, [rapportSlots, reformeSlots, noteHonoraireSlots, otherSlots, families]);
 
   const docsByType = useMemo(() => {
     const map: Record<string, TypedDoc[]> = {};
@@ -424,6 +398,21 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           }
         } catch (err) {
           console.warn('[typed-docs-grid] chiffrage sync failed (non-fatal)', err);
+        }
+      }
+
+      // Completion stamp for the final step: the first Note d'honoraire
+      // deposited marks the stage done (read by lib/dossier-steps and the
+      // Suivi d'équipe funnel — it was the one stage with no date).
+      if (successCount > 0 && slot === NOTE_HONORAIRE_LABEL) {
+        try {
+          await updateDoc(doc(db, 'dossiers', dossierId), {
+            dateNoteHonoraire: serverTimestamp(),
+            authorNoteHonoraire: userEmail,
+            updatedAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.warn('[typed-documents-grid] dateNoteHonoraire stamp failed', e);
         }
       }
 
@@ -644,9 +633,48 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     }
   };
 
-  const handlePreview = (d: TypedDoc) => {
-    if (d.url && !d.pendingUpload) {
-      setPreviewDoc({ url: d.url, nom: d.nom || d.fileName || 'document' });
+  const handlePreview = (d: TypedDoc, pages?: TypedDoc[]) => {
+    if (!d.url || d.pendingUpload) return;
+    const list = (pages && pages.length > 0 ? pages : [d])
+      .filter((p) => !!p.url && !p.pendingUpload)
+      .map(toLightboxDoc);
+    setPreview({ doc: toLightboxDoc(d), pages: list });
+  };
+
+  // Socket-to-socket drag: move (empty target) or swap (filled target) every
+  // page of the dragged document. Writes + historique + AI feedback live in
+  // `reclassifyDocuments`; the board only resolves the two doc sets.
+  const handleDocDrop = async (targetSlot: string, payload: DocDragPayload) => {
+    if (!db) return;
+    const sourceType = payload.type;
+    if (!sourceType || sourceType === targetSlot) return;
+    const all = ((allDocs as TypedDoc[] | undefined) ?? []);
+    const sourceDocs = all.filter((d) => docTypeOf(d) === sourceType);
+    const targetDocs = all.filter((d) => docTypeOf(d) === targetSlot && !!d.url);
+    if (sourceDocs.length === 0) return;
+    const userEmail = auth?.currentUser?.email || profile?.email || 'Admin';
+    try {
+      let compagnie: string | null = null;
+      try {
+        const snap = await getDoc(doc(db, 'dossiers', dossierId));
+        compagnie = ((snap.data() as any)?.compagnie as string | undefined) ?? null;
+      } catch { /* non-fatal — feedback just lacks the compagnie hint */ }
+      const res = await reclassifyDocuments({
+        db, dossierId, sourceType, targetType: targetSlot, sourceDocs, targetDocs,
+        userEmail, userName: profile?.nom, compagnie,
+      });
+      toast({
+        title: res.mode === 'swap'
+          ? `${t('Documents échangés :')} ${t(sourceType)} ↔ ${t(targetSlot)}`
+          : `${t('Document déplacé vers')} « ${t(targetSlot)} »`,
+      });
+    } catch (err: any) {
+      console.error('[typed-docs-grid] reclassify failed', err);
+      toast({
+        variant: 'destructive',
+        title: t('Erreur lors du reclassement'),
+        description: err?.message || t('Impossible de déplacer le document.'),
+      });
     }
   };
 
@@ -668,6 +696,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
       onCreateExtraSlot={handleCreateExtraSlot}
       onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
       onPreview={handlePreview}
+      onDocDrop={(payload) => handleDocDrop(slot, payload)}
       hideCardinalPlus={hideCardinalPlus}
       hideExtraSlotPlus={hideExtraSlotPlus}
     />
@@ -704,13 +733,13 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     <div>
       {loading ? (
         <div className="flex items-center justify-center h-32">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Loader2 className="h-5 w-5 animate-spin text-ink-3" />
         </div>
       ) : showOnlyNoteHonoraire ? (
         <div className="space-y-6">
           {/* Note d'honoraire — final-step invoice slot, listed like accord docs. */}
-          <section className="space-y-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <section className="space-y-3">
+            <div className={SECTION_GRID_CLASS}>
               {noteHonoraireSlots.map((slot) => renderSlotCard(slot))}
             </div>
           </section>
@@ -721,9 +750,9 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               Pinned at the top (above family rows / autres) so step 1's primary
               upload affordance is the first thing the gestionnaire sees. */}
           {showBaseGarageSlots && (
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">{t('Devis et Facture')}</h4>
-              <div className="grid grid-cols-2 gap-3">
+            <section className={SECTION_CLASS}>
+              <h4 className={SECTION_HEADING_CLASS}>{t('Devis et Facture')}</h4>
+              <div className={SECTION_GRID_CLASS}>
                 {(['Devis Garage', 'Facture Garage'] as const).map((slot) => (
                   <SlotCard
                     key={slot}
@@ -742,6 +771,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
                     onCreateExtraSlot={handleCreateExtraSlot}
                     onRenameExtraSlot={() => handleRenameExtraSlot(slot)}
                     onPreview={handlePreview}
+                    onDocDrop={(payload) => handleDocDrop(slot, payload)}
                     hideCardinalPlus
                     hideExtraSlotPlus
                   />
@@ -754,6 +784,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           {!hideAccordSlots && devisFamilies.map((group) => (
             <FamilyRow
               key={group.parent}
+              dossierId={dossierId}
               group={group}
               docsByType={docsByType}
               canEdit={canEdit}
@@ -769,6 +800,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               onCreateExtraSlot={handleCreateExtraSlot}
               onRenameExtraSlot={handleRenameExtraSlot}
               onPreview={handlePreview}
+              onDocDrop={handleDocDrop}
               hideCardinalPlus={hideCardinalPlus}
               hideExtraSlotPlus={hideExtraSlotPlus}
               cardinalFilter={cardinalFilter}
@@ -779,6 +811,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           {!hideAccordSlots && factureFamilies.map((group) => (
             <FamilyRow
               key={group.parent}
+              dossierId={dossierId}
               group={group}
               docsByType={docsByType}
               canEdit={canEdit}
@@ -794,6 +827,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               onCreateExtraSlot={handleCreateExtraSlot}
               onRenameExtraSlot={handleRenameExtraSlot}
               onPreview={handlePreview}
+              onDocDrop={handleDocDrop}
               hideCardinalPlus={hideCardinalPlus}
               hideExtraSlotPlus={hideExtraSlotPlus}
               cardinalFilter={cardinalFilter}
@@ -804,9 +838,9 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               (step 1 Création de mission). Hidden under the default flow to
               preserve the legacy render order on other timeline steps. */}
           {showAllNonAccordSlots && cardinalFilter !== '2-plus' && !showOnlyAccordSlots && rapportSlots.length > 0 && (
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">{t('Rapport')}</h4>
-              <div className="grid grid-cols-2 gap-3">
+            <section className={SECTION_CLASS}>
+              <h4 className={SECTION_HEADING_CLASS}>{t('Rapport')}</h4>
+              <div className={SECTION_GRID_CLASS}>
                 {rapportSlots.map((slot) => renderSlotCard(slot))}
               </div>
             </section>
@@ -817,9 +851,9 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               Accord step can surface the deposited réforme as its own row. */}
           {!hideReformeSlots && cardinalFilter !== '2-plus' && reformeSlots.length > 0 &&
             (showReformeSlots || ((showAllNonAccordSlots || !hideAccordSlots) && !showOnlyAccordSlots)) && (
-            <section className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">{t('Réforme')}</h4>
-              <div className="grid grid-cols-2 gap-3">
+            <section className={SECTION_CLASS}>
+              <h4 className={SECTION_HEADING_CLASS}>{t('Réforme')}</h4>
+              <div className={SECTION_GRID_CLASS}>
                 {reformeSlots.map((slot) => renderSlotCard(slot))}
               </div>
             </section>
@@ -827,9 +861,9 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
 
           {/* Autres documents — PV, Carte grise, Attestation, etc. */}
           {(showAllNonAccordSlots || !hideOtherSlots) && !showOnlyAccordSlots && otherSlots.length > 0 && (
-            <section className="space-y-2" data-tour="dosd-other-docs">
-              <h4 className="text-sm font-semibold text-muted-foreground">{t('Autres documents')}</h4>
-              <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
+            <section className={SECTION_CLASS} data-tour="dosd-other-docs">
+              <h4 className={SECTION_HEADING_CLASS}>{t('Autres documents')}</h4>
+              <div className={SECTION_GRID_CLASS}>
                 {otherSlots.map((slot) => renderSlotCard(slot))}
               </div>
             </section>
@@ -837,52 +871,14 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
         </div>
       )}
 
-      {/* Lightbox preview */}
-      {previewDoc && (
-        <Dialog open onOpenChange={() => setPreviewDoc(null)}>
-          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0" hideCloseButton>
-            <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2">
-              <DialogTitle className="text-sm truncate flex-1">{previewDoc.nom}</DialogTitle>
-              <a
-                href={previewDoc.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex"
-                title={t('Ouvrir / télécharger')}
-              >
-                <Button variant="ghost" size="icon" className="h-7 w-7" type="button">
-                  <Download className="h-4 w-4" />
-                </Button>
-              </a>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setPreviewDoc(null)}
-                title={t('Fermer')}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </DialogHeader>
-            <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
-              {isImage(previewDoc.nom) ? (
-                <img
-                  src={previewDoc.url}
-                  className="max-w-full max-h-full object-contain"
-                  alt={previewDoc.nom}
-                />
-              ) : (
-                <iframe
-                  src={previewDoc.url}
-                  className="w-full h-full border-none"
-                  title={previewDoc.nom}
-                />
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Lightbox preview — shared component */}
+      <DocumentPreviewLightbox
+        doc={preview?.doc ?? null}
+        pages={preview?.pages}
+        onPageChange={(d) => setPreview((p) => (p ? { ...p, doc: d } : p))}
+        onClose={() => setPreview(null)}
+        onDownload={(d) => downloadFileFromUrl(d.url, d.nom)}
+      />
     </div>
   );
 }
-

@@ -1,14 +1,8 @@
 'use client';
 
-import React, { useState, useMemo, use, useEffect, useRef } from 'react';
+import React, { useState, useMemo, use, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  Bell,
-  Save,
-  History,
-  Mail,
-} from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDoc, useFirestore } from '@/firebase';
 import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
@@ -17,15 +11,22 @@ import { RappelDraftContext, useRappelDraftStore, applyPendingToDossier } from '
 import { useToast } from '@/hooks/use-toast';
 import { PageLoader } from '@/components/ui/page-loader';
 import { ErrorState } from '@/components/ui/error-state';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useT } from '@/i18n';
-import { useDossierTabs } from '@/hooks/use-dossier-tabs';
-import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 
 // ── Timeline ─────────────────────────────────────────────────────────────────
-import { Timeline, DOSSIER_TIMELINE_STEPS } from '@/components/dossier-timeline/timeline';
+import { Timeline } from '@/components/dossier-timeline/timeline';
+import { StepTabs } from '@/components/dossier-timeline/step-tabs';
+import { useRequiredDocsStatus } from '@/hooks/use-required-docs-status';
+import { getMissingRequiredFields } from '@/lib/required-fields';
+import { useFocusMode } from '@/hooks/use-focus-mode';
+import { gotoStep, stepTabsKey } from '@/lib/step-navigation';
+import { useSidebar } from '@/components/ui/sidebar';
+import { ClipboardList, FolderOpen, CalendarDays, Camera, MessageSquare } from 'lucide-react';
+import { getStepStatuses } from '@/lib/dossier-steps';
+import { RecordBar, RECORD_BAR_HEIGHT } from '@/components/dossiers/record-bar';
+import { DossierContextPanel } from '@/components/dossiers/dossier-context-panel';
 import { useLastStep } from '@/hooks/use-last-step';
 import Step1Import from '@/components/dossier-timeline/step-1-import';
 import Step2Information from '@/components/dossier-timeline/step-2-information';
@@ -58,9 +59,27 @@ export default function DossierDetailPage({
   const db = useFirestore();
   const dossierRef = useMemo(() => doc(db, 'dossiers', id), [db, id]);
   const { data: dossier, loading } = useDoc(dossierRef);
+  // Badges the Pièces tab (n/m required pieces) so its state is visible
+  // without opening it.
+  const requiredDocs = useRequiredDocsStatus(id);
+  // Focus mode (raised by « Comparer »): collapse the app sidebar, retract the
+  // steps rail and the context column so the section gets the full width.
+  const focusMode = useFocusMode();
+  const { open: sidebarOpen, setOpen: setSidebarOpen, isMobile: sidebarIsMobile } = useSidebar();
+  const sidebarWasOpen = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (sidebarIsMobile) return;
+    if (focusMode) {
+      if (sidebarWasOpen.current === null) sidebarWasOpen.current = sidebarOpen;
+      setSidebarOpen(false);
+    } else if (sidebarWasOpen.current !== null) {
+      setSidebarOpen(sidebarWasOpen.current);
+      sidebarWasOpen.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusMode, sidebarIsMobile]);
   const { canWrite, profile } = useCurrentUser();
   const readOnly = !canWrite('dossiers');
-  const { openTab, refreshTabLabel } = useDossierTabs();
   const { toast } = useToast();
   const t = useT();
 
@@ -209,27 +228,31 @@ export default function DossierDetailPage({
     }
   };
 
-  // Register this dossier as an open tab (handles deep links) and keep the label in sync.
-  useEffect(() => {
-    if (!id) return;
-    openTab(id);
-  }, [id, openTab]);
-
-  useEffect(() => {
-    if (!id || !dossier) return;
-    const d = dossier as { assure?: any };
-    const a = d.assure;
-    let label = '';
-    if (typeof a === 'string') {
-      label = a.trim();
-    } else if (a && typeof a === 'object') {
-      label = `${a.prenom || ''} ${a.nom || ''}`.trim();
-    }
-    if (!label) label = t('Sans nom');
-    refreshTabLabel(id, label);
-  }, [id, dossier, refreshTabLabel, t]);
-
+  // Tab registration + label sync live in <RecordBar> (one label everywhere).
   const [activeStep, setActiveStep] = useLastStep(id);
+  // The one way to jump to a step from the record bar / context column: the
+  // Timeline unfolds + scrolls it, StepTabs switches tab (lib/step-navigation).
+  const goToStep = useCallback(
+    (stepId: number, tab?: string) => {
+      setActiveStep(stepId);
+      gotoStep(id, stepId, tab);
+    },
+    [id, setActiveStep],
+  );
+  // Deep link: `/dossiers/{id}#step-N` (Suivi d'équipe drawer, rappels) lands
+  // on that step once the timeline is mounted. Runs once per dossier load.
+  const hashHandledRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (loading || !dossier) return;
+    const m = /^#step-(d+)$/.exec(window.location.hash);
+    if (!m || hashHandledRef.current === id) return;
+    hashHandledRef.current = id;
+    goToStep(Number(m[1]));
+  }, [loading, dossier, id, goToStep]);
+
+  // Per-step status computed from dossier data — drives the stepper, the
+  // section chips and the record bar's primary action.
+  const stepStates = useMemo(() => getStepStatuses(effectiveDossier ?? dossier), [effectiveDossier, dossier]);
 
   // Modal states
   const [isPlanificationModalOpen, setPlanificationModalOpen] = useState(false);
@@ -238,12 +261,6 @@ export default function DossierDetailPage({
   const [isChiffrageModalOpen, setChiffrageModalOpen] = useState(false);
   const [isHistoriqueOpen, setHistoriqueOpen] = useState(false);
   const [isEmailDialogOpen, setEmailDialogOpen] = useState(false);
-
-  const renderAssure = (assure: any) => {
-    if (!assure) return 'N/A';
-    if (typeof assure === 'string') return assure;
-    return `${assure.nom || ''} ${assure.prenom || ''}`.trim() || 'N/A';
-  };
 
   const handleEditPlanification = (data: any) => {
     setPlanificationInitialData(data);
@@ -280,167 +297,134 @@ export default function DossierDetailPage({
   // Non-null view of the dossier for the render tree (`dossier` is non-null
   // past the guard above; the overlay of a non-null doc is non-null).
   const viewDossier = effectiveDossier ?? dossier;
+  // Badges the Informations tab with the number of still-empty required fields.
+  const missingFields = getMissingRequiredFields(viewDossier);
 
   return (
     <RappelDraftContext.Provider value={draftStore}>
-    <div className="flex flex-col min-h-screen bg-background">
-      {/* TOP HEADER */}
-      <div className="bg-card px-6 py-4 border-b" data-tour="dosd-header">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <Link href="/dossiers">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-lg font-bold leading-tight">
-                {t('Dossier :')} <span className="text-primary">{viewDossier.refExpert || t('Sans Ref.')}</span>
-              </h1>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {renderAssure(viewDossier.assure)} &bull; {viewDossier.compagnie || 'N/A'} &bull; {viewDossier.matricule || 'N/A'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {viewDossier.lastObservation?.text && (
-              <Badge className="bg-amber-50 text-amber-800 hover:bg-amber-50 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/50">
-                {viewDossier.lastObservation.text}
-              </Badge>
-            )}
-            <Badge variant="outline" data-tour="dosd-statut" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(viewDossier.statut || 'Nouveau'))}>
-              {t(viewDossier.statut || 'Nouveau')}
-            </Badge>
-          </div>
-        </div>
-      </div>
+    <div className="flex min-h-full flex-col">
+      {/* RECORD BAR — the only sticky row above the stepper */}
+      <RecordBar
+        dossierId={id}
+        dossier={viewDossier}
+        steps={stepStates}
+        readOnly={readOnly}
+        activeStepId={activeStep}
+        rappel={
+          activeRappel
+            ? {
+                active: true,
+                pendingCount: draftStore.pendingCount,
+                validating,
+                onSave: handleValiderTraitement,
+                onDiscard: () => {
+                  if (window.confirm(t('Abandonner les modifications non sauvegardées de cette session de rappel ?'))) {
+                    draftStore.discard();
+                  }
+                },
+              }
+            : undefined
+        }
+        onEmail={() => setEmailDialogOpen(true)}
+        onHistorique={() => setHistoriqueOpen(true)}
+        onPlanifier={(type) => handleNewPlanification(type)}
+        onChiffrage={() => setChiffrageModalOpen(true)}
+        onGoToStep={goToStep}
+      />
 
-      {/* RAPPEL SESSION BANNER — sticky, only when treating a rappel */}
-      {activeRappel && (
-        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex flex-wrap gap-3 items-center sticky top-0 z-50 dark:bg-amber-900/25 dark:border-amber-800/50" data-tour="dosd-rappel-banner">
-          <Bell className="h-4 w-4 text-amber-700 dark:text-amber-200" />
-          <p className="text-sm font-medium text-amber-900 dark:text-amber-100 flex-1">
-            {t("Vous traitez un rappel pour ce dossier — vos modifications restent locales jusqu'à « Sauvegarder ».")}
-            {draftStore.pendingCount > 0 && (
-              <span className="ml-2 inline-flex items-center rounded-full bg-amber-200/80 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-800/60 dark:text-amber-100">
-                {draftStore.pendingCount} {draftStore.pendingCount > 1 ? t('modifications en attente') : t('modification en attente')}
-              </span>
-            )}
-          </p>
-          {draftStore.pendingCount > 0 && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                if (window.confirm(t('Abandonner les modifications non sauvegardées de cette session de rappel ?'))) {
-                  draftStore.discard();
-                }
-              }}
-              className="h-8 text-xs text-amber-800 hover:text-amber-900 dark:text-amber-200"
-            >
-              {t('Annuler les modifs')}
-            </Button>
-          )}
-          <Button
-            size="sm"
-            onClick={handleValiderTraitement}
-            disabled={validating}
-            data-tour="dosd-rappel-save"
-            className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {validating ? t('Enregistrement…') : t('Sauvegarder')}
-          </Button>
-        </div>
-      )}
-
-      {/* ACTION BUTTONS ROW */}
-      {!readOnly && (
+      {/* TIMELINE CONTENT (+ context column on wide screens) */}
       <div
         className={cn(
-          'bg-card border-b px-6 py-2 flex flex-wrap gap-2 items-center sticky z-40',
-          activeRappel ? 'top-[44px]' : 'top-0',
+          'flex-1 transition-[grid-template-columns,gap,padding] duration-300 ease-standard motion-reduce:transition-none xl:grid',
+          focusMode ? 'xl:grid-cols-[minmax(0,1fr)_0px] xl:gap-0 xl:pr-0' : 'xl:grid-cols-[minmax(0,1fr)_280px] xl:gap-6 xl:pr-5',
         )}
       >
-        <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={() => setEmailDialogOpen(true)} className="h-8 text-xs gap-1.5" data-tour="dosd-email">
-          <Mail className="h-3.5 w-3.5" /> {t('Envoyer un email')}
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setHistoriqueOpen(true)} className="h-8 text-xs gap-1.5" data-tour="dosd-historique">
-          <History className="h-3.5 w-3.5" /> {t('Historique')}
-        </Button>
-      </div>
-      )}
-
-      {/* TIMELINE CONTENT */}
-      <div className="flex-1">
         <Timeline
+          focus={focusMode}
           dossierId={id}
-          steps={DOSSIER_TIMELINE_STEPS}
+          stickyTop={RECORD_BAR_HEIGHT}
+          steps={stepStates}
           sections={{
             1: (
-              <>
-                <Step1Import dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} />
-                <div className="mt-4">
-                  <Step2Information dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
-                </div>
-                <div className="mt-4">
-                  <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos hideAccordSlots showBaseGarageSlots hideOtherSlots showAllNonAccordSlots />
-                </div>
-              </>
+              <StepTabs
+                storageKey={stepTabsKey(id, 1)}
+                tabs={[
+                  {
+                    value: 'informations', label: t('Informations'), icon: <ClipboardList />,
+                    badge: missingFields.length > 0
+                      ? { kind: 'warn', label: `${missingFields.length} ${missingFields.length > 1 ? t('champs manquants') : t('champ manquant')}` }
+                      : undefined,
+                    content: (
+                      <div className="space-y-6">
+                        {/* One-line pre-fill row (picker + source status); the source
+                            document itself is shown beside the form by Step2Information. */}
+                        <Step1Import dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} compact />
+                        <Step2Information dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} />
+                      </div>
+                    ),
+                  },
+                  {
+                    value: 'documents', label: t('Pièces'), icon: <FolderOpen />,
+                    badge: requiredDocs.loading
+                      ? undefined
+                      : { kind: requiredDocs.received >= requiredDocs.total ? 'ok' : 'progress', label: `${requiredDocs.received}/${requiredDocs.total}` },
+                    // No « Envoyer vers chiffrage » in step 1 (user ruling); the
+                    // record bar's primary action covers it when the step is ready.
+                    content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} hidePhotos hideAccordSlots showBaseGarageSlots hideOtherSlots showAllNonAccordSlots />,
+                  },
+                ]}
+              />
             ),
             4: (
-              <>
-                <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" />
-                <div className="mt-4">
-                  <PhotosTab dossierId={id} onlyCategory="avant" />
-                </div>
-                <div className="mt-4" data-tour="dosd-observations">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Avant" />
-                </div>
-              </>
+              <StepTabs
+                storageKey={stepTabsKey(id, 4)}
+                tabs={[
+                  { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" /> },
+                  { value: 'photos', label: t('Photos'), icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="avant" /> },
+                  // data-tour: the guided tour points at the observations pane here.
+                  { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <div data-tour="dosd-observations"><ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Avant" /></div> },
+                ]}
+              />
             ),
             6: (
-              <>
-                <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots />
-                <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="1er accord" />
-                </div>
-              </>
+              <StepTabs
+                storageKey={stepTabsKey(id, 6)}
+                tabs={[
+                  { value: 'documents', label: t('Documents'), icon: <FolderOpen />, content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots /> },
+                  { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="1er accord" /> },
+                ]}
+              />
             ),
             9: (
-              <>
-                <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" />
-                <div className="mt-4">
-                  <PhotosTab dossierId={id} onlyCategory="en_cours" />
-                </div>
-                <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="En cours" />
-                </div>
-              </>
+              <StepTabs
+                storageKey={stepTabsKey(id, 9)}
+                tabs={[
+                  { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" /> },
+                  { value: 'photos', label: t('Photos'), icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="en_cours" /> },
+                  { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="En cours" /> },
+                ]}
+              />
             ),
             11: (
-              <>
-                {/* data-tour: the guided tour explains the cardinal-accord
-                    serialization on this wrapper. */}
-                <div data-tour="dosd-accord2">
-                  <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" />
-                </div>
-                <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextAccord="2ème accord ou +" />
-                </div>
-              </>
+              <StepTabs
+                storageKey={stepTabsKey(id, 11)}
+                tabs={[
+                  // data-tour: the guided tour explains the cardinal-accord
+                  // serialization on this wrapper.
+                  { value: 'documents', label: t('Documents'), icon: <FolderOpen />, content: <div data-tour="dosd-accord2"><Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" /></div> },
+                  { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="2ème accord ou +" /> },
+                ]}
+              />
             ),
             10: (
-              <>
-                <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" />
-                <div className="mt-4">
-                  <PhotosTab dossierId={id} onlyCategory="apres" />
-                </div>
-                <div className="mt-4">
-                  <ObservationsTab dossierId={id} section="dossiers" variant="collapsible" contextPhase="Après" />
-                </div>
-              </>
+              <StepTabs
+                storageKey={stepTabsKey(id, 10)}
+                tabs={[
+                  { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" /> },
+                  { value: 'photos', label: t('Photos'), icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="apres" /> },
+                  { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Après" /> },
+                ]}
+              />
             ),
             7: <Step6Rapport dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} />,
             8: (
@@ -450,6 +434,25 @@ export default function DossierDetailPage({
           activeStep={activeStep}
           onActiveStepChange={setActiveStep}
         />
+        <div className="hidden min-w-0 overflow-clip xl:sticky xl:top-[60px] xl:block xl:self-start" aria-hidden={focusMode || undefined}>
+        <DossierContextPanel
+          dossierId={id}
+          dossier={viewDossier}
+          steps={stepStates}
+          requiredDocs={requiredDocs.status}
+          readOnly={readOnly}
+          onOpenHistorique={() => setHistoriqueOpen(true)}
+          onGoToStep={goToStep}
+          onPlanifier={(type) => handleNewPlanification(type)}
+          onChiffrage={() => setChiffrageModalOpen(true)}
+          className={cn(
+            // Fade-through weighting (owner option D2): out 100ms, in 200ms
+            // after the tracks have moved (delay 100).
+            'flex w-[280px] max-h-[calc((100svh-7rem)/var(--app-zoom))] overflow-y-auto overflow-x-hidden pt-4 scrollbar-thin transition-[opacity,transform] ease-standard motion-reduce:transition-none',
+            focusMode ? '-translate-x-3 opacity-0 duration-100' : 'translate-x-0 opacity-100 duration-200 delay-100',
+          )}
+        />
+        </div>
       </div>
 
       {/* MODALS */}

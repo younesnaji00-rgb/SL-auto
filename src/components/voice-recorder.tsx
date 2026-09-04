@@ -126,7 +126,7 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
       <Button
         variant="ghost"
         size="icon"
-        className="text-muted-foreground hover:text-primary"
+        className="text-ink-3 hover:text-ink"
         onClick={startRecording}
         disabled={disabled}
         title={t('Message vocal')}
@@ -140,14 +140,15 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
   if (state === 'recording') {
     return (
       <div className="flex items-center gap-2">
-        <div className="flex items-center gap-2 bg-red-500/10 rounded-full px-3 py-1">
-          <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-xs font-mono font-bold text-red-600">{formatTime(elapsed)}</span>
+        {/* Recording chip on the danger pair (the one "live" signal). */}
+        <div className="flex items-center gap-2 rounded-full bg-status-danger-bg px-3 py-1 text-status-danger-fg">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-status-danger-fg motion-reduce:animate-none" />
+          <span className="font-mono text-xs font-semibold tabular-nums">{formatTime(elapsed)}</span>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="text-red-600 hover:text-red-700 hover:bg-red-500/10"
+          className="text-status-danger-fg hover:bg-status-danger-bg hover:text-status-danger-fg"
           onClick={stopRecording}
           title={t('Arrêter')}
           type="button"
@@ -172,17 +173,18 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-primary"
+        className="h-8 w-8 text-ink"
         onClick={togglePlayback}
         type="button"
+        aria-label={isPlaying ? 'Pause' : 'Écouter'}
       >
         {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </Button>
-      <span className="text-xs font-mono text-muted-foreground">{formatTime(elapsed)}</span>
+      <span className="font-mono text-xs tabular-nums text-ink-3">{formatTime(elapsed)}</span>
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-destructive hover:text-destructive"
+        className="h-8 w-8 text-status-danger-fg hover:bg-status-danger-bg hover:text-status-danger-fg"
         onClick={handleDiscard}
         title={t('Supprimer')}
         type="button"

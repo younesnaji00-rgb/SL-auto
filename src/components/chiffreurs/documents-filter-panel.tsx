@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
-  Upload,
   Download,
   Trash2,
   Loader2,
@@ -10,14 +9,14 @@ import {
   FileText,
   Eye,
   Search,
-  ChevronDown,
-  ChevronRight,
+  Upload,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Tooltip,
   TooltipContent,
@@ -31,9 +30,11 @@ import {
   type ParsedAccordDocType,
   type AccordeSourceDocType,
 } from '@/lib/docType-accorde';
-import { format } from 'date-fns';
-import { dateFnsLocale, useT } from '@/i18n';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { useTabSlopeMorph } from '@/hooks/use-tab-morph';
+import { useEdgeScroll } from '@/hooks/use-edge-scroll';
+import { EdgeArrow } from '@/components/ui/edge-arrow';
 
 export const ALL_TYPES_KEY = '__all__';
 
@@ -116,20 +117,6 @@ const REMOVED_FILTER_DOC_TYPES: ReadonlySet<string> = new Set([
   "Rapport d'expertise",
 ]);
 
-const formatSize = (bytes?: number) => {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-};
-
-const formatDate = (ts: any) => {
-  if (!ts) return '-';
-  const date = ts.toDate ? ts.toDate() : new Date(ts);
-  return format(date, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() });
-};
-
 const isImage = (name?: string) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(name || '');
 const isPdf = (name?: string) => /\.pdf$/i.test(name || '');
 const fileExt = (name?: string) => {
@@ -166,6 +153,136 @@ const shortenAccordLabel = (parsed: ParsedAccordDocType): string => {
   const fem = parsed.ordinal === 1 ? '1ère' : `${parsed.ordinal}ème`;
   return `${fem} proposition`;
 };
+
+/** Count pill on a tab — the dossiers step-tabs anatomy verbatim (neutral
+ *  `surface-3`, 11 px, tabular). Zero-count types never render a tab, so
+ *  there is no zero variant here. */
+function TabCount({ count }: { count: number }) {
+  return (
+    <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+      {count}
+    </span>
+  );
+}
+
+/** Browser-tab filter (owner 2026-09-04: the document-type filter is a view
+ *  switcher, so it wears the app's Firefox tab instead of a card of rows).
+ *  Same anatomy as `dossier-timeline/step-tabs.tsx`: `.tab-slope` draws the
+ *  sloped body + outward feet that merge into the strip's hairline, the
+ *  accent underline is a SPAN (::after is the feet), and the seat morph is
+ *  provided by the strip's `useTabSlopeMorph`. Selection travels on
+ *  `aria-selected`, which both the CSS and the morph hook key on. */
+function FilterTab({
+  label,
+  count,
+  selected,
+  title,
+  dense,
+  onSelect,
+}: {
+  label: string;
+  count: number;
+  selected: boolean;
+  title?: string;
+  /** Sub-strip (family versions) sits one step shorter than the main strip. */
+  dense?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      tabIndex={selected ? 0 : -1}
+      title={title ?? label}
+      onClick={onSelect}
+      className={cn(
+        // Underline = span, never border-b-2 (a bottom border lifts the
+        // padding box the feet anchor to — owner 2026-09-03).
+        'tab-slope group relative -mb-px inline-flex shrink-0 items-center gap-2 whitespace-nowrap px-3.5 text-[13px] font-medium text-ink-3',
+        'transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+        dense ? 'h-9' : 'h-10',
+        selected && 'text-ink',
+      )}
+    >
+      <span className="max-w-[15rem] truncate">{label}</span>
+      <TabCount count={count} />
+      <span
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-primary transition-opacity',
+          selected ? 'opacity-100' : 'opacity-0',
+        )}
+      />
+      <span className="tab-feet" aria-hidden />
+    </button>
+  );
+}
+
+/** The scrollable tab track. `px-2` ≥ the 7 px feet or `overflow-x-auto`
+ *  clips them (owner 2026-09-03); `useTabSlopeMorph` flies the active seat
+ *  between tabs, exactly as on the dossiers step strip. Arrows appear at both
+ *  ends as soon as the types outrun the width, and the selected tab is always
+ *  scrolled back into view (it used to hide under the search field). */
+function FilterTabStrip({
+  label,
+  activeKey,
+  className,
+  children,
+}: {
+  label: string;
+  /** Changes whenever the selection moves — re-reveals the seated tab. */
+  activeKey?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const { ref, canScrollLeft, canScrollRight, hasOverflow, scrollByPage, reveal } =
+    useEdgeScroll<HTMLDivElement>([children]);
+  useTabSlopeMorph(ref);
+
+  // Keep the seated tab visible when the selection changes from anywhere
+  // (a click deep in the strip, the sub-strip, or the keyboard).
+  React.useEffect(() => {
+    reveal(ref.current?.querySelector<HTMLElement>('[aria-selected="true"]'));
+  }, [activeKey, reveal, ref]);
+
+  // A tablist owns ← → Home End (the roving tabIndex lives on the tabs).
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(e.key)) return;
+    const tabs = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? []);
+    if (tabs.length === 0) return;
+    const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
+    let next: number;
+    if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = tabs.length - 1;
+    else if (e.key === 'ArrowLeft') next = current <= 0 ? tabs.length - 1 : current - 1;
+    else next = current === -1 || current === tabs.length - 1 ? 0 : current + 1;
+    e.preventDefault();
+    tabs[next]?.focus();
+    tabs[next]?.click();
+  };
+
+  return (
+    <div className={cn('flex min-w-0 flex-1 items-end', className)}>
+      {hasOverflow && (
+        <EdgeArrow dir="left" disabled={!canScrollLeft} onClick={() => scrollByPage(-1)} className="mb-1.5" />
+      )}
+      <div
+        ref={ref}
+        role="tablist"
+        aria-label={label}
+        onKeyDown={onKeyDown}
+        className="relative isolate flex min-w-0 flex-1 items-end gap-4 overflow-x-auto px-2 scrollbar-thin"
+      >
+        {children}
+      </div>
+      {hasOverflow && (
+        <EdgeArrow dir="right" disabled={!canScrollRight} onClick={() => scrollByPage(1)} className="mb-1.5" />
+      )}
+    </div>
+  );
+}
 
 export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
   const {
@@ -310,11 +427,44 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     };
   }, [docTypes, typeCounts]);
 
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
-  const toggleSection = (parent: string) =>
-    setCollapsedSections((prev) => ({ ...prev, [parent]: !prev[parent] }));
-
   const isSearchActive = typeSearch.trim().length > 0;
+
+  // Tabs are faceted filters: a type with no document filters to an empty
+  // grid, so it never earns a tab (and the strip stays short enough to scan
+  // without scrolling). The card-of-rows used to list them greyed out.
+  const families = useMemo(
+    () => [...filterGroups.devisFamilies, ...filterGroups.factureFamilies].filter((f) => f.totalCount > 0),
+    [filterGroups],
+  );
+
+  /** The family the current selection belongs to (parent OR any of its
+   *  versions) — drives the level-1 seat and the version sub-strip. */
+  const activeFamily = useMemo(
+    () =>
+      families.find(
+        (f) =>
+          f.parent === selectedType ||
+          f.accords.some((a) => a.label === selectedType) ||
+          f.propositions.some((p) => p.label === selectedType),
+      ) ?? null,
+    [families, selectedType],
+  );
+
+  /** Sub-strip: the source document + every version that actually exists. */
+  const versionTabs = useMemo(() => {
+    if (!activeFamily) return [];
+    const tabs: { label: string; display: string; count: number }[] = [];
+    if (activeFamily.parentEntry && activeFamily.parentEntry.count > 0) {
+      // « Source » matches the pipeline grid's first column on this page.
+      tabs.push({ label: activeFamily.parent, display: 'Source', count: activeFamily.parentEntry.count });
+    }
+    for (const row of [...activeFamily.accords, ...activeFamily.propositions]) {
+      if (row.count === 0) continue;
+      const parsed = parseAccordDocType(row.label);
+      tabs.push({ label: row.label, display: parsed ? shortenAccordLabel(parsed) : row.label, count: row.count });
+    }
+    return tabs;
+  }, [activeFamily]);
 
   const visibleDocs = useMemo(() => {
     if (selectedType === ALL_TYPES_KEY) return documents;
@@ -327,20 +477,21 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
     });
   }, [documents, selectedType]);
 
+  // Section CTA — element-specs §8 (GOV.UK button: one default button for the
+  // main call to action; leading 16 px icon is fine — only sparkle/AI icons
+  // are banned). Restored `Upload` icon from 3d5629a.
   const importButton = onImportClick ? (
     canImport ? (
-      <Button size="sm" onClick={onImportClick} data-tour="chd-doc-import">
-        <Upload className="mr-2 h-4 w-4" />
-        {t('Importer')}
+      <Button onClick={onImportClick} className="gap-1.5" data-tour="chd-doc-import">
+        <Upload className="h-4 w-4" /> {t("Importer")}
       </Button>
     ) : (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
             <span tabIndex={0} data-tour="chd-doc-import">
-              <Button size="sm" disabled>
-                <Upload className="mr-2 h-4 w-4" />
-                {t('Importer')}
+              <Button disabled className="gap-1.5">
+                <Upload className="h-4 w-4" /> {t("Importer")}
               </Button>
             </span>
           </TooltipTrigger>
@@ -351,294 +502,198 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
   ) : null;
 
   return (
-    <div className={cn('grid gap-4 lg:grid-cols-3 items-start', className)}>
-      {/* LEFT: type filter */}
-      <Card className="shadow-sm border-0 rounded-xl overflow-hidden lg:col-span-1" data-tour="chd-doc-types">
-        <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-sm text-primary">{t('Type de document')}</CardTitle>
-          <div className="relative w-[160px] max-w-full">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder={t('Rechercher...')}
-              value={typeSearch}
-              onChange={(e) => onTypeSearchChange(e.target.value)}
-              className="h-8 pl-7 text-xs border-0 border-b rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-primary"
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="p-0 max-h-[640px] overflow-y-auto">
-          {/* "Tous" entry always at the top */}
-          <button
-            onClick={() => onSelectedTypeChange(ALL_TYPES_KEY)}
-            className={cn(
-              'flex items-center justify-between w-full px-4 py-3 text-sm transition-colors text-left border-b',
-              selectedType === ALL_TYPES_KEY ? 'bg-accent border-l-2 border-l-primary' : 'hover:bg-accent/50'
+    <div className={cn('space-y-0', className)}>
+      {/* Type filter = the app's browser tabs (owner 2026-09-04: no card, no
+          rows). Level 1 = « Tous » + the plain types + one tab per garage
+          family; the search field sits at the right end of the same rail so
+          it never scrolls away with the tabs. */}
+      <div className="flex items-end gap-3 border-b border-hairline" data-tour="chd-doc-types">
+        <FilterTabStrip label={t("Filtrer par type de document")} activeKey={selectedType}>
+          <FilterTab
+            label={t("Tous les documents")}
+            count={documents.length}
+            selected={selectedType === ALL_TYPES_KEY}
+            onSelect={() => onSelectedTypeChange(ALL_TYPES_KEY)}
+          />
+          {isSearchActive
+            ? filterRows
+                .filter((row) => row.count > 0)
+                .map((row) => (
+                  <FilterTab
+                    key={row.label}
+                    label={t(row.label)}
+                    count={row.count}
+                    selected={selectedType === row.label}
+                    onSelect={() => onSelectedTypeChange(row.label)}
+                  />
+                ))
+            : (
+              <>
+                {filterGroups.nonFamily
+                  .filter((row) => row.count > 0)
+                  .map((row) => (
+                    <FilterTab
+                      key={row.label}
+                      label={t(row.label)}
+                      count={row.count}
+                      selected={selectedType === row.label}
+                      onSelect={() => onSelectedTypeChange(row.label)}
+                    />
+                  ))}
+                {families.map((fam) => (
+                  // A family tab stays seated while any of its versions is
+                  // the selection — the version sub-strip says which one.
+                  <FilterTab
+                    key={fam.parent}
+                    label={t(fam.parent)}
+                    count={fam.totalCount}
+                    selected={activeFamily?.parent === fam.parent}
+                    onSelect={() => onSelectedTypeChange(fam.parent)}
+                  />
+                ))}
+              </>
             )}
-          >
-            <span className={cn('truncate', selectedType === ALL_TYPES_KEY && 'font-semibold text-primary')}>
-              {t('Tous les documents')}
-            </span>
-            <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
-              {documents.length}
-            </span>
-          </button>
+        </FilterTabStrip>
+        <div className="relative mb-1.5 w-[170px] shrink-0">
+          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" aria-hidden />
+          <Input
+            placeholder={t("Devis, facture…")}
+            value={typeSearch}
+            onChange={(e) => onTypeSearchChange(e.target.value)}
+            className="h-8 pl-7 text-xs"
+            aria-label={t("Rechercher un type de document")}
+          />
+        </div>
+      </div>
 
-          {isSearchActive ? (
-            filterRows.length === 0 ? (
-              <p className="text-xs italic text-muted-foreground text-center py-8">{t('Aucun type.')}</p>
-            ) : (
-              filterRows.map((row, idx) => {
-                const isSelected = selectedType === row.label;
-                return (
-                  <button
-                    key={row.label}
-                    onClick={() => onSelectedTypeChange(row.label)}
-                    className={cn(
-                      'flex items-center justify-between w-full px-4 py-3 text-sm transition-colors text-left',
-                      idx !== filterRows.length - 1 && 'border-b',
-                      isSelected ? 'bg-accent border-l-2 border-l-primary' : 'hover:bg-accent/50',
-                      row.count === 0 && 'opacity-60'
-                    )}
-                  >
-                    <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{t(row.label)}</span>
-                    <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
-                      {row.count}
-                    </span>
-                  </button>
-                );
-              })
-            )
-          ) : filterGroups.nonFamily.length === 0 &&
-            filterGroups.devisFamilies.length === 0 &&
-            filterGroups.factureFamilies.length === 0 ? (
-            <p className="text-xs italic text-muted-foreground text-center py-8">{t('Aucun type.')}</p>
-          ) : (
-            <>
-              {filterGroups.nonFamily.map((row) => {
-                const isSelected = selectedType === row.label;
-                return (
-                  <button
-                    key={row.label}
-                    onClick={() => onSelectedTypeChange(row.label)}
-                    className={cn(
-                      'flex items-center justify-between w-full px-4 py-3 text-sm transition-colors text-left border-b',
-                      isSelected ? 'bg-accent border-l-2 border-l-primary' : 'hover:bg-accent/50',
-                      row.count === 0 && 'opacity-60'
-                    )}
-                  >
-                    <span className={cn('truncate', isSelected && 'font-semibold text-primary')}>{t(row.label)}</span>
-                    <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
-                      {row.count}
-                    </span>
-                  </button>
-                );
-              })}
-              {[...filterGroups.devisFamilies, ...filterGroups.factureFamilies].map((fam) => {
-                const collapsed = !!collapsedSections[fam.parent];
-                const isParentSelected = selectedType === fam.parent;
-                return (
-                  <div key={fam.parent} className="border-b">
-                    <div
-                      className={cn(
-                        'flex items-stretch w-full text-sm transition-colors',
-                        isParentSelected
-                          ? 'bg-accent border-l-2 border-l-primary'
-                          : 'hover:bg-accent/50'
-                      )}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleSection(fam.parent)}
-                        className="flex items-center justify-center w-9 shrink-0 text-muted-foreground hover:text-foreground"
-                        aria-label={collapsed ? t('Développer la section') : t('Réduire la section')}
-                        aria-expanded={!collapsed}
-                      >
-                        {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onSelectedTypeChange(fam.parent)}
-                        className="flex items-center justify-between flex-1 pr-4 py-3 text-left"
-                      >
-                        <span
-                          className={cn(
-                            'truncate font-medium',
-                            isParentSelected && 'font-semibold text-primary'
-                          )}
-                        >
-                          {t(fam.parent)}
-                        </span>
-                        <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
-                          {fam.totalCount}
-                        </span>
-                      </button>
-                    </div>
+      {/* Level 2 — the versions of the selected family (Source · Accordé ·
+          2ème accord · 1ère proposition …), one step shorter than level 1.
+          Only when there is more than one version to choose from. */}
+      {versionTabs.length > 1 && (
+        <FilterTabStrip
+          label={`${t("Versions")} — ${activeFamily?.parent ?? ""}`}
+          activeKey={selectedType}
+          className="border-b border-hairline pt-1"
+        >
+          {versionTabs.map((tab) => (
+            <FilterTab
+              key={tab.label}
+              label={t(tab.display)}
+              title={t(tab.label)}
+              count={tab.count}
+              dense
+              selected={selectedType === tab.label}
+              onSelect={() => onSelectedTypeChange(tab.label)}
+            />
+          ))}
+        </FilterTabStrip>
+      )}
 
-                    {!collapsed && (fam.accords.length > 0 || fam.propositions.length > 0) && (
-                      <div>
-                        {fam.accords.length > 0 && (
-                          <>
-                            <div className="pl-12 pr-4 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/30">
-                              {t('Accords')}
-                            </div>
-                            {fam.accords.map((row) => {
-                              const parsed = parseAccordDocType(row.label);
-                              const display = parsed ? shortenAccordLabel(parsed) : row.label;
-                              const rowSelected = selectedType === row.label;
-                              return (
-                                <button
-                                  key={row.label}
-                                  onClick={() => onSelectedTypeChange(row.label)}
-                                  className={cn(
-                                    'flex items-center justify-between w-full pl-12 pr-4 py-2.5 text-sm transition-colors text-left',
-                                    rowSelected
-                                      ? 'bg-accent border-l-2 border-l-primary'
-                                      : 'hover:bg-accent/50',
-                                    row.count === 0 && 'opacity-60'
-                                  )}
-                                  title={t(row.label)}
-                                >
-                                  <span
-                                    className={cn(
-                                      'truncate',
-                                      rowSelected && 'font-semibold text-primary'
-                                    )}
-                                  >
-                                    {t(display)}
-                                  </span>
-                                  <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
-                                    {row.count}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </>
-                        )}
-                        {fam.propositions.length > 0 && (
-                          <>
-                            <div className="pl-12 pr-4 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/30">
-                              {t('Propositions')}
-                            </div>
-                            {fam.propositions.map((row) => {
-                              const parsed = parseAccordDocType(row.label);
-                              const display = parsed ? shortenAccordLabel(parsed) : row.label;
-                              const rowSelected = selectedType === row.label;
-                              return (
-                                <button
-                                  key={row.label}
-                                  onClick={() => onSelectedTypeChange(row.label)}
-                                  className={cn(
-                                    'flex items-center justify-between w-full pl-12 pr-4 py-2.5 text-sm transition-colors text-left',
-                                    rowSelected
-                                      ? 'bg-accent border-l-2 border-l-primary'
-                                      : 'hover:bg-accent/50',
-                                    row.count === 0 && 'opacity-60'
-                                  )}
-                                  title={t(row.label)}
-                                >
-                                  <span
-                                    className={cn(
-                                      'truncate',
-                                      rowSelected && 'font-semibold text-primary'
-                                    )}
-                                  >
-                                    {t(display)}
-                                  </span>
-                                  <span className="text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0 bg-muted text-foreground">
-                                    {row.count}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* RIGHT: preview grid */}
-      <Card className="shadow-sm border-0 rounded-xl overflow-hidden lg:col-span-2" data-tour="chd-doc-grid">
-        {(importButton || alwaysShowHeader) && (
-          <CardHeader className="bg-heading-bg py-3 rounded-t-xl flex flex-row items-center justify-between gap-2">
-            <CardTitle className="text-sm text-primary">
-              {selectedType === ALL_TYPES_KEY ? t('Tous les documents') : t(selectedType)}
-            </CardTitle>
+      {/* Panel — the tab's content surface. Named once by the active tab, so
+          the header carries only the count and the section CTA. */}
+      <Card className="mt-4 overflow-hidden" data-tour="chd-doc-grid">
+        {importButton && (
+          <header className="flex min-h-[48px] items-center justify-between gap-3 border-b border-hairline px-6 py-3">
+            <p className="t-caption tabular-nums">
+              {visibleDocs.length} {visibleDocs.length > 1 ? t("documents") : t("document")}
+            </p>
             {importButton}
-          </CardHeader>
+          </header>
         )}
-        <CardContent className="p-4">
+        {/* Incoming panel only: 200 ms fade + 1 px rise on the decelerate
+            curve — the same entrance TabsContent gives every other tab
+            panel in the app (motion-spec §7). */}
+        <div
+          key={selectedType}
+          className="p-6 animate-in fade-in-0 slide-in-from-bottom-1 duration-200 ease-enter motion-reduce:animate-none"
+        >
           {loading ? (
-            <div className="flex items-center justify-center h-48">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="flex h-48 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
             </div>
           ) : visibleDocs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-center">
-              <FileText className="h-10 w-10 text-muted-foreground/30 mb-2" />
-              <p className="text-sm text-muted-foreground italic">
-                {selectedType === ALL_TYPES_KEY ? t('Aucun document.') : `${t('Aucun document de type')} "${t(selectedType)}".`}
-              </p>
-            </div>
+            // Empty state — element-specs §12 (NN/g: state + reason; Polaris:
+            // one line). Flat well inside the card (`dashed={false}` — dashed is
+            // the drop-target cue). The action lives in the header (Importer).
+            <EmptyState
+              dashed={false}
+              icon={<FileText />}
+              title={selectedType === ALL_TYPES_KEY ? t('Aucun document') : `${t('Aucun document')} « ${t(selectedType)} »`}
+              description={selectedType === ALL_TYPES_KEY ? t('Les documents importés apparaîtront ici.') : t('Choisissez un autre type ou « Tous les documents ».')}
+            />
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 p-3">
+            // Thumbnails only (no meta band), so the grid packs tighter as it
+            // widens — 8 across at 2xl instead of stretching 6 tiles.
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 2xl:grid-cols-8">
               {visibleDocs.map((item) => {
                 const name = item.nom || item.fileName || 'document';
                 const isImg = isImage(name) && !!item.url;
                 const isPdfFile = isPdf(name);
                 const isSelected = !!selectedIds?.has(item.id);
                 const selectable = !item.pendingUpload && !!item.url;
+                const canOpen = !item.pendingUpload && !!item.url;
                 return (
+                  // Tile — element-specs §21 (Carbon tile: no decorative
+                  // shadow, do not mix variants; owner sockets ruling): raised
+                  // tile, 10 px radius inside the 12 px card, thumbnail +
+                  // `t-body-sm`-weight name + `t-caption` meta, hover-revealed
+                  // actions. Clicking the tile only toggles selection — the eye
+                  // icon is the only way into the viewer (lightbox rule).
                   <div
                     key={item.id}
                     className={cn(
-                      'group relative border rounded-lg overflow-hidden bg-card shadow-sm hover:shadow-md transition-all cursor-pointer',
-                      selectionMode && isSelected && 'ring-2 ring-primary border-primary',
-                      selectionMode && !selectable && 'opacity-60 cursor-not-allowed'
+                      'group relative overflow-hidden rounded-[10px] bg-card shadow-rim transition-[box-shadow] duration-150 focus-within:ring-2 focus-within:ring-ring',
+                      // The name/size/date band is gone (owner 2026-09-04) —
+                      // the tile is the image. The filename survives as the
+                      // native tooltip and in each action's aria-label.
+                      selectionMode && isSelected && 'ring-2 ring-ring hover:ring-ring',
+                      selectionMode && (selectable ? 'cursor-pointer' : 'cursor-not-allowed opacity-60')
                     )}
+                    title={name}
                     onClick={() => {
-                      if (selectionMode) {
-                        if (selectable && onToggleSelect) onToggleSelect(item.id);
-                        return;
-                      }
-                      if (!item.pendingUpload && item.url && onOpenDocument) onOpenDocument(item);
+                      if (selectionMode && selectable && onToggleSelect) onToggleSelect(item.id);
                     }}
                   >
                     {/* Thumbnail */}
-                    <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden relative">
+                    <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-surface-2">
                       {isImg ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={item.url}
                           alt={name}
                           loading="lazy"
                           decoding="async"
-                          className="object-cover w-full h-full"
+                          className="h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
-                          <FileIcon className={cn('h-12 w-12', isPdfFile && 'text-red-500')} />
-                          <span className="text-[9px] uppercase font-black tracking-wider">{fileExt(name)}</span>
+                        // A PDF/blank tile has no self-identifying picture, so
+                        // its name goes INSIDE the placeholder's empty space —
+                        // « 1ère proposition » and « 2ème proposition » would
+                        // otherwise be two identical icons.
+                        <div className="flex w-full flex-col items-center gap-1 px-2 text-ink-3">
+                          <FileIcon className={cn('h-10 w-10', isPdfFile && 'text-ink-2')} aria-hidden />
+                          <span className="text-[11px] font-semibold tracking-wide">{fileExt(name)}</span>
+                          <span className="line-clamp-2 text-center text-[11px] leading-tight text-ink-3">
+                            {name}
+                          </span>
                         </div>
                       )}
 
                       {/* Selection checkbox overlay */}
                       {selectionMode && selectable && (
-                        <div className="absolute top-1.5 left-1.5 z-10 bg-background/90 rounded shadow-sm p-0.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="absolute left-1.5 top-1.5 z-10 rounded bg-card/90 p-0.5 shadow-rim" onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={isSelected}
                             onCheckedChange={() => onToggleSelect?.(item.id)}
+                            aria-label={`Sélectionner ${name}`}
                           />
                         </div>
                       )}
 
-                      {/* Hover overlay with actions */}
+                      {/* Hover / focus overlay with actions (dark functional scrim) */}
                       <div
                         className={cn(
-                          'absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5',
+                          'absolute inset-0 flex items-center justify-center gap-1.5 bg-ink-solid/60 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100',
                           selectionMode && 'hidden'
                         )}
                       >
@@ -649,10 +704,11 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (!item.pendingUpload && item.url && onOpenDocument) onOpenDocument(item);
+                            if (canOpen && onOpenDocument) onOpenDocument(item);
                           }}
-                          title={t('Apercu')}
-                          disabled={!!item.pendingUpload}
+                          title={t("Apercu")}
+                          aria-label={`Aperçu de ${name}`}
+                          disabled={!canOpen}
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
@@ -663,10 +719,11 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (!item.pendingUpload && item.url && onDownloadDocument) onDownloadDocument(item);
+                            if (canOpen && onDownloadDocument) onDownloadDocument(item);
                           }}
-                          title={t('Telecharger')}
-                          disabled={!!item.pendingUpload}
+                          title={t("Telecharger")}
+                          aria-label={`Télécharger ${name}`}
+                          disabled={!canOpen}
                         >
                           <Download className="h-3.5 w-3.5" />
                         </Button>
@@ -680,7 +737,8 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                               e.stopPropagation();
                               onDeleteDocument?.(item);
                             }}
-                            title={t('Supprimer')}
+                            title={t("Supprimer")}
+                            aria-label={`Supprimer ${name}`}
                             disabled={isDeleting === item.id || !!item.pendingUpload}
                           >
                             {isDeleting === item.id ? (
@@ -692,30 +750,19 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                         )}
                       </div>
 
+                      {/* Status badge §11: warning pair + label (pending IS an exception). */}
                       {item.pendingUpload && (
-                        <Badge variant="outline" className="absolute top-1 left-1 text-amber-700 bg-amber-50 border-amber-300 text-[9px] py-0 px-1.5">
-                          {t('En attente')}
+                        <Badge variant="warning" className="absolute left-1 top-1">
+                          {t("En attente")}
                         </Badge>
                       )}
-                    </div>
-
-                    {/* Footer info */}
-                    <div className="p-2 space-y-1 border-t">
-                      <p className="text-[11px] font-semibold truncate" title={name}>{name}</p>
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span>{formatSize(item.taille || item.fileSize)}</span>
-                        <span className="truncate ml-1">{formatDate(item.dateUpload || item.uploadedAt)}</span>
-                      </div>
-                      <p className="text-[9px] text-muted-foreground truncate" title={item.uploadePar || item.uploadedBy}>
-                        {item.uploadePar || item.uploadedBy || '—'}
-                      </p>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </CardContent>
+        </div>
       </Card>
     </div>
   );

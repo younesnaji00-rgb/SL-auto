@@ -6,13 +6,16 @@ import {
   ArrowLeft, ZoomIn, ZoomOut, Columns2, RotateCw, RotateCcw, Loader2, Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Kbd } from '@/components/ui/kbd';
+import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import ReferencePanel from '../editor/reference-panel';
 import { useFirestore, useStorage } from '@/firebase';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 
 interface Annotation {
@@ -29,6 +32,11 @@ interface Annotation {
   color: string;
   stampUrl?: string;
 }
+
+// Lightbox zoom rules: 25 % button steps, % = fit, wheel one notch ≈ ×1.3.
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2;
+const ZOOM_STEP = 0.25;
 
 export default function ViewerPage() {
   const searchParams = useSearchParams();
@@ -268,108 +276,159 @@ export default function ViewerPage() {
     };
   }, [pdfDoc, isImage, pageCount, pageDimensions.length, renderScale]);
 
+  // Ctrl/⌘ + wheel zoom, one notch (100 px accumulated deltaY) = ×1.3 —
+  // pattern: dossier-timeline/step-2-information.tsx compare pane. A plain
+  // wheel keeps scrolling the pages.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let acc = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      acc += e.deltaY;
+      if (Math.abs(acc) < 100) return;
+      const direction = acc < 0 ? 1 : -1;
+      acc = 0;
+      setZoom((prev) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [loading, allFiles.length]);
+
   // Loading state
   if (loading && allFiles.length === 0) {
     return (
-      <div className="flex flex-col h-screen items-center justify-center gap-4 bg-slate-100 dark:bg-slate-900">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">{t('Chargement du document...')}</p>
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-ink-3" />
+        <p className="t-caption">{t('Chargement du document...')}</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-slate-100 dark:bg-slate-900 select-none">
-      {/* Toolbar */}
-      <div className="bg-card border-b px-3 py-1.5 flex items-center gap-2 shrink-0 z-50 shadow-sm">
-        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs px-2" onClick={() => router.back()}>
-          <ArrowLeft className="h-3 w-3" /> {t('Retour')}
-        </Button>
-
-        <div className="h-5 w-px bg-border" />
-
-        {/* Type filter */}
-        <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
-          <SelectTrigger className="h-7 w-[150px] text-xs" data-tour="view-doc-filter">
-            <SelectValue placeholder={t('Type de document')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">{t('Tous les types')} ({allFiles.length})</SelectItem>
-            {Object.entries(fileTypeGroups).map(([key, group]) => (
-              <SelectItem key={key} value={key}>
-                {t(group.label)} ({group.indices.length})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* File switcher */}
-        <Select value={String(currentFileIndex)} onValueChange={(v) => setCurrentFileIndex(Number(v))}>
-          <SelectTrigger className="h-7 w-[200px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredFileIndices.map((i) => (
-              <SelectItem key={i} value={String(i)}>
-                <span className="flex items-center gap-1.5 truncate">
-                  {allFiles[i].source === 'dossier' && <span className="text-[9px] bg-muted px-1 rounded font-semibold text-muted-foreground shrink-0">{t('Dossier')}</span>}
-                  {allFiles[i].name}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {pageCount > 0 && (
-          <span className="text-[10px] text-muted-foreground whitespace-nowrap">({pageCount} p.)</span>
-        )}
-
-        <div className="h-5 w-px bg-border" />
-
-        {/* Comparison toggle */}
-        {dossierId && (
-          <Button
-            variant={comparisonOpen ? 'default' : 'ghost'}
-            size="sm"
-            className="h-7 text-xs gap-1 px-2"
-            onClick={() => setComparisonOpen(v => !v)}
-            data-tour="view-comparison"
-          >
-            <Columns2 className="h-3 w-3" />
-            {t('Comparaison')}
+    <div className="flex h-screen select-none flex-col bg-background">
+      {/* Toolbar — original 3d5629a layout (one bar; the back button keeps its
+          « Retour » label). Element-specs §18 (Apple HIG toolbars: leading =
+          navigation, centre = the view's controls, trailing = view controls;
+          ≤ 3 groups on hairline Separators) + §23 (one sticky bar ≤ 48 px,
+          `.glass-bar`, gutters 16/24). Read-only, so there is no filled button. */}
+      <TooltipProvider delayDuration={300}>
+        <div className="z-40 flex min-h-[48px] shrink-0 flex-wrap items-center gap-2 glass-bar border-b border-hairline px-4 sm:px-6">
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" /> {t('Retour')}
           </Button>
-        )}
 
-        <div className="flex-1" />
+          <Separator orientation="vertical" className="h-6" aria-hidden />
 
-        {/* Zoom controls */}
-        <div className="flex items-center gap-1" data-tour="view-zoom">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} disabled={zoom <= 0.5}>
-            <ZoomOut className="h-3 w-3" />
-          </Button>
-          <span className="text-[10px] font-mono w-8 text-center">{Math.round(zoom * 100)}%</span>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.min(2, z + 0.25))} disabled={zoom >= 2}>
-            <ZoomIn className="h-3 w-3" />
-          </Button>
+          {/* Type filter */}
+          <Select value={selectedDocType || '__all__'} onValueChange={(v) => setSelectedDocType(v === '__all__' ? null : v)}>
+            <SelectTrigger className="h-9 w-[150px] text-xs" aria-label={t('Type de document')} data-tour="view-doc-filter">
+              <SelectValue placeholder={t('Type de document')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t('Tous les types')} ({allFiles.length})</SelectItem>
+              {Object.entries(fileTypeGroups).map(([key, group]) => (
+                <SelectItem key={key} value={key}>
+                  {t(group.label)} ({group.indices.length})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* File switcher */}
+          <Select value={String(currentFileIndex)} onValueChange={(v) => setCurrentFileIndex(Number(v))}>
+            <SelectTrigger className="h-9 w-[220px] text-xs" aria-label={t('Fichier')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {filteredFileIndices.map((i) => (
+                <SelectItem key={i} value={String(i)}>
+                  <span className="flex items-center gap-1.5 truncate">
+                    {allFiles[i].source === 'dossier' && <span className="shrink-0 rounded bg-surface-3 px-1 text-[11px] font-medium text-ink-2">{t('Dossier')}</span>}
+                    {allFiles[i].name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {pageCount > 0 && (
+            <span className="t-caption whitespace-nowrap tabular-nums">({pageCount} p.)</span>
+          )}
+
+          {/* Read-only chip — §11 (Carbon tag / dataviz: a status colour
+              always ships with its icon AND label; read-only IS the exception
+              here, so the warning pair is earned). */}
+          <Badge variant="warning" className="shrink-0 gap-1" data-tour="view-readonly">
+            <Eye className="h-3 w-3" aria-hidden /> {t('Lecture seule')}
+          </Badge>
+
+          <Separator orientation="vertical" className="h-6" aria-hidden />
+
+          {/* Comparison toggle — outline ⇄ tonal + aria-pressed (two cues). */}
+          {dossierId && (
+            <Button
+              variant={comparisonOpen ? 'tonal' : 'outline'}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setComparisonOpen(v => !v)}
+              aria-pressed={comparisonOpen}
+              data-tour="view-comparison"
+            >
+              <Columns2 className="h-4 w-4" />
+              {t('Comparaison')}
+            </Button>
+          )}
+
+          <div className="flex-1" />
+
+          {/* Zoom pill — owner ruling: −/%/+, 25 % steps, % = fit,
+              Ctrl + wheel ≈ ×1.3 per notch; the shortcut is shown as a <Kbd>. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-0.5 rounded-md bg-surface-2 px-0.5" role="group" aria-label={t('Zoom')} data-tour="view-zoom">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN} aria-label={t('Zoom arrière')}>
+                  <ZoomOut className="h-3.5 w-3.5" />
+                </Button>
+                <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-3" onClick={() => setZoom(1)} aria-label={`${t('Zoom')} ${Math.round(zoom * 100)} % — ${t('réinitialiser')}`}>
+                  {Math.round(zoom * 100)} %
+                </button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX} aria-label={t('Zoom avant')}>
+                  <ZoomIn className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="flex items-center gap-2">
+              <span>{t('Zoom — cliquer le % pour réinitialiser')}</span>
+              <Kbd>Ctrl</Kbd><span>{t('+ molette')}</span>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Rotation — 36 px `ghost` icon buttons with tooltips (§18 / M3
+              icon buttons: the tooltip names the action). */}
+          <div className="flex items-center gap-0.5" role="group" aria-label={t("Rotation")}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRotation(r => r - 90)} aria-label={t("Rotation −90°")}>
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("Rotation −90°")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRotation(r => r + 90)} aria-label={t("Rotation +90°")}>
+                  <RotateCw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("Rotation +90°")}</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
-
-        <div className="h-5 w-px bg-border" />
-
-        {/* Rotation */}
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setRotation(r => r - 90)}>
-          <RotateCcw className="h-3 w-3" />
-        </Button>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setRotation(r => r + 90)}>
-          <RotateCw className="h-3 w-3" />
-        </Button>
-
-        {/* Read-only indicator */}
-        <div className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-300 font-semibold bg-amber-50/80 dark:bg-amber-900/30 px-2 py-1 rounded" data-tour="view-readonly">
-          <Eye className="h-3 w-3" /> {t('Lecture seule')}
-        </div>
-      </div>
+      </TooltipProvider>
 
       {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
         {comparisonOpen && dossierId && (
           <ReferencePanel
             dossierId={dossierId}
@@ -378,14 +437,14 @@ export default function ViewerPage() {
           />
         )}
 
-        {/* Canvas area */}
+        {/* Canvas area — dark functional backdrop (lightbox media area). */}
         <div
           ref={containerRef}
-          className="flex-1 overflow-auto flex flex-col items-center gap-6 p-8 bg-slate-200 dark:bg-slate-800"
+          className="flex flex-1 flex-col items-center gap-6 overflow-auto bg-ink-solid p-8"
         >
           {loading && (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-on-ink/70" />
             </div>
           )}
 
@@ -399,10 +458,11 @@ export default function ViewerPage() {
               rotation={rotation}
               annotations={annotations.filter(a => (a.page || 0) === 0)}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={fileUrl}
                 alt={fileName}
-                className="w-full h-full object-contain"
+                className="h-full w-full object-contain"
                 crossOrigin="anonymous"
                 draggable={false}
               />
@@ -424,24 +484,25 @@ export default function ViewerPage() {
                 ref={el => { if (el) pageCanvasRefs.current.set(i, el); }}
                 style={{ display: 'block' }}
               />
-              <div className="absolute bottom-2 right-3 text-[10px] text-slate-400 font-mono pointer-events-none">
-                Page {i + 1} / {pageCount}
+              <div className="pointer-events-none absolute bottom-2 right-3 font-mono text-[11px] tabular-nums text-ink-4">
+                {t("Page")} {i + 1} / {pageCount}
               </div>
             </ReadOnlyPageWrapper>
           ))}
         </div>
       </div>
 
-      {/* Status bar */}
-      <div className="bg-card border-t px-4 py-1.5 flex items-center justify-between text-[10px] text-muted-foreground shrink-0">
+      {/* Status strip — `t-caption` on a glass bar (§23); the read-only word
+          keeps its status pair because the chip above already carries the icon. */}
+      <div className="t-caption flex shrink-0 items-center justify-between glass-bar border-t border-hairline px-4 py-1.5">
         <div className="flex items-center gap-4">
-          <span>{annotations.length} annotation{annotations.length !== 1 ? 's' : ''}</span>
-          <span>{fileName}</span>
+          <span className="tabular-nums">{annotations.length} {annotations.length !== 1 ? t("annotations") : t("annotation")}</span>
+          <span className="truncate">{fileName}</span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-amber-500 font-semibold">{t('Lecture seule')}</span>
-          <span>{t('Zoom :')} {Math.round(zoom * 100)}%</span>
-          {rotation !== 0 && <span>{t('Rotation :')} {rotation}deg</span>}
+        <div className="flex items-center gap-4 tabular-nums">
+          <span className="font-semibold text-status-warning-fg">{t("Lecture seule")}</span>
+          <span>{t("Zoom :")} {Math.round(zoom * 100)} %</span>
+          {rotation !== 0 && <span>{t("Rotation :")} {rotation}°</span>}
         </div>
       </div>
     </div>
@@ -476,8 +537,9 @@ const ReadOnlyPageWrapper = memo(function ReadOnlyPageWrapper({
         flexShrink: 0,
       }}
     >
+      {/* The page is the document (white by nature), raised off the dark backdrop. */}
       <div
-        className="relative bg-white shadow-2xl cursor-default"
+        className="relative cursor-default bg-white shadow-raised"
         style={{
           width,
           height,
@@ -542,6 +604,7 @@ const ReadOnlyAnnotation = memo(function ReadOnlyAnnotation({ annotation: a }: {
 
       {a.type === 'stamp' && a.stampUrl && (
         <div className="w-full h-full">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={a.stampUrl}
             alt={t('tampon')}

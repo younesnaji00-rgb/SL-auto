@@ -16,7 +16,7 @@ import { useFirestore, useAuth, useDoc, useStorage } from '@/firebase';
 import { doc, collection, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { logHistorique, logWorkflow } from './log-historique';
-import { Loader2, Send, ImageIcon, FileText } from 'lucide-react';
+import { Check, Loader2, Send, ImageIcon, FileText } from 'lucide-react';
 import { sendToChiffrage, ChiffrageFile } from '@/lib/send-to-chiffrage';
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
@@ -58,6 +58,12 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
   const [selectedChiffreurId, setSelectedChiffreurId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Success morph (owner option I1, motion-spec §5): spinner → ✓ « Envoyé »
+  // held ~1.2s before the dialog closes — reserved for this rare (F3) send.
+  const [sent, setSent] = useState(false);
+  useEffect(() => {
+    if (open) setSent(false);
+  }, [open]);
 
   // Files
   const [availablePhotos, setAvailablePhotos] = useState<FileItem[]>([]);
@@ -188,7 +194,8 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
       }
 
       toast({ title: t('Dossier envoyé'), description: `${selectedFiles.length} ${t('fichier(s) transmis au chiffreur.')}` });
-      onOpenChange(false);
+      setSent(true);
+      window.setTimeout(() => onOpenChange(false), 1200);
     } catch (error: any) {
       console.error('Assignment error:', error);
       toast({ variant: 'destructive', title: t("Erreur lors de l'envoi"), description: error.message || t('Une erreur est survenue.') });
@@ -199,7 +206,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[85vh] flex flex-col" {...tourDialogGuard()}>
+      <DialogContent className="sm:max-w-[550px] max-h-[calc(85vh/var(--app-zoom))] flex flex-col" {...tourDialogGuard()}>
         <DialogHeader>
           <DialogTitle>{t('Envoyer vers Chiffrage')}</DialogTitle>
           <DialogDescription>
@@ -220,31 +227,31 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
           {/* File summary */}
           <div className="space-y-2">
             <Label>{t('Fichiers à envoyer')}</Label>
-            <div className="border rounded-lg p-3 bg-muted/20 space-y-2">
+            <div className="space-y-2 rounded-lg bg-surface-2 p-3">
               {loadingFiles ? (
-                <div className="flex items-center justify-center py-4 gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center justify-center gap-2 py-4 text-sm text-ink-3">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   {t('Chargement des fichiers...')}
                 </div>
               ) : totalFileCount === 0 ? (
-                <p className="text-xs text-muted-foreground italic text-center py-4">
+                <p className="t-caption py-4 text-center">
                   {t('Aucun fichier disponible dans ce dossier.')}
                 </p>
               ) : (
-                <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-4 text-sm text-ink">
                   {availablePhotos.length > 0 && (
                     <div className="flex items-center gap-1.5">
-                      <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                      <ImageIcon className="h-4 w-4 text-ink-3" />
                       <span>{availablePhotos.length} photo{availablePhotos.length > 1 ? 's' : ''}</span>
                     </div>
                   )}
                   {availableDocs.length > 0 && (
                     <div className="flex items-center gap-1.5">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <FileText className="h-4 w-4 text-ink-3" />
                       <span>{availableDocs.length} document{availableDocs.length > 1 ? 's' : ''}</span>
                     </div>
                   )}
-                  <span className="text-xs text-muted-foreground ml-auto">{t('Tous les fichiers seront envoyés')}</span>
+                  <span className="t-caption ml-auto">{t('Tous les fichiers seront envoyés')}</span>
                 </div>
               )}
             </div>
@@ -253,9 +260,9 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>{t('Annuler')}</Button>
-          <Button data-tour="chif-send" onClick={handleAssign} disabled={isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-            {t('Envoyer')} ({totalFileCount})
+          <Button data-tour="chif-send" onClick={handleAssign} disabled={sent || isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0}>
+            {sent ? <Check className="mr-2 h-4 w-4" /> : isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+            {sent ? t('Envoyé') : `${t('Envoyer')} (${totalFileCount})`}
           </Button>
         </DialogFooter>
       </DialogContent>

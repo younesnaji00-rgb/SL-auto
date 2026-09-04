@@ -78,6 +78,9 @@ export interface FunnelDossier {
   directorValidated?: { by?: string; at?: any; role?: string } | null;
   dateRapportDepose?: any;
   authorRapportDepose?: string;
+  dateNoteHonoraire?: any;
+  noteHonoraireAt?: any;
+  authorNoteHonoraire?: string;
 }
 
 export interface WorkflowLog {
@@ -230,8 +233,10 @@ export const STEP_DEFS: Record<StepKey, StepDef> = {
   noteHonoraire: {
     key: 'noteHonoraire',
     label: STEP_LABELS.noteHonoraire,
-    doneAt: () => null,
-    authorOf: () => null,
+    // Written by the Note d'honoraire slot on upload (typed-documents-grid);
+    // `noteHonoraireAt` is the legacy field name read by lib/dossier-steps.
+    doneAt: (d) => toDate(d.dateNoteHonoraire ?? d.noteHonoraireAt),
+    authorOf: (d) => d.authorNoteHonoraire ?? null,
     horsDelaiAt: () => null,
   },
 };

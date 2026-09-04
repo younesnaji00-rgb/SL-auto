@@ -9,6 +9,7 @@ import { ref, getDownloadURL } from 'firebase/storage';
 import { useFirestore, useStorage, useDoc } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Loader2, FileText, CheckCircle2, FileType,
   Trash2, Eye, PencilLine, ChevronDown, ChevronRight, ImageIcon,
@@ -167,22 +168,22 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
       <div className="space-y-6">
         <div className="flex items-center justify-between border-b pb-4">
           <div className="space-y-2">
-            <div className="h-5 w-56 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-40 animate-pulse rounded bg-muted" />
+            <Skeleton className="h-5 w-56" />
+            <Skeleton className="h-3 w-40" />
           </div>
           <div className="flex gap-3">
-            <div className="h-9 w-36 animate-pulse rounded-lg bg-muted" />
-            <div className="h-6 w-20 animate-pulse rounded-full bg-muted" />
+            <Skeleton className="h-9 w-36 rounded-lg" />
+            <Skeleton className="h-6 w-20 rounded-full" />
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="border rounded-xl p-4 flex gap-4 items-start bg-card">
-              <div className="w-24 h-24 rounded-lg animate-pulse bg-muted shrink-0" />
+              <Skeleton className="w-24 h-24 rounded-lg shrink-0" />
               <div className="flex-1 space-y-2">
-                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-                <div className="h-3 w-full animate-pulse rounded bg-muted" />
-                <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-3/4" />
               </div>
             </div>
           ))}
@@ -199,7 +200,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
   const editorDocType = creatorKind === 'devis' ? 'Devis Garage' : 'Facture Garage';
   const creatorDialog = (
     <Dialog open={!!creatorKind} onOpenChange={(o) => !o && setCreatorKind(null)}>
-      <DialogContent className="max-w-[98vw] w-full h-[95vh] flex flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-[calc(98vw/var(--app-zoom))] w-full h-[calc(95vh/var(--app-zoom))] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-4 py-3 border-b shrink-0">
           <DialogTitle>
             {creatorKind === 'devis' ? t('Créer un devis') : t('Créer une facture')}
@@ -275,14 +276,14 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
               {expandedGroups.has(groupKey) ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
               {group.icon === 'photo' ? <ImageIcon className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
               <span className="text-sm font-bold flex-1">{t(group.label)}</span>
-              <Badge variant="secondary" className="text-[10px] font-mono">{group.files.length}</Badge>
+              <Badge variant="secondary" className="text-[11px] font-mono">{group.files.length}</Badge>
             </button>
             {expandedGroups.has(groupKey) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
                 {group.files.map(({ file, index: i }) => (
                   <div
                     key={`${file.storagePath}-${i}`}
-                    className="border rounded-xl p-4 flex gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group cursor-pointer"
+                    className="border rounded-xl p-4 flex gap-4 items-start bg-card shadow-sm hover:shadow-md transition-shadow duration-150 group cursor-pointer"
                     onClick={() => router.push(`/viewer?chiffrageId=${chiffrageId}&dossierId=${dossierId}&fileIndex=${i}`)}
                   >
                     <div
@@ -294,7 +295,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
                       ) : (
                         <div className="flex flex-col items-center gap-1">
                           <FileType className="h-6 w-6 text-muted-foreground opacity-40" />
-                          <span className="text-[8px] uppercase font-black text-muted-foreground">{file.type}</span>
+                          <span className="text-[10px] uppercase font-black text-muted-foreground">{file.type}</span>
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
@@ -308,7 +309,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
                         <StatusBadge status={file.status} hasAnnotations={!!file.annotations?.length} />
                       </div>
 
-                      <div className="bg-muted/30 p-2 rounded text-[10px] text-muted-foreground italic line-clamp-2 leading-relaxed">
+                      <div className="bg-muted/30 p-2 rounded text-[11px] text-muted-foreground italic line-clamp-2 leading-relaxed">
                         {t("Mode Correcteur : Ajoutez vos annotations, barrez les prix et modifiez les valeurs directement sur l'image.")}
                       </div>
 
@@ -335,7 +336,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
 
       {previewIndex !== null && chiffrage && downloadUrls[previewIndex] && (
         <Dialog open onOpenChange={() => setPreviewIndex(null)}>
-          <DialogContent className="max-w-2xl h-[60vh] flex flex-col p-0">
+          <DialogContent className="max-w-2xl h-[calc(60vh/var(--app-zoom))] flex flex-col p-0">
             <div className="flex-1 overflow-hidden bg-slate-900 flex items-center justify-center">
               {chiffrage.files[previewIndex].name.match(/\.(jpg|jpeg|png|webp)$/i) ? (
                 <img src={downloadUrls[previewIndex]} className="max-w-full max-h-full object-contain" alt={t('Aperçu')} />
@@ -373,7 +374,7 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
 function StatusBadge({ status, hasAnnotations }: { status: string; hasAnnotations: boolean }) {
   const t = useT();
   if (hasAnnotations) {
-    return <Badge variant="expertise" className="text-[9px] py-0 h-4 uppercase font-black">{t('CORRIGÉ')}</Badge>;
+    return <Badge variant="expertise" className="text-[11px] py-0 h-4 uppercase font-black">{t('CORRIGÉ')}</Badge>;
   }
-  return <Badge variant="secondary" className="text-[9px] py-0 h-4 uppercase font-black">{t('EN ATTENTE')}</Badge>;
+  return <Badge variant="secondary" className="text-[11px] py-0 h-4 uppercase font-black">{t('EN ATTENTE')}</Badge>;
 }

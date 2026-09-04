@@ -1,8 +1,10 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
@@ -14,17 +16,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Check, ChevronDown, Loader2, Stamp as StampIcon, Trash2, Upload, X } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ChevronDown, ImageIcon, Stamp as StampIcon, Trash2, Users, X } from 'lucide-react';
+import { IconChip } from '@/components/ui/icon-chip';
 import { useFirestore, useStorage, useCollection } from '@/firebase';
 import { addDoc, collection, deleteDoc, deleteField, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
@@ -35,12 +33,8 @@ import { getDefaultRouteForRole } from '@/lib/nav-groups';
 import { format } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import { useStamps, type Stamp } from '@/hooks/use-stamps';
-import { SkeletonRow } from '@/components/ui/skeleton';
-
-// Sentinel value used by the per-stamp "assign to chiffreur" Select. Radix's
-// SelectItem rejects empty-string `value`, so we use a sentinel to represent
-// "no assignment" and translate it to `deleteField()` on write.
-const UNASSIGN_VALUE = '__unassign__';
+import { cn } from '@/lib/utils';
+import { TamponsSkeleton } from './loading';
 
 interface ChiffreurUser {
   id: string;
@@ -86,6 +80,8 @@ export default function TamponsSettingsPage() {
   const [progress, setProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Stamp | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Drag-over highlight for the picker button (the one drop target).
+  const [dragOver, setDragOver] = useState(false);
 
   // Per-chiffreur stamp assignment. Read all users with role `Chiffreur`; each
   // user doc carries an optional `assignedStampId` pointing at a stamp.id.
@@ -130,15 +126,12 @@ export default function TamponsSettingsPage() {
   }, [userLoading, profile?.role, router]);
 
   if (userLoading) {
-    return (
-      <div className="py-12 text-sm text-muted-foreground">{t('Chargement...')}</div>
-    );
+    return <TamponsSkeleton />;
   }
 
   if (profile?.role !== 'Admin') return null;
 
-  const handleFilesPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+  const enqueueFiles = (files: File[]) => {
     if (files.length === 0) return;
     const next = files.map((f) => ({
       id: newId(),
@@ -146,7 +139,28 @@ export default function TamponsSettingsPage() {
       derivedName: f.name.replace(/\.[^/.]+$/, '').trim() || f.name,
     }));
     setQueued((prev) => [...prev, ...next]);
+  };
+
+  const handleFilesPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    enqueueFiles(Array.from(e.target.files ?? []));
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Drop-target handlers for the picker button (element-specs §21: the
+  // picker is ONE plain button that is also a drop target; ring on drag-over).
+  const dropProps = {
+    onDragOver: (e: React.DragEvent) => {
+      if (isImporting) return;
+      e.preventDefault();
+      setDragOver(true);
+    },
+    onDragLeave: () => setDragOver(false),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      if (isImporting) return;
+      enqueueFiles(Array.from(e.dataTransfer.files ?? []).filter((f) => f.type.startsWith('image/')));
+    },
   };
 
   const removeFromQueue = (id: string) => {
@@ -188,6 +202,8 @@ export default function TamponsSettingsPage() {
         setProgress({ total, done, failed });
       }
     }
+    // Plural branches are separate keys (i18n rule: never build a sentence by
+    // concatenating a suffix onto a translated word).
     const importedLabel = done > 1 ? t('tampons importés') : t('tampon importé');
     const failedLabel = failed > 1 ? t('échecs') : t('échec');
     const summary =
@@ -261,40 +277,67 @@ export default function TamponsSettingsPage() {
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">{t('Tampons')}</h1>
-        <p className="text-muted-foreground">
-          {t('Gérez les tampons utilisés pour signer les devis et documents générés.')}
-        </p>
-      </div>
+  const importedMeta = (stamp: Stamp) => {
+    const importedBy = stamp.createdByName || stamp.createdBy || '—';
+    const ts = stamp.createdAt as { toDate?: () => Date } | null | undefined;
+    let importedAt = '—';
+    try {
+      const d = ts?.toDate ? ts.toDate() : null;
+      importedAt = d ? format(d, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }) : '—';
+    } catch {
+      importedAt = '—';
+    }
+    return `${t('Importé par')} ${importedBy} · ${importedAt}`;
+  };
 
-      <Card className="border shadow-sm rounded-lg" data-tour="tam-import">
+  const openPicker = () => fileInputRef.current?.click();
+
+  return (
+    <div className="space-y-8">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleFilesPicked}
+      />
+
+      {/* Page header — element-specs §1 (Polaris Page: plural object + count
+          pill). No header action: the page primary is the import card's
+          button (GOV.UK: one default button per page). */}
+      <PageHeader
+        title={t('Tampons')}
+        subtitle={t('Gérez les tampons utilisés pour signer les devis et documents générés.')}
+        count={stampsLoading ? undefined : stamps.length}
+      />
+
+      {/* Card 1 — element-specs §5 (Material 3 cards: one topic per container). */}
+      <Card data-tour="tam-import">
         <CardHeader>
-          <CardTitle>{t('Importer des tampons')}</CardTitle>
-          <CardDescription>
-            {t("Sélectionnez une ou plusieurs images. Le nom du tampon sera dérivé du nom de fichier (sans l'extension).")}
+          <CardTitle className="t-heading">{t('Importer des tampons')}</CardTitle>
+          <CardDescription className="t-caption">
+            {t("Le nom du tampon est dérivé du nom de fichier, sans l'extension.")}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={handleFilesPicked}
-          />
+        <CardContent className="space-y-4">
+          {/* File picker — element-specs §21 (owner ruling: ONE plain button
+              that is also a drop target, ring on drag-over, no banner, no
+              dashed panel, no copy). Emphasis follows the job (§8, GOV.UK
+              "one default button"): the picker is `default` until files are
+              queued, then « Importer » takes the fill and the picker goes
+              `tonal` (Material 3: filled › filled tonal). */}
           <div className="flex flex-wrap items-center gap-3">
             <Button
               type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
+              variant={queued.length > 0 ? 'tonal' : 'default'}
+              onClick={openPicker}
               disabled={isImporting}
+              className={cn(dragOver && 'ring-2 ring-ring ring-offset-2 ring-offset-background')}
+              {...dropProps}
             >
-              <Upload className="h-4 w-4 mr-2" />
-              {t('Sélectionner des fichiers')}
+              <ImageIcon className="h-4 w-4" aria-hidden />
+              {t('Choisir des images')}
             </Button>
             {queued.length > 0 && !isImporting && (
               <Button type="button" onClick={handleBatchImport}>
@@ -302,36 +345,57 @@ export default function TamponsSettingsPage() {
               </Button>
             )}
             {isImporting && progress && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>
-                  {progress.done}/{progress.total} {t('traités')}
-                  {progress.failed > 0 ? ` · ${progress.failed} ${progress.failed > 1 ? t('échecs') : t('échec')}` : ''}
+              // Determinate progress (addendum ter E, NN/g feedback budget:
+              // batch work shows percent-done, not a bare spinner): meter on a
+              // surface-3 track filled with chart-1 (§6), count as its label.
+              <span className="t-caption inline-flex items-center gap-2 tabular-nums" aria-live="polite">
+                <span
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={progress.total}
+                  aria-valuenow={progress.done}
+                  className="h-1.5 w-28 overflow-hidden rounded-full bg-surface-3"
+                >
+                  <span
+                    className="block h-full rounded-full bg-chart-1 transition-[width] duration-200 ease-standard motion-reduce:transition-none"
+                    style={{ width: `${progress.total ? Math.round((progress.done / progress.total) * 100) : 0}%` }}
+                  />
                 </span>
-              </div>
+                {progress.done}/{progress.total} {t('traités')}
+                {progress.failed > 0 ? ` · ${progress.failed} ${progress.failed > 1 ? t('échecs') : t('échec')}` : ''}
+              </span>
             )}
           </div>
+          {/* Queued files — element-specs §4 (Material 3 lists: label +
+              supporting text + trailing icon button): 44 px rows, hairlines
+              only, derived name 14/600, file name t-caption, remove `ghost`. */}
           {queued.length > 0 && (
-            <ul className="mt-4 divide-y border rounded-md">
+            <ul className="divide-y divide-hairline border-t border-hairline" aria-live="polite" aria-label={t("Fichiers en attente d'import")}>
               {queued.map((q) => (
-                <li key={q.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
-                  <span className="text-xs text-muted-foreground truncate min-w-0 flex-1 basis-40">
-                    {q.file.name}
-                  </span>
-                  <span className="text-sm font-medium truncate min-w-0 flex-1 basis-40">
-                    {q.derivedName}
-                  </span>
+                <li key={q.id} className="flex min-h-[44px] items-center gap-3 py-1">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface-3 text-ink-3 shadow-rim">
+                    <ImageIcon className="h-4 w-4" aria-hidden />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="t-body truncate font-semibold">{q.derivedName}</p>
+                    <p className="t-caption truncate">{q.file.name}</p>
+                  </div>
                   {!isImporting && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => removeFromQueue(q.id)}
-                      title={t('Retirer de la file')}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink"
+                          onClick={() => removeFromQueue(q.id)}
+                          aria-label={`${t('Retirer de la file')} : ${q.derivedName}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('Retirer de la file')}</TooltipContent>
+                    </Tooltip>
                   )}
                 </li>
               ))}
@@ -340,126 +404,153 @@ export default function TamponsSettingsPage() {
         </CardContent>
       </Card>
 
-      <div>
-        <Card className="border shadow-sm rounded-lg" data-tour="tam-list">
-          <CardHeader>
-            <CardTitle>{t('Tampons enregistrés')}</CardTitle>
-            <CardDescription>
-              {t('Activez, désactivez ou supprimez les tampons existants.')}
-            </CardDescription>
-          </CardHeader>
-            <CardContent>
-              {stampsLoading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <SkeletonRow key={`sk-stamp-${i}`} />
-                  ))}
-                </div>
-              ) : stamps.length === 0 ? (
-                <EmptyState
-                  icon={<StampIcon />}
-                  title={t('Aucun tampon')}
-                  description={t('Ajoutez votre premier tampon via le formulaire.')}
-                  dashed={false}
-                  className="border-0 bg-transparent py-10"
-                />
-              ) : (
-                <ul className="divide-y">
-                  {stamps.map((stamp) => (
-                    <li key={stamp.id} className="flex items-center gap-4 py-3">
-                      <div className="h-16 w-16 shrink-0 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden">
-                        {stamp.url ? (
-                          <img
-                            src={stamp.url}
-                            alt={stamp.name}
-                            className="max-h-full max-w-full object-contain"
-                          />
-                        ) : (
-                          <StampIcon className="h-6 w-6 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{stamp.name || t('Sans nom')}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {(() => {
-                            const importedBy = stamp.createdByName || stamp.createdBy || '—';
-                            const importedAt = (() => {
-                              const ts = stamp.createdAt as { toDate?: () => Date } | null | undefined;
-                              try {
-                                const d = ts?.toDate ? ts.toDate() : null;
-                                return d ? format(d, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }) : '—';
-                              } catch {
-                                return '—';
-                              }
-                            })();
-                            return `${t('Importé par')} ${importedBy} · ${importedAt}`;
-                          })()}
-                        </p>
-                        {(() => {
-                          const assignees = assigneesByStampId.get(stamp.id) ?? [];
-                          if (assignees.length === 0) return null;
-                          return (
-                            <p className="text-xs text-muted-foreground truncate mt-0.5">
-                              {t('Assigné à :')} {assignees.join(', ')}
-                            </p>
-                          );
-                        })()}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={stamp.active}
-                            onCheckedChange={(checked) => handleToggleActive(stamp, checked)}
-                            aria-label={t("Basculer l'état actif")}
-                          />
-                          <span className="text-xs text-muted-foreground hidden sm:inline">
-                            {stamp.active ? t('Actif') : t('Inactif')}
-                          </span>
-                        </div>
-                        {canDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => setDeleteTarget(stamp)}
-                            title={t('Supprimer')}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-      </div>
-
-      <Card className="border shadow-sm rounded-lg" data-tour="tam-assign">
+      {/* Card 2 — the registered stamps as a vertical LIST (original layout). */}
+      <Card data-tour="tam-list">
         <CardHeader>
-          <CardTitle>{t('Assignation par chiffreur')}</CardTitle>
-          <CardDescription>
+          <CardTitle className="t-heading flex items-center gap-2">
+            {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip beside the
+                section that anchors the page. */}
+            <IconChip><StampIcon /></IconChip>
+            {t('Tampons enregistrés')}
+          </CardTitle>
+          <CardDescription className="t-caption">
+            {t('Activez, désactivez ou supprimez les tampons existants.')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {stampsLoading ? (
+            // Row-shaped skeleton (§15), not a spinner.
+            <div className="divide-y divide-hairline border-t border-hairline">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={`sk-stamp-${i}`} className="flex items-center gap-4 py-3">
+                  <Skeleton className="h-16 w-16 rounded-[10px]" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-56 max-w-full" />
+                  </div>
+                  <Skeleton className="h-6 w-11 rounded-full" />
+                </div>
+              ))}
+            </div>
+          ) : stamps.length === 0 ? (
+            // Empty state — element-specs §12 (Polaris: verb-led heading, ONE
+            // action; `tonal` inside a card). Opens the same picker.
+            <EmptyState
+              icon={<StampIcon />}
+              title={t('Ajouter le premier tampon')}
+              description={t("Aucun tampon n'est encore enregistré.")}
+              action={
+                <Button type="button" variant="tonal" onClick={openPicker} disabled={isImporting}>
+                  {t('Choisir des images')}
+                </Button>
+              }
+              dashed={false}
+            />
+          ) : (
+            // List rows — element-specs §4 (Material 3 lists: leading media,
+            // label, supporting text, trailing selection control / icon
+            // button; NN/g cards: homogeneous content → a vertical list, not
+            // cards): hairlines only, thumbnail = the leading anchor (64 px,
+            // surface-3 + rim, original size), name 14/600, meta t-caption,
+            // trailing Switch + label + delete `ghost`.
+            <ul className="divide-y divide-hairline border-t border-hairline" aria-label={t('Tampons enregistrés')}>
+              {stamps.map((stamp) => {
+                const assignees = assigneesByStampId.get(stamp.id) ?? [];
+                const switchId = `stamp-active-${stamp.id}`;
+                return (
+                  <li key={stamp.id} className="flex flex-wrap items-center gap-4 py-3">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-surface-3 p-1 shadow-rim">
+                      {stamp.url ? (
+                        <img
+                          src={stamp.url}
+                          alt=""
+                          className={cn('max-h-full max-w-full object-contain', !stamp.active && 'opacity-50')}
+                        />
+                      ) : (
+                        <StampIcon className="h-6 w-6 text-ink-3" aria-hidden />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 basis-48">
+                      <p className={cn('t-body truncate font-semibold', !stamp.active && 'text-ink-2')}>{stamp.name || t('Sans nom')}</p>
+                      <p className="t-caption truncate tabular-nums">{importedMeta(stamp)}</p>
+                      {assignees.length > 0 && (
+                        <p className="t-caption truncate" title={assignees.join(', ')}>
+                          {t('Assigné à :')} {assignees.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      {/* Material 3 switch: immediate effect, label describes the ON state. */}
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id={switchId}
+                          checked={stamp.active}
+                          onCheckedChange={(checked) => handleToggleActive(stamp, checked)}
+                          aria-label={`${t('Tampon actif')} : ${stamp.name || t('sans nom')}`}
+                        />
+                        <label htmlFor={switchId} className="t-caption cursor-pointer select-none">
+                          {stamp.active ? t('Actif') : t('Inactif')}
+                        </label>
+                      </div>
+                      {canDelete && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-ink-3 hover:text-destructive"
+                              onClick={() => setDeleteTarget(stamp)}
+                              aria-label={`${t('Supprimer')} ${stamp.name || t('ce tampon')}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t('Supprimer')}</TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Card 3 — assignment rows. */}
+      <Card data-tour="tam-assign">
+        <CardHeader>
+          <CardTitle className="t-heading">{t('Assignation par chiffreur')}</CardTitle>
+          <CardDescription className="t-caption">
             {t('Sélectionnez le tampon à utiliser pour chaque chiffreur. Chaque chiffreur peut avoir un tampon distinct.')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {chiffreursLoading ? (
-            <div className="space-y-2">
+            <div className="divide-y divide-hairline border-t border-hairline">
               {Array.from({ length: 3 }).map((_, i) => (
-                <SkeletonRow key={`sk-chiff-${i}`} />
+                <div key={`sk-chiff-${i}`} className="flex items-center gap-3 py-3">
+                  <Skeleton className="h-10 w-10 rounded-md" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <Skeleton className="h-10 w-72 max-w-full" />
+                </div>
               ))}
             </div>
           ) : !chiffreurUsers || chiffreurUsers.length === 0 ? (
             <EmptyState
-              icon={<StampIcon />}
+              icon={<Users />}
               title={t('Aucun chiffreur')}
-              description={t("Aucun utilisateur avec le rôle Chiffreur n'a été trouvé.")}
+              description={t("Aucun utilisateur n'a le rôle Chiffreur.")}
               dashed={false}
-              className="border-0 bg-transparent py-10"
             />
           ) : (
-            <ul className="divide-y">
+            // Rows — element-specs §4: 40 px preview as the anchor, name
+            // 14/600, assigned stamps as neutral chips (§11), the multi-select
+            // trigger at the row end.
+            <ul className="divide-y divide-hairline border-t border-hairline" aria-label={t('Chiffreurs')}>
               {chiffreurUsers.map((u) => {
                 const label =
                   [u.prenom, u.nom].filter(Boolean).join(' ').trim() || u.email || u.id;
@@ -482,25 +573,31 @@ export default function TamponsSettingsPage() {
                     key={u.id}
                     className="flex flex-wrap items-center gap-3 py-3"
                   >
-                    <div className="flex items-center gap-3 flex-1 min-w-0 basis-60">
-                      <div className="h-10 w-10 shrink-0 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden">
+                    <div className="flex min-w-0 flex-1 basis-60 items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-3 p-0.5 shadow-rim">
                         {previewStamp?.url ? (
                           <img
                             src={previewStamp.url}
-                            alt={previewStamp.name}
+                            alt=""
                             className="max-h-full max-w-full object-contain"
                           />
                         ) : (
-                          <StampIcon className="h-4 w-4 text-muted-foreground" />
+                          <StampIcon className="h-4 w-4 text-ink-3" aria-hidden />
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium truncate">{label}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {assignedStamps.length === 0
-                            ? t('Aucun tampon assigné')
-                            : assignedStamps.map((s) => s.name || t('Sans nom')).join(', ')}
-                        </p>
+                        <p className="t-body truncate font-semibold">{label}</p>
+                        {assignedStamps.length === 0 ? (
+                          <p className="t-caption">{t('Aucun tampon assigné')}</p>
+                        ) : (
+                          <div className="mt-0.5 flex flex-wrap gap-1">
+                            {assignedStamps.map((s) => (
+                              <Badge key={s.id} variant="neutral" title={s.name || t('Sans nom')}>
+                                {s.name || t('Sans nom')}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="w-full sm:w-72">
@@ -509,43 +606,45 @@ export default function TamponsSettingsPage() {
                           <Button
                             variant="outline"
                             className="w-full justify-between font-normal"
+                            aria-label={`${t('Tampons de')} ${label}`}
                           >
                             <span className="truncate text-left">{triggerLabel}</span>
-                            <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" aria-hidden />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent align="start" className="w-72 p-2">
                           {visibleStamps.length === 0 ? (
-                            <p className="text-xs text-muted-foreground p-2">{t('Aucun tampon disponible.')}</p>
+                            <p className="t-caption p-2">{t('Aucun tampon disponible.')}</p>
                           ) : (
-                            <div className="space-y-0.5 max-h-[300px] overflow-y-auto">
+                            <div className="max-h-[300px] space-y-0.5 overflow-y-auto">
                               {visibleStamps.map((s) => {
                                 const selected = assignedIds.includes(s.id);
                                 return (
                                   <button
                                     key={s.id}
                                     type="button"
+                                    role="menuitemcheckbox"
+                                    aria-checked={selected}
                                     onClick={() => {
                                       const next = selected
                                         ? assignedIds.filter((id) => id !== s.id)
                                         : [...assignedIds, s.id];
                                       handleSetAssignedStamps(u.id, next);
                                     }}
-                                    className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted text-left"
+                                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                   >
-                                    <Checkbox checked={selected} className="shrink-0" />
-                                    <span className="truncate flex-1">
+                                    <Checkbox checked={selected} className="shrink-0" tabIndex={-1} aria-hidden />
+                                    <span className="flex-1 truncate">
                                       {s.name || t('Sans nom')}
-                                      {!s.active && <span className="text-muted-foreground"> ({t('inactif')})</span>}
+                                      {!s.active && <span className="text-ink-3"> ({t('inactif')})</span>}
                                     </span>
-                                    {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                                   </button>
                                 );
                               })}
                             </div>
                           )}
                           {assignedIds.length > 0 && (
-                            <div className="border-t pt-2 mt-2">
+                            <div className="mt-2 border-t border-hairline pt-2">
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -568,25 +667,27 @@ export default function TamponsSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Confirmation dialog — element-specs §13 (Material 3 dialogs: names
+          the object and its consequence, ≤ 2 actions, confirm at the edge). */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('Supprimer ce tampon ?')}</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer le tampon')} « {deleteTarget?.name || t('sans nom')} » ?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.name && <span className="font-semibold">{deleteTarget.name}</span>} {t('sera définitivement supprimé du stockage et de la base. Cette action est irréversible.')}
+              {t("Le fichier sera retiré du stockage et le tampon de la base. Les chiffreurs auxquels il est assigné n'y auront plus accès. Cette action est irréversible.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className={buttonVariants({ variant: 'destructive' })}
               disabled={isDeleting}
               onClick={(e) => {
                 e.preventDefault();
                 confirmDelete();
               }}
             >
-              {t('Supprimer')}
+              {isDeleting ? t('Suppression…') : t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Calendar, Camera, Loader2, ScanLine } from 'lucide-react';
+import { ArrowLeft, Calendar, Camera, Loader2 } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -18,6 +19,8 @@ import { useFirestore } from '@/firebase';
 import { useT } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { matchDossiersByPlate } from '@/lib/plate-match';
+import { cn } from '@/lib/utils';
+import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import ModalPlanification from '@/app/(app)/dossiers/[id]/modal-planification';
 import { usePlateScan, type PlateScanResult } from './at-plate-scan';
 
@@ -39,7 +42,14 @@ interface ScanState {
  * the former separate "Nouvelle planification" / "Ajouter photos" buttons.
  * Scan-only by design: no manual matricule entry.
  */
-export default function AtScanPlaqueFlow() {
+export default function AtScanPlaqueFlow({
+  buttonClassName,
+  buttonSize = 'default',
+}: {
+  buttonClassName?: string;
+  /** `lg` on phones (thumb-sized target); `default` (40 px) in the desktop header. */
+  buttonSize?: 'default' | 'lg';
+}) {
   const t = useT();
   const db = useFirestore();
   const { profile } = useCurrentUser();
@@ -143,24 +153,34 @@ export default function AtScanPlaqueFlow() {
 
   const busy = scanning || (!!pendingPlate && !loaded);
 
-  const scanBanner = () => {
+  // Scan outcome as a status-pair chip + one caption (element-specs §11 /
+  // §14: status colour always with a text label; no coloured banner).
+  const scanOutcome = () => {
     if (!scan || chosen) return null;
     const uncertain = scan.confidence === 'low' ? ` ${t('(lecture incertaine — vérifiez)')}` : '';
-    let tone = 'border-emerald-300 bg-emerald-50 text-emerald-900';
+    let tone: 'success' | 'warning' | 'danger' = 'success';
+    let short: string;
     let msg: string;
     if (scan.matches.length > 1) {
+      short = `${scan.matches.length} ${t('dossiers')}`;
       msg = `${scan.matches.length} ${t('dossiers portent cette plaque')}${uncertain}. ${t('Sélectionnez le bon ci-dessous.')}`;
     } else if (scan.fuzzy.length > 0) {
-      tone = 'border-amber-300 bg-amber-50 text-amber-900';
+      tone = 'warning';
+      short = t('Aucune correspondance exacte');
       msg = `${t('Aucune correspondance exacte')}${uncertain}. ${t('Vérifiez les correspondances possibles ci-dessous, ou reprenez la photo.')}`;
     } else {
-      tone = 'border-red-300 bg-red-50 text-red-900';
+      tone = 'danger';
+      short = t('Aucun dossier');
       msg = `${t('Aucun dossier ne correspond à cette plaque')}${uncertain}. ${t("Le dossier n'existe peut-être pas encore — reprenez la photo ou contactez votre gestionnaire.")}`;
     }
     return (
-      <div className={`rounded border px-3 py-2 text-xs ${tone}`}>
-        <span className="font-semibold font-mono">{t('Plaque détectée :')} {scan.plate}</span>
-        <p className="mt-0.5">{msg}</p>
+      <div className="space-y-1.5" aria-live="polite">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="t-label">{t('Plaque détectée')}</span>
+          <span className="t-mono font-semibold">{scan.plate}</span>
+          <Badge variant={tone}>{short}</Badge>
+        </div>
+        <p className="t-caption">{msg}</p>
       </div>
     );
   };
@@ -169,17 +189,24 @@ export default function AtScanPlaqueFlow() {
     <>
       {inputNode}
 
+      {/* The ONE filled button of the missions list (element-specs §8: GOV.UK
+          "use a default button for the main call to action"; verb + noun,
+          leading 16 px icon). Camera-first — the icon is the action. */}
       <Button
         type="button"
-        size="sm"
+        size={buttonSize}
         onClick={handleScanClick}
         disabled={scanning}
-        className="h-9 gap-1.5 text-xs"
+        loading={scanning}
+        className={cn('gap-2', buttonClassName)}
       >
-        <ScanLine className="h-3.5 w-3.5" />
+        {!scanning && <Camera />}
         {t('Scanner la plaque')}
       </Button>
 
+      {/* Dialog (element-specs §13: Material 3 dialogs ✓ brief headline + one
+          line, confirmation nearest the edge, ≤ 2 footer actions; bottom sheet
+          below lg and `lg:max-w-lg` come from the primitive). */}
       <Dialog
         open={resultOpen}
         onOpenChange={(o) => {
@@ -187,7 +214,7 @@ export default function AtScanPlaqueFlow() {
           else setResultOpen(true);
         }}
       >
-        <DialogContent className="sm:max-w-[520px]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('Scanner la plaque')}</DialogTitle>
             <DialogDescription>
@@ -196,44 +223,63 @@ export default function AtScanPlaqueFlow() {
           </DialogHeader>
 
           {busy ? (
-            <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex items-center justify-center gap-2 py-6 text-sm text-ink-3" aria-live="polite">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               {scanning ? t('Lecture de la plaque...') : t('Chargement des dossiers...')}
             </div>
           ) : chosen ? (
             <>
-              {/* Action stage — dossier identified */}
-              <div className="rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+              {/* Action stage — dossier identified: definition list (§10: quiet
+                  labels, 14/600 values, empty = —) in a flat `surface-2` well
+                  (nested-solid rule inside the glass dialog). */}
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-lg bg-surface-2 p-4">
                 {scan && (
-                  <span className="font-semibold font-mono">{t('Plaque détectée :')} {scan.plate}</span>
+                  <div className="min-w-0">
+                    <dt className="t-label">{t('Plaque détectée')}</dt>
+                    <dd className="t-mono mt-0.5 font-semibold">{scan.plate}</dd>
+                  </div>
                 )}
-                <div className="mt-1.5 flex items-baseline justify-between gap-2">
-                  <span className="font-semibold text-sm">{chosen.refExpert || chosen.id}</span>
-                  <span className="text-[10px]">{chosen.compagnie || '—'}</span>
+                <div className="min-w-0">
+                  <dt className="t-label">{t('Dossier')}</dt>
+                  <dd className="t-mono mt-0.5 truncate font-semibold">{chosen.refExpert || chosen.id}</dd>
                 </div>
-                <div className="mt-0.5 flex items-baseline justify-between gap-2">
-                  <span>{assureLabel(chosen)}</span>
-                  <span className="font-mono">
-                    {chosen.matricule || chosen.vehicule?.immatriculation || '—'}
-                  </span>
+                <div className="min-w-0">
+                  <dt className="t-label">{t('Assuré')}</dt>
+                  <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{assureLabel(chosen)}</dd>
                 </div>
-                <div className="mt-0.5 text-[10px] opacity-80">
-                  {t('Statut :')} {t(chosen.statut || 'Nouveau')}
+                <div className="min-w-0">
+                  <dt className="t-label">{t('Compagnie')}</dt>
+                  <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{chosen.compagnie || <span className="font-normal text-ink-4">—</span>}</dd>
                 </div>
-              </div>
+                <div className="min-w-0">
+                  <dt className="t-label">{t('Immatriculation')}</dt>
+                  <dd className="t-mono mt-0.5 font-semibold">{chosen.matricule || chosen.vehicule?.immatriculation || <span className="font-normal text-ink-4">—</span>}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="t-label">{t('Statut')}</dt>
+                  <dd className="mt-0.5">
+                    {/* Status chip (§11) — same helper/pair as everywhere else. */}
+                    <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(chosen.statut || 'Nouveau'))}>
+                      {t(chosen.statut || 'Nouveau')}
+                    </Badge>
+                  </dd>
+                </div>
+              </dl>
 
+              {/* Buttons (§8: ONE `default` per stage — the camera-first action;
+                  the alternative is `outline`; back / retry are `ghost`). */}
               <div className="grid grid-cols-1 gap-2">
-                <Button type="button" onClick={() => handlePhotos(chosen)} className="h-11 gap-2">
-                  <Camera className="h-4 w-4" />
+                <Button type="button" onClick={() => handlePhotos(chosen)} className="w-full gap-2">
+                  <Camera />
                   {t('Ajouter photos / documents')}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => handlePlanifier(chosen)}
-                  className="h-11 gap-2"
+                  className="w-full gap-2"
                 >
-                  <Calendar className="h-4 w-4" />
+                  <Calendar />
                   {t('Planifier la mission')}
                 </Button>
               </div>
@@ -245,9 +291,9 @@ export default function AtScanPlaqueFlow() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setChosen(null)}
-                    className="gap-1.5 text-xs"
+                    className="gap-1.5"
                   >
-                    <ArrowLeft className="h-3.5 w-3.5" />
+                    <ArrowLeft />
                     {t('Autres résultats')}
                   </Button>
                 ) : (
@@ -258,23 +304,27 @@ export default function AtScanPlaqueFlow() {
                   variant="ghost"
                   size="sm"
                   onClick={trigger}
-                  className="gap-1.5 text-xs"
+                  className="gap-1.5"
                 >
-                  <ScanLine className="h-3.5 w-3.5" />
+                  <Camera />
                   {t('Reprendre la photo')}
                 </Button>
               </div>
             </>
           ) : (
             <>
-              {error && <p className="text-xs text-destructive">{error}</p>}
-              {scanBanner()}
+              {/* Inline error (§14: errors next to the block, never a toast). */}
+              {error && <p role="alert" className="text-sm text-status-danger-fg">{error}</p>}
+              {scanOutcome()}
 
               {displayed.length > 0 && (
-                <div className="max-h-[280px] overflow-y-auto rounded border border-border/40">
-                  <ul>
+                // Candidate rows (element-specs §4: Material 3 lists ✓ label +
+                // supporting text + trailing meta; ≥ 56 px two-line rows on
+                // hairlines; whole row is the control; status chip §11).
+                <div className="max-h-[280px] overflow-y-auto rounded-md border border-hairline">
+                  <ul className="divide-y divide-hairline">
                     {scan && scan.matches.length === 0 && scan.fuzzy.length > 0 && (
-                      <li className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-amber-700 bg-amber-50 border-b border-border/20">
+                      <li className="t-label px-4 py-2">
                         {t('Correspondances possibles')}
                       </li>
                     )}
@@ -283,19 +333,19 @@ export default function AtScanPlaqueFlow() {
                         <button
                           type="button"
                           onClick={() => setChosen(d)}
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-muted/50 focus:bg-muted/50 focus:outline-none border-b border-border/20 last:border-b-0"
+                          className="flex min-h-[56px] w-full flex-col justify-center px-4 py-2 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
                         >
-                          <div className="flex items-baseline justify-between gap-2">
-                            <span className="font-semibold text-primary tabular-nums">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="t-mono font-semibold">
                               {d.refExpert || d.id}
                             </span>
-                            <span className="text-[10px] text-muted-foreground">
-                              {d.compagnie || '—'}
-                            </span>
+                            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'), 'shrink-0')}>
+                              {t(d.statut || 'Nouveau')}
+                            </Badge>
                           </div>
-                          <div className="mt-0.5 flex items-baseline justify-between gap-2 text-muted-foreground">
-                            <span>{assureLabel(d)}</span>
-                            <span className="font-mono">
+                          <div className="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-ink-2">
+                            <span className="truncate">{assureLabel(d)}{d.compagnie ? ` · ${d.compagnie}` : ''}</span>
+                            <span className="t-mono shrink-0 text-ink-2">
                               {d.matricule || d.vehicule?.immatriculation || '—'}
                             </span>
                           </div>
@@ -306,15 +356,18 @@ export default function AtScanPlaqueFlow() {
                 </div>
               )}
 
-              <Button type="button" variant="outline" onClick={trigger} className="w-full gap-2">
-                <ScanLine className="h-4 w-4" />
+              {/* Retry is `ghost` (§8) — no filled button at this stage: the
+                  agent is choosing, not committing. */}
+              <Button type="button" variant="ghost" onClick={trigger} className="w-full gap-2">
+                <Camera />
                 {t('Reprendre la photo')}
               </Button>
             </>
           )}
 
+          {/* Footer (§13): a single dismissive `outline` action nearest the edge. */}
           <DialogFooter>
-            <Button variant="ghost" onClick={closeAll}>
+            <Button variant="outline" onClick={closeAll}>
               {t('Fermer')}
             </Button>
           </DialogFooter>

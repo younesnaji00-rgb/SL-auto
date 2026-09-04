@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatFr, parseFr } from '@/lib/devis-schema';
@@ -52,6 +52,11 @@ export function CellNumberInput({
 
   const [text, setText] = useState<string>(displayFor(value));
   const [focused, setFocused] = useState(false);
+  // C3 — spreadsheet keys (chiffrage-redesign-spec): stash the pre-focus value
+  // so Échap can revert the cell. NOTE the input is type=text (inputMode
+  // decimal), so the mouse wheel can never increment a focused amount — the
+  // wheel hazard only exists on type=number.
+  const focusValueRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!focused) setText(displayFor(value));
@@ -91,7 +96,25 @@ export function CellNumberInput({
             onChange(parseFr(next));
           }
         }}
-        onFocus={(e) => { setFocused(true); e.currentTarget.select(); }}
+        onFocus={(e) => {
+          setFocused(true);
+          focusValueRef.current = value === undefined || value === null ? (allowNull ? null : 0) : value;
+          e.currentTarget.select();
+        }}
+        onKeyDown={(e) => {
+          // C3 — Échap reverts to the pre-focus value. stopPropagation only
+          // when there is something to revert, so an untouched cell still
+          // lets Échap close a surrounding popover/dialog.
+          if (e.key !== 'Escape') return;
+          const prev = focusValueRef.current;
+          const prevText = displayFor(prev);
+          if (text !== prevText) {
+            e.stopPropagation();
+            setText(prevText);
+            onChange(prev);
+            e.currentTarget.select();
+          }
+        }}
         onBlur={() => {
           setFocused(false);
           if (text.trim() === '') {
@@ -107,8 +130,9 @@ export function CellNumberInput({
         disabled={disabled}
         inputMode="decimal"
         className={cn(
-          "w-full h-7 px-1.5 text-xs bg-transparent outline-none rounded border border-transparent",
-          "focus:border-primary/50 focus:bg-background disabled:cursor-not-allowed",
+          // Solid field inside a glass/paper table cell (blueprint §3: inputs are never translucent).
+          "w-full h-7 px-1.5 text-xs bg-card text-ink tabular-nums outline-none rounded border border-transparent",
+          "focus:border-input focus:ring-2 focus:ring-ring disabled:cursor-not-allowed",
           align === 'center' && 'text-center',
           align === 'right' && 'text-right',
           suffix && 'pr-5',
@@ -117,7 +141,7 @@ export function CellNumberInput({
       />
       {suffix && (
         <span className={cn(
-          "absolute top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none",
+          "absolute top-1/2 -translate-y-1/2 text-[11px] text-ink-3 pointer-events-none",
           showSteppers ? 'right-5' : 'right-1.5',
         )}>
           {suffix}
@@ -133,7 +157,8 @@ export function CellNumberInput({
             onClick={stepUp}
             aria-label="Augmenter"
             className={cn(
-              "flex items-center justify-center h-3 w-4 text-muted-foreground hover:text-foreground",
+              // Ink ladder (element-specs §8 icon controls): ink-3 at rest, ink on hover.
+              "flex items-center justify-center h-3 w-4 text-ink-3 hover:text-ink",
               "disabled:opacity-40 disabled:cursor-not-allowed",
             )}
           >
@@ -147,7 +172,7 @@ export function CellNumberInput({
             onClick={stepDown}
             aria-label="Diminuer"
             className={cn(
-              "flex items-center justify-center h-3 w-4 text-muted-foreground hover:text-foreground",
+              "flex items-center justify-center h-3 w-4 text-ink-3 hover:text-ink",
               "disabled:opacity-40 disabled:cursor-not-allowed",
             )}
           >

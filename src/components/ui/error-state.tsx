@@ -32,22 +32,25 @@ const ErrorState = React.forwardRef<HTMLDivElement, ErrorStateProps>(
         ref={ref}
         role="alert"
         className={cn(
-          "flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-10 text-center",
+          // Same quiet surface-2 well as EmptyState (element-specs §12); the
+          // danger pair is spent on the icon chip only (blueprint §1:
+          // semantic colour is never decorative).
+          "flex flex-col items-center justify-center gap-3 rounded-xl bg-surface-2 px-6 py-10 text-center",
           className
         )}
         {...props}
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-          <AlertTriangle className="h-6 w-6" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-status-danger-bg text-status-danger-fg">
+          <AlertTriangle className="h-5 w-5" />
         </div>
-        <div className="flex flex-col gap-1">
-          <p className="text-sm font-semibold text-destructive">{typeof title === "string" ? t(title) : title}</p>
+        <div className="flex max-w-[48ch] flex-col gap-1">
+          <p className="t-heading">{typeof title === "string" ? t(title) : title}</p>
           {description ? (
-            <p className="text-sm text-muted-foreground">{description}</p>
+            <p className="t-caption">{description}</p>
           ) : null}
         </div>
         {onRetry ? (
-          <Button variant="outline" size="sm" onClick={onRetry}>
+          <Button variant="tonal" onClick={onRetry} className="mt-1">
             {t(retryLabel)}
           </Button>
         ) : null}

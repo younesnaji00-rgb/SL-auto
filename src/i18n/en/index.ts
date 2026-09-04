@@ -34,6 +34,17 @@ import { LABS_EN } from './labs';
 import { LEFTOVERS_EN } from './leftovers';
 import { TRIAL_EN } from './trial';
 import { DEMO_KIT_EN } from './demo-kit';
+// UI-redesign merge (2026-09-04): strings the redesign introduced, one file
+// per merge batch. Spread LAST so a redesigned screen's wording wins over an
+// older entry for the same French key.
+import { MERGE_A_EN } from './merge-A';
+import { MERGE_B_EN } from './merge-B';
+import { MERGE_C_EN } from './merge-C';
+import { MERGE_D_EN } from './merge-D';
+import { MERGE_E_EN } from './merge-E';
+import { MERGE_F_EN } from './merge-F';
+import { MERGE_G_EN } from './merge-G';
+import { MERGE_H_EN } from './merge-H';
 
 export const EN: Record<string, string> = {
   ...COMMON_EN,
@@ -63,4 +74,12 @@ export const EN: Record<string, string> = {
   ...LEFTOVERS_EN,
   ...TRIAL_EN,
   ...DEMO_KIT_EN,
+  ...MERGE_A_EN,
+  ...MERGE_B_EN,
+  ...MERGE_C_EN,
+  ...MERGE_D_EN,
+  ...MERGE_E_EN,
+  ...MERGE_F_EN,
+  ...MERGE_G_EN,
+  ...MERGE_H_EN,
 };

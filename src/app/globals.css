@@ -7,79 +7,247 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  Colour system — three roles, proportioned 60 / 30 / 10 (NN/g; the
+  interior-design heuristic adopted for UI):
+    60  cream canvas + paper cards         (--background, --card, --surface-*)
+    30  slate-navy "ink" family            (--ink, --ink-2/3/4)
+        text at four emphasis levels (Apple HIG label → quaternaryLabel);
+        terracotta (--tertiary) is the sparse warm third colour (featured
+        card, next-visit tile, medallions, warm chart series)
+    10  teal accent                        (--primary) — primary button, active
+        nav item, links, focus ring. Nothing else.
+  Surfaces are tonal steps (Material 3 surface-container ladder): structure
+  comes from tone + spacing; hairlines are the fallback (Refactoring UI:
+  fewer borders). Semantic status pairs are separate from the accent.
+*/
 @layer base {
   :root {
-    --background: 45 30% 97%;
-    --foreground: 30 12% 12%;
-    --card: 45 25% 99%;
-    --card-foreground: 30 12% 12%;
-    --popover: 45 25% 99%;
-    --popover-foreground: 30 12% 12%;
-    --primary: 178 55% 28%;
+    /* 60 — canvas & paper */
+    --background: 42 24% 94.5%;        /* surface-container-low — one shade deeper than before so white cards lift (2026-09-01) */
+    --card: 45 30% 99.4%;              /* surface-container-lowest */
+    --card-foreground: 215 38% 14%;
+    --popover: 45 30% 99.4%;
+    --popover-foreground: 215 38% 14%;
+    --surface-1: 45 30% 99.4%;         /* card                                  */
+    --surface-2: 40 20% 93.5%;         /* section header / table header / nav   */
+    --surface-3: 40 18% 90%;           /* hover                                 */
+    --surface-4: 40 16% 87%;           /* pressed / selected                    */
+    --hairline: 40 16% 88%;
+    --hairline-strong: 40 12% 74%;
+    --border: 40 16% 88%;
+    --input: 40 16% 82%;
+    /* Warm shadow (2026-09-03, owner-approved; render-verified vs the old
+       slate 215 45% 20%): shadows share the canvas's warm hue so card edges
+       read as paper shading, not a blue-gray smudge (Comeau: match the hue,
+       drop the lightness). Dark theme keeps its near-black — hue is invisible
+       at 2 % lightness. */
+    --shadow-color: 35 30% 18%;
+
+    /* 30 — ink (slate navy) */
+    --ink: 215 38% 14%;                /* label            */
+    --ink-2: 215 20% 32%;              /* secondaryLabel   */
+    --ink-3: 215 15% 42%;              /* tertiaryLabel — ≥ 4.5:1 on surface-1…3 */
+    --ink-4: 215 12% 66%;              /* quaternaryLabel — disabled / decorative only */
+    --ink-solid: 215 42% 17%;          /* functional dark backdrop (lightbox) */
+    --on-ink: 42 30% 96%;
+    --foreground: 215 38% 14%;
+    --muted: 40 20% 93.5%;
+    --muted-foreground: 215 15% 42%;
+    --secondary: 40 20% 93.5%;
+    --secondary-foreground: 215 38% 14%;
+
+    /* 10 — accent */
+    --primary: 178 60% 24%;            /* one step deeper (2026-09-01) so the primary action leads */
     --primary-foreground: 45 30% 98%;
-    --secondary: 40 15% 92%;
-    --secondary-foreground: 30 12% 12%;
-    --muted: 40 15% 92%;
-    --muted-foreground: 30 8% 40%;
-    --accent: 172 45% 85%;
+    --accent: 172 45% 86%;
     --accent-foreground: 178 55% 18%;
-    --destructive: 0 65% 55%;
+    --ring: 178 60% 24%;
+    --focus: 178 60% 24%;
+
+    /* Third colour — terracotta (user-picked; complementary to the teal
+       accent, warm sibling of the cream canvas). Used sparingly INSIDE
+       pages: the one featured surface, the next-visit date block, ordinal
+       medallions, the warm chart series. Never on actions (teal), never on
+       destructive/status contexts (it sits near red). */
+    --tertiary: 16 50% 44%;            /* solid fill        */
+    --tertiary-foreground: 45 30% 98%; /* text on the fill  */
+    --tertiary-deep: 16 65% 32%;       /* text-capable on cream/tint (darkened 2026-09-03: 6.6:1 on the tint, 7.2:1 on cream — sunlight floor) */
+    --tertiary-bg: 18 60% 92%;         /* quiet tint        */
+
+    --destructive: 0 65% 50%;
     --destructive-foreground: 45 30% 98%;
-    --border: 40 15% 85%;
-    --input: 40 15% 88%;
-    --ring: 178 55% 28%;
     --radius: 0.5rem;
-    --chart-1: 222 45% 30%;
-    --chart-2: 210 55% 75%;
-    --chart-3: 0 0% 12%;
-    --chart-4: 28 75% 58%;
-    --chart-5: 178 35% 50%;
-    --sidebar-background: 45 35% 95%;
-    --sidebar-foreground: 30 12% 12%;
-    --sidebar-primary: 178 55% 28%;
+
+    /* Categorical chart palette — fixed order teal · terracotta · indigo ·
+       plum · olive, validated 2026-09-01 with the dataviz six-check script
+       (lightness band, chroma floor, CVD ΔE ≥ 8, normal-vision ΔE ≥ 15,
+       ≥ 3:1 on the card surface) in BOTH themes. The previous navy/grey/mint
+       steps read as grey and two adjacent pairs were indistinguishable.
+       Status colours stay reserved; colour follows the entity, never rank. */
+    --chart-1: 176 78% 33%;
+    --chart-2: 14 55% 52%;
+    --chart-3: 232 62% 57%;
+    --chart-4: 312 37% 51%;
+    --chart-5: 72 55% 36%;
+
+    /* Navigation sits on the cream ladder (user ruling: the third colour
+       lives INSIDE pages, never on the nav). Active item = teal bar + icon. */
+    --sidebar-background: 42 26% 94%;
+    --sidebar-foreground: 215 38% 14%;
+    --sidebar-muted: 215 15% 42%;
+    --sidebar-primary: 178 60% 24%;
     --sidebar-primary-foreground: 45 30% 98%;
-    --sidebar-accent: 172 45% 88%;
-    --sidebar-accent-foreground: 178 55% 18%;
-    --sidebar-border: 40 15% 82%;
-    --sidebar-ring: 178 55% 28%;
-    --heading-bg: 40 20% 88%;
-    --heading-fg: 178 50% 22%;
+    --sidebar-accent: 40 18% 90%;
+    --sidebar-accent-foreground: 215 38% 14%;
+    --sidebar-active: 40 16% 87%;
+    --sidebar-border: 40 16% 86%;
+    --sidebar-ring: 178 60% 24%;
+    --heading-bg: 40 20% 93.5%;
+    --heading-fg: 215 38% 14%;
+
+    /* Semantic status pairs (tinted bg + deep fg) */
+    /* Status bg lightnesses spread apart (2026-09-03, grayscale-verified:
+       at 90/92/94 the success and danger tints merged in grayscale; at
+       87/92/95.5 the three families keep a legible order without colour). */
+    /* Tint triads re-derived ON the cream canvas in OKLCH (terrain research
+       2026-09-03, terrain-color.md §4/§5: shared measured bg lightness, dark
+       same-hue text ≥ 7:1 on its own tint, warning↔danger ordered by VALUE so
+       the deadline ramp survives grayscale). Audited: bg L 0.933–0.955, all
+       fg ≥ 7.1:1 on their tints. */
+    --status-success-bg: 150 45% 92%;
+    --status-success-fg: 152 65% 21%;
+    --status-warning-bg: 44 85% 90%;   /* chroma calmed (was 42 90% 87% — the loudest tint of the four) */
+    --status-warning-fg: 30 80% 26%;
+    --status-danger-bg: 0 75% 93.5%;   /* one L step DARKER than warning-bg (monotonic urgency staircase) */
+    --status-danger-fg: 0 65% 34%;
+    --status-info-bg: 214 70% 93%;
+    --status-info-fg: 216 60% 32%;
+    /* Reserved TOP step of the urgency ramp: the page's only solid status
+       fill (« En retard »). 8.0:1 with its cream-white text. */
+    --status-danger-solid: 0 60% 36%;
+    --status-danger-solid-fg: 45 30% 98%;
+
+    /* ── Glass (chrome layer only — Apple HIG Materials: bars, sidebars,
+         menus and sheets are translucent; the content layer stays opaque
+         paper). Derivatives of --card / --background, never new hues. ── */
+    --glass-bg: hsl(var(--card) / 0.9);              /* cards, step papers — near-solid: the glass is the edge light + shadow, not the see-through (user ruling) */
+    --glass-bg-strong: hsl(var(--card) / 0.84);      /* menus, dialogs, sheets */
+    --glass-bg-bar: hsl(var(--card) / 0.72);         /* sticky bars content scrolls under */
+    --glass-bg-sidebar: hsl(var(--sidebar-background) / 0.78);
+    --glass-border: hsl(0 0% 100% / 0.72);
+    --glass-highlight: hsl(0 0% 100% / 0.85);        /* inset top edge = refraction */
+    --glass-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      0 0 0 1px hsl(178 30% 30% / 0.06),
+      0 12px 32px hsl(178 35% 18% / 0.1);
+    --glass-shadow-panel:
+      inset 0 1px 0 var(--glass-highlight),
+      0 0 0 1px hsl(178 30% 30% / 0.08),
+      0 24px 60px hsl(178 35% 14% / 0.2);
+    --scrim: hsl(var(--ink-solid) / 0.35);           /* lighter than before: the blur separates the layers */
+    /* Light contour (user ruling 2026-09-01: on every control, icon button
+       and step pill): inner 1px light ring + brighter top edge + a faint
+       outer hairline/shadow. Two strengths: on light surfaces / on fills. */
+    --rim-in: hsl(0 0% 100% / 0.75);
+    --rim-top: hsl(0 0% 100% / 0.95);
+    --rim-out: hsl(var(--shadow-color) / 0.08);
+    --rim-fill-in: hsl(0 0% 100% / 0.3);
+    --rim-fill-top: hsl(0 0% 100% / 0.55);
+    --grain-opacity: 0.03;
   }
   .dark {
-    --background: 30 10% 6%;
-    --foreground: 40 15% 92%;
-    --card: 30 10% 8%;
+    --background: 218 14% 7%;
+    --card: 218 13% 10%;
     --card-foreground: 40 15% 92%;
-    --popover: 30 10% 8%;
+    --popover: 218 13% 10%;
     --popover-foreground: 40 15% 92%;
-    --primary: 172 50% 55%;
-    --primary-foreground: 30 10% 6%;
-    --secondary: 30 8% 14%;
+    --surface-1: 218 13% 10%;
+    --surface-2: 218 12% 13%;
+    --surface-3: 218 11% 17%;
+    --surface-4: 218 10% 21%;
+    --hairline: 218 10% 18%;
+    --hairline-strong: 218 9% 30%;
+    --border: 218 10% 18%;
+    --input: 218 10% 22%;
+    --shadow-color: 218 40% 2%;
+
+    --ink: 40 15% 92%;
+    --ink-2: 218 10% 74%;
+    --ink-3: 218 8% 60%;
+    --ink-4: 218 8% 40%;
+    --ink-solid: 215 36% 20%;
+    --on-ink: 40 15% 94%;
+    --foreground: 40 15% 92%;
+    --muted: 218 12% 13%;
+    --muted-foreground: 218 8% 62%;
+    --secondary: 218 12% 13%;
     --secondary-foreground: 40 15% 92%;
-    --muted: 30 8% 14%;
-    --muted-foreground: 30 10% 65%;
-    --accent: 178 35% 22%;
+
+    --primary: 172 50% 55%;
+    --primary-foreground: 218 14% 7%;
+    --accent: 178 35% 20%;
     --accent-foreground: 172 50% 75%;
-    --destructive: 0 55% 45%;
-    --destructive-foreground: 40 15% 92%;
-    --border: 30 8% 18%;
-    --input: 30 8% 16%;
     --ring: 172 50% 55%;
-    --chart-1: 222 45% 60%;
-    --chart-2: 210 55% 75%;
-    --chart-3: 0 0% 82%;
-    --chart-4: 28 75% 58%;
-    --chart-5: 178 35% 60%;
-    --sidebar-background: 30 10% 8%;
+    --focus: 172 50% 55%;
+
+    --tertiary: 16 45% 40%;
+    --tertiary-foreground: 40 15% 94%;
+    --tertiary-deep: 16 70% 70%;
+    --tertiary-bg: 16 40% 16%;
+
+    --destructive: 0 55% 48%;
+    --destructive-foreground: 40 15% 92%;
+
+    --chart-1: 176 55% 41%;
+    --chart-2: 15 58% 56%;
+    --chart-3: 227 73% 66%;
+    --chart-4: 327 58% 60%;
+    --chart-5: 79 46% 42%;
+
+    --sidebar-background: 218 13% 9%;
     --sidebar-foreground: 40 15% 92%;
+    --sidebar-muted: 218 8% 60%;
     --sidebar-primary: 172 50% 55%;
-    --sidebar-primary-foreground: 30 10% 6%;
-    --sidebar-accent: 178 35% 22%;
-    --sidebar-accent-foreground: 172 50% 75%;
-    --sidebar-border: 30 8% 18%;
+    --sidebar-primary-foreground: 218 14% 7%;
+    --sidebar-accent: 218 12% 14%;
+    --sidebar-accent-foreground: 40 15% 94%;
+    --sidebar-active: 218 11% 18%;
+    --sidebar-border: 218 10% 16%;
     --sidebar-ring: 172 50% 55%;
-    --heading-bg: 30 10% 14%;
-    --heading-fg: 172 40% 70%;
+    --heading-bg: 218 12% 13%;
+    --heading-fg: 40 15% 92%;
+
+    --status-success-bg: 152 40% 14%;
+    --status-success-fg: 150 55% 72%;
+    --status-warning-bg: 38 55% 17%; /* spread apart from success/danger for grayscale order (2026-09-03) */
+    --status-warning-fg: 42 85% 72%;
+    --status-danger-bg: 0 45% 12%;
+    --status-danger-fg: 0 80% 78%;
+    --status-info-bg: 216 45% 16%;
+    --status-info-fg: 214 75% 78%;
+    --status-danger-solid: 0 55% 40%;
+    --status-danger-solid-fg: 40 15% 94%;
+
+    --glass-bg: hsl(var(--card) / 0.85);
+    --glass-bg-strong: hsl(var(--card) / 0.86);
+    --glass-bg-bar: hsl(var(--card) / 0.74);
+    --glass-bg-sidebar: hsl(var(--sidebar-background) / 0.8);
+    --glass-border: hsl(0 0% 100% / 0.1);
+    --glass-highlight: hsl(0 0% 100% / 0.08);
+    --glass-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      0 12px 32px hsl(0 0% 0% / 0.45);
+    --glass-shadow-panel:
+      inset 0 1px 0 var(--glass-highlight),
+      0 28px 70px hsl(0 0% 0% / 0.6);
+    --scrim: hsl(0 0% 0% / 0.55);
+    --grain-opacity: 0.05;
+    --rim-in: hsl(0 0% 100% / 0.1);
+    --rim-top: hsl(0 0% 100% / 0.18);
+    --rim-out: hsl(0 0% 0% / 0.35);
+    --rim-fill-in: hsl(0 0% 100% / 0.2);
+    --rim-fill-top: hsl(0 0% 100% / 0.4);
   }
 }
 
@@ -90,23 +258,62 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Accent budget: headings are ink, not accent. Teal is reserved for the
+     primary button, the active nav item, the focus ring and links. */
   h1, h2, h3, h4, h5, h6 {
-    @apply text-heading-fg;
+    @apply text-foreground;
   }
   h1, h2, h3 {
     text-wrap: balance;
   }
+  /* Tabular figures wherever digits line up (tables, KPIs, badges). */
+  td, th, .tabular, [data-tabular] {
+    font-variant-numeric: tabular-nums;
+  }
+  /* List density (Profil → Affichage). */
+  :root[data-density="compact"] td {
+    height: 2.25rem;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+  :root[data-density="compact"] th {
+    height: 2.25rem;
+  }
+  /* Per-table density (dossiers « Affichage » control, 2026-09-03): three
+     persisted steps — 36 / 44 / 52 px. Scoped to the table's own container so
+     it never fights the global profile setting above. */
+  [data-table-density="compacte"] td {
+    height: 2.25rem;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+  [data-table-density="compacte"] th {
+    height: 2.25rem;
+  }
+  [data-table-density="confortable"] td {
+    height: 3.25rem;
+  }
+  [data-table-density="confortable"] th {
+    height: 3.25rem;
+  }
   p {
     text-wrap: pretty;
+  }
+  ::placeholder {
+    color: hsl(var(--ink-3));
+    opacity: 1;
   }
   .dark {
     color-scheme: dark;
   }
-  html {
-    scroll-behavior: smooth;
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
   *:focus-visible {
-    @apply outline-2 outline-offset-2 outline-ring;
+    outline: 2px solid hsl(var(--focus));
+    outline-offset: 2px;
   }
   /* Fix native date/time inputs in dark mode */
   .dark input[type="date"],
@@ -114,6 +321,182 @@
   .dark input[type="datetime-local"] {
     color-scheme: dark;
   }
+}
+
+/*
+  Type roles (Carbon / Linear: few sizes; hierarchy through weight and ink
+  level rather than size — Refactoring UI). Use these instead of ad-hoc
+  text-[…] stacks.
+    t-display  page title                 30/700 Outfit  ink (2026-09-02: a step bigger + bolder — NN/g visual hierarchy)
+    t-title    section / card title       20/600 Outfit  ink
+    t-heading  block title                15/600 Inter   ink
+    t-body     default                    14/400         ink
+    t-body-sm  dense lists                13/400         ink
+    t-caption  helper / meta              12/400         ink-3
+    t-label    field labels, column heads 12/400 sentence case  ink-3
+               (values are the star: t-body 600 ink — Refactoring UI)
+    t-mono     refs, plates               13 mono tabular ink
+*/
+@layer components {
+  .t-display { @apply font-headline text-[30px] font-bold leading-[1.2] tracking-[-0.02em] text-ink; }
+  .t-title   { @apply font-headline text-xl font-semibold leading-[1.25] tracking-[-0.015em] text-ink; }
+  .t-heading { @apply text-[15px] font-semibold leading-[1.35] text-ink; }
+  .t-body    { @apply text-sm leading-[1.5] text-ink; }
+  .t-body-sm { @apply text-[13px] leading-[1.45] text-ink; }
+  .t-caption { @apply text-xs leading-[1.4] text-ink-3; }
+  .t-label   { @apply text-xs font-normal leading-[1.4] text-ink-3; }
+  .t-mono    { @apply font-mono text-[13px] tabular-nums text-ink; }
+
+  /* Step paper = a glass pane (Markazi): see `.glass` below for the shared
+     declarations. Never add a Tailwind `shadow-*` to it — it wipes the
+     inset top highlight that makes the pane read as glass. */
+  .paper {
+    @apply rounded-xl text-card-foreground;
+  }
+  /* The one terracotta surface a page may use (Stripe featured tier). */
+  .paper-featured {
+    @apply rounded-xl bg-tertiary text-tertiary-foreground shadow-raised;
+  }
+}
+
+/* No ambient mesh (user ruling 2026-09-01): the canvas stays flat cream.
+   The frost is visible where it matters — content scrolling under the
+   sticky bars, the page behind menus and dialogs. */
+/* Fine grain so the frosted chrome doesn't read as a flat vector. Above
+   static content (z 1) but under every z ≥ 1 layer (bars 30/40, overlays
+   50) — a texture, never a veil. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Glass chrome ──────────────────────────────────────────────────────
+   .glass-strong  menus, popovers, selects, dialogs, sheets
+   .glass-bar     sticky bars the content scrolls under (top bar, record
+                  bar, stepper strip, mobile bottom bar)
+   .glass-sidebar the app sidebar (desktop rail + mobile drawer)
+   .glass / .paper cards, step papers, panels (Card `tonal` applies it)
+   Markazi system (user ruling 2026-09-01: "like Markazi", minus the mesh).
+   Layered under `utilities` so Tailwind classes on the element still win. */
+@layer components {
+  .glass,
+  .paper {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
+  .glass-strong {
+    background: var(--glass-bg-strong);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    backdrop-filter: blur(24px) saturate(1.4);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow-panel);
+  }
+  .glass-bar {
+    background: var(--glass-bg-bar);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    backdrop-filter: blur(16px) saturate(1.3);
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+  }
+  .glass-sidebar {
+    background: var(--glass-bg-sidebar);
+    -webkit-backdrop-filter: blur(24px) saturate(1.3);
+    backdrop-filter: blur(24px) saturate(1.3);
+  }
+  /* Nested-solid rule: glass never stacks on glass. A frosted surface
+     inside another frosted surface flattens to the solid popover colour
+     (one blur per region; text stays legible). */
+  .glass-strong .glass-strong,
+  :is(.glass, .paper, .glass-strong) :is(.glass, .paper),
+  :is(.glass, .paper) .glass-strong {
+    background: hsl(var(--card));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: hsl(var(--border));
+    box-shadow: inset 0 1px 0 var(--glass-highlight), 0 1px 2px hsl(0 0% 0% / 0.04);
+  }
+  /* Solid controls inside glass: a translucent field over a translucent
+     card is unreadable. */
+  :is(.glass, .paper, .glass-strong) :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']), textarea, select) {
+    background-color: hsl(var(--card));
+  }
+
+  /* Filled controls carry NO gradient (user ruling 2026-09-01): only the
+     light rim (`shadow-rim-filled` in tailwind.config) + hover brightness. */
+}
+/* Below lg: lighter blur on the bars (GPU), overlays keep theirs. */
+@media (max-width: 1023px) {
+  .glass,
+  .paper {
+    background: hsl(var(--card) / 0.94);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-bar {
+    -webkit-backdrop-filter: blur(12px) saturate(1.2);
+    backdrop-filter: blur(12px) saturate(1.2);
+  }
+}
+/* Accessibility (Apple "Reduce transparency") and unsupported engines:
+   solid surfaces, no mesh, no grain. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass, .paper { background: hsl(var(--card)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .glass-strong { background: hsl(var(--popover)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .glass-bar { background: hsl(var(--background)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .glass-sidebar { background: hsl(var(--sidebar-background)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body::after { display: none; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass, .paper { background: hsl(var(--card)); }
+  .glass-strong { background: hsl(var(--popover)); }
+  .glass-bar { background: hsl(var(--background)); }
+  .glass-sidebar { background: hsl(var(--sidebar-background)); }
+}
+@media print {
+  .glass, .paper, .glass-strong, .glass-bar, .glass-sidebar { background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+  body::after { display: none; }
+}
+
+/* ── Density zoom (user ruling 2026-09-01) ─────────────────────────────
+   0.9 on 1080p monitors, 1.1 on 1440p, 1.0 everywhere else — fixed, never
+   per-size beyond these two classes. The value is set on <html> by the
+   inline script in app/layout.tsx from the PHYSICAL screen height
+   (screen.height × devicePixelRatio), so OS scaling doesn't fool it.
+   CSS zoom scales everything except viewport units (measured in Chrome 151:
+   100svh renders at 90 % under zoom 0.9), so EVERY vh/svh/dvh/vw value in
+   the app must be divided by --app-zoom: the core utilities below are
+   re-declared; arbitrary values use calc(…/var(--app-zoom)). */
+:root {
+  --app-zoom: 1;
+}
+html {
+  zoom: var(--app-zoom);
+  /* No scrollbar-gutter here: the app shell is h-svh overflow-hidden and the
+     page scrolls inside <main> in app/(app)/layout.tsx — the gutter is
+     reserved THERE ([scrollbar-gutter:stable]). Reserving it on html would
+     only waste a permanent 15px stripe on browsers with classic scrollbars
+     (owner 2026-09-02: the « par compagnie » shift survived the html-level
+     rule because this element never scrolls). */
+}
+.h-svh { height: calc(100svh / var(--app-zoom)); }
+.min-h-svh { min-height: calc(100svh / var(--app-zoom)); }
+.max-h-svh { max-height: calc(100svh / var(--app-zoom)); }
+.h-dvh { height: calc(100dvh / var(--app-zoom)); }
+.min-h-dvh { min-height: calc(100dvh / var(--app-zoom)); }
+.max-h-dvh { max-height: calc(100dvh / var(--app-zoom)); }
+.h-screen { height: calc(100vh / var(--app-zoom)); }
+.min-h-screen { min-height: calc(100vh / var(--app-zoom)); }
+.max-h-screen { max-height: calc(100vh / var(--app-zoom)); }
+.w-screen { width: calc(100vw / var(--app-zoom)); }
+@media print {
+  html { zoom: 1; }
 }
 
 @layer utilities {
@@ -136,6 +519,280 @@
   }
 }
 
+/* ── Browser-style tab shape (owner rulings 2026-09-02, bis/ter/quater —
+   Firefox tab anatomy): every tab switch draws a tab whose sides are
+   VERTICAL (quater ruling — no slope) with rounded 10px top corners, and
+   whose base flares OUTWARD with a concave curve that merges into the
+   separation line below. ::before draws the body; ::after draws the two
+   outward "feet" with corner radial-gradients (technique: CSS-Tricks
+   « Tabs with Round Out Borders », css-tip.com « Inverted radius corner »).
+   EVERY tab is drawn — quater ruling swapped the fills: ACTIVE = grey
+   surface-4 (+ light rim), inactive = card, hover = surface-3 (between).
+   Body and feet share one fill via the registered --tab-fill custom
+   property so they always match and cross-fade together. Works with Radix
+   (data-state), plain tablists (aria-selected) or an explicit
+   .tab-slope-active.
+   NOTE: ::after is reserved for the feet — accent bars under labels must be
+   real <span> elements on the trigger, never `after:*` utilities. ── */
+@property --tab-fill {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+/* The 1px line stroked along the feet's outward arc — same colour as the
+   body's side borders so body + feet read as ONE continuous outline. */
+@property --tab-foot-line {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+@layer components {
+  .tab-slope {
+    /* Foot radius = the outward curve. Keep ≤ the track's inner padding
+       (tracks use px-2 = 8px) so the outer feet are never clipped by an
+       overflow-x-auto strip nor overhang a rounded track border. */
+    --tab-foot: 7px;
+    --tab-fill: transparent;
+    /* Defaults (= INACTIVE state, owner ruling 2026-09-02 septies): the
+       inactive tab IS the hover pill's shape — slim rounded pill with the
+       teal outline — but UNFILLED. Hover fills that same pill with the
+       accent tint; only the ACTIVE tab becomes the seated browser-tab shape
+       with feet. */
+    --tab-foot-line: transparent;
+    position: relative;
+    isolation: isolate;
+    /* Above the morph carrier (z 0) so labels never disappear under the
+       flying pill; the strip containers are `isolate` so this z stays
+       scoped. Active keeps z 2, hover 1 — feet overlaps unchanged. */
+    z-index: 1;
+    background: transparent !important;
+    box-shadow: none !important;
+    transition: --tab-fill 120ms cubic-bezier(0.2, 0, 0, 1), --tab-foot-line 120ms cubic-bezier(0.2, 0, 0, 1);
+  }
+  /* Hover (owner rulings 2026-09-02 quinquies + sexies, INACTIVE tabs
+     only): the tab previews as a PILL filled ENTIRELY in teal — the light
+     accent tint with the deep-teal label and a --primary contour ("not just
+     the borders — the entire tab") — and returns to the default tab anatomy
+     the moment it is selected or the pointer leaves. The border-radius/
+     box-shadow/opacity transitions below make hover→selected a visible
+     morph (pill melts into the seated tab), which doubles as the
+     between-selection animation. */
+  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active) {
+    /* Nonies ruling: hover = the seated tab shape FILLED with the teal
+       tint; clicking drains the fill (active is hollow) — hover→active is
+       then a pure background fade, buttery by construction. */
+    --tab-fill: hsl(var(--accent));
+    --tab-foot-line: hsl(var(--primary) / 0.6);
+    color: hsl(var(--accent-foreground)) !important;
+    z-index: 1;
+  }
+  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active)::before {
+    /* Seated geometry; the outline becomes a 3-sided BORDER (no bottom) —
+       a box-shadow ring would draw a stray line across the unfilled tab
+       where the body hands off to the feet. */
+    inset: 0 0 var(--tab-foot) 0;
+    border-radius: 10px 10px 0 0;
+    border: 1px solid hsl(var(--primary) / 0.6);
+    border-bottom: 0;
+    box-shadow: none;
+  }
+  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active)::after,
+  .tab-slope:hover:not([data-state='active']):not([aria-selected='true']):not(.tab-slope-active) .tab-feet {
+    opacity: 1;
+  }
+  .tab-slope[data-state='active'],
+  .tab-slope[aria-selected='true'],
+  .tab-slope-active {
+    /* Undecies ruling (owner revert from « teal plein »): ACTIVE = « voile
+       teal » — a whisper of the accent tint, LIGHTER than the hover fill,
+       so ink text/icons and the teal accent bar stay untouched and the
+       hover → active hierarchy reads (hover darker preview, active
+       settled). */
+    --tab-fill: hsl(var(--accent) / 0.45);
+    --tab-foot-line: hsl(var(--primary) / 0.6);
+    z-index: 2;
+  }
+  .tab-slope[data-state='active']::after,
+  .tab-slope[aria-selected='true']::after,
+  .tab-slope-active::after,
+  .tab-slope[data-state='active'] .tab-feet,
+  .tab-slope[aria-selected='true'] .tab-feet,
+  .tab-slope-active .tab-feet {
+    opacity: 1;
+  }
+  .tab-slope::before {
+    content: '';
+    position: absolute;
+    /* INACTIVE geometry = the slim pill (identical to hover), wrapped in
+       the teal outline, unfilled. The active rule swaps this to the seated
+       tab body (inset stopping at the feet, rounded top) — the transitions
+       make the pill visibly morph into the tab on selection. */
+    inset: 4px 2px;
+    z-index: -1;
+    border-radius: 9999px;
+    background: var(--tab-fill);
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.6);
+    /* Colours only — transitioning inset/border-radius re-lays-out every
+       frame and stuttered badly (owner: "10 fps"). Geometry snaps; the
+       fill/outline fades. */
+    transition: background-color 120ms cubic-bezier(0.2, 0, 0, 1), border-color 120ms cubic-bezier(0.2, 0, 0, 1), box-shadow 120ms cubic-bezier(0.2, 0, 0, 1);
+  }
+  /* Bottom CENTRE STRIP (::after): repaints the tab's bottom rows in the
+     fill — covers the shortened body's bottom edge AND the strip's
+     separation line under the seated tab, so the line visibly BREAKS under
+     the active tab and continues from the feet outward (browser-tab base).
+     The outward feet themselves moved to a real `.tab-feet` span (below) —
+     the gradient-stroked arc read pixelated next to the 1px borders. */
+  .tab-slope::after {
+    content: '';
+    position: absolute;
+    /* Feet + strip exist only on the seated shape (hover + active). */
+    opacity: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--tab-foot) + 1px);
+    z-index: -1;
+    pointer-events: none;
+    transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
+    background: var(--tab-fill);
+  }
+  /* The outward feet (owner 2026-09-03: "make the lines singular and
+     continuous — same width, smoothness, pixelation"): each foot is one
+     pseudo-element of the `.tab-feet` span — a 14×14 CIRCLE whose 1px
+     BORDER is the concave arc (rendered by the same border pipeline as the
+     body outline and the separation hairline, so the stroke matches
+     exactly), whose outer box-shadow (spread = --tab-foot) fills the
+     wedge, clipped to the quadrant by clip-path. The circle's centre sits
+     on the tab's bottom corner ± --tab-foot, so the arc leaves the side
+     border tangentially and lands tangent on the separation line. Every
+     `.tab-slope` trigger renders `<span class="tab-feet" aria-hidden />`. */
+  .tab-feet {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
+  }
+  .tab-feet::before,
+  .tab-feet::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    width: calc(2 * var(--tab-foot));
+    height: calc(2 * var(--tab-foot));
+    border-radius: 50%;
+    border: 1px solid var(--tab-foot-line);
+    /* Two stacked ring shadows: the fill over an OPAQUE card base, so the
+       separation hairline breaks cleanly under the wedge even when the
+       fill is the translucent « voile » (it ghosted through). */
+    box-shadow:
+      0 0 0 var(--tab-foot) var(--tab-fill),
+      0 0 0 var(--tab-foot) hsl(var(--card));
+  }
+  /* Shifted 1px INWARD so the arc's stroke occupies the same pixel column
+     as the body's 1px side border — at the exact offset the two strokes
+     only abutted and read as a dog-leg elbow. */
+  .tab-feet::before {
+    left: calc(-2 * var(--tab-foot) + 1px);
+    clip-path: inset(50% 0 0 50%);
+  }
+  .tab-feet::after {
+    right: calc(-2 * var(--tab-foot) + 1px);
+    clip-path: inset(50% 50% 0 0);
+  }
+  .tab-slope[data-state='active']::before,
+  .tab-slope[aria-selected='true']::before,
+  .tab-slope-active::before {
+    /* Same drawing as hover: seated geometry + 3-sided teal border (a ring
+       would draw a stray line across the hollow tab at the feet junction). */
+    inset: 0 0 var(--tab-foot) 0;
+    border-radius: 10px 10px 0 0;
+    border: 1px solid hsl(var(--primary) / 0.6);
+    border-bottom: 0;
+    box-shadow: none;
+  }
+  /* Ease-in on activation (owner ruling 2026-09-02 bis): body and feet fade
+     and settle together — one keyframe on both pseudo-elements now that the
+     body carries no transform of its own. Skipped under reduced motion. */
+  @keyframes tab-slope-in {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .tab-slope[data-state='active']::before,
+    .tab-slope[aria-selected='true']::before,
+    .tab-slope-active::before,
+    .tab-slope[data-state='active']::after,
+    .tab-slope[aria-selected='true']::after,
+    .tab-slope-active::after {
+      animation: tab-slope-in 200ms cubic-bezier(0.2, 0, 0, 1);
+    }
+  }
+  /* The flying "symbiote" carrier (hooks/use-tab-morph.ts): a CLEAN pill —
+     no foot gradients, so nothing aliases mid-flight (the v1 ghost that
+     wore the full seated shape pixelated on the arcs; owner 2026-09-02).
+     Fill = the HOVER-strength accent with the primary outline (visible in
+     motion over the track); on landing it fades out over the tab's own
+     lighter « voile teal » seat. */
+  .tab-slope-ghost {
+    background: hsl(var(--accent));
+    border-radius: 10px 10px 0 0;
+    /* Real border, NO bottom edge: the carrier's base merges into the
+       strip's separation line like the tab bodies do (owner 2026-09-02 —
+       the ringed bottom read as a disconnected line). */
+    border: 1px solid hsl(var(--primary) / 0.6);
+    border-bottom: 0;
+  }
+  /* Morph HOLD (owner 2026-09-02: "the tab transforms from the pill long
+     before the animation finishes"): while the carrier flies, the incoming
+     tab's seat paint stays hidden so it still looks unselected; the carrier
+     landing reveals it. */
+  .tab-slope.tab-morph-hold::before,
+  .tab-slope.tab-morph-hold::after,
+  .tab-slope.tab-morph-hold .tab-feet {
+    visibility: hidden !important;
+  }
+  /* (nav-active-in retired 2026-09-02: the sidebar's active surface is now a
+     single morphing indicator — components/layout/sidebar.tsx.) */
+  @media (prefers-reduced-transparency: reduce) {
+    .tab-slope,
+    .tab-slope::before {
+      transition: none;
+    }
+  }
+  /* Spinners under reduced motion (motion-spec §3, §11.2): spinning/vortex is
+     a listed vestibular trigger (WebKit), so every Loader2/animate-spin rests
+     as a static glyph — the icon + aria-busy/text still say "loading". One
+     rule here beats guarding ~59 call sites. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-spin {
+      animation: none;
+    }
+  }
+}
+
+/* (The « teal plein » descendant recolours that lived here — needed while
+   the active tab had a dark primary fill — were removed with the undecies
+   revert to « voile teal »: ink text and the teal accent bar read fine on
+   the light tint. NOTE kept for the next dark-fill attempt: selectors that
+   target Tailwind utility class names must live OUTSIDE @layer components,
+   or Tailwind v3 re-emits them variant-transformed into selectors
+   LightningCSS/Turbopack fatally rejects.) */
+
+/* Morph hold, part 2 — OUTSIDE the layers because the selector names a
+   Tailwind utility class (see the note above): the accent bar / dirty-dot
+   spans stay hidden until the carrier lands. */
+.tab-slope.tab-morph-hold span.bg-primary {
+  opacity: 0 !important;
+}
+
+/* Lightbox/viewer entrances: handled structurally by the Dialog primitive's
+   `calm` prop (components/ui/dialog.tsx) — the zoom/slide utilities are not
+   emitted at all for calm dialogs, leaving the shared ease-in fade. No CSS
+   override needed here. */
 /* ── Guided tutorial (driver.js) highlight ─────────────────────────────
    No darkened backdrop: the active element gets a pulsing teal CONTOUR and
    an animated cursor points at it (built in tour.ts). The transparent

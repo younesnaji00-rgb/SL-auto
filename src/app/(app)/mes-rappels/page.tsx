@@ -1,24 +1,37 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Bell, Inbox, Loader2, ChevronDown, ChevronRight, Send, ScrollText, CheckCircle2 } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Inbox, ChevronDown, ChevronRight, Send, ScrollText, CheckCircle2, Search, SearchX, RotateCcw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, STICKY_HEAD, STICKY_CELL, EmptyCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { format } from 'date-fns';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { SlidingThumb } from '@/components/ui/sliding-thumb';
+import { ToastAction } from '@/components/ui/toast';
+import { format, startOfDay, endOfDay } from 'date-fns';
+import { Input } from '@/components/ui/input';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { DateRangeFilter } from '@/components/date-range-filter';
+import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { dateFnsLocale, t, useT } from '@/i18n';
 import { useRappels, useRappelsSent, type Rappel } from '@/hooks/use-rappels';
-import { collection, doc, onSnapshot, query, updateDoc, where, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useHotkeys } from '@/hooks/use-hotkeys';
 import { hasPermission, SUB_PERMISSIONS, rappelsEnvoyesRoleDefault } from '@/lib/permissions';
+import { titleForRoute } from '@/lib/nav-groups';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import SessionReplayDialog from './session-replay-dialog';
+import { RappelDetailContent, RappelDetailPlaceholder, relativeAge } from './rappel-detail-panel';
 
 const SESSION_KEY = (dossierId: string) => `rappel-active-session-${dossierId}`;
 
@@ -27,16 +40,30 @@ function newSessionId(): string {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
 
-function formatDate(ts: any): string {
-  if (!ts) return '-';
-  const date = ts.toDate ? ts.toDate() : new Date(ts);
-  try { return format(date, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }); } catch { return '-'; }
+function toDate(ts: any): Date | null {
+  if (!ts) return null;
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return isNaN(d.getTime()) ? null : d;
 }
 
-function formatHm(ts: any): string {
-  if (!ts) return '--:--';
-  const date = ts.toDate ? ts.toDate() : new Date(ts);
-  try { return format(date, 'HH:mm', { locale: dateFnsLocale() }); } catch { return '--:--'; }
+// Terracotta = time (2026-09-02): today's rappels carry the warm chip.
+function isToday(ts: any): boolean {
+  const d = toDate(ts);
+  return !!d && d.toDateString() === new Date().toDateString();
+}
+
+function formatDate(ts: any): string {
+  const d = toDate(ts);
+  if (!d) return '—';
+  try { return format(d, 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() }); } catch { return '—'; }
+}
+
+/** Queue cells: date only (dd/MM/yyyy per the dates-as-values ruling); the
+ *  clock time and relative age ride in the tooltip. */
+function formatDateShort(ts: any): string {
+  const d = toDate(ts);
+  if (!d) return '—';
+  try { return format(d, 'dd/MM/yyyy', { locale: dateFnsLocale() }); } catch { return '—'; }
 }
 
 function tsMillis(ts: any): number {
@@ -109,133 +136,75 @@ function formatRecipients(names: string[]): string {
   return `${names.length} ${t('destinataires')}`;
 }
 
-interface SessionTaggedProps {
-  dossierId: string;
-  sessionId?: string;
+// ── Status chip (element-specs §11: Carbon tag / Carbon notification / dataviz
+//    "status colours are reserved… always with a label"): one helper maps a
+//    rappel state to the same Badge status pair everywhere on the page. ──
+
+type RappelState = 'nouveau' | 'lu' | 'traite';
+
+function rappelState(r: Rappel): RappelState {
+  if (r.resolvedAt) return 'traite';
+  if (r.read) return 'lu';
+  return 'nouveau';
+}
+
+const RAPPEL_STATE_VARIANT: Record<RappelState, 'info' | 'neutral' | 'success'> = {
+  nouveau: 'info',
+  lu: 'neutral',
+  traite: 'success',
+};
+
+const RAPPEL_STATE_LABEL: Record<RappelState, string> = {
+  nouveau: 'Nouveau',
+  lu: 'Lu',
+  traite: 'Traité',
+};
+
+function StateChip({ rappel }: { rappel: Rappel }) {
+  const tr = useT();
+  const s = rappelState(rappel);
+  return <Badge variant={RAPPEL_STATE_VARIANT[s]}>{tr(RAPPEL_STATE_LABEL[s])}</Badge>;
 }
 
 /**
- * F9.B: lists every observation on this dossier whose `rappelSessionId`
- * matches the active rappel's session. Renders as `HH:mm [author] text`.
+ * Count of one state inside a sent bundle (§11 + Few: colour only where there
+ * is something to see — a zero is plain muted ink, never a coloured chip).
  */
-function SessionObservations({ dossierId, sessionId }: SessionTaggedProps) {
-  const db = useFirestore();
-  const t = useT();
-  const [items, setItems] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (!db || !dossierId || !sessionId) {
-      setItems([]);
-      return;
-    }
-    const q = query(
-      collection(db, 'dossiers', dossierId, 'observations'),
-      where('rappelSessionId', '==', sessionId),
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        if (snap.metadata.fromCache && snap.size === 0) return;
-        const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        rows.sort((a, b) => tsMillis(a.createdAt) - tsMillis(b.createdAt));
-        setItems(rows);
-      },
-      (err) => {
-        console.error('[SessionObservations] listener error', (err as any)?.code, err?.message);
-      },
-    );
-    return () => unsub();
-  }, [db, dossierId, sessionId]);
-
-  if (!sessionId) return <span className="text-muted-foreground">—</span>;
-  if (items.length === 0) return <span className="text-muted-foreground">—</span>;
-
+function CountChip({ tone, value }: { tone: RappelState; value: number }) {
+  const tr = useT();
+  if (value === 0) {
+    return <span className="t-caption tabular-nums text-ink-4">{tr(RAPPEL_STATE_LABEL[tone])} 0</span>;
+  }
   return (
-    <div className="flex flex-col gap-1 max-w-[280px]">
-      {items.map((it) => {
-        const author = it.author || it.authorEmail || t('Utilisateur inconnu');
-        return (
-          <div key={it.id} className="text-xs leading-snug break-words">
-            <span className="tabular-nums text-muted-foreground">{formatHm(it.createdAt)}</span>
-            {' '}
-            <span className="font-medium">[{author}]</span>
-            {' '}
-            <span>{it.text || ''}</span>
-          </div>
-        );
-      })}
-    </div>
+    <Badge variant={RAPPEL_STATE_VARIANT[tone]} className="tabular-nums">
+      {tr(RAPPEL_STATE_LABEL[tone])} {value}
+    </Badge>
   );
 }
 
-/**
- * F9.B: lists every historique entry on this dossier whose
- * `rappelSessionId` matches the rappel's session, grouped by historique
- * `type`. Each entry shows `HH:mm [user] action`.
- */
-function SessionModifications({ dossierId, sessionId }: SessionTaggedProps) {
-  const db = useFirestore();
-  const t = useT();
-  const [items, setItems] = useState<any[]>([]);
+/** Empty cell = « — » in ink-4 — the shared table primitive's spelling. */
+const EmptyValue = EmptyCell;
 
-  useEffect(() => {
-    if (!db || !dossierId || !sessionId) {
-      setItems([]);
-      return;
-    }
-    const q = query(
-      collection(db, 'dossiers', dossierId, 'historique'),
-      where('rappelSessionId', '==', sessionId),
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        if (snap.metadata.fromCache && snap.size === 0) return;
-        const rows = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        rows.sort((a, b) => tsMillis(a.date) - tsMillis(b.date));
-        setItems(rows);
-      },
-      (err) => {
-        console.error('[SessionModifications] listener error', (err as any)?.code, err?.message);
-      },
-    );
-    return () => unsub();
-  }, [db, dossierId, sessionId]);
-
-  if (!sessionId) return <span className="text-muted-foreground">—</span>;
-  if (items.length === 0) return <span className="text-muted-foreground">—</span>;
-
-  const groups = new Map<string, any[]>();
-  for (const it of items) {
-    const type = it.type || 'autre';
-    if (!groups.has(type)) groups.set(type, []);
-    groups.get(type)!.push(it);
-  }
-
+// ── Loading skeleton (element-specs §15: NN/g skeleton screens "mirror the
+//    final layout"; Carbon data table "skeleton states instead of spinners"):
+//    header row + 6 rows at 44 px in the table's own frame. ──
+function TableSkeleton({ heads = 5 }: { heads?: number }) {
   return (
-    <div className="flex flex-col gap-2 max-w-[300px]">
-      {Array.from(groups.entries()).map(([type, rows]) => (
-        <div key={type} className="flex flex-col gap-0.5">
-          <div className="text-xs font-semibold text-muted-foreground">
-            {t(type)} ({rows.length})
-          </div>
-          {rows.map((it) => {
-            const who = it.userNom || it.user || t('Utilisateur inconnu');
-            return (
-              <div key={it.id} className="text-xs leading-snug break-words pl-1">
-                <span className="tabular-nums text-muted-foreground">{formatHm(it.date)}</span>
-                {' '}
-                <span className="font-medium">[{who}]</span>
-                {' '}
-                <span>{it.action || ''}</span>
-              </div>
-            );
-          })}
-        </div>
+    <div aria-busy="true" aria-live="polite">
+      <div className="flex h-10 items-center gap-4 border-b border-hairline px-4">
+        {Array.from({ length: heads }).map((_, i) => (
+          <Skeleton key={i} className={cn('h-4', i === 0 ? 'w-28' : i === heads - 1 ? 'ml-auto w-20' : 'w-24')} />
+        ))}
+      </div>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <SkeletonRow key={i} />
       ))}
     </div>
   );
 }
+
+type Vue = 'recus' | 'envoyes';
+type Segment = 'a-traiter' | 'traites';
 
 export default function MesRappelsPage() {
   const { rappels, loading } = useRappels();
@@ -266,7 +235,103 @@ export default function MesRappelsPage() {
   );
   // Pick a default tab the user can actually see; fall back to "recus" if
   // both are denied (rare; the empty state is still informative).
-  const defaultTab = recusVisible ? 'recus' : envoyesVisible ? 'envoyes' : 'recus';
+  const defaultTab: Vue = recusVisible ? 'recus' : envoyesVisible ? 'envoyes' : 'recus';
+
+  // ── Tabs (element-specs §7: NN/g "Tabs Used Right" — the selected tab is
+  //    addressable; blueprint: tab in `?vue=`, default tab keeps a clean URL).
+  //    Read once on mount, write with history.replaceState (no useSearchParams). ──
+  const [vue, setVue] = useState<Vue | null>(null);
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('vue');
+    if (v === 'recus' || v === 'envoyes') setVue(v);
+  }, []);
+  const visible = (v: Vue) => (v === 'recus' ? recusVisible : envoyesVisible);
+  const activeVue: Vue = vue && visible(vue) ? vue : defaultTab;
+  const changeVue = (next: Vue) => {
+    setVue(next);
+    const url = new URL(window.location.href);
+    if (next === 'recus') url.searchParams.delete('vue');
+    else url.searchParams.set('vue', next);
+    window.history.replaceState(window.history.state, '', url);
+  };
+
+  // ── Reçus queue (addendum 2026-09-03 bis §B): « À traiter » is FIFO —
+  //    oldest first (action-needed order, addendum ter A); « Traités » leaves
+  //    the queue and reads newest-treated first. Sorted here, NOT in the hook
+  //    (the notification bell shares useRappels and keeps newest-first). ──
+  const [segment, setSegment] = useState<Segment>('a-traiter');
+  const aTraiter = useMemo(
+    () => rappels.filter((r) => !r.resolvedAt).sort((a, b) => tsMillis(a.createdAt) - tsMillis(b.createdAt)),
+    [rappels],
+  );
+  const traites = useMemo(
+    () => rappels.filter((r) => !!r.resolvedAt).sort((a, b) => tsMillis(b.resolvedAt) - tsMillis(a.resolvedAt)),
+    [rappels],
+  );
+  const queue = segment === 'a-traiter' ? aTraiter : traites;
+
+  // Selection = the master-detail state. Row click selects (and marks Lu —
+  // the honest place for "read"); navigation to the dossier is an explicit
+  // act (ref cell / panel button). Deep-linkable via ?rappel=<id>.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = useMemo(() => queue.find((r) => r.id === selectedId) ?? null, [queue, selectedId]);
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('rappel');
+    if (id) setSelectedId(id);
+  }, []);
+  // A deep-linked rappel may live in the other segment — follow it once.
+  const segmentInitRef = useRef(false);
+  useEffect(() => {
+    if (segmentInitRef.current || loading || !selectedId) return;
+    segmentInitRef.current = true;
+    if (!aTraiter.some((r) => r.id === selectedId) && traites.some((r) => r.id === selectedId)) {
+      setSegment('traites');
+    }
+  }, [loading, selectedId, aTraiter, traites]);
+
+  const writeSelectedUrl = (id: string | null) => {
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set('rappel', id);
+    else url.searchParams.delete('rappel');
+    window.history.replaceState(window.history.state, '', url);
+  };
+
+  const markRead = (r: Rappel) => {
+    if (!db || r.read) return;
+    updateDoc(doc(db, 'rappels', r.id), {
+      read: true,
+      ...(r.seenAt ? {} : { seenAt: serverTimestamp() }),
+    }).catch(() => {});
+  };
+
+  const selectRappel = (r: Rappel) => {
+    setSelectedId(r.id);
+    writeSelectedUrl(r.id);
+    markRead(r);
+  };
+
+  const clearSelection = () => {
+    setSelectedId(null);
+    writeSelectedUrl(null);
+  };
+
+  const changeSegment = (next: Segment) => {
+    if (next === segment) return;
+    setSegment(next);
+    const nextQueue = next === 'a-traiter' ? aTraiter : traites;
+    if (selectedId && !nextQueue.some((r) => r.id === selectedId)) clearSelection();
+  };
+
+  // The panel is a side pane on xl+ and a sheet below (responsive rule).
+  const [isXl, setIsXl] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const update = () => setIsXl(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   const toggleExpand = (key: string) => {
     setExpanded((prev) => {
@@ -277,167 +342,409 @@ export default function MesRappelsPage() {
     });
   };
 
+  // Tab counts: unread received, and sent rappels still waiting on someone.
+  const unreadCount = useMemo(() => rappels.filter((r) => !r.read && !r.resolvedAt).length, [rappels]);
+  const pendingSentCount = useMemo(() => sentGroups.reduce((n, g) => n + g.newCount + g.readCount, 0), [sentGroups]);
+
+  const openRappel = async (r: Rappel) => {
+    // F9.A: open a rappel "session" — generate sessionId on first
+    // click (and persist it on the doc), or re-stamp the existing
+    // one. The localStorage key is what addObservation reads to
+    // auto-tag observations during this session, and what the
+    // dossier page reads to show the sticky "Sauvegarder" button.
+    const existingSid = r.sessionId;
+    let sid = existingSid || null;
+    if (db && !existingSid) {
+      // AWAIT the first write so the dossier page's session
+      // lookup (queried on mount) reliably finds the sessionId.
+      sid = newSessionId();
+      try {
+        await updateDoc(doc(db, 'rappels', r.id), {
+          read: true,
+          sessionId: sid,
+          sessionStartedAt: serverTimestamp(),
+          seenAt: serverTimestamp(),
+        });
+      } catch {}
+      // The session-start snapshot (baseline for the manager's
+      // diff) is captured on the dossier page once it loads —
+      // see ensureSnapshotBefore there.
+    } else if (db && !r.read) {
+      markRead(r);
+    }
+    if (typeof window !== 'undefined' && sid) {
+      try { window.localStorage.setItem(SESSION_KEY(r.dossierId), sid); } catch {}
+    }
+    router.push(`/dossiers/${r.dossierId}`);
+  };
+
+  const restoreTreated = (r: Rappel) => {
+    if (!db) return;
+    updateDoc(doc(db, 'rappels', r.id), { resolvedAt: null })
+      .then(() => toast({ title: t('Rappel remis en attente') }))
+      .catch(() => toast({ title: t('Erreur'), description: t('Impossible d’annuler'), variant: 'destructive' }));
+  };
+
+  const markTreated = (r: Rappel) => {
+    if (!db || r.resolvedAt) return;
+    // The row leaves « À traiter » (queue precedent: done leaves the inbox);
+    // selection lands on the next item so a keyboard run never loses place.
+    const idx = aTraiter.findIndex((x) => x.id === r.id);
+    const next = aTraiter[idx + 1] ?? aTraiter[idx - 1] ?? null;
+    updateDoc(doc(db, 'rappels', r.id), { resolvedAt: serverTimestamp() })
+      .then(() => {
+        if (typeof window !== 'undefined') {
+          try { window.localStorage.removeItem(SESSION_KEY(r.dossierId)); } catch {}
+        }
+        if (selectedId === r.id) {
+          if (next && segment === 'a-traiter') selectRappel(next);
+          else clearSelection();
+        }
+        // Reversible → undo in the toast, never a confirm (addendum ter E).
+        toast({
+          title: t('Rappel marqué comme traité'),
+          action: (
+            <ToastAction altText={t('Annuler')} onClick={() => restoreTreated(r)}>
+              {t('Annuler')}
+            </ToastAction>
+          ),
+        });
+      })
+      .catch(() => {
+        toast({ title: t('Erreur'), description: t('Impossible de marquer comme traité'), variant: 'destructive' });
+      });
+  };
+
+  // ── Keyboard spine (same model as the dossiers list, group « Mes rappels »):
+  //    arrows/jk move the selection; Entrée/t/Échap register only while a
+  //    rappel is selected so native button and dialog keys are never hijacked.
+  //    Keyboard moves don't animate (motion-spec F0). ──
+  const scrollRowIntoView = (id: string) => {
+    if (typeof document === 'undefined') return;
+    document
+      .querySelector(`[data-rappel-row="${typeof CSS !== 'undefined' ? CSS.escape(id) : id}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  };
+  const moveSelection = (delta: number) => {
+    if (queue.length === 0) return;
+    const idx = queue.findIndex((r) => r.id === selectedId);
+    const next =
+      idx === -1
+        ? delta > 0 ? queue[0] : queue[queue.length - 1]
+        : queue[Math.min(queue.length - 1, Math.max(0, idx + delta))];
+    if (next && next.id !== selectedId) {
+      selectRappel(next);
+      scrollRowIntoView(next.id);
+    }
+  };
+  const listActive = activeVue === 'recus' && queue.length > 0;
+  useHotkeys(
+    [
+      { keys: 'arrowdown', label: t('Rappel suivant'), group: t('Mes rappels'), handler: () => moveSelection(1), enabled: listActive },
+      { keys: 'j', label: t('Rappel suivant'), group: t('Mes rappels'), handler: () => moveSelection(1), enabled: listActive },
+      { keys: 'arrowup', label: t('Rappel précédent'), group: t('Mes rappels'), handler: () => moveSelection(-1), enabled: listActive },
+      { keys: 'k', label: t('Rappel précédent'), group: t('Mes rappels'), handler: () => moveSelection(-1), enabled: listActive },
+      { keys: 'enter', label: t('Ouvrir le dossier'), group: t('Mes rappels'), handler: () => { if (selected) openRappel(selected); }, enabled: activeVue === 'recus' && !!selected },
+      { keys: 't', label: t('Marquer traité'), group: t('Mes rappels'), handler: () => { if (selected && !selected.resolvedAt) markTreated(selected); }, enabled: activeVue === 'recus' && !!selected && !selected.resolvedAt },
+      { keys: 'escape', label: t('Fermer le détail'), group: t('Mes rappels'), handler: clearSelection, enabled: activeVue === 'recus' && !!selected },
+    ],
+    [activeVue, segment, queue, selectedId, selected],
+  );
+
+  // Count pill on a tab or segment (§11: count pills are the neutral surface
+  // step — status colour is reserved for states, not for "how many").
+  const tabCount = (n: number) =>
+    n > 0 ? (
+      <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+        {n}
+      </span>
+    ) : null;
+
   return (
-    <div className="space-y-4">
-      <header className="flex items-center gap-2">
-        <Bell className="h-5 w-5 text-primary" />
-        <h1 className="text-xl font-bold">{t('Mes rappels')}</h1>
-      </header>
+    // Layout as at 3d5629a: header → tabs → content per tab. The Tabs root
+    // wraps the header so the tab strip can sit in the PageHeader `tabs` slot
+    // (same position, under the title). Sections 32 px apart (addendum
+    // 2026-09-02 §4).
+    <Tabs value={activeVue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-8">
+      {/* Page header (element-specs §1: Polaris Page — title only, no page
+          primary here: rappels are sent from a dossier, not from this list). */}
+      <PageHeader
+        title={t(titleForRoute('/mes-rappels') ?? 'Mes rappels')}
+        tabs={
+          // Raised-tab-on-track tabs (addendum 2026-09-02 §2, supersedes the
+          // underline idiom): the recessed track, raised active card and 2 px
+          // accent bar all come from the primitive — no local overrides.
+          <TabsList data-tour="rap-tabs">
+            {recusVisible && (
+              <TabsTrigger value="recus" className="gap-1.5">
+                {t('Reçus')}
+                {tabCount(unreadCount)}
+              </TabsTrigger>
+            )}
+            {envoyesVisible && (
+              <TabsTrigger data-tour="rap-tab-envoyes" value="envoyes" className="gap-1.5">
+                {t('Envoyés')}
+                {tabCount(pendingSentCount)}
+              </TabsTrigger>
+            )}
+          </TabsList>
+        }
+      />
 
-      <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList data-tour="rap-tabs">
-          {recusVisible && <TabsTrigger value="recus">{t('Reçus')}</TabsTrigger>}
-          {envoyesVisible && <TabsTrigger data-tour="rap-tab-envoyes" value="envoyes">{t('Envoyés')}</TabsTrigger>}
-        </TabsList>
-
-        {recusVisible && (
-        <TabsContent value="recus" className="mt-4">
+      {recusVisible && (
+        <TabsContent value="recus" className="mt-0">
           {loading ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
+            <Card className="overflow-hidden"><TableSkeleton heads={6} /></Card>
           ) : rappels.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-              <Inbox className="h-10 w-10 mb-3 opacity-30" />
-              <p className="text-sm">{t('Aucun rappel pour le moment.')}</p>
-              <p className="text-xs mt-1 opacity-70">{t('Les rappels envoyés depuis Gestion des dossiers apparaîtront ici.')}</p>
-            </div>
+            // Empty state (§12: NN/g — state + reason; Polaris — one line).
+            // No action: a rappel can only be sent to you from a dossier.
+            <EmptyState
+              icon={<Inbox />}
+              title={t('Aucun rappel reçu')}
+              description={t('Les rappels envoyés depuis un dossier apparaîtront ici.')}
+              dashed={false}
+            />
           ) : (
-            <Card data-tour="rap-recus-table" className="overflow-x-auto border rounded-lg">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/30">
-                    <TableHead className="font-bold text-xs">{t('Référence dossier')}</TableHead>
-                    <TableHead className="font-bold text-xs">{t('Envoyé par')}</TableHead>
-                    <TableHead className="font-bold text-xs">{t('Observation')}</TableHead>
-                    <TableHead className="font-bold text-xs">{t('Date')}</TableHead>
-                    <TableHead className="font-bold text-xs">{t('Observations')}</TableHead>
-                    <TableHead className="font-bold text-xs">{t('Modifications')}</TableHead>
-                    <TableHead data-tour="rap-statut" className="font-bold text-xs text-right">{t('Statut')}</TableHead>
-                    <TableHead data-tour="rap-travail" className="font-bold text-xs text-right">{t('Travail effectué')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rappels.map((r) => (
-                    <TableRow
-                      key={r.id}
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={async () => {
-                        // F9.A: open a rappel "session" — generate sessionId on first
-                        // click (and persist it on the doc), or re-stamp the existing
-                        // one. The localStorage key is what addObservation reads to
-                        // auto-tag observations during this session, and what the
-                        // dossier page reads to show the sticky "Sauvegarder" button.
-                        const existingSid = r.sessionId;
-                        let sid = existingSid || null;
-                        if (db && !existingSid) {
-                          // AWAIT the first write so the dossier page's session
-                          // lookup (queried on mount) reliably finds the sessionId.
-                          sid = newSessionId();
-                          try {
-                            await updateDoc(doc(db, 'rappels', r.id), {
-                              read: true,
-                              sessionId: sid,
-                              sessionStartedAt: serverTimestamp(),
-                              seenAt: serverTimestamp(),
-                            });
-                          } catch {}
-                          // The session-start snapshot (baseline for the manager's
-                          // diff) is captured on the dossier page once it loads —
-                          // see ensureSnapshotBefore there.
-                        } else if (db && !r.read) {
-                          updateDoc(doc(db, 'rappels', r.id), {
-                            read: true,
-                            ...(r.seenAt ? {} : { seenAt: serverTimestamp() }),
-                          }).catch(() => {});
-                        }
-                        if (typeof window !== 'undefined' && sid) {
-                          try { window.localStorage.setItem(SESSION_KEY(r.dossierId), sid); } catch {}
-                        }
-                        router.push(`/dossiers/${r.dossierId}`);
-                      }}
-                    >
-                      <TableCell data-tour="rap-row-ref" className="font-mono text-sm font-semibold text-primary tabular-nums">
-                        {r.dossierRef || r.dossierId}
-                      </TableCell>
-                      <TableCell className="text-sm">{r.senderNom || '—'}</TableCell>
-                      <TableCell className="text-sm">{r.observation || '—'}</TableCell>
-                      <TableCell className="text-sm tabular-nums">{formatDate(r.createdAt)}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()} className="cursor-default">
-                        <SessionObservations dossierId={r.dossierId} sessionId={r.sessionId} />
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()} className="cursor-default">
-                        <SessionModifications dossierId={r.dossierId} sessionId={r.sessionId} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {r.resolvedAt ? (
-                          <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">{t('Traité')}</Badge>
-                        ) : r.read ? (
-                          <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30">{t('Lu')}</Badge>
-                        ) : (
-                          <Badge className="bg-primary/10 text-primary border border-primary/30">{t('Nouveau')}</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {/* « Voir le détail » (the session replay) belongs to
-                              the SENDER — it lives in the Envoyés tab. The
-                              recipient opens the dossier itself via the row. */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={!!r.resolvedAt}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!db || r.resolvedAt) return;
-                              updateDoc(doc(db, 'rappels', r.id), { resolvedAt: serverTimestamp() })
-                                .then(() => {
-                                  if (typeof window !== 'undefined') {
-                                    try { window.localStorage.removeItem(SESSION_KEY(r.dossierId)); } catch {}
-                                  }
-                                  toast({ title: t('Rappel marqué comme traité') });
-                                })
-                                .catch(() => {
-                                  toast({ title: t('Erreur'), description: t('Impossible de marquer comme traité'), variant: 'destructive' });
-                                });
-                            }}
-                          >
-                            <CheckCircle2 className="h-4 w-4 mr-1" />
-                            {t('Marquer traité')}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          )}
-        </TabsContent>
-        )}
+            // Master-detail (addendum 2026-09-03 bis §A): slim queue table +
+            // detail pane. Row click SELECTS; the ref cell keeps the session
+            // handshake click-through; « Ouvrir le dossier » is explicit.
+            // `rap-recus-table` is the tour's "the Reçus list exists" probe —
+            // it sits on the master-detail wrapper (same render condition the
+            // old single Card had).
+            <div data-tour="rap-recus-table" className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] xl:items-start">
+              <div className="min-w-0 space-y-4">
+                {/* « À traiter / Traités » — a value picker, so segmented +
+                    SlidingThumb (tabs are reserved for view switchers). Count
+                    only on À traiter: a count must be able to hit zero. */}
+                <div
+                  role="group"
+                  aria-label={t('État des rappels')}
+                  className="relative isolate flex h-9 w-fit items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
+                >
+                  <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[segment, aTraiter.length]} />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-seg-active={segment === 'a-traiter'}
+                    aria-pressed={segment === 'a-traiter'}
+                    onClick={() => changeSegment('a-traiter')}
+                    className="relative z-[1] h-8 gap-1.5 px-3 shadow-none"
+                  >
+                    {t('À traiter')}
+                    {tabCount(aTraiter.length)}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-seg-active={segment === 'traites'}
+                    aria-pressed={segment === 'traites'}
+                    onClick={() => changeSegment('traites')}
+                    className="relative z-[1] h-8 px-3 shadow-none"
+                  >
+                    {t('Traités')}
+                  </Button>
+                </div>
 
-        {envoyesVisible && (
-        <TabsContent value="envoyes" className="mt-4">
+                {queue.length === 0 ? (
+                  segment === 'a-traiter' ? (
+                    // Inbox zero — quietly celebratory (the emptiness is an
+                    // achievement), one line, no theatrics.
+                    <EmptyState
+                      icon={<CheckCircle2 />}
+                      title={t('Tout est traité')}
+                      description={t('Aucun rappel en attente — les nouveaux apparaîtront ici.')}
+                      dashed={false}
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={<Inbox />}
+                      title={t('Aucun rappel traité')}
+                      description={t('Les rappels marqués comme traités apparaîtront ici.')}
+                      dashed={false}
+                    />
+                  )
+                ) : (
+                  // Queue table (§3 + addendum bis §B): 6 columns, one-line
+                  // grid, FIFO. Unread = teal left bar + full-ink ladder; the
+                  // Nouveau chip is the only filled info pair. Emphasis budget:
+                  // ref (mono 600) + statut chip.
+                  <Card className="overflow-hidden">
+                    <Table regionLabel={t('Rappels reçus')}>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className={cn(STICKY_HEAD, 'min-w-[11rem]')}>{t('Référence dossier')}</TableHead>
+                          <TableHead data-tour="rap-statut">{t('Statut')}</TableHead>
+                          <TableHead>{t('Observation')}</TableHead>
+                          <TableHead>{t('Envoyé par')}</TableHead>
+                          <TableHead>{t('Date')}</TableHead>
+                          {/* `rap-travail` used to sit on a « Travail effectué »
+                              column the queue rework replaced with this actions
+                              column — the anchor rides the closest equivalent. */}
+                          <TableHead data-tour="rap-travail" className="text-right"><span className="sr-only">{t('Actions')}</span></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {queue.map((r) => {
+                          const state = rappelState(r);
+                          const isSelected = selectedId === r.id;
+                          return (
+                            <TableRow
+                              key={r.id}
+                              data-rappel-row={r.id}
+                              data-state={isSelected ? 'selected' : undefined}
+                              className="cursor-pointer"
+                              onClick={() => selectRappel(r)}
+                            >
+                              <TableCell data-tour="rap-row-ref" className={cn(STICKY_CELL, 'relative t-mono font-semibold')}>
+                                {/* Unread bar — region stimulus on the left
+                                    scan rail (research: dots fail, bars work);
+                                    teal = attention, never terracotta. */}
+                                {state === 'nouveau' && (
+                                  <span
+                                    aria-hidden
+                                    className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
+                                  />
+                                )}
+                                {/* The session-handshake click-through (tour
+                                    contract: the ref cell opens the dossier). */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); openRappel(r); }}
+                                  className="rounded-sm text-left hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  title={t('Ouvrir le dossier')}
+                                >
+                                  {r.dossierRef || r.dossierId}
+                                </button>
+                              </TableCell>
+                              <TableCell>
+                                <StateChip rappel={r} />
+                              </TableCell>
+                              <TableCell className="max-w-[24rem]">
+                                <span
+                                  className={cn('block truncate', state === 'nouveau' ? 'font-medium text-ink' : 'text-ink-2')}
+                                  title={r.observation || undefined}
+                                >
+                                  {r.observation || <EmptyValue />}
+                                </span>
+                              </TableCell>
+                              <TableCell className={state === 'nouveau' ? 'text-ink' : 'text-ink-2'}>
+                                {r.senderNom || <EmptyValue />}
+                              </TableCell>
+                              {/* Dates are values → absolute, full ink; the
+                                  relative age lives in the tooltip (2026-09-03
+                                  §C). Today keeps the warm TIME chip. */}
+                              <TableCell>
+                                <span className="inline-flex items-center gap-2">
+                                  <span title={[formatDate(r.createdAt), relativeAge(r.createdAt)].filter(Boolean).join(' · ')}>
+                                    {formatDateShort(r.createdAt)}
+                                  </span>
+                                  {isToday(r.createdAt) && <Badge variant="time">{t("Aujourd'hui")}</Badge>}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {!r.resolvedAt ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="gap-1.5"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      markTreated(r);
+                                    }}
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    {t('Marquer traité')}
+                                  </Button>
+                                ) : (
+                                  <EmptyValue />
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </Card>
+                )}
+              </div>
+
+              {/* Detail pane (xl+): sticky, scrolls internally. Always present
+                  so selecting never reflows the table (layout stability). */}
+              <Card className="hidden xl:block xl:sticky xl:top-6 xl:max-h-[calc((100dvh-140px)/var(--app-zoom))] xl:overflow-y-auto">
+                <div className="p-6">
+                  {selected ? (
+                    <RappelDetailContent
+                      rappel={selected}
+                      active={isXl}
+                      onOpenDossier={openRappel}
+                      onMarkTreated={markTreated}
+                      onShowReplay={(r) => setReplayRappel(r)}
+                    />
+                  ) : (
+                    <RappelDetailPlaceholder />
+                  )}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* Below xl the same detail opens as a sheet. */}
+          <Sheet open={!isXl && !!selected} onOpenChange={(o) => { if (!o) clearSelection(); }}>
+            <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+              <SheetHeader className="sr-only">
+                <SheetTitle>{t('Détail du rappel')}</SheetTitle>
+                <SheetDescription>{t('Observation, travail effectué et actions du rappel sélectionné.')}</SheetDescription>
+              </SheetHeader>
+              {selected && (
+                <div className="mt-2">
+                  <RappelDetailContent
+                    rappel={selected}
+                    active={!isXl}
+                    onOpenDossier={openRappel}
+                    onMarkTreated={markTreated}
+                    onShowReplay={(r) => setReplayRappel(r)}
+                  />
+                </div>
+              )}
+            </SheetContent>
+          </Sheet>
+        </TabsContent>
+      )}
+
+      {envoyesVisible && (
+        <TabsContent value="envoyes" className="mt-0">
           {sentLoading ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
+            <Card className="overflow-hidden"><TableSkeleton heads={5} /></Card>
           ) : sentGroups.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-              <Send className="h-10 w-10 mb-3 opacity-30" />
-              <p className="text-sm">{t('Aucun rappel envoyé pour le moment.')}</p>
-              <p className="text-xs mt-1 opacity-70">{t('Les rappels que vous envoyez depuis Gestion des dossiers apparaîtront ici.')}</p>
-            </div>
+            // Empty state (§12): state + reason + ONE action — the place
+            // where rappels are sent from. `tonal` (the header has no primary).
+            <EmptyState
+              icon={<Send />}
+              title={t('Aucun rappel envoyé')}
+              description={t('Les rappels que vous envoyez depuis un dossier apparaîtront ici.')}
+              dashed={false}
+              action={
+                <Button variant="tonal" asChild>
+                  <Link href="/dossiers">{t('Ouvrir les dossiers')}</Link>
+                </Button>
+              }
+            />
           ) : (
-            <Card data-tour="rap-envoyes-table" className="overflow-x-auto border rounded-lg">
-              <Table>
+            // Expandable table (§3): chevron column first (a real button with
+            // aria-expanded), text left, the two numeric columns (Dossiers,
+            // Statut counts) right-aligned with tabular digits and their
+            // headers aligned the same way (Polaris: never centred).
+            <Card data-tour="rap-envoyes-table" className="overflow-hidden">
+              <Table regionLabel={t('Rappels envoyés')}>
                 <TableHeader>
-                  <TableRow className="bg-muted/30">
-                    <TableHead className="font-bold text-xs w-8" />
-                    <TableHead className="font-bold text-xs">{t('Destinataire(s)')}</TableHead>
-                    <TableHead className="font-bold text-xs">{t('Dossiers')}</TableHead>
-                    <TableHead className="font-bold text-xs">{t('Date')}</TableHead>
-                    <TableHead className="font-bold text-xs text-right">{t('Statut')}</TableHead>
+                  <TableRow>
+                    <TableHead className="w-10"><span className="sr-only">{t('Détails')}</span></TableHead>
+                    <TableHead>{t('Destinataire(s)')}</TableHead>
+                    <TableHead className="text-right">{t('Dossiers')}</TableHead>
+                    <TableHead>{t('Date')}</TableHead>
+                    <TableHead className="text-right">{t('Statut')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -448,109 +755,92 @@ export default function MesRappelsPage() {
                       <React.Fragment key={g.key}>
                         <TableRow
                           data-tour="rap-envoyes-group"
-                          className="cursor-pointer hover:bg-muted/50 transition-colors"
+                          className="cursor-pointer"
                           onClick={() => toggleExpand(g.key)}
                         >
-                          <TableCell className="w-8">
-                            {isOpen ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            )}
+                          <TableCell className="w-10">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-expanded={isOpen}
+                              aria-label={isOpen ? t('Réduire le détail') : t('Voir le détail')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpand(g.key);
+                              }}
+                            >
+                              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </Button>
                           </TableCell>
-                          <TableCell
-                            className="text-sm font-medium"
-                            title={g.recipientNames.join(', ')}
-                          >
+                          <TableCell className="font-medium" title={g.recipientNames.join(', ')}>
                             {formatRecipients(g.recipientNames)}
+                            <span className="t-caption ml-2 tabular-nums">
+                              {total} {total > 1 ? t('rappels') : t('rappel')}
+                            </span>
                           </TableCell>
-                          <TableCell className="text-sm tabular-nums">{g.dossierCount}</TableCell>
-                          <TableCell className="text-sm tabular-nums">{formatDate(g.latest)}</TableCell>
-                          <TableCell className="text-right text-sm tabular-nums">
-                            <div className="flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-xs">
-                              <span
-                                className={cn(
-                                  'font-medium',
-                                  g.newCount > 0 ? 'text-primary' : 'text-muted-foreground/50',
-                                )}
-                              >
-                                {t('Nouveau')} {g.newCount}
-                              </span>
-                              <span
-                                className={cn(
-                                  'font-medium',
-                                  g.readCount > 0 ? 'text-muted-foreground' : 'text-muted-foreground/50',
-                                )}
-                              >
-                                {t('Lu')} {g.readCount}
-                              </span>
-                              <span
-                                className={cn(
-                                  'font-medium',
-                                  g.treatedCount === total
-                                    ? 'text-emerald-600'
-                                    : g.treatedCount > 0
-                                      ? 'text-emerald-600/80'
-                                      : 'text-muted-foreground/50',
-                                )}
-                              >
-                                {t('Traité')} {g.treatedCount}
-                              </span>
+                          <TableCell className="text-right tabular-nums">{g.dossierCount}</TableCell>
+                          <TableCell>{formatDate(g.latest)}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
+                              <CountChip tone="nouveau" value={g.newCount} />
+                              <CountChip tone="lu" value={g.readCount} />
+                              <CountChip tone="traite" value={g.treatedCount} />
                             </div>
                           </TableCell>
                         </TableRow>
                         {isOpen && (
-                          <TableRow className="bg-muted/10">
-                            <TableCell colSpan={5} className="p-0">
+                          // Nested sub-table on a solid surface-2 well
+                          // (nested-solid rule): its own header is static and
+                          // transparent so it does not stack under the sticky one.
+                          <TableRow className="bg-surface-2 hover:bg-surface-2">
+                            <TableCell colSpan={5} className="whitespace-normal p-0">
                               <div className="px-4 py-2">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow className="bg-transparent">
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">{t('Dossier')}</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">{t('Destinataire')}</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">{t('Date')}</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground py-1">{t('Suivi')}</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground text-right py-1">{t('Statut')}</TableHead>
-                                      <TableHead className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground text-right py-1">{t('Travail effectué')}</TableHead>
+                                <Table regionLabel={`${t('Détail des rappels')} — ${formatRecipients(g.recipientNames)}`}>
+                                  <TableHeader className="bg-transparent">
+                                    <TableRow className="hover:bg-transparent">
+                                      <TableHead className="static bg-transparent">{t('Dossier')}</TableHead>
+                                      <TableHead className="static bg-transparent">{t('Destinataire')}</TableHead>
+                                      <TableHead className="static bg-transparent">{t('Date')}</TableHead>
+                                      <TableHead className="static bg-transparent">{t('Suivi')}</TableHead>
+                                      <TableHead className="static bg-transparent">{t('Statut')}</TableHead>
+                                      <TableHead className="static bg-transparent text-right">{t('Travail effectué')}</TableHead>
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
                                     {g.rappels.map((r) => (
-                                      <TableRow key={r.id} className="border-b last:border-b-0">
-                                        <TableCell className="font-mono text-sm font-semibold text-primary tabular-nums py-2">
-                                          <Link
-                                            href={`/dossiers/${r.dossierId}`}
-                                            className="hover:underline"
-                                          >
+                                      <TableRow key={r.id} className="hover:bg-surface-3">
+                                        <TableCell className="t-mono font-semibold">
+                                          <Link href={`/dossiers/${r.dossierId}`} className="rounded-sm hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                                             {r.dossierRef || r.dossierId}
                                           </Link>
                                         </TableCell>
-                                        <TableCell className="text-sm py-2">{r.recipientNom || '—'}</TableCell>
-                                        <TableCell className="text-sm tabular-nums py-2">{formatDate(r.createdAt)}</TableCell>
-                                        <TableCell className="text-xs text-muted-foreground tabular-nums py-2">
+                                        <TableCell>{r.recipientNom || <EmptyValue />}</TableCell>
+                                        <TableCell>{formatDate(r.createdAt)}</TableCell>
+                                        <TableCell className="t-body-sm">
                                           {r.resolvedAt ? (
-                                            <span className="text-emerald-700 dark:text-emerald-400">{t('Sauvegardé le')} {formatDate(r.resolvedAt)}</span>
+                                            // Status colour never alone (element-specs §11): icon + label.
+                                            <span className="inline-flex items-center gap-1 text-status-success-fg">
+                                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                              {t('Sauvegardé le')} {formatDate(r.resolvedAt)}
+                                            </span>
                                           ) : (r.seenAt || r.read) ? (
-                                            <span>{r.seenAt ? `${t('Consulté le')} ${formatDate(r.seenAt)}` : t('Consulté')}</span>
+                                            <span className="text-ink-2">
+                                              {r.seenAt ? `${t('Consulté le')} ${formatDate(r.seenAt)}` : t('Consulté')}
+                                            </span>
                                           ) : (
-                                            <span className="opacity-60">{t('Non consulté')}</span>
+                                            <span className="text-ink-4">{t('Non consulté')}</span>
                                           )}
                                         </TableCell>
-                                        <TableCell className="text-right py-2">
-                                          {r.resolvedAt ? (
-                                            <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300">{t('Traité')}</Badge>
-                                          ) : r.read ? (
-                                            <Badge variant="outline" className="text-muted-foreground border-muted-foreground/30">{t('Lu')}</Badge>
-                                          ) : (
-                                            <Badge className="bg-primary/10 text-primary border border-primary/30">{t('Nouveau')}</Badge>
-                                          )}
+                                        <TableCell>
+                                          <StateChip rappel={r} />
                                         </TableCell>
-                                        <TableCell className="text-right py-2">
+                                        <TableCell className="text-right">
                                           {r.sessionId ? (
                                             <Button
                                               variant="ghost"
                                               size="sm"
-                                              className="h-8 text-xs gap-1.5"
+                                              className="gap-1.5"
                                               data-tour="rap-detail-btn"
                                               onClick={() => setReplayRappel(r)}
                                             >
@@ -558,7 +848,7 @@ export default function MesRappelsPage() {
                                               {t('Voir le détail')}
                                             </Button>
                                           ) : (
-                                            <span className="text-muted-foreground text-xs">—</span>
+                                            <EmptyValue />
                                           )}
                                         </TableCell>
                                       </TableRow>
@@ -577,14 +867,13 @@ export default function MesRappelsPage() {
             </Card>
           )}
         </TabsContent>
-        )}
-      </Tabs>
+      )}
 
       <SessionReplayDialog
         rappel={replayRappel}
         open={!!replayRappel}
         onOpenChange={(open) => { if (!open) setReplayRappel(null); }}
       />
-    </div>
+    </Tabs>
   );
 }

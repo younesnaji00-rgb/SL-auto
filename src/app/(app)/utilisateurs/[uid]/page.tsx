@@ -1,28 +1,32 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft,
-  Save,
-  Trash2,
   User as UserIcon,
-  Mail,
-  Phone,
-  Calendar,
   Clock,
-  ExternalLink,
-  AlertCircle,
   ShieldCheck,
   ChevronRight,
   ChevronDown,
+  FolderOpen,
+  Trash2,
+  LogOut,
+  Smartphone,
+  Globe,
+  Eye,
+  EyeOff,
+  Check,
+  ChevronsUpDown,
+  Plus,
+  Search,
 } from 'lucide-react';
 import { useCompagnies } from '@/hooks/use-compagnies';
 import { format } from 'date-fns';
-import { useT, dateFnsLocale } from '@/i18n';
+import { useT, t as translate, dateFnsLocale } from '@/i18n';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -61,6 +65,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
@@ -80,14 +85,145 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { roles, isSingleSessionRole, type Role } from '@/lib/dossiers-data';
+import { ROLE_DESCRIPTIONS } from '@/lib/role-descriptions';
 import { isSessionStale, timestampToMillis } from '@/lib/session-meta';
-import { Eye, EyeOff, Check, ChevronsUpDown, Plus, Search, LogOut, Smartphone, Globe } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
 import { cn } from '@/lib/utils';
+import { IconChip } from '@/components/ui/icon-chip';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { UserRecordSkeleton } from './loading';
+
+// Status chip helper — element-specs §11 (Carbon tag / dataviz: one helper per
+// domain so the same state always maps to the same status pair; label always).
+const statutVariant = (statut: string) => (statut === 'Actif' ? 'success' : 'danger');
+
+type UserForm = {
+  nom: string;
+  prenom: string;
+  email: string;
+  telephone: string;
+  password: string;
+  role: Role | '';
+  statut: 'Actif' | 'Inactif' | '';
+  compagnies: string[];
+  sites: string[];
+  zone: string;
+};
+
+const EMPTY_FORM: UserForm = {
+  nom: '',
+  prenom: '',
+  email: '',
+  telephone: '',
+  password: '',
+  role: '',
+  statut: '',
+  compagnies: [],
+  sites: [],
+  zone: '',
+};
+
+function formFromUser(userData: any): UserForm {
+  return {
+    nom: userData.nom || '',
+    prenom: userData.prenom || '',
+    email: userData.email || '',
+    telephone: userData.telephone || '',
+    password: userData.password || '',
+    role: userData.role || '',
+    statut: userData.statut || 'Actif',
+    compagnies: userData.compagnies || [],
+    sites: userData.sites || [],
+    zone: userData.zone || '',
+  };
+}
+
+/**
+ * Permission row — Material 3 lists ("container and label text are required";
+ * trailing element = "selection control"; "switches: toggle settings on/off")
+ * + Material 3 switch ("the effects of a switch should start immediately,
+ * without needing to save"; label "short and direct", describes what is on).
+ * Anatomy: optional expand chevron, label t-body 600 + override chip (§11),
+ * supporting t-caption (the route), trailing "Enregistrement…" + Switch.
+ * 48 px min, hairlines only (element-specs §4).
+ */
+function PermissionRow({
+  label,
+  id,
+  allowed,
+  roleDefault,
+  saving,
+  onToggle,
+  child,
+  expandable,
+  expanded,
+  onExpand,
+}: {
+  label: string;
+  id: string;
+  allowed: boolean;
+  roleDefault: boolean;
+  saving: boolean;
+  onToggle: (next: boolean) => void;
+  child?: boolean;
+  expandable?: boolean;
+  expanded?: boolean;
+  onExpand?: () => void;
+}) {
+  const isOverride = (allowed && !roleDefault) || (!allowed && roleDefault);
+  const head = (
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className={cn('t-body leading-tight', child ? 'font-medium' : 'font-semibold')}>{label}</p>
+        {isOverride && (
+          <Badge variant={allowed ? 'success' : 'warning'} title={allowed ? translate('Accordé en plus du rôle') : translate('Retiré du rôle')}>
+            {allowed ? translate('Accordé') : translate('Retiré')}
+          </Badge>
+        )}
+        {!roleDefault && !isOverride && (
+          <Badge variant="neutral" title={translate('Non inclus dans le rôle par défaut')}>{translate('Hors rôle')}</Badge>
+        )}
+      </div>
+      <p className="t-caption font-mono">{id}</p>
+    </div>
+  );
+  return (
+    <div className={cn('flex min-h-[48px] items-center justify-between gap-3 py-2', child && 'pl-10')}>
+      {expandable ? (
+        <button
+          type="button"
+          onClick={onExpand}
+          aria-expanded={expanded}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left transition-colors hover:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+          )}
+          {head}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {!child && <span className="w-4 shrink-0" aria-hidden />}
+          {head}
+        </div>
+      )}
+      <div className="flex shrink-0 items-center gap-2">
+        {saving && <span className="t-label">{translate('Enregistrement…')}</span>}
+        <Switch
+          checked={allowed}
+          disabled={saving}
+          onCheckedChange={onToggle}
+          aria-label={child ? `${translate('Autoriser')} ${label}` : `${translate("Autoriser l'accès à")} ${label}`}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function UserDetailPage({ params }: { params: Promise<{ uid: string }> }) {
   const { uid } = React.use(params);
@@ -146,18 +282,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const [deniedNavItems, setDeniedNavItems] = useState<string[]>([]);
   const [grantedNavItems, setGrantedNavItems] = useState<string[]>([]);
   const [permissionsSaving, setPermissionsSaving] = useState<Record<string, boolean>>({});
-  const [formData, setFormData] = useState({
-    nom: '',
-    prenom: '',
-    email: '',
-    telephone: '',
-    password: '',
-    role: '' as Role | '',
-    statut: '' as 'Actif' | 'Inactif' | '',
-    compagnies: [] as string[],
-    sites: [] as string[],
-    zone: '',
-  });
+  const [formData, setFormData] = useState<UserForm>(EMPTY_FORM);
 
   // Fetch assigned dossiers (by assignedTo or createdBy)
   useEffect(() => {
@@ -190,13 +315,13 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         const q = query(collectionGroup(db, 'history'), where('changedBy', '==', uid), limit(50));
         const snap = await getDocs(q);
         const results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
+
         results.sort((a: any, b: any) => {
           const dateA = a.changedAt?.toDate ? a.changedAt.toDate() : new Date(a.changedAt);
           const dateB = b.changedAt?.toDate ? b.changedAt.toDate() : new Date(b.changedAt);
           return dateB.getTime() - dateA.getTime();
         });
-        
+
         setActivityHistory(results.slice(0, 20));
       } catch (e) {
         console.warn("Failed to fetch activity history", e);
@@ -209,22 +334,16 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
 
   useEffect(() => {
     if (userData) {
-      setFormData({
-        nom: userData.nom || '',
-        prenom: userData.prenom || '',
-        email: userData.email || '',
-        telephone: userData.telephone || '',
-        password: userData.password || '',
-        role: userData.role || '',
-        statut: userData.statut || 'Actif',
-        compagnies: userData.compagnies || [],
-        sites: userData.sites || [],
-        zone: userData.zone || '',
-      });
+      setFormData(formFromUser(userData));
       setDeniedNavItems(Array.isArray(userData.deniedNavItems) ? userData.deniedNavItems : []);
       setGrantedNavItems(Array.isArray(userData.grantedNavItems) ? userData.grantedNavItems : []);
     }
   }, [userData]);
+
+  const initialForm = useMemo(() => (userData ? formFromUser(userData) : EMPTY_FORM), [userData]);
+  const dirty = useMemo(() => JSON.stringify(formData) !== JSON.stringify(initialForm), [formData, initialForm]);
+
+  const displayName = `${formData.prenom ?? ''} ${formData.nom ?? ''}`.trim() || t('Utilisateur');
 
   // Permission tree shown in the card. Top-level entries are sidebar items
   // (except `/signaler-bug` which is universally accessible). Some entries
@@ -243,13 +362,13 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
       for (const item of group.items) {
         if (item.href === '/signaler-bug') continue;
         const parentDefault = isItemVisibleToRole(item, role);
-        const node: Node = { id: item.href, label: item.label, roleDefault: parentDefault };
+        const node: Node = { id: item.href, label: t(item.label), roleDefault: parentDefault };
         if (item.href === '/mes-rappels') {
           node.children = [
-            { id: '/mes-rappels#recus', label: 'Reçus', roleDefault: parentDefault },
+            { id: '/mes-rappels#recus', label: t('Reçus'), roleDefault: parentDefault },
             // Gestionnaires only receive rappels, never send → "Envoyés" tab is
             // off by default for them (kept in sync with the /mes-rappels gate).
-            { id: '/mes-rappels#envoyes', label: 'Envoyés', roleDefault: parentDefault && rappelsEnvoyesRoleDefault(role) },
+            { id: '/mes-rappels#envoyes', label: t('Envoyés'), roleDefault: parentDefault && rappelsEnvoyesRoleDefault(role) },
           ];
         } else if (item.href === '/dossiers') {
           // Validation has its own role gate (canValidateRapport): Admin +
@@ -261,7 +380,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             role === 'Directeur' ||
             role === 'Directeur technique';
           node.children = [
-            { id: '/dossiers#validation', label: 'Validation de dossier', roleDefault: canValidate },
+            { id: '/dossiers#validation', label: t('Validation de dossier'), roleDefault: canValidate },
           ];
         } else if (item.href === '/compagnies') {
           node.children = allCompagnies.map((c) => ({
@@ -454,6 +573,16 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   const handleDeleteUser = async () => {
     setIsDeleting(true);
     try {
+      // Guard rail (addendum ter E): the last Admin can never be removed.
+      if (formData.role === 'Admin') {
+        const admins = await getDocs(query(collection(db, 'users'), where('role', '==', 'Admin')));
+        if (admins.docs.filter((d) => d.id !== uid).length === 0) {
+          toast({ variant: 'destructive', title: t('Suppression impossible'), description: t('C’est le dernier compte Admin — créez-en un autre avant de supprimer celui-ci.') });
+          setIsDeleting(false);
+          setShowDeleteDialog(false);
+          return;
+        }
+      }
       // Clean up role-specific collections
       if (formData.role === 'Agent de Terrain' && formData.nom) {
         const snap = await getDocs(query(collection(db, 'options_agents'), where('label', '==', formData.nom)));
@@ -500,142 +629,177 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   };
 
   const formatTimestamp = (ts: any) => {
-    if (!ts) return '-';
+    if (!ts) return '—';
     const date = ts.toDate ? ts.toDate() : new Date(ts);
     return format(date, "d MMMM yyyy 'à' HH:mm", { locale: dateFnsLocale() });
   };
+  const toDate = (ts: any): Date | null => {
+    if (!ts) return null;
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return isNaN(d.getTime()) ? null : d;
+  };
 
   if (userLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Skeleton className="h-[400px] md:col-span-2" />
-          <Skeleton className="h-[400px]" />
-        </div>
-      </div>
-    );
+    return <UserRecordSkeleton />;
   }
 
   if (!userData) {
+    // Empty state — element-specs §12 (state + reason + one pathway).
     return (
-      <div className="flex flex-col items-center justify-center p-20 text-center">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-bold">{t('Utilisateur introuvable')}</h1>
-        <Button asChild className="mt-6" variant="outline">
-          <Link href="/utilisateurs"><ArrowLeft className="mr-2 h-4 w-4" /> {t('Retour à la liste')}</Link>
-        </Button>
-      </div>
+      <EmptyState
+        icon={<UserIcon />}
+        title={t('Utilisateur introuvable')}
+        description={t("Ce compte n'existe plus ou l'adresse est incorrecte.")}
+        action={
+          <Button asChild variant="outline">
+            <Link href="/utilisateurs">{t('Retour à la liste')}</Link>
+          </Button>
+        }
+      />
     );
   }
 
+  const showSessionCard = isAdmin && isSingleSessionRole(userData.role);
+  const statut = formData.statut || 'Actif';
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" asChild>
-            <Link href="/utilisateurs"><ArrowLeft className="h-4 w-4" /></Link>
-          </Button>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">
-              {formData.prenom} {formData.nom}
-            </h1>
-            <Badge variant="secondary">{t(formData.role)}</Badge>
-            <Badge variant={formData.statut === 'Actif' ? 'success' : 'destructive'} className="flex gap-1 items-center">
-              <span className={`w-1.5 h-1.5 rounded-full ${formData.statut === 'Actif' ? 'bg-emerald-500' : 'bg-destructive'} animate-pulse`} />
-              {t(formData.statut)}
-            </Badge>
-          </div>
-        </div>
-      </div>
+      {/* Page header — element-specs §1 (Polaris Page: "always provide
+          breadcrumbs when a page has a parent"; record pages use the compact
+          t-title). Meta = role (neutral) + statut (status pair, §11). No
+          action here: the form's « Sauvegarder » is the page primary. */}
+      <PageHeader
+        size="compact"
+        backHref="/utilisateurs"
+        backLabel={t('Utilisateurs')}
+        title={displayName}
+        meta={
+          <>
+            {formData.role && <Badge variant="neutral">{t(formData.role)}</Badge>}
+            <Badge variant={statutVariant(statut)}>{t(statut)}</Badge>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          {/* Content card — element-specs §5 (Material 3 cards; NN/g cards):
+              24 px padding, t-heading title, no restated description. */}
           <Card data-tour="usrd-profile">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <UserIcon className="h-5 w-5 text-primary" />
+              <CardTitle className="t-heading flex items-center gap-2">
+                {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip beside the
+                    section that anchors the page; other card icons stay quiet. */}
+                <IconChip><UserIcon /></IconChip>
                 {t('Informations personnelles')}
               </CardTitle>
-              <CardDescription>{t("Gérez les coordonnées et les accès de l'utilisateur.")}</CardDescription>
             </CardHeader>
+            {/* Always-editable form — element-specs §9 + addendum 4 (GOV.UK:
+                "size inputs to known lengths"; NN/g: field width matches the
+                input): chunked groups — identité / accès / affectations — rows
+                16 apart inside a group, 24 px between groups; téléphone,
+                mot de passe and the selects are content-sized, only nom /
+                prénom / email stay wide. Two-column grid inside a group is
+                the original layout (3d5629a). */}
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label>{t('Prénom')}</Label>
-                  <Input 
-                    value={formData.prenom} 
-                    onChange={e => setFormData(p => ({...p, prenom: e.target.value}))} 
+              {/* Identité */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="u-prenom">{t('Prénom')}</Label>
+                  <Input
+                    id="u-prenom"
+                    value={formData.prenom}
+                    onChange={e => setFormData(p => ({ ...p, prenom: e.target.value }))}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>{t('Nom')}</Label>
-                  <Input 
-                    value={formData.nom} 
-                    onChange={e => setFormData(p => ({...p, nom: e.target.value}))} 
+                <div className="space-y-1">
+                  <Label htmlFor="u-nom">{t('Nom')}</Label>
+                  <Input
+                    id="u-nom"
+                    value={formData.nom}
+                    onChange={e => setFormData(p => ({ ...p, nom: e.target.value }))}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>{t('Email')}</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      className="pl-10"
-                      value={formData.email} 
-                      onChange={e => setFormData(p => ({...p, email: e.target.value}))} 
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <Label htmlFor="u-email">{t('Email')}</Label>
+                  <Input
+                    id="u-email"
+                    type="email"
+                    inputMode="email"
+                    className="font-mono"
+                    value={formData.email}
+                    onChange={e => setFormData(p => ({ ...p, email: e.target.value }))}
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label>{t('Téléphone')}</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      className="pl-10"
-                      value={formData.telephone} 
-                      onChange={e => setFormData(p => ({...p, telephone: e.target.value}))} 
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <Label htmlFor="u-tel">{t('Téléphone')}</Label>
+                  {/* Moroccan format cue (owner rule 8), never a sample number. */}
+                  <Input
+                    id="u-tel"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="+212 6 00 00 00 00"
+                    className="max-w-[14rem] tabular-nums"
+                    value={formData.telephone}
+                    onChange={e => setFormData(p => ({ ...p, telephone: e.target.value }))}
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label>{t('Mot de passe')}</Label>
-                  <div className="relative">
+              </div>
+              {/* Accès */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="u-password">{t('Mot de passe')}</Label>
+                  {/* NN/g password masking: masked by default + explicit toggle
+                      (`ghost` icon button, aria-pressed). Read-only value. */}
+                  <div className="relative max-w-[16rem]">
                     <Input
+                      id="u-password"
                       type={showPassword ? 'text' : 'password'}
                       value={formData.password}
                       readOnly
-                      className="pr-10 bg-muted/50 font-mono"
+                      className="bg-surface-2 pr-10 font-mono"
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                      className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-ink-3 shadow-none hover:text-ink"
                       onClick={() => setShowPassword(v => !v)}
+                      aria-pressed={showPassword}
+                      aria-label={showPassword ? t('Masquer le mot de passe') : t('Afficher le mot de passe')}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>{t('Rôle')}</Label>
-                  <Select value={formData.role} onValueChange={v => setFormData(p => ({...p, role: v as Role}))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                <div className="space-y-1">
+                  <Label htmlFor="u-role">{t('Rôle')}</Label>
+                  <Select value={formData.role} onValueChange={v => setFormData(p => ({ ...p, role: v as Role }))}>
+                    <SelectTrigger id="u-role" className="max-w-[16rem]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {roles.map(r => <SelectItem key={r} value={r}>{t(r)}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {/* What this role can do, at the point of assignment
+                      (addendum ter E). */}
+                  {ROLE_DESCRIPTIONS[formData.role] && (
+                    <p className="t-caption max-w-[24rem]">{t(ROLE_DESCRIPTIONS[formData.role])}</p>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label>{t('Statut')}</Label>
-                  <Select value={formData.statut} onValueChange={v => setFormData(p => ({...p, statut: v as 'Actif' | 'Inactif'}))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                <div className="space-y-1">
+                  <Label htmlFor="u-statut">{t('Statut')}</Label>
+                  <Select value={formData.statut} onValueChange={v => setFormData(p => ({ ...p, statut: v as 'Actif' | 'Inactif' }))}>
+                    <SelectTrigger id="u-statut" className="max-w-[12rem]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Actif">{t('Actif')}</SelectItem>
                       <SelectItem value="Inactif">{t('Inactif')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              {/* Affectations */}
+              <div className="space-y-4">
+                {/* Zone only exists for an Agent de Terrain (original gating). */}
                 {formData.role === 'Agent de Terrain' && (() => {
                   const trimmedQuery = zoneQuery.trim();
                   const qLower = trimmedQuery.toLowerCase();
@@ -647,30 +811,31 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     : true;
                   const selected = formData.zone || '';
                   return (
-                    <div className="space-y-2">
-                      <Label>{t('Zone')}</Label>
+                    <div className="space-y-1">
+                      <Label htmlFor="u-zone">{t('Zone')}</Label>
                       <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
                         <PopoverTrigger asChild>
                           <Button
+                            id="u-zone"
                             type="button"
                             variant="outline"
                             role="combobox"
                             aria-expanded={zonePopoverOpen}
-                            className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground")}
+                            className={cn("w-full max-w-[16rem] justify-between font-normal", !selected && "text-ink-3")}
                           >
                             {selected || t('Sélectionnez ou saisissez une zone')}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                           <Command shouldFilter={false}>
-                            <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
-                              <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                            <div className="flex items-center border-b border-hairline px-3" cmdk-input-wrapper="">
+                              <Search className="mr-2 h-4 w-4 shrink-0 text-ink-3" />
                               <input
                                 value={zoneQuery}
                                 onChange={(e) => setZoneQuery(e.target.value)}
-                                placeholder={t('Tapez pour rechercher ou créer...')}
-                                className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+                                placeholder={t('Rechercher ou créer une zone')}
+                                className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-ink-3"
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' && trimmedQuery) {
                                     e.preventDefault();
@@ -725,195 +890,115 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     </div>
                   );
                 })()}
-              </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label>{t("Compagnies d'assurance affiliées")}</Label>
+                <p className="t-caption">{t('Vide = accès à tous les dossiers ; sinon uniquement ceux des compagnies choisies')}</p>
                 <MultiSelect
                   options={companyOptions}
                   selected={formData.compagnies}
-                  onChange={(vals) => setFormData(p => ({...p, compagnies: vals}))}
+                  onChange={(vals) => setFormData(p => ({ ...p, compagnies: vals }))}
                   className="w-full"
                 />
-                <p className="text-xs text-muted-foreground">
-                  {t("L'utilisateur ne verra que les dossiers des compagnies sélectionnées. Si aucune n'est sélectionnée, il verra tous les dossiers.")}
-                </p>
               </div>
 
-              <div className="space-y-2">
-                <Label>{t('Sites')}</Label>
+              <div className="space-y-1">
+                <Label>{t('Sites')} <span className="text-ink-4">({t('facultatif')})</span></Label>
+                <p className="t-caption">{t("Villes dans lesquelles l'utilisateur intervient, plusieurs choix possibles")}</p>
                 <MultiSelect
                   options={siteOptions}
                   selected={formData.sites}
-                  onChange={(vals) => setFormData(p => ({...p, sites: vals}))}
+                  onChange={(vals) => setFormData(p => ({ ...p, sites: vals }))}
                   className="w-full"
                 />
-                <p className="text-xs text-muted-foreground">
-                  {t("Villes dans lesquelles l'utilisateur intervient. Plusieurs choix possibles.")}
-                </p>
+              </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span>{t('Créé le:')} {formatTimestamp(userData.createdAt)}</span>
+              {/* Read-only facts — element-specs §10 (GOV.UK summary list:
+                  key over value; Refactoring UI: labels quiet, values primary). */}
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-4 border-t border-hairline pt-4 md:grid-cols-2">
+                <div className="min-w-0">
+                  <dt className="t-label">{t('Créé le')}</dt>
+                  <dd className="t-body mt-1 font-semibold tabular-nums text-ink">{formatTimestamp(userData.createdAt)}</dd>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  <span>{t('Dernière connexion:')} {formatTimestamp(userData.lastLogin)}</span>
+                <div className="min-w-0">
+                  <dt className="t-label">{t('Dernière connexion')}</dt>
+                  <dd className={cn('t-body mt-1 tabular-nums', userData.lastLogin ? 'font-semibold text-ink' : 'text-ink-4')}>
+                    {formatTimestamp(userData.lastLogin)}
+                  </dd>
                 </div>
-              </div>
+              </dl>
             </CardContent>
-            <CardFooter className="flex justify-end bg-muted/30 pt-6">
+            {/* Footer — element-specs §8 (GOV.UK: one default button; "disabled
+                buttons have poor contrast… avoid them" → the button stays
+                enabled and the unsaved state is said in words next to it). */}
+            <CardFooter className="flex flex-wrap items-center justify-end gap-3 border-t border-hairline pt-6">
+              {dirty && !isSaving && (
+                <span className="t-caption" aria-live="polite">{t('Modifications non enregistrées')}</span>
+              )}
               <Button onClick={handleSave} loading={isSaving}>
-                {isSaving ? t('Enregistrement...') : <><Save className="mr-2 h-4 w-4" /> {t('Sauvegarder')}</>}
+                {isSaving ? t('Enregistrement…') : t('Sauvegarder')}
               </Button>
             </CardFooter>
           </Card>
 
           <Card data-tour="usrd-permissions">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-primary" />
+              <CardTitle className="t-heading flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-ink-3" aria-hidden />
                 {t('Permissions')}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="t-caption max-w-[65ch]">
                 {t("Accordez ou retirez l'accès à n'importe quelle page pour cet utilisateur, indépendamment de son rôle. Utile pour des privilèges temporaires. « Signaler un bug » reste toujours accessible.")}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {permissionTree.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">
-                  {t('Aucun menu configurable.')}
-                </p>
+                <p className="t-caption py-2">{t('Aucun menu configurable.')}</p>
               ) : (
-                <ul className="divide-y rounded-md border">
+                // Toggle rows — Material 3 lists + switch (see PermissionRow);
+                // hairlines only, no box around the list (§4: no boxes inside rows).
+                <ul className="divide-y divide-hairline border-t border-hairline">
                   {permissionTree.map((item) => {
                     const allowed = effectiveAllowed(item.id, item.roleDefault);
-                    const isOverride =
-                      (allowed && !item.roleDefault) || (!allowed && item.roleDefault);
-                    const saving = !!permissionsSaving[item.id];
                     const hasChildren = !!item.children && item.children.length > 0;
                     const isExpanded = expandedPerms.has(item.id);
                     return (
                       <li key={item.id}>
-                        <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                          <button
-                            type="button"
-                            disabled={!hasChildren}
-                            onClick={() => hasChildren && toggleExpand(item.id)}
-                            className={cn(
-                              'flex items-center gap-2 min-w-0 flex-1 text-left',
-                              hasChildren && 'hover:opacity-80 transition-opacity',
-                            )}
-                          >
-                            {hasChildren ? (
-                              isExpanded ? (
-                                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                              )
-                            ) : (
-                              <span className="w-4 shrink-0" aria-hidden />
-                            )}
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-sm font-medium leading-tight">{t(item.label)}</p>
-                                {isOverride && (
-                                  <span
-                                    className={cn(
-                                      'text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
-                                      allowed
-                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                                        : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-                                    )}
-                                    title={allowed ? t('Accordé en plus du rôle') : t('Retiré du rôle')}
-                                  >
-                                    {allowed ? t('Accordé') : t('Retiré')}
-                                  </span>
-                                )}
-                                {!item.roleDefault && !isOverride && (
-                                  <span
-                                    className="text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px bg-muted text-muted-foreground"
-                                    title={t('Non inclus dans le rôle par défaut')}
-                                  >
-                                    {t('Hors rôle')}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-muted-foreground font-mono">{item.id}</p>
-                            </div>
-                          </button>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {saving && (
-                              <span className="text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
-                                {t('Enregistrement…')}
-                              </span>
-                            )}
-                            <Switch
-                              checked={allowed}
-                              disabled={saving}
-                              onCheckedChange={(v) =>
-                                hasChildren
-                                  ? handleToggleParent(
-                                      { id: item.id, roleDefault: item.roleDefault },
-                                      item.children!.map((c) => ({ id: c.id, roleDefault: c.roleDefault })),
-                                      v,
-                                    )
-                                  : handleTogglePermission(item.id, v, item.roleDefault)
-                              }
-                              aria-label={`${t("Autoriser l'accès à")} ${t(item.label)}`}
-                            />
-                          </div>
-                        </div>
+                        <PermissionRow
+                          label={item.label}
+                          id={item.id}
+                          allowed={allowed}
+                          roleDefault={item.roleDefault}
+                          saving={!!permissionsSaving[item.id]}
+                          expandable={hasChildren}
+                          expanded={isExpanded}
+                          onExpand={() => toggleExpand(item.id)}
+                          onToggle={(v) =>
+                            hasChildren
+                              ? handleToggleParent(
+                                  { id: item.id, roleDefault: item.roleDefault },
+                                  item.children!.map((c) => ({ id: c.id, roleDefault: c.roleDefault })),
+                                  v,
+                                )
+                              : handleTogglePermission(item.id, v, item.roleDefault)
+                          }
+                        />
                         {hasChildren && isExpanded && (
-                          <ul className="bg-muted/20 border-t">
-                            {item.children!.map((child) => {
-                              const cAllowed = effectiveAllowed(child.id, child.roleDefault);
-                              const cIsOverride =
-                                (cAllowed && !child.roleDefault) || (!cAllowed && child.roleDefault);
-                              const cSaving = !!permissionsSaving[child.id];
-                              return (
-                                <li
-                                  key={child.id}
-                                  className="flex items-center justify-between gap-3 pl-10 pr-3 py-2 border-b last:border-b-0"
-                                >
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <p className="text-sm leading-tight">{t(child.label)}</p>
-                                      {cIsOverride && (
-                                        <span
-                                          className={cn(
-                                            'text-[9px] uppercase tracking-[0.08em] font-semibold rounded-sm px-1.5 py-px',
-                                            cAllowed
-                                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                                              : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-                                          )}
-                                        >
-                                          {cAllowed ? t('Accordé') : t('Retiré')}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-[10px] text-muted-foreground font-mono">{child.id}</p>
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    {cSaving && (
-                                      <span className="text-[10px] text-muted-foreground uppercase tracking-[0.08em]">
-                                        {t('Enregistrement…')}
-                                      </span>
-                                    )}
-                                    <Switch
-                                      checked={cAllowed}
-                                      disabled={cSaving}
-                                      onCheckedChange={(v) =>
-                                        handleTogglePermission(child.id, v, child.roleDefault)
-                                      }
-                                      aria-label={`${t('Autoriser')} ${t(child.label)}`}
-                                    />
-                                  </div>
-                                </li>
-                              );
-                            })}
+                          <ul className="divide-y divide-hairline border-t border-hairline">
+                            {item.children!.map((child) => (
+                              <li key={child.id}>
+                                <PermissionRow
+                                  child
+                                  label={child.label}
+                                  id={child.id}
+                                  allowed={effectiveAllowed(child.id, child.roleDefault)}
+                                  roleDefault={child.roleDefault}
+                                  saving={!!permissionsSaving[child.id]}
+                                  onToggle={(v) => handleTogglePermission(child.id, v, child.roleDefault)}
+                                />
+                              </li>
+                            ))}
                           </ul>
                         )}
                       </li>
@@ -924,48 +1009,58 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             </CardContent>
           </Card>
 
-          <Card data-tour="usrd-dossiers">
+          <Card className="overflow-hidden" data-tour="usrd-dossiers">
             <CardHeader>
-              <CardTitle>{t('Dossiers assignés')}</CardTitle>
-              <CardDescription>{t('Liste des dossiers actuellement sous la responsabilité de cet utilisateur.')}</CardDescription>
+              <CardTitle className="t-heading flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 text-ink-3" aria-hidden />
+                {t('Dossiers assignés')}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {dossiersLoading ? (
+                // Row-shaped skeleton (§15), not a spinner.
                 <div className="space-y-2">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-11 w-full" />
+                  <Skeleton className="h-11 w-full" />
                 </div>
               ) : !assignedDossiers || assignedDossiers.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">
-                  {t('Aucun dossier assigné')}
-                </div>
+                <EmptyState
+                  icon={<FolderOpen />}
+                  title={t('Aucun dossier assigné')}
+                  description={t('Les dossiers créés par ou confiés à cet utilisateur apparaîtront ici.')}
+                  dashed={false}
+                />
               ) : (
-                <div className="rounded-md border">
-                  <Table>
+                // Data table — element-specs §3 (Polaris: text left; NN/g: first
+                // column = the human identifier, row = link with the chevron at
+                // the row end; Carbon: sticky header). The table sits in the card
+                // without a second frame (§5) — it bleeds to the card edges.
+                <div className="-mx-6 -mb-6 border-t border-hairline">
+                  <Table regionLabel={t('Dossiers assignés')}>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>{t('Réf Expert')}</TableHead>
+                        <TableHead className="pl-6">{t('Réf. expert')}</TableHead>
                         <TableHead>{t('Assuré')}</TableHead>
                         <TableHead>{t('Nature du dossier')}</TableHead>
                         <TableHead>{t('Statut')}</TableHead>
-                        <TableHead className="text-right">{t('Actions')}</TableHead>
+                        <TableHead className="w-12 pr-6 text-right"><span className="sr-only">{t('Ouvrir')}</span></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {assignedDossiers.map((d: any) => {
-                        const assureName = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim() || 'N/A';
+                        const assureName = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim();
                         return (
-                          <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/dossiers/${d.id}`)}>
-                            <TableCell className="font-mono text-xs font-semibold text-primary tabular-nums">{d.refExpert || '-'}</TableCell>
-                            <TableCell>{assureName}</TableCell>
-                            <TableCell>{d.nature || '-'}</TableCell>
+                          <TableRow key={d.id} className="group cursor-pointer" onClick={() => router.push(`/dossiers/${d.id}`)}>
+                            <TableCell className="t-mono pl-6 font-semibold">{d.refExpert || <span className="text-ink-4">—</span>}</TableCell>
+                            <TableCell className="font-medium">{assureName || <span className="text-ink-4">—</span>}</TableCell>
+                            <TableCell className="text-ink-2">{d.nature ? t(d.nature) : <span className="text-ink-4">—</span>}</TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{t(d.statut || 'Nouveau')}</Badge>
+                              <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>{t(d.statut || 'Nouveau')}</span>
                             </TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="ghost" size="sm" asChild>
-                                <Link href={`/dossiers/${d.id}`}><ExternalLink className="h-4 w-4" /></Link>
-                              </Button>
+                            <TableCell className="pr-6 text-right" onClick={(e) => e.stopPropagation()}>
+                              <Link href={`/dossiers/${d.id}`} aria-label={`${t('Ouvrir le dossier')} ${d.refExpert || ''}`} className="inline-flex rounded-sm text-ink-4 transition-colors group-hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                <ChevronRight className="h-4 w-4" />
+                              </Link>
                             </TableCell>
                           </TableRow>
                         );
@@ -981,44 +1076,63 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         <div className="space-y-6">
           <Card data-tour="usrd-activity">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Clock className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="t-heading flex items-center gap-2">
+                <Clock className="h-4 w-4 text-ink-3" aria-hidden />
                 {t("Historique d'activité")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {historyLoading ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
+                <div className="space-y-2">
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
                 </div>
               ) : !activityHistory || activityHistory.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6 italic">
-                  {t('Aucune activité récente')}
-                </p>
+                <EmptyState
+                  icon={<Clock />}
+                  title={t('Aucune activité récente')}
+                  description={t('Les changements effectués par cet utilisateur apparaîtront ici.')}
+                  dashed={false}
+                />
               ) : (
-                <div className="space-y-4">
-                  {activityHistory.map((entry: any) => (
-                    <div key={entry.id} className="relative pl-6 pb-4 border-l last:pb-0">
-                      <div className="absolute left-[-5px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">{formatTimestamp(entry.changedAt)}</p>
-                        <p className="text-sm font-medium">{entry.action}</p>
-                        {entry.newStatut && (
-                          <p className="text-xs bg-muted px-2 py-1 rounded inline-block">
-                            → {entry.newStatut}
+                // Event rows — element-specs §4 (Material 3 lists: leading
+                // element + label + supporting text; GOV.UK summary list rows):
+                // 56 px two-line rows, hairlines only, the date block is the
+                // anchor — NEUTRAL (2026-09-02 time ruling: terracotta means
+                // today/next/upcoming; history is past, so no warm tone).
+                // Day number in Inter 600 (numbers never in Outfit).
+                <ol className="divide-y divide-hairline border-t border-hairline">
+                  {activityHistory.map((entry: any) => {
+                    const d = toDate(entry.changedAt);
+                    return (
+                      <li key={entry.id} className="flex min-h-[56px] items-center gap-3 py-2">
+                        <div className="flex w-10 shrink-0 flex-col items-center justify-center rounded-md bg-surface-3 py-1 text-center text-ink-2 shadow-rim">
+                          <span className="text-[11px] font-medium leading-none">
+                            {d ? format(d, 'MMM', { locale: dateFnsLocale() }).replace('.', '') : '—'}
+                          </span>
+                          <span className="text-base font-semibold leading-tight tabular-nums">{d ? format(d, 'd') : '—'}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="t-body truncate font-semibold">{t(entry.action)}</p>
+                          <p className="t-caption flex flex-wrap items-center gap-x-2 tabular-nums">
+                            <span>{d ? format(d, 'yyyy · HH:mm', { locale: dateFnsLocale() }) : '—'}</span>
+                            {entry.newStatut && (
+                              <span className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(entry.newStatut))}>
+                                {t(entry.newStatut)}
+                              </span>
+                            )}
                           </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
               )}
             </CardContent>
           </Card>
 
-          {isAdmin && isSingleSessionRole(userData.role) && (() => {
+          {showSessionCard && (() => {
             // A session is "active" while its heartbeat is fresh. A held slot
             // whose heartbeat has gone stale (app closed/killed without a clean
             // sign-out) is shown as inactive — it will free itself for the next
@@ -1027,99 +1141,85 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             const sessionStale = hasSession && isSessionStale(timestampToMillis(userData.currentSessionSeenAt), Date.now());
             const sessionActive = hasSession && !sessionStale;
             return (
-            <Card data-tour="usrd-session">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Smartphone className="h-4 w-4 text-muted-foreground" />
-                  {t('Session / Appareil')}
-                </CardTitle>
-                <CardDescription>
-                  {t('Ce rôle est limité à un seul appareil à la fois. Déconnectez sa session pour lui permettre de se connecter depuis un autre appareil.')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <span
-                    className={cn(
-                      'w-2 h-2 rounded-full',
-                      sessionActive
-                        ? 'bg-emerald-500 animate-pulse'
+              <Card data-tour="usrd-session">
+                <CardHeader>
+                  <CardTitle className="t-heading flex items-center gap-2">
+                    <Smartphone className="h-4 w-4 text-ink-3" aria-hidden />
+                    {t('Session / Appareil')}
+                  </CardTitle>
+                  <CardDescription className="t-caption">
+                    {t('Ce rôle est limité à un seul appareil à la fois. Déconnectez sa session pour lui permettre de se connecter depuis un autre appareil.')}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* State line — §11: status colour always with a text label. */}
+                  <div className="flex items-center gap-2 text-sm">
+                    <span
+                      className={cn(
+                        'h-2 w-2 shrink-0 rounded-full',
+                        sessionActive ? 'bg-status-success-fg' : sessionStale ? 'bg-status-warning-fg' : 'bg-ink-4',
+                      )}
+                      aria-hidden
+                    />
+                    <span className={cn(sessionActive ? 'font-semibold text-ink' : 'text-ink-3')}>
+                      {sessionActive
+                        ? t('Connecté sur un appareil')
                         : sessionStale
-                          ? 'bg-amber-500'
-                          : 'bg-muted-foreground/40',
-                    )}
-                  />
-                  <span className={cn(!sessionActive && 'text-muted-foreground')}>
-                    {sessionActive
-                      ? t('Connecté sur un appareil')
-                      : sessionStale
-                        ? t('Session inactive (se libère automatiquement)')
-                        : t('Aucune session active')}
-                  </span>
-                </div>
-                {userData.currentSessionId && (
-                  <div className="rounded-md border bg-muted/20 px-3 py-2 space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <Smartphone className="h-3.5 w-3.5" />
-                        {t('Appareil')}
-                      </span>
-                      <span className="font-medium text-right">
-                        {sessionMeta?.device || t('Inconnu')}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <Globe className="h-3.5 w-3.5" />
-                        {t('Adresse IP')}
-                      </span>
-                      <span className="font-mono tabular-nums text-right">
-                        {sessionMeta?.ip || t('Inconnue')}
-                      </span>
-                    </div>
-                    {sessionMeta?.at && (
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="flex items-center gap-1.5 text-muted-foreground">
-                          <Clock className="h-3.5 w-3.5" />
-                          {t('Connecté depuis')}
-                        </span>
-                        <span className="tabular-nums text-right">
-                          {formatTimestamp(sessionMeta.at)}
-                        </span>
-                      </div>
-                    )}
+                          ? t('Session inactive (se libère automatiquement)')
+                          : t('Aucune session active')}
+                    </span>
                   </div>
-                )}
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={!userData.currentSessionId || isDisconnecting}
-                  loading={isDisconnecting}
-                  onClick={handleForceDisconnect}
-                >
-                  {!isDisconnecting && <LogOut className="mr-2 h-4 w-4" />}
-                  {t('Déconnecter la session')}
-                </Button>
-              </CardContent>
-            </Card>
+                  {/* Definition list — element-specs §10 (GOV.UK summary list:
+                      key / value rows; empty = "—", never a fake value). */}
+                  {userData.currentSessionId && (
+                    <dl className="divide-y divide-hairline border-t border-hairline">
+                      <div className="flex items-center justify-between gap-3 py-2">
+                        <dt className="t-label flex items-center gap-1.5"><Smartphone className="h-3.5 w-3.5" aria-hidden /> {t('Appareil')}</dt>
+                        <dd className={cn('t-body-sm truncate text-right', sessionMeta?.device ? 'font-semibold text-ink' : 'text-ink-4')}>{sessionMeta?.device || '—'}</dd>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 py-2">
+                        <dt className="t-label flex items-center gap-1.5"><Globe className="h-3.5 w-3.5" aria-hidden /> {t('Adresse IP')}</dt>
+                        <dd className={cn('t-mono text-right', !sessionMeta?.ip && 'text-ink-4')}>{sessionMeta?.ip || '—'}</dd>
+                      </div>
+                      {sessionMeta?.at && (
+                        <div className="flex items-center justify-between gap-3 py-2">
+                          <dt className="t-label flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" aria-hidden /> {t('Connecté depuis')}</dt>
+                          <dd className="t-body-sm text-right font-semibold tabular-nums text-ink">{formatTimestamp(sessionMeta.at)}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  )}
+                  {/* One `outline` action (§8) — reversible, so not destructive. */}
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={!userData.currentSessionId || isDisconnecting}
+                    loading={isDisconnecting}
+                    onClick={handleForceDisconnect}
+                  >
+                    {!isDisconnecting && <LogOut className="h-4 w-4" aria-hidden />}
+                    {isDisconnecting ? t('Déconnexion…') : t('Déconnecter la session')}
+                  </Button>
+                </CardContent>
+              </Card>
             );
           })()}
 
           {canDelete && (
+            // Destructive card — element-specs §8 (GOV.UK button: warning
+            // buttons only for actions with "serious destructive consequences
+            // that cannot be easily undone"): one `destructive` button, the
+            // consequence said in a caption above it.
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{t('Supprimer cet utilisateur')}</CardTitle>
-                <CardDescription>
+                <CardTitle className="t-heading">{t('Supprimer cet utilisateur')}</CardTitle>
+                <CardDescription className="t-caption">
                   {t("L'utilisateur sera retiré du système. Les journaux d'activité (historique, workflow) attribués à cet utilisateur seront conservés.")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button
-                  variant="outline"
-                  className="w-full border-destructive text-destructive hover:bg-destructive hover:text-white"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" /> {t("Supprimer l'utilisateur")}
+                <Button variant="destructive" className="w-full" onClick={() => setShowDeleteDialog(true)}>
+                  <Trash2 className="h-4 w-4" aria-hidden /> {t("Supprimer l'utilisateur")}
                 </Button>
               </CardContent>
             </Card>
@@ -1127,23 +1227,25 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
         </div>
       </div>
 
+      {/* Confirmation dialog — element-specs §13 (Material 3 dialogs: headline
+          names the object, "avoid apologies, alarm, or ambiguity", ≤ 2 actions,
+          confirm closest to the edge). */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('Confirmer la suppression')}</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer')} « {displayName} » ?</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("Êtes-vous sûr de vouloir supprimer définitivement l'utilisateur")} <strong>{formData.prenom} {formData.nom}</strong> ?{' '}
-              {t("Cette action est irréversible. Les journaux d'activité (historique, workflow) attribués à cet utilisateur seront conservés.")}
+              {t("Son compte et sa fiche seront définitivement supprimés. Les journaux d'activité (historique, workflow) qui lui sont attribués seront conservés. Cette action est irréversible.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>{t('Annuler')}</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={(e) => { e.preventDefault(); handleDeleteUser(); }} 
-              className="bg-destructive hover:bg-destructive/90"
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteUser(); }}
+              className={buttonVariants({ variant: 'destructive' })}
               disabled={isDeleting}
             >
-              {isDeleting ? t('Suppression...') : t('Confirmer la suppression')}
+              {isDeleting ? t('Suppression…') : t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

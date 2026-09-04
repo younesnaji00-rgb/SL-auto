@@ -19,10 +19,20 @@ function readInitial(dossierId: string, stepIds: number[]): Record<number, boole
   return out;
 }
 
+function persist(dossierId: string, stepId: number, collapsed: boolean) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (collapsed) window.localStorage.setItem(storageKey(dossierId, stepId), '1');
+    else window.localStorage.removeItem(storageKey(dossierId, stepId));
+  } catch {
+    /* ignore quota */
+  }
+}
+
 /**
  * Persists collapsed/expanded state for each dossier timeline step in
  * localStorage, keyed per-dossier + per-step. Survives refresh, tab close
- * and navigation.
+ * and navigation. `setAll` backs the "Tout déplier / Tout replier" controls.
  */
 export function useCollapsedSteps(dossierId: string, stepIds: number[]) {
   const [state, setState] = useState<Record<number, boolean>>(() => readInitial(dossierId, stepIds));
@@ -39,23 +49,28 @@ export function useCollapsedSteps(dossierId: string, stepIds: number[]) {
     (stepId: number) => {
       setState((prev) => {
         const next = { ...prev, [stepId]: !prev[stepId] };
-        if (typeof window !== 'undefined') {
-          try {
-            if (next[stepId]) window.localStorage.setItem(storageKey(dossierId, stepId), '1');
-            else window.localStorage.removeItem(storageKey(dossierId, stepId));
-          } catch {
-            /* ignore quota */
-          }
+        persist(dossierId, stepId, next[stepId]);
+        return next;
+      });
+    },
+    [dossierId],
+  );
+
+  const setAll = useCallback(
+    (collapsed: boolean) => {
+      setState(() => {
+        const next: Record<number, boolean> = {};
+        for (const id of stepIds) {
+          next[id] = collapsed;
+          persist(dossierId, id, collapsed);
         }
         return next;
       });
-      // Re-fire scroll so the active-step tracker catches up after layout shrinks.
-      if (typeof window !== 'undefined') {
-        queueMicrotask(() => window.dispatchEvent(new Event('scroll')));
-      }
     },
-    [dossierId]
+    [dossierId, stepIds],
   );
 
-  return { isCollapsed, toggle };
+  const collapsedCount = stepIds.filter((id) => state[id]).length;
+
+  return { isCollapsed, toggle, setAll, collapsedCount, total: stepIds.length };
 }

@@ -13,7 +13,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Mail } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 
 import { useFirestore } from '@/firebase';
 import { setDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -63,6 +63,12 @@ export function EnvoyerEmailDialog({
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Success morph (owner option I1, motion-spec §5): spinner → ✓ « Envoyé »
+  // held ~1.2s before the dialog closes — reserved for this rare (F3) send.
+  const [sent, setSent] = useState(false);
+  useEffect(() => {
+    if (open) setSent(false);
+  }, [open]);
 
   const refLabel = refExpert?.trim() || t('Sans Ref.');
 
@@ -177,7 +183,8 @@ export function EnvoyerEmailDialog({
             console.warn('[EnvoyerEmailDialog] failed to denorm dateEnvoiAccordDevis', err);
           }
         }
-        onOpenChange(false);
+        setSent(true);
+        window.setTimeout(() => onOpenChange(false), 1200);
         toast({ title: t('Email envoyé') });
         return;
       }
@@ -202,19 +209,22 @@ export function EnvoyerEmailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      {/* Dialog — element-specs §13 (M3 dialogs: brief headline + one line;
+          confirm at the edge, dismissive `outline` to its left; bottom sheet
+          below `lg`). 2xl because the message body needs the width. */}
+      <DialogContent className="lg:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Mail className="h-4 w-4" />
-            {t('Envoyer un email')}
-          </DialogTitle>
+          <DialogTitle className="t-title">{t('Envoyer un email')}</DialogTitle>
           <DialogDescription>
             {t('Sélectionnez les documents à joindre puis rédigez votre message.')}
           </DialogDescription>
         </DialogHeader>
 
+        {/* Form — element-specs §9 (GOV.UK: visible label above each 40 px
+            control, single column, rows 16 apart; the address field carries
+            no sample value — an empty input, never a placeholder-as-label). */}
         <div className="space-y-4">
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <Label htmlFor="email-recipient">{t('Destinataire')}</Label>
             <Input
               id="email-recipient"
@@ -225,7 +235,7 @@ export function EnvoyerEmailDialog({
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <Label htmlFor="email-subject">{t('Objet')}</Label>
             <Input
               id="email-subject"
@@ -234,7 +244,7 @@ export function EnvoyerEmailDialog({
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <Label htmlFor="email-body">{t('Message')}</Label>
             <Textarea
               id="email-body"
@@ -244,26 +254,29 @@ export function EnvoyerEmailDialog({
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label>{t('Documents à joindre')}</Label>
             {loading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <div className="flex items-center gap-2 text-[13px] text-ink-3">
+                <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
                 {t('Chargement des documents…')}
               </div>
             ) : sources.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">
+              <p className="t-caption">
                 {t("Aucun accord ou proposition d'accord disponible pour ce dossier.")}
               </p>
             ) : (
-              <div className="space-y-1.5 rounded-md border p-3">
+              // Attachment rows — element-specs §4 (M3 lists: 44 px one-line
+              // rows, hairlines only, leading control, headline 600 + supporting
+              // text in the row; no box-in-box inside the dialog).
+              <div className="divide-y divide-hairline">
                 {sources.map((s) => {
                   const id = `email-source-${s.sourceId}`;
                   return (
                     <label
                       key={s.sourceId}
                       htmlFor={id}
-                      className="flex items-start gap-2.5 cursor-pointer text-sm py-1"
+                      className="flex min-h-[44px] cursor-pointer items-start gap-2.5 py-2.5 text-sm text-ink"
                     >
                       <Checkbox
                         id={id}
@@ -272,8 +285,8 @@ export function EnvoyerEmailDialog({
                         className="mt-0.5"
                       />
                       <span className="leading-snug">
-                        {t(s.label)} — {t(s.stage)}{' '}
-                        <span className="text-muted-foreground">
+                        <span className="font-medium">{t(s.label)} — {t(s.stage)}</span>{' '}
+                        <span className="text-ink-3">
                           {t('(dernier document mis à jour par le chiffreur)')}
                         </span>
                       </span>
@@ -285,7 +298,9 @@ export function EnvoyerEmailDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        {/* Footer §13: [Annuler outline] [Envoyer default] — the dismissive
+            action stays visible (outline, not ghost). */}
+        <DialogFooter className="gap-2 sm:gap-2">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -293,15 +308,9 @@ export function EnvoyerEmailDialog({
           >
             {t('Annuler')}
           </Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {t('Envoi…')}
-              </>
-            ) : (
-              t('Envoyer')
-            )}
+          <Button onClick={handleSubmit} disabled={sent || !canSubmit} loading={isSubmitting}>
+            {sent ? <Check className="h-4 w-4" /> : null}
+            {sent ? t('Envoyé') : isSubmitting ? t('Envoi…') : t('Envoyer')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,0 +1,725 @@
+<title>SL-auto Navigation Study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #FBFAF6;
+    --surface: #FFFFFF;
+    --surface-2: #F3F0E8;
+    --ink: #1E1C17;
+    --ink-2: #4A463E;
+    --muted: #726C60;
+    --hair: #E5E0D4;
+    --hair-strong: #CFC8B8;
+    --accent: #1F6F6A;
+    --accent-ink: #145651;
+    --accent-soft: #DDEFEC;
+    --good-bg: #DDF1E4; --good-fg: #146336;
+    --warn-bg: #FBEBCF; --warn-fg: #7A4E08;
+    --crit-bg: #F9DEDA; --crit-fg: #8E2A1F;
+    --info-bg: #DFE8F6; --info-fg: #23477E;
+    --kbd-bg: #F3F0E8;
+    --shadow: 0 1px 2px rgba(30,28,23,.06), 0 4px 16px rgba(30,28,23,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151410; --surface: #1D1B16; --surface-2: #242119;
+      --ink: #ECE7DB; --ink-2: #CFC8B9; --muted: #A39C8C;
+      --hair: #2C2922; --hair-strong: #3E3A30;
+      --accent: #5FBDB4; --accent-ink: #8AD3CB; --accent-soft: #1E3634;
+      --good-bg: #1C3A2A; --good-fg: #8FD8AC;
+      --warn-bg: #3E2F14; --warn-fg: #F0C572;
+      --crit-bg: #47211C; --crit-fg: #F3A196;
+      --info-bg: #1F2D45; --info-fg: #9DBCF0;
+      --kbd-bg: #2A2720;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151410; --surface: #1D1B16; --surface-2: #242119;
+    --ink: #ECE7DB; --ink-2: #CFC8B9; --muted: #A39C8C;
+    --hair: #2C2922; --hair-strong: #3E3A30;
+    --accent: #5FBDB4; --accent-ink: #8AD3CB; --accent-soft: #1E3634;
+    --good-bg: #1C3A2A; --good-fg: #8FD8AC;
+    --warn-bg: #3E2F14; --warn-fg: #F0C572;
+    --crit-bg: #47211C; --crit-fg: #F3A196;
+    --info-bg: #1F2D45; --info-fg: #9DBCF0;
+    --kbd-bg: #2A2720;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 16px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { font-family: "Outfit", "Segoe UI", system-ui, sans-serif; color: var(--ink); text-wrap: balance; margin: 0; line-height: 1.15; }
+  h1 { font-size: clamp(34px, 5vw, 52px); font-weight: 700; letter-spacing: -0.02em; }
+  h2 { font-size: 27px; font-weight: 600; letter-spacing: -0.015em; margin-top: 8px; }
+  h3 { font-size: 19px; font-weight: 600; }
+  h4 { font-size: 15px; font-weight: 600; }
+  p { margin: 0; }
+  a { color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 45%, transparent); text-underline-offset: 3px; }
+  a:hover { text-decoration-color: var(--accent); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  code, kbd, .mono { font-family: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  code { font-size: .86em; background: var(--kbd-bg); border: 1px solid var(--hair); border-radius: 4px; padding: 1px 5px; color: var(--ink-2); white-space: nowrap; }
+  kbd { font-size: .8em; background: var(--kbd-bg); border: 1px solid var(--hair-strong); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; color: var(--ink); }
+  ul, ol { margin: 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  li::marker { color: var(--muted); }
+
+  .page { display: grid; grid-template-columns: 1fr; max-width: 1180px; margin: 0 auto; padding: 0 20px 96px; }
+  @media (min-width: 1040px) {
+    .page { grid-template-columns: 220px minmax(0, 1fr); column-gap: 56px; }
+    .toc { position: sticky; top: 24px; align-self: start; padding-top: 72px; }
+  }
+  .toc { display: none; }
+  @media (min-width: 1040px) { .toc { display: block; } }
+  .toc .eyebrow { margin-bottom: 10px; }
+  .toc ol { list-style: none; padding: 0; margin: 0; border-left: 1px solid var(--hair); }
+  .toc li { margin: 0; }
+  .toc a { display: block; padding: 5px 0 5px 14px; font-size: 13.5px; color: var(--muted); text-decoration: none; margin-left: -1px; border-left: 2px solid transparent; }
+  .toc a:hover { color: var(--ink); }
+  .toc a.active { color: var(--accent-ink); border-left-color: var(--accent); }
+  .toc .sub a { padding-left: 26px; font-size: 12.5px; }
+
+  .content { min-width: 0; }
+  .eyebrow { font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+  header.hero { padding: 72px 0 40px; border-bottom: 1px solid var(--hair); margin-bottom: 48px; }
+  header.hero .lede { font-size: 19px; line-height: 1.5; color: var(--ink-2); max-width: 66ch; margin-top: 18px; }
+  header.hero .meta { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 22px; font-size: 13.5px; color: var(--muted); }
+  header.hero .meta b { color: var(--ink-2); font-weight: 500; }
+
+  section { margin-bottom: 64px; scroll-margin-top: 24px; }
+  section > p, .prose p { max-width: 70ch; color: var(--ink-2); }
+  .prose > * + * { margin-top: 12px; }
+  .section-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--hair); }
+  .section-head .num { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--muted); }
+
+  /* summary grid */
+  .moves { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin-top: 20px; }
+  .move { background: var(--surface); border: 1px solid var(--hair); border-radius: 10px; padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .move .k { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--accent-ink); }
+  .move h4 { font-size: 16px; }
+  .move p { font-size: 14px; color: var(--ink-2); line-height: 1.5; }
+
+  /* chips */
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; line-height: 1.6; white-space: nowrap; }
+  .chip.good { background: var(--good-bg); color: var(--good-fg); }
+  .chip.warn { background: var(--warn-bg); color: var(--warn-fg); }
+  .chip.crit { background: var(--crit-bg); color: var(--crit-fg); }
+  .chip.info { background: var(--info-bg); color: var(--info-fg); }
+  .chip.neutral { background: var(--surface-2); color: var(--ink-2); }
+
+  /* finding */
+  .finding { background: var(--surface); border: 1px solid var(--hair); border-radius: 12px; padding: 20px 22px; margin-top: 16px; }
+  .finding .top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px; }
+  .finding h3 { flex: 1 1 auto; min-width: 200px; }
+  .finding .grid { display: grid; grid-template-columns: 1fr; gap: 12px 24px; }
+  @media (min-width: 860px) { .finding .grid { grid-template-columns: 1fr 1fr; } }
+  .finding .cell { font-size: 14.5px; line-height: 1.55; color: var(--ink-2); }
+  .finding .cell .lbl { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .finding .cell ul { padding-left: 18px; }
+  .finding .cell li { margin: 3px 0; }
+  .finding .files { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--hair); font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+  .finding .files code { font-size: 12px; }
+  .evidence { border-left: 3px solid var(--accent-soft); padding-left: 12px; }
+  .evidence a { font-size: 13px; }
+
+  /* wireframes */
+  .wires { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 20px; }
+  @media (min-width: 900px) { .wires { grid-template-columns: 1fr 1fr; } }
+  .wire { border: 1px solid var(--hair); border-radius: 12px; background: var(--surface); overflow: hidden; }
+  .wire .cap { padding: 10px 14px; border-bottom: 1px solid var(--hair); font-size: 13px; color: var(--ink-2); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .wire .cap b { font-weight: 600; color: var(--ink); }
+  .shell { display: grid; grid-template-columns: 96px 1fr; height: 300px; font-size: 10px; line-height: 1.3; color: var(--muted); background: var(--bg); }
+  .shell .sb { background: var(--surface-2); border-right: 1px solid var(--hair); padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .shell .sb .brand { height: 14px; border-radius: 3px; background: var(--hair-strong); width: 60%; margin-bottom: 6px; }
+  .shell .sb .g { font-size: 8px; letter-spacing: .08em; text-transform: uppercase; margin: 6px 0 2px; }
+  .shell .sb .it { height: 13px; border-radius: 4px; padding: 0 6px; display: flex; align-items: center; gap: 4px; }
+  .shell .sb .it i { width: 7px; height: 7px; border-radius: 2px; background: var(--hair-strong); display: inline-block; }
+  .shell .sb .it.solid { background: var(--accent); color: #fff; }
+  .shell .sb .it.tint { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 2px 0 0 var(--accent); }
+  .shell .sb .ft { margin-top: auto; display: flex; flex-direction: column; gap: 3px; }
+  .shell .sb .ft .it { border: 1px solid var(--hair); }
+  .shell .main { display: flex; flex-direction: column; }
+  .shell .hd { height: 26px; border-bottom: 1px solid var(--hair); background: var(--surface); display: flex; align-items: center; padding: 0 10px; gap: 8px; }
+  .shell .hd .crumb { color: var(--ink-2); }
+  .shell .hd .sp { flex: 1; }
+  .shell .hd .box { height: 14px; border: 1px solid var(--hair-strong); border-radius: 4px; padding: 0 6px; display: flex; align-items: center; gap: 4px; background: var(--bg); }
+  .shell .hd .btn { height: 14px; border-radius: 4px; padding: 0 6px; display: flex; align-items: center; background: var(--accent); color: #fff; font-weight: 600; }
+  .shell .hd .ic { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--hair-strong); }
+  .shell .tabs { height: 20px; border-bottom: 1px solid var(--hair); background: var(--surface-2); display: flex; align-items: flex-end; padding: 0 8px; gap: 3px; }
+  .shell .tabs .t { height: 15px; padding: 0 8px; border: 1px solid var(--hair); border-bottom: 0; border-radius: 4px 4px 0 0; background: var(--surface); display: flex; align-items: center; }
+  .shell .tabs .t.dim { background: transparent; border-color: transparent; }
+  .shell .body { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .shell .ph { display: flex; align-items: center; gap: 8px; }
+  .shell .ph .h { font-family: "Outfit", sans-serif; color: var(--ink); font-weight: 600; }
+  .shell .ph .sp { flex: 1; }
+  .shell .ph .btn { height: 13px; border-radius: 4px; padding: 0 6px; display: flex; align-items: center; background: var(--accent); color: #fff; font-weight: 600; }
+  .shell .ph .btn.o { background: transparent; border: 1px solid var(--hair-strong); color: var(--ink-2); }
+  .shell .filters { display: flex; gap: 4px; }
+  .shell .filters span { height: 12px; border: 1px solid var(--hair); border-radius: 3px; padding: 0 5px; display: flex; align-items: center; background: var(--surface); }
+  .shell .tbl { border: 1px solid var(--hair); border-radius: 5px; background: var(--surface); flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .shell .tbl .r { height: 14px; border-bottom: 1px solid var(--hair); display: grid; grid-template-columns: 1.2fr 1.4fr 1fr 1fr .7fr; align-items: center; padding: 0 6px; gap: 6px; }
+  .shell .tbl .r.h { background: var(--surface-2); color: var(--ink-2); font-weight: 600; }
+  .shell .tbl .r.grid > span { border-right: 1px solid var(--hair); height: 100%; display: flex; align-items: center; }
+  .shell .tbl .r span:last-child { border-right: 0; }
+  .shell .tbl .r .pill { display: inline-block; padding: 0 4px; border-radius: 99px; background: var(--good-bg); color: var(--good-fg); font-size: 8px; line-height: 10px; }
+  .shell .tbl .r .del { color: var(--crit-fg); }
+  .shell .h1big { font-family: "Outfit", sans-serif; font-size: 16px; color: var(--accent-ink); font-weight: 700; }
+
+  /* record wireframe */
+  .rec { height: 300px; background: var(--bg); font-size: 10px; color: var(--muted); display: flex; flex-direction: column; }
+  .rec .bar { border-bottom: 1px solid var(--hair); background: var(--surface); display: flex; align-items: center; gap: 8px; padding: 0 10px; }
+  .rec .bar.a { height: 22px; }
+  .rec .bar.b { height: 18px; justify-content: flex-end; }
+  .rec .bar.c { height: 30px; gap: 10px; overflow: hidden; white-space: nowrap; }
+  .rec .bar.c .st { display: flex; align-items: center; gap: 4px; }
+  .rec .bar.c .st i { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--hair-strong); display: inline-block; font-style: normal; font-size: 7px; text-align: center; line-height: 10px; }
+  .rec .bar.c .st.on i { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .rec .bar.c .st.done i { background: var(--good-bg); border-color: var(--good-fg); color: var(--good-fg); }
+  .rec .bar.c .st.block i { background: var(--surface-2); color: var(--muted); }
+  .rec .bar .sp { flex: 1; }
+  .rec .bar .pill { padding: 0 5px; border-radius: 99px; background: var(--info-bg); color: var(--info-fg); font-size: 8px; line-height: 12px; }
+  .rec .bar .btn { height: 12px; border: 1px solid var(--hair-strong); border-radius: 3px; padding: 0 5px; display: flex; align-items: center; }
+  .rec .cnt { flex: 1; display: grid; grid-template-columns: 1fr; gap: 8px; padding: 8px 10px; }
+  .rec .cnt.split { grid-template-columns: 1fr 88px; }
+  .rec .card { border: 1px solid var(--hair); background: var(--surface); border-radius: 5px; padding: 6px 8px; }
+  .rec .card .t { color: var(--ink); font-weight: 600; font-family: "Outfit", sans-serif; font-size: 11px; }
+  .rec .card .inner { border: 1px dashed var(--hair-strong); border-radius: 4px; height: 26px; margin-top: 4px; }
+  .rec .card .inner2 { border: 1px solid var(--hair); border-radius: 4px; height: 20px; margin-top: 4px; }
+  .rec .side { display: flex; flex-direction: column; gap: 6px; }
+  .rec .side .card { padding: 5px 6px; font-size: 9px; }
+  .rec .strong { color: var(--ink); font-weight: 600; }
+  .rec .chrome-note { position: absolute; }
+
+  /* tables */
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--hair); border-radius: 10px; background: var(--surface); margin-top: 16px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--hair); vertical-align: top; }
+  th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+  tr:last-child td { border-bottom: 0; }
+  td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td .ref { font-size: 12.5px; color: var(--muted); }
+
+  .callout { background: var(--accent-soft); border: 1px solid color-mix(in oklab, var(--accent) 30%, transparent); border-radius: 10px; padding: 16px 18px; margin-top: 16px; color: var(--ink); font-size: 15px; line-height: 1.55; }
+  .callout b { color: var(--accent-ink); }
+
+  .good-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 22px; margin-top: 14px; font-size: 14.5px; color: var(--ink-2); }
+  .good-list li { padding-left: 4px; }
+  .good-list li::marker { content: "✓  "; color: var(--good-fg); }
+
+  .kbdrow { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--ink-2); margin-top: 8px; }
+  .sources { font-size: 13.5px; color: var(--ink-2); columns: 1; }
+  @media (min-width: 860px) { .sources { columns: 2; column-gap: 32px; } }
+  .sources li { break-inside: avoid; margin: 0 0 6px; }
+  .sources li a { word-break: break-word; }
+  .foot { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--hair); font-size: 13px; color: var(--muted); max-width: 70ch; }
+</style>
+
+<div class="page">
+  <nav class="toc" aria-label="On this page">
+    <div class="eyebrow">On this page</div>
+    <ol>
+      <li><a href="#summary">Summary</a></li>
+      <li><a href="#today">The shell today</a></li>
+      <li><a href="#good">What already works</a></li>
+      <li><a href="#sidebar">1 · Sidebar</a></li>
+      <li><a href="#header">2 · Header &amp; page header</a></li>
+      <li><a href="#palette">3 · Command palette &amp; keys</a></li>
+      <li><a href="#tabs">4 · Workspace tabs</a></li>
+      <li><a href="#wayfinding">5 · Wayfinding &amp; labels</a></li>
+      <li><a href="#record">6 · Dossier page</a></li>
+      <li><a href="#lists">7 · Lists &amp; tables</a></li>
+      <li><a href="#motion">8 · Feedback &amp; motion</a></li>
+      <li><a href="#mobile">9 · Mobile shell</a></li>
+      <li><a href="#aesthetic">10 · Visual system</a></li>
+      <li><a href="#roadmap">Roadmap</a></li>
+      <li><a href="#sources">Sources</a></li>
+    </ol>
+  </nav>
+
+  <div class="content">
+    <header class="hero">
+      <div class="eyebrow">UX research · Navigation &amp; app shell</div>
+      <h1 style="margin-top:10px">SL-auto Navigation Study</h1>
+      <p class="lede">How the app's navigation can become smoother, more intuitive and more refined — grounded in what the code and screenshots show today, and in published, proven patterns from Linear, Atlassian, Stripe, Material 3, Apple HIG, GOV.UK, Carbon and Nielsen Norman Group research.</p>
+      <div class="meta">
+        <span><b>Scope</b> app shell, sidebar, header, tabs, breadcrumb, dossier page, lists, mobile, motion, visual tokens</span>
+        <span><b>Codebase</b> Next 15 · shadcn/ui · Tailwind 3 · <code>SL-auto-main/SL-auto-main</code> (dev folder)</span>
+        <span><b>Date</b> 31 Aug 2026</span>
+      </div>
+    </header>
+
+    <!-- SUMMARY -->
+    <section id="summary">
+      <div class="section-head"><h2>Summary — the eight moves that matter most</h2></div>
+      <p>The shell is structurally sound (persistent sidebar, breadcrumb, workspace tabs, scroll-spied stepper, skeletons) but it is <em>under-used</em>: the header is empty, search and notifications exist as dead code, the same destination carries three different names, the primary action moves from page to page, and the dossier page stacks ~200&nbsp;px of sticky chrome. None of the fixes require a re-skin; they are mostly consolidation and a few well-known patterns.</p>
+      <div class="moves">
+        <div class="move"><span class="k">01 · quick win</span><h4>One name per destination</h4><p>Sidebar, breadcrumb, H1, tab and <code>document.title</code> read from one source (<code>nav-groups.ts</code>). "Gestion des dossiers / Dossiers / Files" becomes one word.</p></div>
+        <div class="move"><span class="k">02 · quick win</span><h4>A shared PageHeader</h4><p>Breadcrumb → title (one size) → primary action right → filters/tabs below. Applied to all 19 pages; today titles range from <code>text-base</code> to <code>text-4xl</code>.</p></div>
+        <div class="move"><span class="k">03 · quick win</span><h4>Fill the header's right side</h4><p>Search trigger (⌘K), "+ Nouveau dossier", rappels bell, user menu (theme, langue, déconnexion). Frees the sidebar footer.</p></div>
+        <div class="move"><span class="k">04 · quick win</span><h4>Quiet the sidebar</h4><p>Tinted active row instead of solid teal fill, drop <code>shadow-xl</code>, fix the dead sub-item active state, move company CRUD out of the nav.</p></div>
+        <div class="move"><span class="k">05 · structural</span><h4>⌘K as a real navigation layer</h4><p>Jump to a dossier by ref / plaque / assuré, go to any page, run actions, see recents. Plus <kbd>g</kbd>-chords and a <kbd>?</kbd> shortcut sheet.</p></div>
+        <div class="move"><span class="k">06 · structural</span><h4>Stepper with real status</h4><p>Per-step À faire / En cours / Terminé / Bloqué computed from data, not from position; stamp as helper text; no horizontal clipping.</p></div>
+        <div class="move"><span class="k">07 · structural</span><h4>One sticky record bar</h4><p>Ref · assuré · plaque · statut · two actions, plus the stepper — replacing three stacked sticky bars on the dossier page.</p></div>
+        <div class="move"><span class="k">08 · structural</span><h4>Phone shell for agents</h4><p>Bottom navigation bar (3–4 destinations), camera FAB, bottom sheets — no hamburger. Formalises the existing "Phone view".</p></div>
+      </div>
+    </section>
+
+    <!-- TODAY -->
+    <section id="today">
+      <div class="section-head"><h2>The shell today, and where it is heading</h2></div>
+      <p>Left: what ships now (from <code>src/app/(app)/layout.tsx</code>, <code>components/layout/*</code> and the site screenshots). Right: the same shell after the changes in this study — nothing is reorganised, the chrome just starts doing its job.</p>
+      <div class="wires">
+        <div class="wire">
+          <div class="cap"><b>Now</b><span>list page</span></div>
+          <div class="shell">
+            <div class="sb">
+              <div class="brand"></div>
+              <div class="g">Espace</div>
+              <div class="it"><i></i>Tableau de bord</div>
+              <div class="it solid"><i style="background:#fff"></i>Gestion des dossiers</div>
+              <div class="it"><i></i>Mes rappels</div>
+              <div class="it"><i></i>Compagnies ▾</div>
+              <div class="g">Assignations</div>
+              <div class="it"><i></i>Assignations Chiffrage</div>
+              <div class="it"><i></i>Assignations Agent de…</div>
+              <div class="g">Divers</div>
+              <div class="it"><i></i>Signaler un bug</div>
+              <div class="ft"><div class="it">☾ Mode sombre</div><div class="it">Admin · ADMIN</div><div class="it">⎋</div></div>
+            </div>
+            <div class="main">
+              <div class="hd"><span class="crumb">SL-auto › Gestion des dossiers</span><span class="sp"></span></div>
+              <div class="tabs"><div class="t">Dossiers</div></div>
+              <div class="body">
+                <div class="h1big">Dossiers</div>
+                <div class="filters"><span>Recherche</span><span>Jour</span><span>Semaine</span><span>Mois</span><span>Du</span><span>Au</span><span>Tri</span><span>↺</span></div>
+                <div class="ph"><span class="sp"></span><span class="btn">+ Création de mission</span><span class="btn o">Rappel</span></div>
+                <div class="tbl">
+                  <div class="r h grid"><span>Réf.</span><span>Assuré</span><span>Compagnie</span><span>Statut</span><span>Date Actions</span></div>
+                  <div class="r grid"><span>APR-<br>2026-</span><span>Mitchell</span><span>Intact</span><span><span class="pill">Créé</span></span><span>👁 ⟲ <span class="del">🗑</span></span></div>
+                  <div class="r grid"><span>APR-<br>2026-</span><span>Chen</span><span>TD</span><span><span class="pill">Chiffr.</span></span><span>👁 ⟲ <span class="del">🗑</span></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="wire">
+          <div class="cap"><b>After</b><span>same page, same routes</span></div>
+          <div class="shell">
+            <div class="sb">
+              <div class="brand"></div>
+              <div class="g">Opérations</div>
+              <div class="it"><i></i>Tableau de bord</div>
+              <div class="it tint"><i style="background:var(--accent)"></i>Dossiers</div>
+              <div class="it"><i></i>Rappels <span style="margin-left:auto;font-size:8px">3</span></div>
+              <div class="it"><i></i>Consultation</div>
+              <div class="it"><i></i>Compagnies</div>
+              <div class="g">Assignations</div>
+              <div class="it"><i></i>Chiffrage</div>
+              <div class="it"><i></i>Terrain</div>
+              <div class="g">Récents</div>
+              <div class="it" style="color:var(--ink-2)">SL-2026-0106 · Roy</div>
+              <div class="ft"><div class="it">? Aide · raccourcis</div></div>
+            </div>
+            <div class="main">
+              <div class="hd"><span class="crumb">Dossiers</span><span class="sp"></span><span class="box">⌕ Rechercher… <span style="opacity:.6">⌘K</span></span><span class="btn">+ Nouveau</span><span class="ic"></span><span class="ic" style="background:var(--accent-soft)"></span></div>
+              <div class="body">
+                <div class="ph"><span class="h">Dossiers</span><span style="opacity:.8">248</span><span class="sp"></span><span class="btn o">Vues ▾</span><span class="btn o">Colonnes</span><span class="btn">+ Nouveau dossier</span></div>
+                <div class="filters"><span>⌕</span><span>Statut ▾</span><span>Compagnie ▾</span><span>Période ▾</span><span style="border-style:dashed">+ Filtre</span></div>
+                <div class="tbl">
+                  <div class="r h"><span>Réf.</span><span>Assuré</span><span>Compagnie</span><span>Statut</span><span></span></div>
+                  <div class="r"><span class="strong">SL-2026-0101</span><span>Mitchell Sarah</span><span>Intact</span><span><span class="pill">Créé</span></span><span style="text-align:right">›</span></div>
+                  <div class="r"><span class="strong">SL-2026-0104</span><span>Chen David</span><span>TD</span><span><span class="pill" style="background:var(--warn-bg);color:var(--warn-fg)">Chiffrage</span></span><span style="text-align:right">›</span></div>
+                  <div class="r"><span class="strong">SL-2026-0102</span><span>Bélanger Marc</span><span>Desjardins</span><span><span class="pill" style="background:var(--info-bg);color:var(--info-fg)">Visite</span></span><span style="text-align:right">›</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="callout"><b>Principle behind every recommendation:</b> the sidebar is where product navigation lives; the top bar is for universal actions (search, create, notifications, profile); the page header owns the title, its one primary action and its filters. Atlassian rebuilt its navigation across six products on exactly this split after testing with 160+ users, and Linear, Stripe, Attio and Slack converge on it.</div>
+    </section>
+
+    <!-- GOOD -->
+    <section id="good">
+      <div class="section-head"><h2>What already works — keep it</h2></div>
+      <p>Several things in the shell are ahead of most back-office apps. They are the foundation the rest of this study builds on, not things to replace.</p>
+      <ul class="good-list">
+        <li>Persistent, collapsible sidebar with icon tooltips and <kbd>⌘</kbd><kbd>B</kbd> toggle (shadcn) — a "combo" nav, which NN/g measured as fast as fully visible nav.</li>
+        <li>Role-scoped nav with grant/deny overrides and role-aware landing (<code>role-landing.ts</code>).</li>
+        <li>Applied-filter chips with per-chip removal and reset — the pattern Baymard found missing on 28 % of sites.</li>
+        <li>Persisted list filters (<code>usePersistedFilters</code>) so a round-trip to a dossier doesn't lose context.</li>
+        <li>Skeleton loaders in 25 components and <code>loading.tsx</code> on the four heaviest routes.</li>
+        <li>Scroll-spied step bar on the dossier page with smooth scroll-to-section — the USWDS "in-page navigation" pattern.</li>
+        <li>Historique in a side sheet rather than a modal (NN/g: don't obscure the record).</li>
+        <li>Status badges as tinted background/foreground pairs, and a semantic token layer with a full dark palette.</li>
+        <li>Field-agent "Phone view" with card rows instead of a squeezed table.</li>
+        <li>Sticky rappel-session banner that states system status and pending change count.</li>
+      </ul>
+    </section>
+
+    <!-- 1 SIDEBAR -->
+    <section id="sidebar">
+      <div class="section-head"><span class="num">01</span><h2>Sidebar</h2></div>
+      <p>The sidebar has the right bones (grouped, collapsible, tooltips). Its problems are weight, mixed responsibilities and labels.</p>
+
+      <div class="finding">
+        <div class="top"><h3>The active item shouts, and the whole rail competes with the content</h3><span class="chip warn">Impact · medium</span><span class="chip neutral">Effort · small</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>Active item is a solid teal fill with white text; the sidebar carries <code>shadow-xl z-50</code>; group labels are 10 px; the brand block, theme toggle, user card and logout all sit in the rail. In the screenshots the sidebar is visually heavier than the page content.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>Linear's 2024 refresh made the sidebar "a few notches dimmer, allowing the main content area to take precedence" and softened borders ("structure should be felt, not seen"). Radix's 12-step scale reserves steps 4–5 for hover/selected surfaces and step 11–12 for text — a tinted row, not a solid accent. NN/g still requires the current location to be "distractingly obvious" to the designer — so keep the contrast, move it from fill to text weight + tint + a 2 px left bar. <a href="https://linear.app/now/behind-the-latest-design-refresh">Linear</a> · <a href="https://www.radix-ui.com/colors/docs/palette-composition/understanding-the-scale">Radix</a> · <a href="https://www.nngroup.com/articles/navigation-you-are-here/">NN/g</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>Active: <code>bg-sidebar-accent text-sidebar-accent-foreground font-medium</code> + <code>before:</code> 2 px accent bar; hover one step lighter.</li><li>Remove the rail shadow; use the 1 px <code>sidebar-border</code> only. Sidebar background one step below the page.</li><li>Group labels ≥ 11.5 px, sentence case or small caps, muted.</li><li>Icons 16–18 px stroke, muted by default, accent only on active.</li></ul></div>
+          <div class="cell"><span class="lbl">Why it feels smoother</span>The eye lands on the work area first; the rail becomes a stable frame. The same trick makes the dossier tab strip and page header read as one system.</div>
+        </div>
+        <div class="files">Files: <code>components/layout/sidebar.tsx:143</code> <code>components/ui/sidebar.tsx:502</code> <code>globals.css</code> (sidebar tokens)</div>
+      </div>
+
+      <div class="finding">
+        <div class="top"><h3>Company management lives inside the navigation</h3><span class="chip warn">Impact · medium</span><span class="chip neutral">Effort · small</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>"Compagnies" is a collapsible with every company as a sub-link, an inline "Ajouter" input, and a hover-revealed delete ✕ that opens a destructive confirm — all inside the nav. Sub-item active state checks <code>pathname.includes('selected=')</code>, but <code>usePathname()</code> never contains the query string, so no sub-item ever highlights.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>Apple HIG: sidebars show at most two levels and are for navigation, not editing. Vercel's Geist guideline caps a menu around 10 items and moves secondary actions to a settings page. NN/g: destructive actions need distance from routine ones.<br><a href="https://developer.apple.com/design/human-interface-guidelines/sidebars">HIG</a> · <a href="https://vercel.com/geist/menu">Geist</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>Make "Compagnies" a plain link. Create/delete happen on <code>/compagnies</code>, where they already exist.</li><li>If per-company shortcuts are valuable, expose them as <strong>favourites</strong> (pinnable) rather than the full list — and read <code>useSearchParams()</code> for the active check.</li></ul></div>
+          <div class="cell"><span class="lbl">Bonus</span>Removes ~120 lines and an <code>AlertDialog</code> from the sidebar, and two Firestore hooks from every page render.</div>
+        </div>
+        <div class="files">Files: <code>components/layout/sidebar.tsx:150–236</code></div>
+      </div>
+
+      <div class="finding">
+        <div class="top"><h3>Labels are long, groups are vague, one group holds a single utility</h3><span class="chip warn">Impact · medium</span><span class="chip neutral">Effort · small</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>"Assignations Agent de Terrain" wraps at the 16 rem rail; "Gestion des dossiers" vs page H1 "Dossiers"; group "ESPACE" carries no information scent; "DIVERS" exists for "Signaler un bug" alone. No recents or favourites for users who open 5–20 dossiers a day.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>NN/g: labels must be "information-scent-heavy"; hidden or vague labels cut discoverability by 20 %+. Atlassian's research produced Starred + Recent sections because users asked for frequent-item discovery; Stripe added a "Shortcuts" section of pinned + recent pages; Notion folded Recents/Favorites into the sidebar. Linear puts "Help &amp; feedback" at the very bottom, outside the nav groups.<br><a href="https://www.nngroup.com/articles/find-navigation-desktop-not-hamburger/">NN/g</a> · <a href="https://www.atlassian.com/blog/design/designing-atlassians-new-navigation">Atlassian</a> · <a href="https://support.stripe.com/questions/dashboard-update-may-2024">Stripe</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>Groups: <em>Opérations</em> (Tableau de bord, Suivi d'équipe, Dossiers, Rappels, Consultation, Compagnies) · <em>Assignations</em> (Chiffrage, Terrain) · <em>Administration</em> (Utilisateurs, Tampons, Jours fériés).</li><li>Labels ≤ 2 words; the group already says "Assignations".</li><li>Add a <em>Récents</em> group (last 5 dossiers, from the existing tab store) — this is the single biggest speed-up for gestionnaires.</li><li>"Signaler un bug" moves into a footer help menu with the shortcut sheet.</li></ul></div>
+          <div class="cell"><span class="lbl">Note</span>Role gating, grant/deny overrides and <code>landingPathFor</code> keep working unchanged — only <code>label</code> strings and group membership move.</div>
+        </div>
+        <div class="files">Files: <code>lib/nav-groups.ts</code> <code>lib/role-landing.ts</code></div>
+      </div>
+    </section>
+
+    <!-- 2 HEADER -->
+    <section id="header">
+      <div class="section-head"><span class="num">02</span><h2>Header &amp; page header</h2></div>
+
+      <div class="finding">
+        <div class="top"><h3>The top bar is 56 px of breadcrumb and nothing else</h3><span class="chip crit">Impact · high</span><span class="chip neutral">Effort · small</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span><code>header.tsx</code> renders a sidebar trigger (mobile) and the breadcrumb. <code>global-search.tsx</code> (cmdk, ⌘K, an AI "suggestion" box) and <code>layout/notifications.tsx</code> (bell + dropdown) exist but are imported nowhere. There is no create button, no user menu; theme and logout live in the sidebar footer.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>Atlassian: the top bar is "consistently dedicated to universal actions like search and create". NN/g on complex apps praises Power BI for a "+" that is "always positioned in the upper-right corner with uniform visual design across all workspaces". Attio and Slack put profile/settings/sign-out in one control, not spread across the rail.<br><a href="https://www.atlassian.com/blog/design/designing-atlassians-new-navigation">Atlassian</a> · <a href="https://www.nngroup.com/articles/usability-heuristics-complex-applications/">NN/g</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span>Right cluster, in this order: <strong>Search</strong> (button showing ⌘K) · <strong>+ Nouveau</strong> (role-aware: dossier / mission / rappel) · <strong>Rappels bell</strong> with unread count (wire the existing component to <code>useRappels</code>) · <strong>Avatar menu</strong> (nom + rôle, Mode sombre, Langue, Mon appareil, Déconnexion).</div>
+          <div class="cell"><span class="lbl">Result</span>Sidebar footer shrinks to the collapse toggle and help; every page gains a constant "create" and "find" spot, which is the definition of consistency (NN/g H4).</div>
+        </div>
+        <div class="files">Files: <code>components/layout/header.tsx</code> <code>components/global-search.tsx</code> <code>components/layout/notifications.tsx</code> <code>components/layout/sidebar.tsx:245–283</code></div>
+      </div>
+
+      <div class="finding">
+        <div class="top"><h3>Every page invents its own header</h3><span class="chip crit">Impact · high</span><span class="chip neutral">Effort · small–medium</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>H1 sizes across the 19 pages: <code>text-4xl</code> (Compagnies), <code>text-3xl</code> (Dossiers, Consultation, Tampons, Utilisateurs), <code>text-2xl</code> (Assignations, Jours fériés, Monitoring, Bug), <code>text-xl</code> (Rappels, Chiffrage), <code>text-lg</code> (Dossier), <code>text-base</code> (Missions mobile). Weights alternate bold/semibold. The primary action sits under the filters on Dossiers, is absent on Terrain, and inline on others. No page sets <code>document.title</code>.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>Atlassian Page header: title (+ breadcrumbs) with actions right-aligned on the title line and filters below, left-aligned. NN/g "You are here": page title, nav highlight and breadcrumb are the three location cues and must agree. Carbon productive type: heading-04 28/36 for page titles, heading-03 20/28 for sections.<br><a href="https://atlassian.design/components/page-header/usage">Atlassian</a> · <a href="https://www.nngroup.com/articles/navigation-you-are-here/">NN/g</a> · <a href="https://v10.carbondesignsystem.com/guidelines/typography/productive">Carbon</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span>One <code>&lt;PageHeader title subtitle count actions tabs filters /&gt;</code>: title 24–28 px / 600, count as a muted pill, actions slot right (one filled primary max), optional tabs row, optional filter row. Sets <code>document.title = "Titre · SL-auto"</code> and moves focus to the H1 on route change.</div>
+          <div class="cell"><span class="lbl">Adoption</span>Mechanical: replace the top <code>&lt;div&gt;</code> of each page. The dossier detail page uses a variant (record bar, §6).</div>
+        </div>
+        <div class="files">Files: all <code>src/app/(app)/**/page.tsx</code> · new <code>components/layout/page-header.tsx</code></div>
+      </div>
+    </section>
+
+    <!-- 3 PALETTE -->
+    <section id="palette">
+      <div class="section-head"><span class="num">03</span><h2>Command palette &amp; keyboard</h2></div>
+      <p>For a team that opens the same kind of record dozens of times a day, keyboard access is the single most effective "smoothness" feature. The infrastructure (cmdk, ⌘K listener) is already in the repo; it just searches the wrong thing.</p>
+
+      <div class="finding">
+        <div class="top"><h3>⌘K should navigate, not suggest</h3><span class="chip crit">Impact · high</span><span class="chip neutral">Effort · medium</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>The palette calls <code>getAiSuggestion()</code> after a 500 ms debounce and shows one sentence; selecting it closes the dialog. Empty state says "Start typing to search." (English). It is not mounted anyway.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>Vercel Geist: the command menu holds resources (jump to a record), actions and navigation; shows recents when empty; nests into pages beyond ~30 items; shows each item's shortcut in a <code>Kbd</code> slot; traps and restores focus. Raycast made fuzzy matching its most-requested feature and ranks by frecency. Linear: "⌘K does anything by name".<br><a href="https://vercel.com/geist/command-menu">Geist</a> · <a href="https://www.raycast.com/changelog/macos/1-40-0">Raycast</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>Groups: <em>Récents</em> (open tabs + last visited) · <em>Dossiers</em> (prefix query on <code>refExpert</code>, <code>matricule</code> via <code>normalizePlate</code>, assuré name) · <em>Aller à</em> (every visible nav item) · <em>Actions</em> (Nouveau dossier, Nouvelle planification, Envoyer un rappel, Mode sombre).</li><li>Show ↵ to open, <kbd>⌘</kbd><kbd>↵</kbd> to open in a new workspace tab.</li><li>Keep the AI answer as an optional last row ("Demander à l'assistant…"), not the default result.</li></ul></div>
+          <div class="cell"><span class="lbl">Data note</span>Firestore prefix queries need <code>&gt;=</code>/<code>&lt;=</code> on an indexed field; a small client-side index of the user's scoped dossiers (already loaded on the list page) covers most searches instantly.</div>
+        </div>
+        <div class="files">Files: <code>components/global-search.tsx</code> <code>lib/plate-match.ts</code> <code>hooks/use-dossier-tabs.ts</code></div>
+      </div>
+
+      <div class="finding">
+        <div class="top"><h3>Chords, a shortcut sheet, and shortcuts shown where actions live</h3><span class="chip warn">Impact · medium</span><span class="chip neutral">Effort · small</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>Only two shortcuts exist (<kbd>⌘</kbd><kbd>B</kbd> sidebar, <kbd>⌘</kbd><kbd>K</kbd> unmounted) and neither is advertised anywhere.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>GitHub, Linear and Gmail all use single-key <kbd>g</kbd>-chords because they "are the same on Mac and Windows" and are easier to memorise than modifier combos; <kbd>?</kbd> opens a searchable help sheet. NN/g heuristic 7: accelerators must be discoverable "through repeated exposure" — show the shortcut in the tooltip or menu of the command it triggers.<br><a href="https://linear.app/changelog/2021-03-25-keyboard-shortcuts-help">Linear</a> · <a href="https://docs.github.com/en/get-started/accessibility/keyboard-shortcuts">GitHub</a> · <a href="https://www.nngroup.com/articles/flexibility-efficiency-heuristic/">NN/g</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span>
+            <div class="kbdrow"><span><kbd>g</kbd> <kbd>d</kbd> Dossiers</span><span><kbd>g</kbd> <kbd>r</kbd> Rappels</span><span><kbd>g</kbd> <kbd>t</kbd> Tableau de bord</span><span><kbd>g</kbd> <kbd>c</kbd> Chiffrage</span><span><kbd>c</kbd> Nouveau dossier</span><span><kbd>/</kbd> focus search</span><span><kbd>?</kbd> aide</span><span><kbd>⌘</kbd><kbd>1–9</kbd> tab n</span><span><kbd>⌘</kbd><kbd>W</kbd> close tab</span><span><kbd>j</kbd>/<kbd>k</kbd> rows</span><span><kbd>↵</kbd> open row</span></div>
+            <p style="margin-top:8px">One <code>useHotkeys</code> registry; skip when focus is in an input; render <code>&lt;kbd&gt;</code> hints inside tooltips and the palette.</p>
+          </div>
+          <div class="cell"><span class="lbl">Accessibility bundle</span>Add a skip-to-content link, move focus to the page H1 on navigation and announce "Navigué vers …" in an <code>aria-live</code> region (the Gatsby/Fable study with assistive-tech users found heading focus the clearest cue).<br><a href="https://www.gatsbyjs.com/blog/2019-07-11-user-testing-accessible-client-routing/">Gatsby × Fable</a></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 TABS -->
+    <section id="tabs">
+      <div class="section-head"><span class="num">04</span><h2>Workspace tabs</h2></div>
+      <p>The browser-style tab strip is a genuinely good fit for a claims desk (Zendesk, Freshdesk and every IDE use it). It currently behaves like a prototype of the pattern rather than the pattern.</p>
+
+      <div class="finding">
+        <div class="top"><h3>Two copies, a lonely tab, and no tab semantics</h3><span class="chip warn">Impact · medium</span><span class="chip neutral">Effort · small–medium</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span><code>dossier-tabs-bar.tsx</code> and <code>chiffrage-tabs-bar.tsx</code> are the same 90 lines twice. The strip renders even when only the permanent list tab exists (a 40 px band with one tab — visible in the Dossiers screenshot). Tabs have no unsaved-changes dot, no overflow menu (only native horizontal scroll), no <kbd>⌘</kbd><kbd>W</kbd>/<kbd>⌘</kbd><kbd>Tab</kbd>, no middle-click, no reorder. Tab label is the insured's name while breadcrumb/H1 use the ref — two identities for one record. The strip disappears when you leave <code>/dossiers</code>, so open work vanishes from view.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>Zendesk ticket tabs: overflow menu when tabs exceed width, drag reorder, per-tab colour dot with <em>blue = unsaved changes</em>, tab shows requester + ID. WinUI TabView (the most complete published spec): always one active tab, closing the active tab selects its neighbour, <kbd>Ctrl</kbd><kbd>Tab</kbd> cycles, <kbd>Ctrl</kbd><kbd>W</kbd> closes, <kbd>Ctrl</kbd><kbd>1–8</kbd> jumps, keep a "reopen closed" history. VS Code's preview tabs (italic, reused until edited) prevent tab explosion.<br><a href="https://support.zendesk.com/hc/en-us/articles/4408844108826-Using-ticket-tabs-to-manage-conversations">Zendesk</a> · <a href="https://learn.microsoft.com/en-us/windows/apps/design/controls/tab-view">WinUI</a> · <a href="https://code.visualstudio.com/docs/getstarted/userinterface">VS Code</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>One generic <code>&lt;WorkspaceTabs kind="dossier"|"chiffrage"&gt;</code> over a shared store.</li><li>Hide the strip until a second tab exists; keep it mounted across all routes (dim when not on the section).</li><li>Label = <code>REF · Assuré</code>, matching breadcrumb and H1; tooltip shows compagnie + plaque.</li><li>Unsaved dot from the rappel draft buffer / form dirty state; confirm on close when dirty.</li><li>Overflow "▾ n autres" menu, middle-click close, <kbd>⌘</kbd><kbd>W</kbd>, <kbd>⌘</kbd><kbd>1–9</kbd>, reopen-closed; optional pin.</li><li>Row single-click = preview tab (replaced by the next preview); double-click or edit = pinned tab.</li></ul></div>
+          <div class="cell"><span class="lbl">Feel</span>Users stop losing track of what is open, the tab strip stops stealing 40 px on every list page, and the "which dossier is this?" mismatch disappears.</div>
+        </div>
+        <div class="files">Files: <code>components/layout/dossier-tabs-bar.tsx</code> <code>components/layout/chiffrage-tabs-bar.tsx</code> <code>hooks/use-dossier-tabs.ts</code> <code>app/(app)/layout.tsx:55–58</code></div>
+      </div>
+    </section>
+
+    <!-- 5 WAYFINDING -->
+    <section id="wayfinding">
+      <div class="section-head"><span class="num">05</span><h2>Wayfinding &amp; labels</h2></div>
+
+      <div class="finding">
+        <div class="top"><h3>The breadcrumb hides the one thing users need: which record</h3><span class="chip warn">Impact · medium</span><span class="chip neutral">Effort · small</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>ID-like segments are filtered out, so a dossier page reads "SL-auto › Gestion des dossiers" with no record crumb. The root crumb duplicates the sidebar's home link. Labels are a second, hand-maintained map (<code>ROUTE_LABELS</code>) that already drifts from <code>NAV_GROUPS</code>. The breadcrumb is hidden below <code>md</code>, leaving the mobile header empty.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>NN/g's breadcrumb guidelines: show hierarchy (not history), include the current page as a distinct last item, every crumb links to a real page; skip breadcrumbs on hierarchies only 1–2 levels deep; on mobile use a single "up one level" crumb with ≥ 1 cm targets. Baymard: pair hierarchy crumbs with a "back to list" affordance that preserves filters.<br><a href="https://www.nngroup.com/articles/breadcrumbs/">NN/g</a> · <a href="https://baymard.com/blog/ecommerce-breadcrumbs">Baymard</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>Derive crumbs from <code>NAV_GROUPS</code> + a per-route <code>resolveCrumb(id)</code> so the last crumb is "SL-2026-0106 · Roy".</li><li>Drop the app-name root; the sidebar is the home link. Top-level pages need no breadcrumb at all (the H1 is the location).</li><li>Mobile: "‹ Dossiers" up-one-level crumb in the header.</li></ul></div>
+          <div class="cell"><span class="lbl">Same source, five surfaces</span>Sidebar label, breadcrumb, PageHeader title, workspace tab, <code>document.title</code>. One string, defined once.</div>
+        </div>
+        <div class="files">Files: <code>components/breadcrumb.tsx</code> <code>lib/nav-groups.ts</code></div>
+      </div>
+    </section>
+
+    <!-- 6 RECORD -->
+    <section id="record">
+      <div class="section-head"><span class="num">06</span><h2>The dossier page</h2></div>
+      <p>This is where gestionnaires spend their day, so it deserves the most care. The long-scroll-with-stepper structure is the right call — NN/g prefers one scrollable page over tabs when users need most sections in a session. What needs work is the chrome above it and the meaning of the stepper.</p>
+
+      <div class="wires">
+        <div class="wire">
+          <div class="cap"><b>Now</b><span>~150 px sticky + 56 px app header</span></div>
+          <div class="rec">
+            <div class="bar a"><span class="strong">Dossier : SL-2026-0106</span><span>Roy · Wawanesa · J21 PWE</span><span class="sp"></span><span class="pill">2ème accord</span></div>
+            <div class="bar b" style="background:var(--warn-bg);color:var(--warn-fg)">🔔 Vous traitez un rappel — modifications locales jusqu'à « Sauvegarder »</div>
+            <div class="bar b"><span class="btn">✉ Envoyer un email</span><span class="btn">⟲ Historique</span></div>
+            <div class="bar c"><span class="st on"><i>1</i>Création de mission</span><span class="st"><i>2</i>Planification avant</span><span class="st"><i>3</i>Accord</span><span class="st"><i>4</i>Planification en cours</span><span class="st"><i>5</i>2ème accord et +</span><span class="st"><i>6</i>Planif…</span></div>
+            <div class="cnt">
+              <div class="card"><div class="t">1 · Création de mission <span style="font-weight:400;color:var(--muted)">—</span></div><div class="inner"></div><div class="inner2"></div><div class="inner2"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="wire">
+          <div class="cap"><b>After</b><span>one record bar + stepper with status</span></div>
+          <div class="rec">
+            <div class="bar a" style="height:28px"><span class="strong">SL-2026-0106</span><span>Roy Jean-François</span><span>Wawanesa</span><span class="mono">J21 PWE</span><span class="sp"></span><span class="pill">2ème accord</span><span class="btn">Planifier</span><span class="btn">⋯</span></div>
+            <div class="bar c"><span class="st done"><i>✓</i>Mission</span><span class="st done"><i>✓</i>Visite avant</span><span class="st done"><i>✓</i>Accord</span><span class="st on"><i>4</i>Visite en cours</span><span class="st"><i>5</i>2ᵉ accord</span><span class="st block"><i>6</i>Visite après</span><span class="st block"><i>7</i>Rapport</span></div>
+            <div class="cnt split">
+              <div class="card"><div class="t">Visite en cours <span style="font-weight:400;color:var(--muted);font-size:9px">· En cours · Y. Naji, 30/08</span></div><div class="inner2"></div><div class="inner2"></div><div class="inner2"></div></div>
+              <div class="side"><div class="card"><span class="strong">Observations</span><br>Dernière : pièces manquantes</div><div class="card"><span class="strong">Rappels</span><br>1 actif · 02/09</div><div class="card"><span class="strong">Historique</span><br>12 entrées ›</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="top"><h3>Three stacked sticky bars, one of them almost empty</h3><span class="chip crit">Impact · high</span><span class="chip neutral">Effort · small</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>Rappel banner (44 px, sticky) → action row (sticky, contains a <code>flex-1</code> spacer and two outline buttons) → step bar (sticky, ~56 px) — under the 56 px app header. The record header with ref, assuré, compagnie, plaque and status is <em>not</em> sticky, so the identity scrolls away while an empty bar stays.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>NN/g on sticky headers: keep them small and high-contrast, "maximise the content-to-chrome ratio". Salesforce pins a compact "highlights panel" of up to ~7 key fields plus actions while the user scrolls related lists. Attio shows up to 6 highlight attributes; Jira puts status and actions in the header and the rest in a right column.<br><a href="https://www.nngroup.com/articles/sticky-headers/">NN/g</a> · <a href="https://trailhead.salesforce.com/content/learn/modules/lex_customization/lex_customization_compact_layouts">Salesforce</a> · <a href="https://developer.atlassian.com/cloud/jira/platform/issue-view/">Jira</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>One sticky <strong>record bar</strong> (≈ 48 px): ref · assuré · compagnie · plaque (mono) · status badge · one primary action for the current step · "⋯" menu (Email, Historique, Exporter, Supprimer).</li><li>Stepper directly under it (≈ 40 px single row).</li><li>Rappel banner becomes a slim amber strip <em>inside</em> the record bar (icon + count + Sauvegarder) rather than a third row.</li><li>Above <code>xl</code>: optional right column (280 px) for Observations, Rappels, Historique summaries — the HubSpot/Jira "context" column — so those stop being modals and sheets.</li></ul></div>
+          <div class="cell"><span class="lbl">Gain</span>≈ 100 px of vertical space back on every dossier, and the record identity never leaves the screen.</div>
+        </div>
+        <div class="files">Files: <code>app/(app)/dossiers/[id]/page.tsx:283–361</code> <code>components/dossier-timeline/timeline-bar.tsx:25</code></div>
+      </div>
+
+      <div class="finding">
+        <div class="top"><h3>The stepper shows position, not progress</h3><span class="chip crit">Impact · high</span><span class="chip neutral">Effort · medium</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>"Past" = earlier in the array than the step you scrolled to, not "completed". Stamps come from keyword-matching the workflow log, and only steps 1, 4, 6, 7 have keywords — steps 9, 11, 10, 8 can never show who/when. Eight labels of 2–4 words in one row overflow at 1440 px (the screenshot clips step 7; step 8 is off-screen and undiscoverable). Numbers restart at 1 even though sections are ids 1/4/6/9/11/10/7/8.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>GOV.UK task-list (8 research rounds): each task shows Not started / In progress / Completed / Cannot start yet / Problem; completed is de-emphasised, actionable states are tagged, blocked steps aren't links, the whole row is the control, and users may complete tasks in any order. Carbon progress indicator: 1–2-word labels, helper-text slot under each step, interactive variant for jumping. NN/g: strict wizards are wrong for "users who perform tasks repeatedly or possess domain expertise" — allow skip-ahead and loop-back. USWDS in-page nav: IntersectionObserver, focus moves to the section heading on click.<br><a href="https://design-system.service.gov.uk/patterns/complete-multiple-tasks/">GOV.UK</a> · <a href="https://carbondesignsystem.com/components/progress-indicator/usage/">Carbon</a> · <a href="https://www.nngroup.com/articles/wizards/">NN/g</a> · <a href="https://designsystem.digital.gov/components/in-page-navigation/">USWDS</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>Compute a real status per step from dossier data (planifications by type, accord slots filled, rapport generated, note d'honoraire present): <em>À faire · En cours · Terminé · Bloqué</em>.</li><li>Render: ✓ muted for Terminé, filled accent for the active step, outline for À faire, grey non-link for Bloqué (with a tooltip saying why).</li><li>Helper text = stamp "Y. Naji · 30/08 14:12" taken from the same data, not from log keywords.</li><li>Labels: Mission · Visite avant · Accord · Visite en cours · 2ᵉ accord · Visite après · Rapport · Honoraires.</li><li>Below <code>xl</code>: the row scrolls with a fade edge and the active step auto-centres; above <code>2xl</code> consider a vertical rail on the left (Carbon vertical variant) which never clips.</li><li>Add "Tout déplier / Tout replier" (NN/g accordion guidance) and default critical sections open.</li></ul></div>
+          <div class="cell"><span class="lbl">Doubles as</span>the data source for Suivi d'équipe (on-time / overdue / not completed per step), which today computes the same thing separately.</div>
+        </div>
+        <div class="files">Files: <code>components/dossier-timeline/timeline.tsx:70–86, 259–268</code> <code>timeline-bar.tsx</code> <code>hooks/use-collapsed-steps</code></div>
+      </div>
+
+      <div class="finding">
+        <div class="top"><h3>Cards inside cards, and floating buttons with no anchor</h3><span class="chip warn">Impact · medium</span><span class="chip neutral">Effort · small</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>Step 1 renders a dashed drop-zone card, a "Pre-fill source document" card with an empty state, then a beige-band "FILE INFORMATION" block; "Compare" and "Edit" float right between blocks with nothing to align to. Every section repeats this rhythm, so a dossier is a tall column of boxes with similar weight.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>NN/g complex-app guidelines: "staged disclosure" and making the important information "visually salient"; Carbon: empty-state treatment should be basic for secondary content, educational only for the page's primary resource. Linear/Vercel: hierarchy from surface steps and hairlines, not nested containers.<br><a href="https://www.nngroup.com/articles/complex-application-design/">NN/g</a> · <a href="https://carbondesignsystem.com/patterns/empty-states-pattern/">Carbon</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>One surface level per section: the section is the card; blocks inside separate with hairlines or 24 px gaps, not borders.</li><li>Section header row = title · status chip · stamp · actions (Modifier, Comparer) right-aligned — every section identical.</li><li>Drop-zone becomes a compact one-line target once a document exists; the "no document yet" empty state collapses to a single sentence with a button.</li></ul></div>
+          <div class="cell"><span class="lbl">Scan test</span>A gestionnaire should be able to answer "what is blocking this dossier?" from the record bar + stepper alone, without reading a section.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 LISTS -->
+    <section id="lists">
+      <div class="section-head"><span class="num">07</span><h2>Lists &amp; tables</h2></div>
+
+      <div class="finding">
+        <div class="top"><h3>A full grid, wrapping identifiers and a red trash on every row</h3><span class="chip warn">Impact · medium</span><span class="chip neutral">Effort · small–medium</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>Every cell is bordered, headers sit on a beige band, "APR-2026-0101" wraps onto three lines, "Date" and "Actions" headers overlap, and each row ends with view / history / <span style="color:var(--crit-fg)">delete</span> icons. Rows are also clickable (<code>cursor-pointer</code>) with no visible affordance. There is no sticky header, no saved views, and the column chooser and bulk selection exist in state but aren't surfaced as a toolbar.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>NN/g data tables: the first column is the human-readable identifier; freeze the header when the table exceeds the screen; hover/zebra to hold the line; "don't crowd inline row actions — use a menu"; batch actions via checkboxes with a persistent action bar showing the count. Carbon rows: 32 / 40 / 48 px (compact / short / default). Adrian Roselli: whole-row links need a visible cue (chevron) for touch and screen-reader users. Linear saves any filter set as a named view; Airtable separates personal from shared views.<br><a href="https://www.nngroup.com/articles/data-tables/">NN/g</a> · <a href="https://carbondesignsystem.com/components/data-table/usage/">Carbon</a> · <a href="https://adrianroselli.com/2020/02/block-links-cards-clickable-regions-etc.html">Roselli</a> · <a href="https://linear.app/docs/custom-views">Linear</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>Row hairlines only; header in <code>surface-2</code> with muted 12 px uppercase labels; 44 px rows; <code>white-space: nowrap</code> + <code>min-width</code> per column; ref in mono with <code>tabular-nums</code>; truncate with title tooltip.</li><li>Row = link (open in tab), chevron at the row end; "⋯" menu holds Historique, Assigner, Exporter, <em>Supprimer</em> (last, separated, red).</li><li>Sticky header inside the scroll region; bulk bar slides in when rows are selected.</li><li>Filters as popover chips (Statut ▾ · Compagnie ▾ · Période ▾ · + Filtre) instead of a 9-control row; <strong>Vues</strong> menu saving the current filter set (persisted per user, shareable via URL search params).</li></ul></div>
+          <div class="cell"><span class="lbl">Later</span>A side-peek (intercepting route <code>@peek/(.)dossiers/[id]</code>) with <kbd>Space</kbd> / <kbd>↑</kbd><kbd>↓</kbd> — the Linear/Notion pattern — is worth prototyping once tabs are solid; it lets a gestionnaire triage a list without opening 20 tabs.</div>
+        </div>
+        <div class="files">Files: <code>app/(app)/dossiers/client-page.tsx:460–660, 1073</code> <code>components/ui/table.tsx</code> <code>hooks/use-persisted-filters</code></div>
+      </div>
+    </section>
+
+    <!-- 8 MOTION -->
+    <section id="motion">
+      <div class="section-head"><span class="num">08</span><h2>Feedback, loading &amp; motion</h2></div>
+
+      <div class="finding">
+        <div class="top"><h3>Instant-feeling navigation is mostly configuration</h3><span class="chip warn">Impact · medium</span><span class="chip neutral">Effort · small</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span><code>loading.tsx</code> exists on 4 of 19 routes; the rest fall to a full-screen <code>PageLoader</code> or nothing. <code>transition-all</code> on the sidebar inset and buttons; <code>html { scroll-behavior: smooth }</code> globally with no reduced-motion guard; dashboard cards stagger-fade with inline delays; no view transitions; no route-change focus management.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>Next.js prefetches dynamic routes only up to the nearest <code>loading.js</code> boundary, so a missing loading file means no instant shell. NN/g: &lt; 1 s no indicator; 2–10 s skeleton for route loads; frame-only skeletons are spinner-equivalent. Vercel WIG: animate only <code>transform</code>/<code>opacity</code>, never <code>transition: all</code>, honour <code>prefers-reduced-motion</code>. Next.js view-transition guide: exit 150 ms, enter 210 ms, disable under reduced motion. Material 3: 100–200 ms for controls, 250–300 ms for panels; enter decelerate, exit accelerate.<br><a href="https://nextjs.org/docs/app/guides/prefetching">Next.js</a> · <a href="https://www.nngroup.com/articles/skeleton-screens/">NN/g</a> · <a href="https://github.com/vercel-labs/web-interface-guidelines/blob/main/command.md">Vercel WIG</a> · <a href="https://nextjs.org/docs/app/guides/view-transitions">View Transitions</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>A <code>loading.tsx</code> per route mirroring its PageHeader + primary block (copy the Dossiers one).</li><li>Replace <code>transition-all</code> with explicit properties; sidebar collapse 200–250 ms decelerate.</li><li>Guard smooth scroll with <code>@media (prefers-reduced-motion: no-preference)</code>.</li><li>Optional: React <code>&lt;ViewTransition&gt;</code> cross-fade of the page body only (shell stays static) — 150/210 ms.</li><li>Toasts for passive confirmations only; errors inline with <code>role="alert"</code> (NN/g: toast is "inappropriate for error messages").</li></ul></div>
+          <div class="cell"><span class="lbl">Perception</span>With prefetch + skeletons that match the layout, navigation between list and dossier feels like a tab switch rather than a page load.</div>
+        </div>
+        <div class="files">Files: <code>app/(app)/**/loading.tsx</code> <code>app/(app)/layout.tsx:59</code> <code>globals.css:104</code></div>
+      </div>
+    </section>
+
+    <!-- 9 MOBILE -->
+    <section id="mobile">
+      <div class="section-head"><span class="num">09</span><h2>Mobile shell for field agents</h2></div>
+
+      <div class="finding">
+        <div class="top"><h3>A hamburger, an empty header and a floating help button</h3><span class="chip crit">Impact · high (for Agents de Terrain)</span><span class="chip neutral">Effort · medium</span></div>
+        <div class="grid">
+          <div class="cell"><span class="lbl">Observed</span>Below <code>md</code> the sidebar becomes a Sheet behind a hamburger; the header shows only that trigger. The missions page already has a good card list and Avant/En cours/Après tabs, but its filters, actions and the camera flow have no fixed home; a help FAB overlaps content bottom-right.</div>
+          <div class="cell evidence"><span class="lbl">Evidence</span>NN/g (n = 179): hidden nav halves usage and adds 15 % task time on mobile. Material 3 navigation bar: 3–5 destinations, 24 dp icons, 56×32 dp active pill, labels always visible for ≤ 3 items; FAB = "the single most common action on a screen", bottom-end; bottom sheets for filters and choices; list items 56/72/88 dp. Apple HIG: 3–5 tabs, never a "More" tab. Hoober: ~75 % of touches are thumb-driven, so primary controls belong at the bottom.<br><a href="https://www.nngroup.com/articles/hamburger-menus/">NN/g</a> · <a href="https://github.com/material-components/material-components-android/blob/master/docs/components/BottomNavigation.md">M3</a> · <a href="https://developer.apple.com/design/human-interface-guidelines/tab-bars">HIG</a> · <a href="https://www.uxmatters.com/mt/archives/2013/02/how-do-users-really-hold-mobile-devices.php">Hoober</a></div>
+          <div class="cell"><span class="lbl">Recommendation</span><ul><li>Per-role bottom bar below <code>lg</code>: Agent de Terrain → <em>Missions · Scanner · Rappels · Profil</em>; Gestionnaire → <em>Dossiers · Rappels · Recherche · Profil</em>. Derived from <code>NAV_GROUPS</code> with a <code>mobileRank</code>.</li><li>Camera capture as the one FAB on the mission detail; help moves into Profil.</li><li>Filters and per-mission actions in modal bottom sheets; centred dialogs become bottom sheets below <code>lg</code>.</li><li>Content padding = bar height + <code>env(safe-area-inset-bottom)</code>; toasts offset above the bar.</li></ul></div>
+          <div class="cell"><span class="lbl">Already specified</span>The numbers and pitfalls are in <code>UI-MECHANICAL-UPGRADE-PROMPT.md</code> Phase 2 — this study just confirms the sources and adds the role-specific destination lists.</div>
+        </div>
+        <div class="files">Files: <code>components/ui/sidebar.tsx:171</code> <code>components/layout/header.tsx</code> <code>app/(app)/assignations-atg/page.tsx:754</code></div>
+      </div>
+    </section>
+
+    <!-- 10 AESTHETIC -->
+    <section id="aesthetic">
+      <div class="section-head"><span class="num">10</span><h2>Visual system — how "modern SaaS" is actually achieved</h2></div>
+      <p>The locked direction (warm cream + teal) is good and distinctive. What separates it from Linear, Stripe or Attio is not the palette but <em>budgeting</em>: how much accent, how much border, how much weight. These are token-level changes that every page inherits.</p>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th style="width:26%">Dimension</th><th style="width:34%">Today</th><th>Proven practice → change</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Accent budget</strong></td><td>Teal on every heading (<code>h1–h6 { color: heading-fg }</code>), active nav fill, links, ref column, badges, buttons, FAB.</td><td>Linear/Stripe: the accent appears on the primary button, active nav, focus ring and links — and almost nowhere else. Headings return to ink; ref column to ink + mono; teal earns attention again. <span class="ref">Linear DESIGN.md · Stripe DESIGN.md</span></td></tr>
+            <tr><td><strong>Neutral ladder</strong></td><td><code>background</code>, <code>card</code>, <code>muted</code>, <code>border</code>, plus an ad-hoc <code>heading-bg</code> beige band.</td><td>Radix 12-step semantics: surface-0/1/2 (page, card, hover), hairline (step 6), hairline-strong (step 7–8), text-muted (11), text (12). Retire the beige band; table headers and section headers use surface-2. <span class="ref">Radix scale</span></td></tr>
+            <tr><td><strong>Depth</strong></td><td>Sidebar <code>shadow-xl</code>, header shadow + blur, cards <code>shadow-sm → md</code> on hover, full-grid table borders.</td><td>Borders over shadows: 1 px hairlines and surface steps carry hierarchy; shadows only on popovers/dialogs (2–3 tiny stacked layers). "Structure should be felt not seen." <span class="ref">Linear · Vercel Geist</span></td></tr>
+            <tr><td><strong>Type pairing</strong></td><td>Outfit (a geometric display face) for everything, 10 px labels in the sidebar.</td><td>Keep Outfit for H1/H2 and KPI values; use a text face for UI (Inter, IBM Plex Sans or Source Sans 3) at 13–14 px with <code>tabular-nums</code> on figures; floor 12 px. Carbon productive: body 14/18–20, label 12/16, heading-03 20/28, heading-04 28/36. <span class="ref">Carbon · Stripe (tnum)</span></td></tr>
+            <tr><td><strong>Radius</strong></td><td><code>--radius: 8px</code>; md 6, sm 4. Nested elements sometimes share a radius.</td><td>Fine as a scale (Linear: 4/6/8/12/16/pill). Rule: inner radius = outer − padding; controls 6 px, cards 8–12 px, badges pill. <span class="ref">Linear</span></td></tr>
+            <tr><td><strong>Status colour</strong></td><td>Tinted badge pairs for statut (good); solid red pills ("Overdue"), green filled Sauvegarder, amber banners with hand-picked hexes.</td><td>Every semantic state is a token pair (<code>--status-x-bg</code>/<code>--status-x-fg</code>) at ≥ 4.5:1, light and dark. Solid fills only for the primary button. <span class="ref">Vercel error/warning soft+deep · Radix step 3 + 11</span></td></tr>
+            <tr><td><strong>Dark mode</strong></td><td>Full palette; <code>enableSystem=false</code>, default light; sidebar toggle.</td><td>Keep the palette; enable system preference; move the toggle into the user menu; desaturate the teal one notch on dark (already done at 172 50% 55 %). <span class="ref">Material dark theme</span></td></tr>
+            <tr><td><strong>Density</strong></td><td>Page padding 16/24/32 px; 1600 px max; tables at 14 px with wrapping.</td><td>Keep. Add a user-selectable row density (compact 36 / default 44) — Carbon and Slack both ship it and gestionnaires with 20 open dossiers will use compact.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout" style="margin-top:20px"><b>Why this reads as "modern":</b> Linear, Vercel, Attio and Stripe's dashboards all share the same recipe — one accent used sparingly, a neutral ladder instead of shadows, 13–14 px UI type with tabular figures, 6–8 px radii, and hairline structure. The cream-and-teal identity stays; only the budget changes.</div>
+    </section>
+
+    <!-- ROADMAP -->
+    <section id="roadmap">
+      <div class="section-head"><h2>Roadmap</h2></div>
+      <p>Ordered so that each phase is shippable on its own and the earlier ones make the later ones cheaper. Effort is relative to this codebase; "S" is a day or less, "M" a few days, "L" a week-plus.</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th style="width:9%">Phase</th><th>Change</th><th style="width:11%">Impact</th><th style="width:9%">Effort</th><th style="width:30%">Unlocks</th></tr></thead>
+          <tbody>
+            <tr><td class="n">1</td><td>Single label source in <code>nav-groups.ts</code> → sidebar, breadcrumb, H1, tab, <code>document.title</code></td><td><span class="chip crit">High</span></td><td class="n">S</td><td>Every later component reads the same names</td></tr>
+            <tr><td class="n">1</td><td><code>PageHeader</code> component applied to all pages; focus-to-H1 + skip link</td><td><span class="chip crit">High</span></td><td class="n">S–M</td><td>Consistent primary action; a11y baseline</td></tr>
+            <tr><td class="n">1</td><td>Header right cluster: search trigger, + Nouveau, rappels bell, user menu; slim sidebar footer</td><td><span class="chip crit">High</span></td><td class="n">S</td><td>Removes theme/logout from the rail</td></tr>
+            <tr><td class="n">1</td><td>Sidebar quieting: tinted active row, no shadow, 12 px group labels, Compagnies as plain link, Récents group</td><td><span class="chip warn">Medium</span></td><td class="n">S</td><td>Visual weight moves to content</td></tr>
+            <tr><td class="n">1</td><td><code>loading.tsx</code> on every route; drop <code>transition-all</code>; reduced-motion guard</td><td><span class="chip warn">Medium</span></td><td class="n">S</td><td>Instant-feeling navigation</td></tr>
+            <tr><td class="n">2</td><td>Workspace tabs: one component, hide-when-single, unsaved dot, overflow, ⌘W / ⌘1–9, preview tabs</td><td><span class="chip warn">Medium</span></td><td class="n">M</td><td>Multi-dossier work becomes reliable</td></tr>
+            <tr><td class="n">2</td><td>Dossier record bar (one sticky row) + right context column above <code>xl</code></td><td><span class="chip crit">High</span></td><td class="n">M</td><td>~100 px back; identity always visible</td></tr>
+            <tr><td class="n">2</td><td>Stepper with computed status, stamps from data, short labels, no clipping, expand/collapse all</td><td><span class="chip crit">High</span></td><td class="n">M</td><td>Also feeds Suivi d'équipe</td></tr>
+            <tr><td class="n">2</td><td>Tables: hairline rows, sticky header, nowrap + mono refs, row menu (delete out of the row), bulk bar, filter popovers, saved views</td><td><span class="chip warn">Medium</span></td><td class="n">M</td><td>List pages scale to 1 000+ dossiers</td></tr>
+            <tr><td class="n">3</td><td>⌘K navigation palette (records, pages, actions, recents) + <kbd>g</kbd>-chords + <kbd>?</kbd> sheet + shortcut hints in tooltips</td><td><span class="chip crit">High</span></td><td class="n">M</td><td>Power-user speed; replaces dead AI search</td></tr>
+            <tr><td class="n">3</td><td>Mobile shell: per-role bottom bar, camera FAB, bottom sheets, safe-area padding</td><td><span class="chip crit">High (AT)</span></td><td class="n">M–L</td><td>Field-agent flow without a hamburger</td></tr>
+            <tr><td class="n">3</td><td>Token pass: accent budget, neutral ladder, hairlines over shadows, text face + tnum, status pairs, system dark mode</td><td><span class="chip warn">Medium</span></td><td class="n">M</td><td>The "quiet SaaS" look, inherited everywhere</td></tr>
+            <tr><td class="n">4</td><td>Side-peek on lists (intercepting route, <kbd>Space</kbd>, <kbd>↑</kbd><kbd>↓</kbd>); Rappels as an inbox (j/k, unread, deep-link to <code>#step</code>)</td><td><span class="chip info">Explore</span></td><td class="n">L</td><td>Triage without opening tabs</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout"><b>Measure it:</b> before phase 1, log (a) time from list to dossier section edited, (b) number of clicks to reach a specific dossier from the dashboard, (c) how many dossiers a gestionnaire keeps open. Re-measure after phases 1–3; the palette and Récents group should cut (b) from 3–4 clicks to 1–2 keystrokes.</div>
+    </section>
+
+    <!-- SOURCES -->
+    <section id="sources">
+      <div class="section-head"><h2>Sources</h2></div>
+      <p style="margin-bottom:14px">Primary design-system and research sources used above. Brand token values for Linear, Vercel and Stripe come from reverse-engineered DESIGN.md distillations (VoltAgent) and are treated as observed practice, not official spec.</p>
+      <ol class="sources">
+        <li>NN/g — Hamburger menus and hidden navigation hurt UX metrics — <a href="https://www.nngroup.com/articles/hamburger-menus/">nngroup.com/articles/hamburger-menus</a></li>
+        <li>NN/g — Navigation: you are here — <a href="https://www.nngroup.com/articles/navigation-you-are-here/">nngroup.com/articles/navigation-you-are-here</a></li>
+        <li>NN/g — Breadcrumbs: 11 design guidelines — <a href="https://www.nngroup.com/articles/breadcrumbs/">nngroup.com/articles/breadcrumbs</a></li>
+        <li>NN/g — Sticky headers — <a href="https://www.nngroup.com/articles/sticky-headers/">nngroup.com/articles/sticky-headers</a></li>
+        <li>NN/g — Tabs, used right / Accordions on desktop — <a href="https://www.nngroup.com/articles/tabs-used-right/">tabs-used-right</a> · <a href="https://www.nngroup.com/articles/accordions-on-desktop/">accordions-on-desktop</a></li>
+        <li>NN/g — Data tables: four common tasks — <a href="https://www.nngroup.com/articles/data-tables/">nngroup.com/articles/data-tables</a></li>
+        <li>NN/g — Wizards / Complex application design / Usability heuristics for complex apps — <a href="https://www.nngroup.com/articles/wizards/">wizards</a> · <a href="https://www.nngroup.com/articles/complex-application-design/">complex-application-design</a> · <a href="https://www.nngroup.com/articles/usability-heuristics-complex-applications/">heuristics</a></li>
+        <li>NN/g — Flexibility &amp; efficiency of use (accelerators) — <a href="https://www.nngroup.com/articles/flexibility-efficiency-heuristic/">flexibility-efficiency-heuristic</a></li>
+        <li>NN/g — Skeleton screens / Response-time limits / Indicators, validations, notifications — <a href="https://www.nngroup.com/articles/skeleton-screens/">skeleton-screens</a> · <a href="https://www.nngroup.com/articles/response-times-3-important-limits/">response-times</a> · <a href="https://www.nngroup.com/articles/indicators-validations-notifications/">indicators-validations-notifications</a></li>
+        <li>Atlassian — Designing Atlassian's new navigation — <a href="https://www.atlassian.com/blog/design/designing-atlassians-new-navigation">atlassian.com/blog/design/…</a></li>
+        <li>Atlassian Design — Page header / Breadcrumbs / Progress tracker — <a href="https://atlassian.design/components/page-header/usage">page-header</a> · <a href="https://atlassian.design/components/breadcrumbs">breadcrumbs</a> · <a href="https://atlassian.design/components/progress-tracker/usage">progress-tracker</a></li>
+        <li>Jira Cloud — Issue view anatomy — <a href="https://developer.atlassian.com/cloud/jira/platform/issue-view/">developer.atlassian.com/cloud/jira/platform/issue-view</a></li>
+        <li>Linear — Behind the latest design refresh / How we redesigned the Linear UI / Keyboard shortcuts help / Custom views / Peek — <a href="https://linear.app/now/behind-the-latest-design-refresh">design refresh</a> · <a href="https://linear.app/now/how-we-redesigned-the-linear-ui">redesign</a> · <a href="https://linear.app/changelog/2021-03-25-keyboard-shortcuts-help">shortcuts</a> · <a href="https://linear.app/docs/custom-views">views</a> · <a href="https://linear.app/docs/peek">peek</a></li>
+        <li>Vercel Geist — Command menu / Menu — <a href="https://vercel.com/geist/command-menu">command-menu</a> · <a href="https://vercel.com/geist/menu">menu</a>; Vercel Web Interface Guidelines — <a href="https://github.com/vercel-labs/web-interface-guidelines/blob/main/command.md">github.com/vercel-labs/web-interface-guidelines</a></li>
+        <li>Raycast — Fuzzy search &amp; aliases — <a href="https://www.raycast.com/changelog/macos/1-40-0">changelog 1.40</a> · <a href="https://manual.raycast.com/search-bar">manual</a></li>
+        <li>GitHub — Keyboard shortcuts — <a href="https://docs.github.com/en/get-started/accessibility/keyboard-shortcuts">docs.github.com</a></li>
+        <li>Stripe — Dashboard update May 2024 (sidebar shortcuts) — <a href="https://support.stripe.com/questions/dashboard-update-may-2024">support.stripe.com</a></li>
+        <li>Salesforce — Compact layouts &amp; highlights panel / Lightning Path — <a href="https://trailhead.salesforce.com/content/learn/modules/lex_customization/lex_customization_compact_layouts">Trailhead</a> · <a href="https://developer.salesforce.com/docs/component-library/bundle/lightning:path">lightning:path</a></li>
+        <li>HubSpot — Work with records — <a href="https://knowledge.hubspot.com/records/work-with-records">knowledge.hubspot.com</a></li>
+        <li>Attio — Configure record pages / Navigating Attio — <a href="https://attio.com/help/reference/managing-your-data/records/configure-record-pages">record pages</a> · <a href="https://attio.com/help/reference/attio-101/introduction-to-navigating-attio">navigating</a></li>
+        <li>Zendesk — Using ticket tabs — <a href="https://support.zendesk.com/hc/en-us/articles/4408844108826-Using-ticket-tabs-to-manage-conversations">support.zendesk.com</a></li>
+        <li>Microsoft WinUI — TabView guidance — <a href="https://learn.microsoft.com/en-us/windows/apps/design/controls/tab-view">learn.microsoft.com</a></li>
+        <li>GOV.UK Design System — Complete multiple tasks (task list) — <a href="https://design-system.service.gov.uk/patterns/complete-multiple-tasks/">design-system.service.gov.uk</a></li>
+        <li>Carbon — Progress indicator / Data table / Productive typography / Empty states / Notification — <a href="https://carbondesignsystem.com/components/progress-indicator/usage/">progress-indicator</a> · <a href="https://carbondesignsystem.com/components/data-table/usage/">data-table</a> · <a href="https://v10.carbondesignsystem.com/guidelines/typography/productive">typography</a> · <a href="https://carbondesignsystem.com/patterns/empty-states-pattern/">empty-states</a></li>
+        <li>USWDS — In-page navigation — <a href="https://designsystem.digital.gov/components/in-page-navigation/">designsystem.digital.gov</a></li>
+        <li>Material 3 — Navigation bar / Navigation rail / FAB / Bottom sheets / Motion tokens — <a href="https://github.com/material-components/material-components-android/blob/master/docs/components/BottomNavigation.md">navigation bar</a> · <a href="https://github.com/material-components/material-components-android/blob/master/docs/components/NavigationRail.md">rail</a> · <a href="https://m3.material.io/components/floating-action-button/guidelines">FAB</a> · <a href="https://m3.material.io/styles/motion/easing-and-duration/tokens-specs">motion</a></li>
+        <li>Apple HIG — Sidebars / Tab bars — <a href="https://developer.apple.com/design/human-interface-guidelines/sidebars">sidebars</a> · <a href="https://developer.apple.com/design/human-interface-guidelines/tab-bars">tab-bars</a></li>
+        <li>Radix — Understanding the 12-step scale — <a href="https://www.radix-ui.com/colors/docs/palette-composition/understanding-the-scale">radix-ui.com/colors</a></li>
+        <li>Next.js — Prefetching / View transitions / Intercepting routes — <a href="https://nextjs.org/docs/app/guides/prefetching">prefetching</a> · <a href="https://nextjs.org/docs/app/guides/view-transitions">view-transitions</a> · <a href="https://nextjs.org/docs/app/api-reference/file-conventions/intercepting-routes">intercepting-routes</a></li>
+        <li>Baymard — Applied filters / Breadcrumbs — <a href="https://baymard.com/blog/how-to-design-applied-filters">applied filters</a> · <a href="https://baymard.com/blog/ecommerce-breadcrumbs">breadcrumbs</a></li>
+        <li>Gatsby × Fable Tech Labs — Accessible client-side routing user test — <a href="https://www.gatsbyjs.com/blog/2019-07-11-user-testing-accessible-client-routing/">gatsbyjs.com/blog</a></li>
+        <li>Adrian Roselli — Block links, cards, clickable regions — <a href="https://adrianroselli.com/2020/02/block-links-cards-clickable-regions-etc.html">adrianroselli.com</a></li>
+        <li>Steven Hoober — How do users really hold mobile devices — <a href="https://www.uxmatters.com/mt/archives/2013/02/how-do-users-really-hold-mobile-devices.php">uxmatters.com</a></li>
+        <li>shadcn/ui — Sidebar — <a href="https://ui.shadcn.com/docs/components/sidebar">ui.shadcn.com/docs/components/sidebar</a></li>
+        <li>VoltAgent — awesome-design-md (Linear, Vercel, Stripe distillations) — <a href="https://github.com/VoltAgent/awesome-design-md">github.com/VoltAgent/awesome-design-md</a></li>
+      </ol>
+      <p class="foot">Audit basis: <code>SL-auto-main/SL-auto-main/src</code> (app layout, <code>components/layout/*</code>, <code>components/ui/sidebar.tsx</code>, <code>lib/nav-groups.ts</code>, <code>components/breadcrumb.tsx</code>, <code>components/global-search.tsx</code>, dossier detail page and timeline, dossiers client page, <code>globals.css</code>, <code>tailwind.config.ts</code>) and the six product screenshots in <code>public/site/shots</code>. The outer git checkout's shell files differ only by i18n/brand plumbing; every finding applies to both.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+    var map = {};
+    links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+    var sections = Array.prototype.slice.call(document.querySelectorAll('section[id]'));
+    if (!('IntersectionObserver' in window)) return;
+    var current = null;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          if (current) current.classList.remove('active');
+          current = map[e.target.id];
+          if (current) current.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-10% 0px -75% 0px', threshold: 0 });
+    sections.forEach(function (s) { io.observe(s); });
+  })();
+</script>

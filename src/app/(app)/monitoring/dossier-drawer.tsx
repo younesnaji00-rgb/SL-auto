@@ -17,19 +17,21 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { STEP_LABELS, type DossierForStep, type StepKey } from './funnel';
 
 // Map each funnel step to the dossier-timeline section it belongs in.
-// The dossier detail page renders `<section id="step-N">` (1..7), so a
-// hash navigation lands directly on the right step.
+// The dossier page renders `<section id="step-N">` with the ids of
+// `lib/dossier-steps.ts` (1 mission · 4 visite avant · 6 1er accord ·
+// 9 visite en cours · 11 2ème accord · 10 visite après · 7 rapport ·
+// 8 honoraires); `#step-N` lands on that section.
 const STEP_TO_TIMELINE: Record<StepKey, number> = {
-  creation: 3,        // Information
-  photosAvant: 5,     // Pièces jointes
-  accord1er: 6,       // Chiffrage
-  photosEnCours: 5,   // Pièces jointes
-  photosApres: 5,     // Pièces jointes
-  accord: 6,          // Chiffrage
-  facture: 7,         // Rapport (facturation lives here)
-  rapportValide: 7,   // Rapport
-  rapport: 7,         // Rapport
-  noteHonoraire: 7,   // Rapport (placeholder — no tracking yet)
+  creation: 1,
+  photosAvant: 4,
+  accord1er: 6,
+  photosEnCours: 9,
+  photosApres: 10,
+  accord: 11,
+  facture: 7,
+  rapportValide: 7,
+  rapport: 7,
+  noteHonoraire: 8,
 };
 
 export interface UserLookup {
@@ -136,12 +138,12 @@ export function DossierDrawer({
                 key={dossier.id}
                 type="button"
                 onClick={() => navigate(dossier.id)}
-                className="group flex w-full items-center justify-between gap-3 rounded-md border border-transparent p-3 text-left transition hover:border-border hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="group flex w-full items-center justify-between gap-3 rounded-md p-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{dossierIdentifier(dossier)}</div>
+                  <div className="truncate font-medium text-ink">{dossierIdentifier(dossier)}</div>
                   {!isNonRealise && (
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <div className="t-caption mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span>{t('par')} {resolveUserName(author, userLookup)}</span>
                       {doneAt && (
                         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -151,7 +153,7 @@ export function DossierDrawer({
                     </div>
                   )}
                 </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition group-hover:text-foreground" />
+                <ChevronRight className="h-4 w-4 shrink-0 text-ink-4 transition-colors group-hover:text-ink" />
               </button>
             ))
           )}

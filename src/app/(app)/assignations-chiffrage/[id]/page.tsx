@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, use } from 'react';
+import { PageHeader } from '@/components/layout/page-header';
+import React, { useCallback, useEffect, useState, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { useCollection, useFirestore } from '@/firebase';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Mail, Scale } from 'lucide-react';
+import { IconChip } from '@/components/ui/icon-chip';
+import { ChevronLeft, ChevronRight, FileText, Mail, Scale } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { buildDocFamilies } from '@/lib/doc-family';
@@ -16,8 +17,9 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOptions } from '@/hooks/use-options';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { getStatusBadgeStyles } from '@/lib/status-colors';
+import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { deriveStatus } from '@/lib/status-machine';
+import { assureName } from '@/lib/dossier-label';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 import { useChiffrageTabs } from '@/hooks/use-chiffrage-tabs';
 import { addObservation } from '@/app/(app)/dossiers/[id]/log-observation';
@@ -33,9 +35,18 @@ import {
   ALL_TYPES_KEY,
   type DocumentsFilterPanelDoc,
 } from '@/components/chiffreurs/documents-filter-panel';
-import { FamilyRow } from '@/components/dossier-timeline/family-row';
-import type { ExtraSlotKind, TypedDoc } from '@/components/dossier-timeline/slot-card';
+import { AccordPipeline } from '@/components/chiffrage/accord-pipeline';
+import type { TypedDoc } from '@/components/dossier-timeline/slot-card';
+import {
+  getQueueContext,
+  getTraitementState,
+  skipInTraitement,
+  stopTraitement,
+  type QueueContext,
+  type TraitementState,
+} from '@/lib/queue-session';
 import { apiFetch } from '@/lib/api-fetch';
+import Loading from './loading';
 import { useT } from '@/i18n';
 
 interface ChiffrageFileDoc {
@@ -54,6 +65,8 @@ interface ChiffrageDoc {
   dossierNom: string;
   assignedChiffreurNom: string;
   status: string;
+  /** Stamped by the devis-editor save flow — drives the B6 completion banner. */
+  completedAt?: unknown;
   files: ChiffrageFileDoc[];
 }
 
@@ -83,14 +96,48 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const [loading, setLoading] = useState(true);
   const [isReformeOpen, setReformeOpen] = useState(false);
   const [mailDialogOpen, setMailDialogOpen] = useState(false);
-  // Lightbox preview state for slot-card document clicks (chiffreur expects a
-  // preview, not direct routing to the editor — they enter the editor via the
-  // floating "Éditer web" button on each family row).
+  // Lightbox preview state for slot-card / pièces-jointes clicks — the
+  // chiffreur enters the editor via the pipeline's Éditer socket (spec B3).
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nom: string } | null>(null);
 
   // Task #31 — DocumentsFilterPanel state (mirrors the dossier documents-tab).
   const [selectedType, setSelectedType] = useState<string>(ALL_TYPES_KEY);
   const [typeSearch, setTypeSearch] = useState('');
+
+  // Queue spine (spec B5/B6, lib/queue-session D1). sessionStorage is
+  // client-only: read in an effect so the first render matches SSR.
+  const [queueCtx, setQueueCtx] = useState<QueueContext | null>(null);
+  const [traitement, setTraitement] = useState<TraitementState | null>(null);
+  // « Rester » dismisses the completion banner (strip reverts to normal).
+  const [banniereRestee, setBanniereRestee] = useState(false);
+
+  useEffect(() => {
+    setQueueCtx(getQueueContext(id));
+    setTraitement(getTraitementState());
+    setBanniereRestee(false);
+  }, [id]);
+
+  // Prev/Suivant + Mode traitement all navigate the same way the queue page
+  // does: mint/refresh the workspace tab, then route.
+  const goToChiffrage = useCallback(
+    (targetId: string) => {
+      openTab(targetId);
+      router.push(`/assignations-chiffrage/${targetId}`);
+    },
+    [openTab, router],
+  );
+
+  const handleSkip = () => {
+    const next = queueCtx?.nextId ?? null;
+    skipInTraitement(id);
+    setTraitement(getTraitementState());
+    if (next) goToChiffrage(next);
+  };
+
+  const handleQuitTraitement = () => {
+    stopTraitement();
+    setTraitement(null);
+  };
 
   // Listen to chiffrage doc
   useEffect(() => {
@@ -123,8 +170,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   }, [db, chiffrage?.dossierId]);
 
   // Task #29 — Subscribe to the parent dossier's `documents` subcollection so we can
-  // surface cardinal-accord + proposition-accord docTypes as their own groups (with
-  // their own deep-link to the editor) alongside the always-present editable slots.
+  // surface cardinal-accord + proposition-accord docTypes as their own pipeline
+  // stages (with their own deep-link to the editor) alongside the always-present slots.
   const dossierDocsQuery = useMemo(() => {
     if (!db || !chiffrage?.dossierId) return null;
     return collection(db, 'dossiers', chiffrage.dossierId, 'documents');
@@ -184,10 +231,9 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     [sortedDocs, photoDocs],
   );
 
-  // Group live docs into Devis / Facture families so we can render one
-  // horizontal row per parent garage, matching the gestionnaire's step-4
-  // layout. Each row gets a sticky "Éditer web" button that opens the
-  // devis-editor for that family's source garage.
+  // Group live docs into Devis / Facture families for the accord pipeline
+  // (spec B1): one aligned row band per parent garage, versions as shared
+  // columns. Same buildDocFamilies grouping the FamilyRow strips used.
   const families = useMemo(
     () => buildDocFamilies((dossierDocs as TypedDoc[]) || []),
     [dossierDocs],
@@ -212,24 +258,18 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     return map;
   }, [dossierDocs, families]);
 
-  const devisFamilies = useMemo(
-    () => families.filter((f) => f.sourceDocType === 'Devis Garage'),
-    [families],
-  );
-  const factureFamilies = useMemo(
-    () => families.filter((f) => f.sourceDocType === 'Facture Garage'),
+  const orderedFamilies = useMemo(
+    () => [
+      ...families.filter((f) => f.sourceDocType === 'Devis Garage'),
+      ...families.filter((f) => f.sourceDocType === 'Facture Garage'),
+    ],
     [families],
   );
 
-  // Task #31 — Route the panel's "open" action. Editable types (and cardinal /
-  // proposition-accord variants of those) deep-link into the DevisEditor using
-  // the same `chiffrageId` + `docType` + optional `accordSlot` query params task
-  // #29 introduced on the old per-docType group "Editer (web)" button. All other
-  // types fall back to opening the raw file URL in a new tab (matches the old
-  // `<a href>` behaviour on non-editable rows).
-  // Eye-icon in the pièces jointes panel: preview the file in the in-app
-  // lightbox instead of opening a new tab. The structured editor stays
-  // reachable from the per-slot Éditer buttons (handleEditSlot below).
+  // Task #31 — Route the panel's "open" action. Eye-icon in the pièces
+  // jointes panel: preview the file in the in-app lightbox instead of opening
+  // a new tab. The structured editor stays reachable from the pipeline's
+  // Éditer socket (handleEditSlot below).
   const handleOpenDocument = (docEntry: DocumentsFilterPanelDoc) => {
     if (docEntry.url && !docEntry.pendingUpload) {
       setPreviewDoc({ url: docEntry.url, nom: docEntry.nom || docEntry.fileName || 'document' });
@@ -242,10 +282,10 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     }
   };
 
-  // Round 9 item 004 — per-slot Éditer button. Opens the structured devis
-  // editor scoped to the specific accord/proposition slot via `accordSlot`.
-  // Derives the family parent from the slot via parseAccordDocType so we
-  // route to the right doc type ("Devis Garage" / "Facture Garage" / etc.).
+  // Spec B3 — pipeline Éditer socket. Opens the structured devis editor
+  // scoped to the target accord/proposition slot via `accordSlot`; the
+  // 1er-accord slot doubles as the SOURCE editing entry (devis-editor treats
+  // ordinal-1 accords as the primary session — no cardinal-revision seeding).
   const handleEditSlot = (parent: string, slot: string) => {
     const params = new URLSearchParams({
       chiffrageId: id,
@@ -255,23 +295,13 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     router.push(`/devis-editor?${params.toString()}`);
   };
 
-  // Slot-card click handler: open a preview lightbox. The chiffreur enters the
-  // editor explicitly via the floating "Éditer web" button on each family row —
-  // clicking the doc thumbnail should preview the file, not jump into editing.
-  const handleFamilyDocPreview = (d: TypedDoc) => {
+  // Slot-card click handler: open a preview lightbox (« Consulter » path —
+  // clicking a doc thumbnail previews the file, never jumps into editing).
+  const handleFamilyDocPreview = (d: TypedDoc, _pages?: TypedDoc[]) => {
     if (d.url && !d.pendingUpload) {
       setPreviewDoc({ url: d.url, nom: d.nom || d.fileName || 'document' });
     }
   };
-
-  // No-op handlers for the chiffreur-side slot card: uploads and slot
-  // management belong to the gestionnaire flow.
-  const chiffreurNoOpUpload = () => {};
-  const chiffreurNoOpDelete = () => {};
-  const chiffreurNoOpCreateNextCardinal = () => {};
-  const chiffreurNoOpCreateExtraSlot = (_kind: ExtraSlotKind, _files: File[]) => {};
-  const chiffreurNoOpRename = () => {};
-  const chiffreurNeverDelete = () => false;
 
   // Task #31 — Import is intentionally not wired to a picker here: the chiffreur
   // does not upload documents from this screen. Passing a no-op (rather than
@@ -393,129 +423,185 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   };
 
   if (loading || !chiffrage) {
-    return (
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-lg animate-pulse bg-muted" />
-          <div className="space-y-2 flex-1">
-            <div className="h-6 w-48 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-64 animate-pulse rounded bg-muted" />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="border rounded-xl p-4 flex gap-4 items-start bg-card">
-              <div className="w-24 h-24 rounded-lg animate-pulse bg-muted shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-                <div className="h-3 w-full animate-pulse rounded bg-muted" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    // Loading (element-specs §15): the route skeleton mirrors this exact layout.
+    return <Loading />;
   }
 
+  const showMailPrimary = canSendMail && !!chiffrage.dossierId;
+  const showReforme = canEdit && !!chiffrage.dossierId;
+  const assure = assureName(dossier?.assure);
+  const plate = dossier?.matricule || dossier?.vehicule?.immatriculation || '';
+  const chiffrageDone = chiffrage.status === 'done' || !!chiffrage.completedAt;
+  const traitementActif = !!traitement?.active;
+  const showCompletionBanner = traitementActif && chiffrageDone && !banniereRestee;
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4" data-tour="chd-header">
-        <Button variant="outline" size="icon" asChild>
-          <Link href="/assignations-chiffrage"><ArrowLeft className="h-4 w-4" /></Link>
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold">{chiffrage.dossierNom || t('Sans ref.')}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t('Correcteur :')} <span className="font-bold text-foreground">{chiffrage.assignedChiffreurNom}</span>
-          </p>
+    // max-w-7xl (owner 2026-09-04: the document grid was ringed by dead
+    // space) — the extra 16rem goes to the thumbnails and to the pipeline's
+    // version columns; the header and observations simply centre wider.
+    <div className="mx-auto max-w-7xl space-y-8">
+      {/* Page header (element-specs §1: Polaris Page ✓ "always provide
+          breadcrumbs when a page has a parent", the primary as ONE filled
+          button at the right end; GOV.UK button ✓ no second default button).
+          Compact record header: back link · t-title · subtitle · meta chips;
+          queue spine ‹ n/N › (spec B5) then Réforme `outline`; "Envoyer par
+          mail" is the page's only `default` and sits LAST. Chips (§11):
+          dossier status pair, plate (neutral, mono), correction state
+          (success once done, info while open).
+          The tour anchor `chd-header` lives on a plain wrapper because
+          PageHeader does not forward arbitrary DOM props. */}
+      <div data-tour="chd-header">
+        <PageHeader
+          size="compact"
+          backHref="/assignations-chiffrage"
+          backLabel={t('Assignations au chiffrage')}
+          title={chiffrage.dossierNom || t('Sans réf.')}
+          titleText={chiffrage.dossierNom || t('Sans réf.')}
+          subtitle={
+            <>
+              {t('Correcteur :')} <span className="font-semibold text-ink">{chiffrage.assignedChiffreurNom || '—'}</span>
+              {assure && <> · {assure}</>}
+              {dossier?.compagnie && <> · {dossier.compagnie}</>}
+            </>
+          }
+          meta={
+            <>
+              <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossierStatut))}>
+                {t(dossierStatut)}
+              </Badge>
+              {plate && <Badge variant="neutral" className="font-mono">{plate}</Badge>}
+              <Badge variant={chiffrageDone ? 'success' : 'info'}>
+                {chiffrageDone ? t('Correction terminée') : t('Correction en cours')}
+              </Badge>
+            </>
+          }
+          actions={
+            <>
+              {/* Queue spine (B5): hidden when the queue page stored no order. */}
+              {queueCtx && (
+                <div className="mr-1 flex items-center gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    disabled={!queueCtx.prevId}
+                    onClick={() => queueCtx.prevId && goToChiffrage(queueCtx.prevId)}
+                    aria-label={t('Chiffrage précédent')}
+                    title={t('Chiffrage précédent')}
+                  >
+                    <ChevronLeft />
+                  </Button>
+                  <span
+                    className="t-caption px-1 tabular-nums"
+                    aria-label={`${t('Position')} ${queueCtx.index + 1} ${t('sur')} ${queueCtx.total}`}
+                  >
+                    {queueCtx.index + 1} / {queueCtx.total}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    disabled={!queueCtx.nextId}
+                    onClick={() => queueCtx.nextId && goToChiffrage(queueCtx.nextId)}
+                    aria-label={t('Chiffrage suivant')}
+                    title={t('Chiffrage suivant')}
+                  >
+                    <ChevronRight />
+                  </Button>
+                </div>
+              )}
+              {showReforme && (
+                <Button variant="outline" data-tour="chd-reforme" onClick={() => setReformeOpen(true)}>
+                  <Scale />
+                  {t('Réforme')}
+                </Button>
+              )}
+              {showMailPrimary && (
+                <Button variant="default" data-tour="chd-mail" onClick={() => setMailDialogOpen(true)}>
+                  <Mail />
+                  {t('Envoyer par mail')}
+                </Button>
+              )}
+            </>
+          }
+        />
+      </div>
+
+      {/* Mode traitement strip (spec B6): slim glass row under the header.
+          One-shot fade-in only (motion-spec: transform/opacity, ease token,
+          motion-reduce safe). When the chiffrage completes while in mode the
+          strip swaps to the completion banner — auto-advance is offered,
+          never forced (« Rester » reverts to the normal strip). */}
+      {traitementActif && (
+        <div className="glass-bar flex h-11 items-center gap-3 rounded-lg px-4 animate-in fade-in-0 duration-250 ease-enter motion-reduce:animate-none">
+          {showCompletionBanner ? (
+            queueCtx?.nextId ? (
+              <>
+                <span className="t-body-sm font-medium">{t('Chiffrage terminé')}</span>
+                <span className="flex-1" aria-hidden />
+                <Button variant="tonal" size="sm" onClick={() => goToChiffrage(queueCtx.nextId!)}>
+                  {t('Dossier suivant')}
+                  <ChevronRight />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setBanniereRestee(true)}>
+                  {t('Rester')}
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="t-body-sm font-medium">{t('File terminée')}</span>
+                <span className="flex-1" aria-hidden />
+                <Button variant="ghost" size="sm" onClick={() => router.push('/assignations-chiffrage')}>
+                  {t('Retour à la file')}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setBanniereRestee(true)}>
+                  {t('Rester')}
+                </Button>
+              </>
+            )
+          ) : (
+            <>
+              <span className="t-body-sm font-medium">{t('Mode traitement')}</span>
+              {queueCtx && (
+                <span className="t-caption tabular-nums">
+                  {queueCtx.index + 1} / {queueCtx.total}
+                </span>
+              )}
+              <span className="flex-1" aria-hidden />
+              <Button variant="ghost" size="sm" disabled={!queueCtx?.nextId} onClick={handleSkip}>
+                {t('Passer')}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleQuitTraitement}>
+                {t('Quitter le mode')}
+              </Button>
+            </>
+          )}
         </div>
-        {canSendMail && chiffrage.dossierId && (
-          <Button
-            variant="default"
-            size="sm"
-            className="gap-1.5"
-            data-tour="chd-mail"
-            onClick={() => setMailDialogOpen(true)}
-          >
-            <Mail className="h-3.5 w-3.5" />
-            {t('Envoyer par mail')}
-          </Button>
-        )}
-        {canEdit && chiffrage.dossierId && (
-          <Button
-            variant="default"
-            size="sm"
-            className="gap-1.5 bg-purple-600 hover:bg-purple-700"
-            data-tour="chd-reforme"
-            onClick={() => setReformeOpen(true)}
-          >
-            <Scale className="h-3.5 w-3.5" />
-            {t('Réforme')}
-          </Button>
-        )}
-        <Badge variant="outline" className={cn("gap-1.5 py-1 px-3 rounded-full border font-semibold", getStatusBadgeStyles(dossierStatut))}>
-          {t(dossierStatut)}
-        </Badge>
-      </div>
+      )}
 
-      {/* Observations section */}
-      <div data-tour="chd-observations">
-        <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
-      </div>
-
-      {/* Devis & Factures — one horizontal row per parent garage (base or
-          gestionnaire-created extra). Each row has a sticky "Éditer web"
-          button pinned to the left that opens the structured devis editor
-          for that family's source. Mirrors the gestionnaire's step-4 layout
-          in read-only mode. */}
-      {(devisFamilies.length > 0 || factureFamilies.length > 0) && (
-        <section className="space-y-3" data-tour="chd-familles">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            {t('Devis & Factures')}
-          </h2>
-          {devisFamilies.map((group) => (
-            <FamilyRow
-              key={group.parent}
-              group={group}
-              docsByType={familyDocsByType}
-              canEdit={false}
-              canDeleteDoc={chiffreurNeverDelete}
-              userRole={profile?.role}
-              canManageExtraSlots={false}
-              isUploading={() => false}
-              deletingId={null}
-              extraSlotKindForSlot={() => undefined}
-              onUpload={chiffreurNoOpUpload}
-              onDelete={chiffreurNoOpDelete}
-              onCreateNextCardinal={chiffreurNoOpCreateNextCardinal}
-              onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
-              onRenameExtraSlot={chiffreurNoOpRename}
-              onPreview={handleFamilyDocPreview}
-              onEditSlot={(slot) => handleEditSlot(group.parent, slot)}
-            />
-          ))}
-          {factureFamilies.map((group) => (
-            <FamilyRow
-              key={group.parent}
-              group={group}
-              docsByType={familyDocsByType}
-              canEdit={false}
-              canDeleteDoc={chiffreurNeverDelete}
-              userRole={profile?.role}
-              canManageExtraSlots={false}
-              isUploading={() => false}
-              deletingId={null}
-              extraSlotKindForSlot={() => undefined}
-              onUpload={chiffreurNoOpUpload}
-              onDelete={chiffreurNoOpDelete}
-              onCreateNextCardinal={chiffreurNoOpCreateNextCardinal}
-              onCreateExtraSlot={chiffreurNoOpCreateExtraSlot}
-              onRenameExtraSlot={chiffreurNoOpRename}
-              onPreview={handleFamilyDocPreview}
-              onEditSlot={(slot) => handleEditSlot(group.parent, slot)}
-            />
-          ))}
+      {/* Devis & factures — accord pipeline (spec B1–B3): the actionable
+          object first (B4, fold research), versions as shared columns,
+          families as aligned row bands. Plain section: `t-heading` title
+          (element-specs §5 — no card around papers). */}
+      {orderedFamilies.length > 0 && (
+        <section className="space-y-4" aria-label={t('Devis et factures')} data-tour="chd-familles">
+          {/* The page's ONE neutral IconChip (addendum 1b) beside the title of
+              the section that anchors the chiffreur's work — away from the
+              status chips in the header meta. */}
+          <div className="flex items-center gap-2">
+            <IconChip>
+              <FileText />
+            </IconChip>
+            <h2 className="t-heading">{t('Devis & factures')}</h2>
+          </div>
+          <AccordPipeline
+            families={orderedFamilies}
+            docsByType={familyDocsByType}
+            dossierStatut={dossierStatut}
+            userRole={profile?.role}
+            onPreview={handleFamilyDocPreview}
+            onEditSlot={handleEditSlot}
+          />
         </section>
       )}
 
@@ -539,6 +625,13 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         onOpenDocument={handleOpenDocument}
         onDownloadDocument={handleDownloadDocument}
       />
+
+      {/* Observations LAST (spec B4 — workspace R8: the pipeline is the
+          actionable object; the thread stays collapsible, unseen count on
+          the collapsed bar). */}
+      <div data-tour="chd-observations">
+        <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
+      </div>
 
       {/* Réforme Modal */}
       {chiffrage.dossierId && (

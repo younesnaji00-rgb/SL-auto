@@ -17,11 +17,10 @@ import { collectSessionMeta, isSessionClaimable, timestampToMillis } from '@/lib
 import { trialStatus } from '@/lib/trial';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageLoader } from '@/components/ui/page-loader';
-import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { AlertCircle, Check, Eye, EyeOff } from 'lucide-react';
 import Logo from '@/components/logo';
 import { useToast } from '@/hooks/use-toast';
 
@@ -30,7 +29,7 @@ function generateEmail(nom: string): string {
   const sanitized = nom
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9\s]/g, '')
     .trim()
     .replace(/\s+/g, '.');
@@ -77,8 +76,18 @@ function readTabSessionId(): string | null {
   return window.sessionStorage.getItem(SESSION_STORAGE_KEY);
 }
 
-const PAGE_BACKGROUND =
-  'bg-[radial-gradient(ellipse_at_top,hsl(var(--card))_0%,hsl(var(--background))_70%)]';
+// Flat cream canvas (blueprint §3: no ambient gradient/mesh behind the page).
+const PAGE_BACKGROUND = 'bg-background text-ink';
+
+/** Field label: 12 px sentence case, quiet (blueprint §2 `t-label`). Plain
+ *  <label> rather than the shadcn Label so its 14 px utility doesn't win. */
+function FieldLabel({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
+  return (
+    <label htmlFor={htmlFor} className="t-label block">
+      {children}
+    </label>
+  );
+}
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -113,6 +122,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Success morph state — true from sign-in success until navigation.
+  const [loginSuccess, setLoginSuccess] = useState(false);
   // Demo brand: a gestionnaire login restarts the showcase — the server
   // wipes walkthrough leftovers and re-seeds the sample data while this
   // flag drives the "preparing your demo" message.
@@ -461,6 +472,12 @@ export default function LoginPage() {
           window.sessionStorage.setItem(`${BRAND.storagePrefix}.tour.justLoggedIn`, '1');
         } catch { /* non-fatal */ }
       }
+      // Success morph (motion-spec §5 / §1.2: login is an F3 moment — the
+      // one daily event allowed a small ceremony): ✓ « Connecté » held
+      // briefly before the app opens. Content swap only, no motion — safe
+      // under reduced motion.
+      setLoginSuccess(true);
+      await new Promise((r) => setTimeout(r, 700));
       router.push(landingPathFor(userData.role));
     } catch (err: any) {
       console.error('Login error:', err);
@@ -485,7 +502,7 @@ export default function LoginPage() {
   if (checkingAuth || checkingSetup) {
     return (
       <div className={`flex min-h-screen items-center justify-center ${PAGE_BACKGROUND}`}>
-        <PageLoader label={t('Chargement...')} />
+        <PageLoader label={t('Chargement…')} />
       </div>
     );
   }
@@ -494,210 +511,229 @@ export default function LoginPage() {
   if (needsSetup) {
     return (
       <div className={`flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
-        <Card className="w-full max-w-md shadow-xl">
-          <CardHeader className="text-center space-y-4 pb-2">
-            <div className="flex justify-center">
-              <Logo />
-            </div>
-            <div>
-              <div className="flex items-center justify-center gap-2 mb-1">
-                <ShieldCheck className="h-5 w-5 text-primary" />
-                <CardTitle className="text-2xl">{t('Configuration initiale')}</CardTitle>
-              </div>
-              <CardDescription className="mt-1">
+        {/* Login card — element-specs §20 (GOV.UK create accounts: "solely about that task"; NN/g: single column, labels above, one submit): one glass card ≤ 400 px, 24–32 px padding. */}
+        <Card className="w-full max-w-[400px] p-6 sm:p-8">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <Logo />
+            <div className="space-y-1">
+              <h1 className="t-title">{t('Configuration initiale')}</h1>
+              <p className="t-body-sm text-ink-3">
                 {t("Aucun utilisateur n'existe encore. Créez le compte administrateur pour commencer.")}
-              </CardDescription>
+              </p>
             </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSetup} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="setup-name">{t("Nom complet de l'administrateur")}</Label>
-                <Input
-                  id="setup-name"
-                  value={setupName}
-                  onChange={e => setSetupName(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="setup-password">{t('Mot de passe')}</Label>
-                <Input
-                  id="setup-password"
-                  type="password"
-                  placeholder={t('Minimum 6 caractères')}
-                  value={setupPassword}
-                  onChange={e => setSetupPassword(e.target.value)}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">{t('Au moins 6 caractères.')}</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="setup-confirm">{t('Confirmez le mot de passe')}</Label>
-                <Input
-                  id="setup-confirm"
-                  type="password"
-                  value={setupConfirm}
-                  onChange={e => setSetupConfirm(e.target.value)}
-                  required
-                />
-              </div>
+          </div>
+          {/* Addendum 4: fields grouped tight (16 px rows), the submit a
+              group-gap (24 px) below; widths come from the ≤ 400 px card. */}
+          <form onSubmit={handleSetup} className="mt-6 space-y-6">
+            <div className="space-y-4">
+            <div className="space-y-1">
+              <FieldLabel htmlFor="setup-name">{t("Nom complet de l'administrateur")}</FieldLabel>
+              <Input
+                id="setup-name"
+                value={setupName}
+                onChange={e => setSetupName(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1">
+              <FieldLabel htmlFor="setup-password">{t('Mot de passe')}</FieldLabel>
+              <Input
+                id="setup-password"
+                type="password"
+                placeholder={t('Minimum 6 caractères')}
+                value={setupPassword}
+                onChange={e => setSetupPassword(e.target.value)}
+                required
+              />
+              <p className="t-caption">{t('Au moins 6 caractères.')}</p>
+            </div>
+            <div className="space-y-1">
+              <FieldLabel htmlFor="setup-confirm">{t('Confirmez le mot de passe')}</FieldLabel>
+              <Input
+                id="setup-confirm"
+                type="password"
+                value={setupConfirm}
+                onChange={e => setSetupConfirm(e.target.value)}
+                required
+              />
+            </div>
+            </div>
 
-              {setupError && (
-                <Alert variant="destructive">
-                  <AlertDescription>{setupError}</AlertDescription>
-                </Alert>
-              )}
+            {setupError && (
+              <Alert variant="danger">
+                <AlertCircle aria-hidden />
+                <AlertDescription>{setupError}</AlertDescription>
+              </Alert>
+            )}
 
-              <Button type="submit" className="w-full" loading={setupLoading}>
-                {setupLoading ? t('Création...') : t('Créer le compte Admin')}
-              </Button>
-            </form>
-          </CardContent>
+            <Button type="submit" className="w-full" loading={setupLoading}>
+              {setupLoading ? t('Création…') : t('Créer le compte Admin')}
+            </Button>
+          </form>
         </Card>
       </div>
     );
   }
 
   // ===== NORMAL LOGIN =====
+  const demoEntry = isDemo && !showClassicForm;
+
   return (
     <div className={`relative flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
-      <div className="absolute top-4 right-4 flex items-center gap-1" data-tour="login-lang">
+      {/* Theme + language controls (white-label: the switcher only renders for
+          brands that allow more than one locale). Tour anchor: login-lang. */}
+      <div className="absolute right-4 top-4 flex items-center gap-1" data-tour="login-lang">
         <ThemeToggle />
         <LanguageSwitcher />
       </div>
       <TutorialLauncher />
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="text-center space-y-4 pb-2">
-          <div className="flex justify-center">
-            <Logo />
-          </div>
-          <div>
-            <CardTitle className="text-2xl">{isDemo && !showClassicForm ? t('Explorer la démo') : t('Connexion')}</CardTitle>
-            <CardDescription className="mt-1">
-              {isDemo && !showClassicForm
+      {/* Login card — element-specs §20 (GOV.UK create accounts: "solely about that task"; NN/g: single column, labels above, one submit): one glass card ≤ 400 px, 24–32 px padding. */}
+      <Card className="w-full max-w-[400px] p-6 sm:p-8">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <Logo />
+          <div className="space-y-1">
+            <h1 className="t-title">{demoEntry ? t('Explorer la démo') : t('Connexion')}</h1>
+            <p className="t-body-sm text-ink-3">
+              {demoEntry
                 ? t('Choisissez un rôle — aucun compte, aucun engagement.')
                 : t('Entrez vos identifiants pour accéder au système.')}
-            </CardDescription>
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {isDemo && !showClassicForm ? (
-            <div className="space-y-4" data-tour="login-roles-grid">
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { name: 'Admin Demo', label: 'Admin', desc: t('Supervision et réglages') },
-                  { name: 'Manager Demo', label: 'Manager', desc: t('Pilote les dossiers') },
-                  { name: 'Estimator Demo', label: 'Estimator', desc: t('Vérifie les devis') },
-                  { name: 'Field Agent Demo', label: 'Field Agent', desc: t('Photos sur le terrain') },
-                ].map((r) => (
-                  <button
-                    key={r.name}
-                    type="button"
-                    disabled={loading}
-                    onClick={() => doLogin(r.name, 'Demo2026!')}
-                    className="rounded-xl border p-3 text-center transition hover:border-teal-600 hover:bg-teal-700/5 disabled:opacity-50"
-                  >
-                    <span className="block font-semibold">{r.label}</span>
-                    <span className="block text-xs text-muted-foreground mt-0.5">{r.desc}</span>
-                  </button>
-                ))}
-              </div>
-              {loading && (
-                <p className="text-center text-sm text-muted-foreground">
-                  {preparing
-                    ? t('Préparation de votre démo : les données d’exemple se réinitialisent…')
-                    : t('Connexion...')}
-                </p>
-              )}
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              <p className="text-xs text-muted-foreground text-center">
-                {t('Conseil : essayez « Field Agent » depuis un téléphone, et les autres rôles depuis un ordinateur.')}
-              </p>
-              <div className="flex flex-col items-center gap-1.5">
-                <RolesGuideDialog
-                  trigger={
-                    <button type="button" data-tour="login-roles" className="text-sm font-semibold text-teal-700 dark:text-teal-400 hover:underline">
-                      {t('Découvrir les rôles ici')}
-                    </button>
-                  }
-                />
-              </div>
-            </div>
-          ) : (
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2" data-tour="login-nom">
-              <Label htmlFor="nom">{t('Nom complet')}</Label>
-              <Input
-                id="nom"
-                value={nom}
-                onChange={e => setNom(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2" data-tour="login-password">
-              <Label htmlFor="password">{t('Mot de passe')}</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                />
-                <Button
+        </div>
+        {demoEntry ? (
+          // Demo entry — one click per role, no credentials to type. The
+          // Lionheart demo depends on this block; keep its tour anchors.
+          <div className="mt-6 space-y-4" data-tour="login-roles-grid">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { name: 'Admin Demo', label: 'Admin', desc: t('Supervision et réglages') },
+                { name: 'Manager Demo', label: 'Manager', desc: t('Pilote les dossiers') },
+                { name: 'Estimator Demo', label: 'Estimator', desc: t('Vérifie les devis') },
+                { name: 'Field Agent Demo', label: 'Field Agent', desc: t('Photos sur le terrain') },
+              ].map((r) => (
+                <button
+                  key={r.name}
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 hover:bg-transparent"
-                  onClick={() => setShowPassword(v => !v)}
+                  disabled={loading}
+                  onClick={() => doLogin(r.name, 'Demo2026!')}
+                  className="rounded-xl bg-surface-2 p-3 text-center shadow-rim transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
+                  <span className="t-body block font-semibold">{r.label}</span>
+                  <span className="t-caption mt-0.5 block">{r.desc}</span>
+                </button>
+              ))}
             </div>
-
+            {loading && (
+              <p className="t-caption text-center">
+                {preparing
+                  ? t('Préparation de votre démo : les données d’exemple se réinitialisent…')
+                  : t('Connexion…')}
+              </p>
+            )}
             {error && (
-              <Alert variant="destructive">
+              <Alert variant="danger">
+                <AlertCircle aria-hidden />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+            <p className="t-caption text-center">
+              {t('Conseil : essayez « Field Agent » depuis un téléphone, et les autres rôles depuis un ordinateur.')}
+            </p>
+            <div className="flex flex-col items-center gap-1.5">
+              <RolesGuideDialog
+                trigger={
+                  <button type="button" data-tour="login-roles" className="text-sm font-semibold text-primary hover:underline">
+                    {t('Découvrir les rôles ici')}
+                  </button>
+                }
+              />
+            </div>
+          </div>
+        ) : (
+        /* Addendum 4: fields grouped tight (16 px rows), the submit a
+           group-gap (24 px) below; widths come from the ≤ 400 px card. */
+        <form onSubmit={handleLogin} className="mt-6 space-y-6">
+          <div className="space-y-4">
+          <div className="space-y-1" data-tour="login-nom">
+            <FieldLabel htmlFor="nom">{t('Nom complet')}</FieldLabel>
+            <Input
+              id="nom"
+              value={nom}
+              onChange={e => setNom(e.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1" data-tour="login-password">
+            <FieldLabel htmlFor="password">{t('Mot de passe')}</FieldLabel>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                className="pr-10"
+              />
+              {/* Show/hide toggle — element-specs §20 + NN/g password masking ("offer a
+                  show-password toggle"): a `ghost` icon Button with aria-pressed, flat
+                  inside the field (no rim on an inline affordance). */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-ink-3 shadow-none hover:text-ink"
+                onClick={() => setShowPassword(v => !v)}
+                aria-label={showPassword ? t('Masquer le mot de passe') : t('Afficher le mot de passe')}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+              </Button>
+            </div>
+          </div>
+          </div>
 
-            <Button type="submit" className="w-full" loading={loading}>
-              {loading
-                ? preparing
-                  ? t('Préparation de votre démo…')
-                  : t('Connexion...')
-                : t('Se connecter')}
-            </Button>
-
-            {BRAND.id === 'demo' && (
-              <div className="rounded-md border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground space-y-1" data-tour="login-demo">
-                <p className="font-semibold text-foreground">{t('Comptes de démonstration')}</p>
-                <p>Admin Demo · Manager Demo · Estimator Demo · Field Agent Demo</p>
-                <p>{t('Mot de passe')} : Demo2026!</p>
-                <RolesGuideDialog
-                  trigger={
-                    <button
-                      type="button"
-                      data-tour="login-roles"
-                      className="pt-1 font-semibold text-teal-700 dark:text-teal-400 hover:underline"
-                    >
-                      {t('Découvrir les rôles ici')}
-                    </button>
-                  }
-                />
-              </div>
-            )}
-          </form>
+          {error && (
+            <Alert variant="danger">
+              <AlertCircle aria-hidden />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
-        </CardContent>
+
+          <Button type="submit" className="w-full" loading={loading && !loginSuccess} disabled={loading || loginSuccess}>
+            {loginSuccess ? (
+              <>
+                <Check className="h-4 w-4" aria-hidden />
+                {t('Connecté')}
+              </>
+            ) : loading
+              ? preparing
+                ? t('Préparation de votre démo…')
+                : t('Connexion…')
+              : t('Se connecter')}
+          </Button>
+
+          {BRAND.id === 'demo' && (
+            <div className="space-y-1 rounded-md bg-surface-2 p-3 text-xs text-ink-2 shadow-rim" data-tour="login-demo">
+              <p className="t-body font-semibold">{t('Comptes de démonstration')}</p>
+              <p>Admin Demo · Manager Demo · Estimator Demo · Field Agent Demo</p>
+              <p>{t('Mot de passe')} : Demo2026!</p>
+              <RolesGuideDialog
+                trigger={
+                  <button
+                    type="button"
+                    data-tour="login-roles"
+                    className="pt-1 font-semibold text-primary hover:underline"
+                  >
+                    {t('Découvrir les rôles ici')}
+                  </button>
+                }
+              />
+            </div>
+          )}
+        </form>
+        )}
       </Card>
     </div>
   );

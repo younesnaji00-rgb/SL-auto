@@ -1,25 +1,26 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Bug,
   Paperclip,
-  Send,
-  Loader2,
   FileIcon,
   Download,
   X,
   Inbox,
   ArrowLeft,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { PageLoader } from '@/components/ui/page-loader';
 import { EmptyState } from '@/components/ui/empty-state';
-import { InlineLoader } from '@/components/ui/inline-loader';
-import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   collection,
   query,
@@ -38,6 +39,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { scrollBehavior } from '@/lib/motion';
 import VoiceRecorder from '@/components/voice-recorder';
 import VoicePlayer from '@/components/voice-player';
 
@@ -78,6 +80,22 @@ type Conversation = {
   unreadByAdmin: number;
 };
 
+/** Row-shaped loading placeholder — element-specs §15 (Carbon: skeleton
+ *  instead of a spinner; NN/g: mirror the final layout). */
+const RowsSkeleton = ({ rows, bubbles }: { rows: number; bubbles?: boolean }) => (
+  <div className={cn('space-y-4', !bubbles && 'divide-y divide-hairline space-y-0')} aria-busy="true">
+    {Array.from({ length: rows }).map((_, i) => (
+      <div key={i} className={cn('flex gap-3', bubbles ? (i % 2 ? 'flex-row-reverse' : '') : 'items-center px-4 py-3')}>
+        <Skeleton className={cn('shrink-0 rounded-full', bubbles ? 'h-8 w-8' : 'h-9 w-9')} />
+        <div className="flex-1 space-y-1.5">
+          <Skeleton className="h-3 w-32" />
+          <Skeleton className={cn(bubbles ? 'h-12 w-64 max-w-full rounded-2xl' : 'h-3 w-48')} />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 /* ------------------------------------------------------------------ */
 /*  Main Page                                                          */
 /* ------------------------------------------------------------------ */
@@ -95,19 +113,22 @@ export default function SignalerBugPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Bug className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">{t('Signaler un bug')}</h1>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        {t('Décrivez le problème rencontré. Vous pouvez envoyer des messages, joindre des fichiers ou enregistrer un message vocal.')}
-      </p>
-      <ChatThread
-        conversationUid={firebaseUser.uid}
-        currentUser={firebaseUser}
-        profile={profile}
+    <div className="space-y-6">
+      {/* Page header — element-specs §1: title + one-line subtitle, no action
+          (the primary « Envoyer » lives at the end of the compose bar). */}
+      <PageHeader
+        title={t('Signaler un bug')}
+        subtitle={t('Décrivez le problème rencontré. Vous pouvez envoyer des messages, joindre des fichiers ou enregistrer un message vocal.')}
       />
+      {/* Content card — element-specs §5: the thread is the page's one glass
+          block; the compose bar sits inside it under a hairline. */}
+      <Card className="flex flex-col overflow-hidden">
+        <ChatThread
+          conversationUid={firebaseUser.uid}
+          currentUser={firebaseUser}
+          profile={profile}
+        />
+      </Card>
     </div>
   );
 }
@@ -143,93 +164,101 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Bug className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">{t('Signaler un bug')}</h1>
-        <Badge variant="secondary">{conversations?.length || 0} {t('conversations')}</Badge>
-      </div>
+    <div className="space-y-6">
+      <PageHeader title={t('Signaler un bug')} count={loading ? undefined : (conversations?.length || 0)} subtitle={t('Conversations des utilisateurs')} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 min-h-[calc(100vh-200px)]">
-        {/* Conversations list */}
+      <div className="grid min-h-[calc((100dvh-200px)/var(--app-zoom))] grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
+        {/* Inbox rows — element-specs §4 (Material 3 lists: leading avatar,
+            label, supporting text, trailing text; two-line 56 px rows,
+            hairlines only, whole row clickable, selected row on surface-3). */}
         <Card className="overflow-hidden" data-tour="bug-inbox">
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <InlineLoader label={t('Chargement…')} size="md" />
-              </div>
-            ) : !conversations || conversations.length === 0 ? (
-              <EmptyState
-                icon={<Inbox />}
-                title={t('Aucun rapport de bug')}
-                description={t("Les conversations apparaîtront ici dès qu'un utilisateur signalera un problème.")}
-                dashed={false}
-                className="border-0 bg-transparent py-12"
-              />
-            ) : (
-              <div className="divide-y">
-                {conversations.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedUid(c.id)}
-                    className={cn(
-                      'w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors',
-                      selectedUid === c.id && 'bg-primary/5'
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9 shrink-0 border">
-                        <AvatarFallback className="bg-primary/5 text-primary text-xs">
-                          {(c.recipientNom || 'U').charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold truncate">{c.recipientNom}</span>
-                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                            {formatDate(c.lastMessageAt)}
-                          </span>
+          {loading ? (
+            <RowsSkeleton rows={5} />
+          ) : !conversations || conversations.length === 0 ? (
+            <EmptyState
+              icon={<Inbox />}
+              title={t('Aucun rapport de bug')}
+              description={t("Les conversations apparaîtront ici dès qu'un utilisateur signalera un problème.")}
+              dashed={false}
+              className="bg-transparent py-12"
+            />
+          ) : (
+            <ul className="divide-y divide-hairline" aria-label={t('Conversations')}>
+              {conversations.map((c) => {
+                const active = selectedUid === c.id;
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUid(c.id)}
+                      aria-current={active ? 'true' : undefined}
+                      className={cn(
+                        'w-full px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                        active && 'bg-surface-3 hover:bg-surface-3',
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9 shrink-0 shadow-rim">
+                          <AvatarFallback className="bg-surface-3 text-xs text-ink-2">
+                            {(c.recipientNom || 'U').charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="t-body truncate font-semibold">{c.recipientNom}</span>
+                            <span className="t-caption whitespace-nowrap tabular-nums">
+                              {formatDate(c.lastMessageAt)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className={cn('t-caption truncate', c.unreadByAdmin > 0 && 'font-medium text-ink-2')}>{c.lastMessage || t('Message vocal')}</p>
+                            {/* Unread count — §11 count pill (surface-3 / ink-2,
+                                tabular digits), labelled for assistive tech. */}
+                            {c.unreadByAdmin > 0 && (
+                              <span
+                                className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-semibold tabular-nums text-ink-2"
+                                aria-label={`${c.unreadByAdmin} ${c.unreadByAdmin > 1 ? t('non lus') : t('non lu')}`}
+                              >
+                                {c.unreadByAdmin}
+                              </span>
+                            )}
+                          </div>
+                          {/* Role chip — §11: neutral for informational categories. */}
+                          {c.recipientRole && <Badge variant="neutral" className="mt-1">{t(c.recipientRole)}</Badge>}
                         </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs text-muted-foreground truncate">{c.lastMessage || t('Message vocal')}</p>
-                          {c.unreadByAdmin > 0 && (
-                            <Badge className="h-5 min-w-[20px] justify-center text-[10px] bg-primary">
-                              {c.unreadByAdmin}
-                            </Badge>
-                          )}
-                        </div>
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 mt-1">{t(c.recipientRole)}</Badge>
                       </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </CardContent>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Card>
 
-        {/* Chat area */}
-        <Card className="overflow-hidden flex flex-col">
+        {/* Chat area — §5 content card with a 48 px identity row on top. */}
+        <Card className="flex flex-col overflow-hidden">
           {selectedUid ? (
             <>
-              <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/30">
+              <div className="flex min-h-[48px] items-center gap-3 border-b border-hairline px-4 py-2">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="lg:hidden h-8 w-8"
+                  className="h-8 w-8 lg:hidden"
                   onClick={() => setSelectedUid(null)}
+                  aria-label={t('Retour aux conversations')}
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <Avatar className="h-8 w-8 border">
-                  <AvatarFallback className="bg-primary/5 text-primary text-xs">
+                <Avatar className="h-8 w-8 shadow-rim">
+                  <AvatarFallback className="bg-surface-3 text-xs text-ink-2">
                     {(selected?.recipientNom || 'U').charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <p className="text-sm font-semibold">{selected?.recipientNom}</p>
-                  <p className="text-[10px] text-muted-foreground">{selected?.recipientEmail}</p>
+                <div className="min-w-0">
+                  <p className="t-body truncate font-semibold">{selected?.recipientNom}</p>
+                  <p className="t-mono truncate text-xs text-ink-3">{selected?.recipientEmail}</p>
                 </div>
+                {selected?.recipientRole && <Badge variant="neutral" className="ml-auto">{t(selected.recipientRole)}</Badge>}
               </div>
               <ChatThread
                 conversationUid={selectedUid}
@@ -238,10 +267,13 @@ function AdminInbox({ currentUser, profile }: { currentUser: any; profile: any }
               />
             </>
           ) : (
-            <CardContent className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-              <Bug className="h-12 w-12 mb-3 opacity-10" />
-              <p className="text-sm">{t('Sélectionnez une conversation')}</p>
-            </CardContent>
+            <EmptyState
+              icon={<MessageSquare />}
+              title={t('Sélectionnez une conversation')}
+              description={t("Les messages de l'utilisateur s'afficheront ici.")}
+              dashed={false}
+              className="flex-1 bg-transparent"
+            />
           )}
         </Card>
       </div>
@@ -288,7 +320,7 @@ function ChatThread({
 
   // Auto-scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: scrollBehavior() });
   }, [messages]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -411,7 +443,7 @@ function ChatThread({
   const currentEmail = currentUser.email || '';
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex min-h-0 flex-1 flex-col">
       <input
         type="file"
         className="hidden"
@@ -420,37 +452,37 @@ function ChatThread({
         disabled={isSending}
       />
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-340px)]" data-tour="bug-thread">
+      {/* Messages — element-specs §4 (Material 3 lists: leading avatar as the
+          anchor, headline = author 14/600, supporting = role chip + t-caption
+          timestamp, then the body). Own messages are told apart by alignment
+          and the surface step, not by the accent (rule 4: teal is for the
+          primary action, active nav, links and focus only). */}
+      <div className="max-h-[calc((100dvh-340px)/var(--app-zoom))] flex-1 space-y-4 overflow-y-auto p-4" data-tour="bug-thread">
         {loading ? (
-          <div className="flex justify-center py-10">
-            <InlineLoader label={t('Chargement…')} size="md" />
-          </div>
+          <RowsSkeleton rows={3} bubbles />
         ) : !messages || messages.length === 0 ? (
           <EmptyState
             icon={<Bug />}
             title={t('Aucun message pour le moment')}
             description={t('Décrivez le problème rencontré ci-dessous.')}
             dashed={false}
-            className="border-0 bg-transparent py-10"
+            className="bg-transparent py-10"
           />
         ) : (
           messages.map((msg) => {
             const isOwn = msg.auteur === currentEmail;
             return (
               <div key={msg.id} className={cn('flex gap-3', isOwn && 'flex-row-reverse')}>
-                <Avatar className="h-8 w-8 shrink-0 border">
-                  <AvatarFallback className={cn('text-xs', isOwn ? 'bg-primary/10 text-primary' : 'bg-muted')}>
+                <Avatar className="h-8 w-8 shrink-0 shadow-rim">
+                  <AvatarFallback className={cn('text-xs', isOwn ? 'bg-surface-4 text-ink' : 'bg-surface-3 text-ink-2')}>
                     {(msg.auteurNom || 'U').charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <div className={cn('max-w-[75%] space-y-1', isOwn && 'items-end')}>
-                  <div className={cn('flex items-center gap-2 flex-wrap', isOwn && 'flex-row-reverse')}>
-                    <span className="text-xs font-semibold">{msg.auteurNom}</span>
-                    {msg.auteurRole && (
-                      <Badge variant="outline" className="text-[9px] px-1 py-0">{t(msg.auteurRole)}</Badge>
-                    )}
-                    <span className="text-[10px] text-muted-foreground">{formatDate(msg.date)}</span>
+                <div className={cn('max-w-[75%] space-y-1', isOwn && 'flex flex-col items-end')}>
+                  <div className={cn('flex flex-wrap items-center gap-2', isOwn && 'flex-row-reverse')}>
+                    <span className="t-body font-semibold">{msg.auteurNom}</span>
+                    {msg.auteurRole && <Badge variant="neutral">{t(msg.auteurRole)}</Badge>}
+                    <span className="t-caption tabular-nums">{formatDate(msg.date)}</span>
                   </div>
 
                   {/* Voice message */}
@@ -463,10 +495,10 @@ function ChatThread({
                   {/* Text content */}
                   {msg.contenu && (
                     <div className={cn(
-                      'rounded-2xl p-3 text-sm whitespace-pre-wrap',
+                      'whitespace-pre-wrap rounded-2xl p-3 text-sm text-ink',
                       isOwn
-                        ? 'bg-primary text-primary-foreground rounded-tr-none'
-                        : 'bg-accent/50 rounded-tl-none'
+                        ? 'rounded-tr-none bg-surface-3'
+                        : 'rounded-tl-none bg-surface-2'
                     )}>
                       {msg.contenu}
                     </div>
@@ -477,12 +509,12 @@ function ChatThread({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-8 text-[11px] gap-2 rounded-full border-primary/20 hover:bg-primary/5"
+                      className="h-8 gap-2 rounded-full text-[11px]"
                       onClick={() => handleDownload(msg.pieceJointe!.url, msg.pieceJointe!.nom)}
                     >
-                      <FileIcon className="h-3 w-3 text-primary" />
+                      <FileIcon className="h-3 w-3 text-ink-3" />
                       <span className="max-w-[120px] truncate">{msg.pieceJointe.nom}</span>
-                      <Download className="h-3 w-3 opacity-50" />
+                      <Download className="h-3 w-3 text-ink-3" />
                     </Button>
                   )}
                 </div>
@@ -493,43 +525,49 @@ function ChatThread({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Compose area */}
-      <div className="border-t p-4 space-y-3" data-tour="bug-compose">
+      {/* Compose bar — element-specs §18 (Apple HIG toolbars: leading = the
+          quiet tool group as `ghost` icon buttons with tooltips, trailing =
+          the ONE primary « Envoyer »); §9: the textarea is a flat solid field.
+          The primary stays enabled (GOV.UK: avoid disabled buttons) — an empty
+          send is simply a no-op. */}
+      <div className="space-y-3 border-t border-hairline p-4" data-tour="bug-compose">
         {selectedFile && (
           <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary" className="gap-1 pr-1">
-              <span className="truncate max-w-[150px]">{selectedFile.name}</span>
+            <span className="inline-flex h-7 max-w-[240px] items-center gap-1 rounded-full bg-surface-2 pl-3 pr-1 text-xs text-ink-2 shadow-rim">
+              <span className="truncate">{selectedFile.name}</span>
               <button
                 type="button"
-                className="h-4 w-4 rounded-full hover:bg-muted"
+                className="rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink"
                 onClick={() => setSelectedFile(null)}
+                aria-label={t('Retirer la pièce jointe')}
               >
                 <X className="h-3 w-3" />
               </button>
-            </Badge>
+            </span>
           </div>
         )}
 
         {voiceBlob ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-ink-2">
               <span>{t('Message vocal prêt')} ({voiceBlob.duration}s)</span>
               <Button variant="ghost" size="sm" onClick={() => setVoiceBlob(null)}>
-                <X className="h-3 w-3 mr-1" /> {t('Annuler')}
+                {t('Annuler')}
               </Button>
             </div>
-            <Button onClick={handleSend} loading={isSending} size="sm">
-              {isSending ? t('Envoi...') : <><Send className="h-4 w-4 mr-2" /> {t('Envoyer')}</>}
+            <Button onClick={handleSend} loading={isSending}>
+              {isSending ? t('Envoi…') : t('Envoyer')}
             </Button>
           </div>
         ) : (
           <>
             <Textarea
-              placeholder={t('Décrivez le problème...')}
+              placeholder={t('Décrivez le problème…')}
               className="min-h-[80px] resize-none"
               value={text}
               onChange={(e) => setText(e.target.value)}
               disabled={isSending}
+              aria-label={t('Votre message')}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -537,32 +575,32 @@ function ChatThread({
                 }
               }}
             />
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1" data-tour="bug-tools">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-primary"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isSending}
-                  title={t('Joindre un fichier')}
-                  type="button"
-                >
-                  <Paperclip className="h-5 w-5" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-ink-3 hover:text-ink"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isSending}
+                      aria-label={t('Joindre un fichier')}
+                      type="button"
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('Joindre un fichier')}</TooltipContent>
+                </Tooltip>
                 <VoiceRecorder
                   onRecorded={(blob, duration) => setVoiceBlob({ blob, duration })}
                   maxDuration={120}
                   disabled={isSending}
                 />
               </div>
-              <Button
-                onClick={handleSend}
-                loading={isSending}
-                disabled={!text.trim() && !selectedFile}
-                className="px-6"
-              >
-                {isSending ? t('Envoi...') : <>{t('Envoyer')}<Send className="ml-2 h-4 w-4" /></>}
+              <Button onClick={handleSend} loading={isSending}>
+                {isSending ? t('Envoi…') : t('Envoyer')}
               </Button>
             </div>
           </>

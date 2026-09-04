@@ -1,24 +1,17 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import {
-  Building2,
-  FileText,
-  ChevronRight,
-  ExternalLink,
-  Inbox,
-  Upload,
-  Plus,
-} from 'lucide-react';
-import { useCompagnies } from '@/hooks/use-compagnies';
+import { Building2, ChevronRight, FileText, FolderOpen, Inbox, Plus, Upload } from 'lucide-react';
+import { useCompagnies, type Compagnie } from '@/hooks/use-compagnies';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { hasPermission } from '@/lib/permissions';
 import { useDossiers } from '@/hooks/use-dossiers';
 import { useStorage, useFirestore } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,16 +25,119 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
-import { format } from 'date-fns';
+import { NAV_ITEMS, titleForRoute } from '@/lib/nav-groups';
+import { format, parseISO, isValid } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import Link from 'next/link';
-import { PageLoader } from '@/components/ui/page-loader';
 import { EmptyState } from '@/components/ui/empty-state';
-import { SkeletonCard, SkeletonRow } from '@/components/ui/skeleton';
-import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { IconChip } from '@/components/ui/icon-chip';
+import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
 import { isClosedStatus } from '@/lib/status-machine';
 import { cn } from '@/lib/utils';
 import { CreateDossierDialog } from '@/components/dossiers/create-dossier-dialog';
+
+// ── Status chip (element-specs §11: Carbon tag / dataviz — status colours
+//    reserved, always with a label; one helper per domain). Local stand-in for
+//    `lib/status-colors` (hand-picked hues, shared file outside this page). ──
+function statusVariant(status: string): 'info' | 'warning' | 'success' | 'neutral' {
+  const s = (status || '').trim();
+  if (s.startsWith('Planification')) return 'info';
+  if (s === 'Chiffrage en cours') return 'warning';
+  if (/accord/i.test(s)) return 'success';
+  return 'neutral';
+}
+
+function isEnCours(statut?: string): boolean {
+  const s = statut?.toLowerCase() ?? '';
+  return s.includes('cours') || s.includes('programmée');
+}
+
+/** `yyyy-MM-dd` (the persisted filter value) → `dd/MM/yyyy` for captions. */
+function fmtIsoDay(iso: string): string {
+  const d = parseISO(iso);
+  return isValid(d) ? format(d, 'dd/MM/yyyy') : iso;
+}
+
+/**
+ * Logo tile — also the upload control (element-specs §21: the picker is ONE
+ * plain button, no banner, no dashed panel; the hover veil is the only cue).
+ * `size` = card tile (48 px) or the detail header tile (112 px, as at 3d5629a).
+ */
+function LogoTile({
+  compagnie,
+  failed,
+  onFail,
+  onUpload,
+  size = 'sm',
+  className,
+}: {
+  compagnie: Compagnie;
+  failed: boolean;
+  onFail: () => void;
+  onUpload: (file: File) => void;
+  size?: 'sm' | 'lg';
+  className?: string;
+}) {
+  const t = useT();
+  const pick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (ev) => {
+      const file = (ev.target as HTMLInputElement).files?.[0];
+      if (file) onUpload(file);
+    };
+    input.click();
+  };
+  const lg = size === 'lg';
+  return (
+    <button
+      type="button"
+      data-tour="cie-logo"
+      onClick={(e) => {
+        e.stopPropagation();
+        pick();
+      }}
+      title={t('Cliquez pour importer un logo')}
+      aria-label={`${t('Importer le logo de')} ${compagnie.nom}`}
+      className={cn(
+        'group/logo relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2 shadow-rim transition-colors hover:bg-surface-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        lg ? 'h-28 w-28' : 'h-12 w-12',
+        className,
+      )}
+    >
+      {compagnie.logoUrl && !failed ? (
+        <img
+          src={compagnie.logoUrl}
+          alt={compagnie.nom}
+          className={cn('object-contain', lg ? 'h-full w-full p-2' : 'h-8 w-8')}
+          onError={onFail}
+        />
+      ) : (
+        <Building2 className={cn('text-ink-4', lg ? 'h-14 w-14' : 'h-6 w-6')} aria-hidden />
+      )}
+      <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-[color:var(--scrim)] text-on-ink opacity-0 transition-opacity group-hover/logo:opacity-100 group-focus-visible/logo:opacity-100">
+        <Upload className={lg ? 'h-4 w-4' : 'h-3.5 w-3.5'} aria-hidden />
+      </span>
+    </button>
+  );
+}
+
+// ── Grid skeleton (element-specs §15: mirror the final layout) — the same
+//    card anatomy: logo tile + chevron row, title, description, affordance pill. ──
+function CompagnieCardSkeleton() {
+  return (
+    <div className="rounded-xl border border-hairline border-l-4 border-l-surface-4 bg-card p-6">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-12 w-12 rounded-lg" />
+        <Skeleton className="h-5 w-5" />
+      </div>
+      <Skeleton className="mt-4 h-6 w-40" />
+      <Skeleton className="mt-2 h-3 w-44" />
+      <Skeleton className="mt-4 h-7 w-36 rounded-full" />
+    </div>
+  );
+}
 
 export default function CompagniesClientPage() {
   const t = useT();
@@ -123,236 +219,274 @@ export default function CompagniesClientPage() {
     return {
       total: dossiers.length,
       nouveau: dossiers.filter(d => d.statut === 'Nouveau' || d.statut === 'Création dossier').length,
-      enCours: dossiers.filter(d => d.statut?.toLowerCase().includes('cours') || d.statut?.toLowerCase().includes('programmée')).length,
+      enCours: dossiers.filter(d => isEnCours(d.statut)).length,
       clos: dossiers.filter(d => isClosedStatus(d.statut || '')).length,
     };
   }, [dossiers]);
 
+  const nav = NAV_ITEMS.find((i) => i.href === '/compagnies');
+  const pageTitle = t(titleForRoute('/compagnies') ?? 'Compagnies');
+  const pageSubtitle = nav?.subtitle ? t(nav.subtitle) : undefined;
+
   if (loadingCompagnies) {
-    return <PageLoader label={t('Chargement des partenaires...')} />;
-  }
-
-  if (!selectedCompagnie) {
+    // Same anatomy as compagnies/loading.tsx (header + card grid).
     return (
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-4xl font-semibold tracking-tight">{t('Compagnies')}</h1>
-          <p className="text-muted-foreground mt-1">{t('Sélectionnez une compagnie partenaire pour consulter ses indicateurs et dossiers.')}</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-tour="cie-grid">
-          {compagnies.map((c) => (
-            <Card
-              key={c.id}
-              className="hover:shadow-lg transition-all cursor-pointer group border-l-4 overflow-hidden relative"
-              style={{ borderLeftColor: c.couleur }}
-              onClick={() => router.push(`/compagnies?selected=${c.id}`)}
-            >
-              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Building2 className="h-20 w-20" />
-              </div>
-              <CardHeader className="pb-4">
-                <div className="flex justify-between items-center">
-                  <div
-                    className="relative p-2.5 rounded-lg bg-muted group-hover:bg-primary/10 transition-colors overflow-hidden"
-                    data-tour="cie-logo"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const input = document.createElement('input');
-                      input.type = 'file';
-                      input.accept = 'image/*';
-                      input.onchange = (ev) => {
-                        const file = (ev.target as HTMLInputElement).files?.[0];
-                        if (file) handleLogoUpload(c.id, file);
-                      };
-                      input.click();
-                    }}
-                    title={t('Cliquez pour importer un logo')}
-                  >
-                    {c.logoUrl && !logoErrors.has(c.id) ? (
-                      <img
-                        src={c.logoUrl}
-                        alt={c.nom}
-                        className="h-6 w-6 object-contain"
-                        onError={() => markLogoFailed(c.id)}
-                      />
-                    ) : (
-                      <Building2 className="h-6 w-6 text-muted-foreground group-hover:text-primary" />
-                    )}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
-                      <Upload className="h-3.5 w-3.5 text-white" />
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground transform group-hover:translate-x-1 transition-all" />
-                </div>
-                <CardTitle className="text-xl pt-4 group-hover:text-primary transition-colors">{c.nom}</CardTitle>
-                <CardDescription>{t("Visualiser l'activité globale")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-full w-fit">
-                  <FileText className="h-3 w-3" />
-                  {t('Gérer les sinistres')}
-                </div>
-              </CardContent>
-            </Card>
+      <div className="space-y-8" aria-busy="true" aria-live="polite">
+        <PageHeader title={pageTitle} subtitle={pageSubtitle} noAutoFocus />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CompagnieCardSkeleton key={i} />
           ))}
         </div>
       </div>
     );
   }
 
-  const statCards = [
-    { label: 'Total Dossiers', val: stats.total, bgClass: 'bg-muted/30', numberClass: 'text-foreground' },
-    { label: 'Nouveaux', val: stats.nouveau, bgClass: 'bg-violet-50 dark:bg-violet-900/20', numberClass: 'text-violet-700 dark:text-violet-200' },
-    { label: 'En cours', val: stats.enCours, bgClass: 'bg-amber-50 dark:bg-amber-900/20', numberClass: 'text-amber-700 dark:text-amber-200' },
-    { label: 'Terminés', val: stats.clos, bgClass: 'bg-emerald-50 dark:bg-emerald-900/20', numberClass: 'text-emerald-700 dark:text-emerald-200' },
+  if (!selectedCompagnie) {
+    return (
+      <div className="space-y-8">
+        {/* Page header (element-specs §1: Polaris Page — plural object as the
+            title, count pill; no page primary: compagnies are seeded, not
+            created here). Title and subtitle come from nav-groups. */}
+        <PageHeader title={pageTitle} subtitle={pageSubtitle} count={compagnies.length} />
+
+        {compagnies.length === 0 ? (
+          // Empty state (§12): state + reason; no action the reader can take
+          // (access is granted by an admin on /utilisateurs).
+          <EmptyState
+            icon={<Building2 />}
+            title={t('Aucune compagnie accessible')}
+            description={t("Aucune compagnie partenaire n'est visible avec vos permissions actuelles.")}
+            dashed={false}
+          />
+        ) : (
+          // Card grid as at 3d5629a (element-specs §5: Material 3 — the container
+          // is the only required element, whole card clickable when it links;
+          // NN/g cards — heterogeneous browsing → cards; Carbon tile — no
+          // decorative shadow, do not mix variants in a group). Anatomy: 4 px
+          // left edge in the company's own colour (per-company DATA, not a
+          // design hue), faded watermark, logo tile + chevron row, name as the
+          // card title, one-line description, "Gérer les sinistres" affordance.
+          <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3" aria-label={t('Compagnies partenaires')} data-tour="cie-grid">
+            {compagnies.map((c) => (
+              <li key={c.id} className="min-w-0">
+                <Card
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`${t('Ouvrir')} ${c.nom}`}
+                  className="group relative cursor-pointer overflow-hidden border-l-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  style={{ borderLeftColor: c.couleur }}
+                  onClick={() => router.push(`/compagnies?selected=${c.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      router.push(`/compagnies?selected=${c.id}`);
+                    }
+                  }}
+                >
+                  {/* Decorative watermark: ink-4 at low opacity (never a hue). */}
+                  <div className="pointer-events-none absolute right-0 top-0 p-4 text-ink-4 opacity-20 transition-opacity group-hover:opacity-40 motion-reduce:transition-none" aria-hidden>
+                    <Building2 className="h-20 w-20" />
+                  </div>
+                  <CardHeader className="gap-4 space-y-0 pb-4">
+                    <div className="flex items-center justify-between">
+                      <LogoTile
+                        compagnie={c}
+                        failed={logoErrors.has(c.id)}
+                        onFail={() => markLogoFailed(c.id)}
+                        onUpload={(file) => handleLogoUpload(c.id, file)}
+                      />
+                      <ChevronRight className="h-5 w-5 shrink-0 text-ink-4 transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-ink motion-reduce:transition-none" aria-hidden />
+                    </div>
+                    <div className="min-w-0">
+                      {/* Card title = t-title (20/600 Outfit — a title, not a number). */}
+                      <h2 className="t-title truncate">{c.nom}</h2>
+                      <CardDescription className="t-caption mt-1">{t("Visualiser l'activité globale")}</CardDescription>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Affordance pill (§11 count-pill surface + the light rim
+                        on a raised pill): the card itself is the link. */}
+                    <span className="t-caption inline-flex w-fit items-center gap-2 rounded-full bg-surface-3 px-3 py-1.5 font-medium text-ink-2 shadow-rim">
+                      <FileText className="h-3 w-3" aria-hidden />
+                      {t('Gérer les sinistres')}
+                    </span>
+                  </CardContent>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+
+  // Stat tiles (element-specs §6): four figures on neutral paper — no featured
+  // tile in a KPI row (Few: bright colour only for an exception; a zero is ink).
+  const statTiles = [
+    { label: 'Total dossiers', val: stats.total },
+    { label: 'Nouveaux', val: stats.nouveau },
+    { label: 'En cours', val: stats.enCours },
+    { label: 'Terminés', val: stats.clos },
   ];
+  // Real range printed under each figure (§6 / §23: never "· période").
+  const rangeCaption = dateFrom || dateTo
+    ? `${t('du')} ${dateFrom ? fmtIsoDay(dateFrom) : '—'} ${t('au')} ${dateTo ? fmtIsoDay(dateTo) : '—'}`
+    : t('toutes périodes');
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b pb-6">
-        <div className="flex items-center gap-5">
-          <div
-            className="relative h-28 w-28 rounded-lg bg-muted flex items-center justify-center overflow-hidden cursor-pointer border hover:border-primary/30 transition-colors shrink-0"
-            data-tour="cie-logo"
-            onClick={() => {
-              const input = document.createElement('input');
-              input.type = 'file';
-              input.accept = 'image/*';
-              input.onchange = (ev) => {
-                const file = (ev.target as HTMLInputElement).files?.[0];
-                if (file && selectedCompagnie) handleLogoUpload(selectedCompagnie.id, file);
-              };
-              input.click();
-            }}
-            title={t('Cliquez pour modifier le logo')}
-          >
-            {selectedCompagnie.logoUrl && !logoErrors.has(selectedCompagnie.id) ? (
-              <img
-                src={selectedCompagnie.logoUrl}
-                alt={selectedCompagnie.nom}
-                className="h-full w-full object-contain p-2"
-                onError={() => markLogoFailed(selectedCompagnie.id)}
-              />
-            ) : (
-              <Building2 className="h-14 w-14 text-muted-foreground" />
-            )}
-            <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
-              <Upload className="h-4 w-4 text-white" />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="h-8 w-1 rounded-full shrink-0" style={{ backgroundColor: selectedCompagnie.couleur }} />
-              <h1 className="text-4xl font-semibold tracking-tight">
-                {selectedCompagnie.nom}
-              </h1>
-            </div>
-            <p className="text-muted-foreground">{t('Tableau de bord opérationnel')}</p>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <Button variant="outline" asChild>
-            <Link href="/dossiers">{t('Tous les dossiers')}</Link>
-          </Button>
-          <Button className="shadow-lg shadow-primary/20" data-tour="cie-new" onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t('Nouveau dossier')}
-          </Button>
-        </div>
+    <div className="space-y-8">
+      {/* Detail header as at 3d5629a: a band closed by a hairline holding the
+          112 px logo tile and the compact PageHeader (element-specs §1:
+          breadcrumb/back to the parent, title, one filled primary at the right
+          end of `actions`, the other action `outline`). The 6×1 colour bar is
+          the company's own colour (data, not a design hue). */}
+      <div className="flex items-start gap-4 border-b border-hairline pb-6">
+        <LogoTile
+          compagnie={selectedCompagnie}
+          failed={logoErrors.has(selectedCompagnie.id)}
+          onFail={() => markLogoFailed(selectedCompagnie.id)}
+          onUpload={(file) => handleLogoUpload(selectedCompagnie.id, file)}
+          size="lg"
+        />
+        <PageHeader
+          className="min-w-0 flex-1"
+          size="compact"
+          backHref="/compagnies"
+          backLabel={pageTitle}
+          title={selectedCompagnie.nom}
+          icon={<span className="block h-6 w-1 rounded-full" style={{ backgroundColor: selectedCompagnie.couleur }} aria-hidden />}
+          subtitle={t('Tableau de bord opérationnel')}
+          actions={
+            <>
+              <Button variant="outline" asChild>
+                <Link href="/dossiers">{t('Tous les dossiers')}</Link>
+              </Button>
+              <Button data-tour="cie-new" onClick={() => setCreateOpen(true)}>
+                <Plus aria-hidden />
+                {t('Nouveau dossier')}
+              </Button>
+            </>
+          }
+        />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" data-tour="cie-stats">
-        {statCards.map((stat, i) => (
-          <Card key={i} className={cn('border shadow-sm', stat.bgClass)}>
-            <CardHeader className="py-4">
-              <CardTitle className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                {t(stat.label)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={cn('text-4xl font-semibold tabular-nums', stat.numberClass)}>{stat.val}</div>
-            </CardContent>
+      {/* KPI row (element-specs §6: dataviz stat-tile contract — label sentence
+          case, value in the UI sans semibold with proportional digits, caption
+          with the real range; Carbon tile — padding 16, no decorative shadow;
+          NN/g dashboards — at-a-glance). 36 px headline tier, Inter, never Outfit. */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-tour="cie-stats">
+        {statTiles.map((stat) => (
+          <Card key={stat.label} className="min-w-0 p-4">
+            <p className="t-label">{t(stat.label)}</p>
+            <div className="mt-2 text-[36px] font-semibold leading-none text-ink">
+              {loadingDossiers ? <Skeleton className="h-9 w-12" /> : stat.val}
+            </div>
+            <p className="t-caption mt-2 truncate">{rangeCaption}</p>
           </Card>
         ))}
       </div>
 
-      <Card className="shadow-md overflow-hidden border" data-tour="cie-table">
-        <CardHeader className="border-b py-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              <CardTitle className="text-lg">{t('Portefeuille Dossiers')}</CardTitle>
-              <CardDescription>{t('Extraction en temps réel des missions')} {selectedCompagnie.nom}.</CardDescription>
+      {/* Portfolio card (element-specs §5: Material 3 — filter controls sit in
+          the card header, outside the collection; one frame around the table,
+          no second frame). Hairline header row: t-heading + caption + the
+          date-range filter; the table below follows §3. */}
+      <Card role="region" aria-label={t('Portefeuille dossiers')} className="overflow-hidden" data-tour="cie-table">
+        <header className="flex min-h-[48px] flex-wrap items-center justify-between gap-4 border-b border-hairline px-6 py-4">
+          {/* Section anchor (neutral since the time ruling; addendum 2026-09-02 §1b: ONE small IconChip beside
+              the section title that anchors the page — terracotta as the
+              second voice; never on actions or status). Decorative. */}
+          <div className="flex min-w-0 items-center gap-3">
+            <IconChip><FolderOpen /></IconChip>
+            <div className="min-w-0">
+              <h2 className="t-heading truncate">{t('Portefeuille dossiers')}</h2>
+              <p className="t-caption truncate">{t('Extraction en temps réel des missions')} {selectedCompagnie.nom}.</p>
             </div>
-            <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/10 hover:bg-muted/10">
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Réf Expert')}</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Assuré')}</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Matricule')}</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Statut')}</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Création')}</TableHead>
-                <TableHead className="text-right font-semibold text-xs uppercase tracking-[0.08em] text-muted-foreground">{t('Gérer')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loadingDossiers ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={`sk-${i}`}>
-                    <TableCell colSpan={6} className="p-0">
-                      <SkeletonRow />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : dossiers.length === 0 ? (
-                <TableRow>
+          <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
+        </header>
+        {/* Data table (§3: Polaris — text left, headers aligned with their
+            data, first column fixed when the table overflows; Carbon — 44 px
+            rows, skeleton rows; NN/g — row is the link, chevron at the row
+            end, sticky header, hover tint). Refs and plates in t-mono. */}
+        <Table regionLabel={`${t('Dossiers')} ${selectedCompagnie.nom}`}>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="sticky left-0 z-[2] min-w-[9rem] border-r border-hairline bg-card">{t('Réf. expert')}</TableHead>
+              <TableHead>{t('Assuré')}</TableHead>
+              <TableHead>{t('Matricule')}</TableHead>
+              <TableHead>{t('Statut')}</TableHead>
+              <TableHead>{t('Création')}</TableHead>
+              <TableHead className="w-12 text-right"><span className="sr-only">{t('Ouvrir')}</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loadingDossiers ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <TableRow key={`sk-${i}`}>
                   <TableCell colSpan={6} className="p-0">
-                    <EmptyState
-                      icon={<Inbox />}
-                      title={`${t('Aucun dossier pour')} ${selectedCompagnie.nom}`}
-                      description={t("Aucun dossier n'est actuellement associé à cette compagnie sur la période sélectionnée.")}
-                      dashed={false}
-                      className="border-0 bg-transparent py-10"
-                    />
+                    <SkeletonRow />
                   </TableCell>
                 </TableRow>
-              ) : (
-                dossiers.map((d) => (
-                  <TableRow key={d.id} className="group hover:bg-muted/50 transition-colors border-b">
-                    <TableCell className="font-mono font-semibold text-primary text-sm tabular-nums">{d.refExpert}</TableCell>
-                    <TableCell className="font-medium text-sm">
-                      {typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim()}
+              ))
+            ) : dossiers.length === 0 ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={6} className="whitespace-normal p-0">
+                  {/* Empty state (§12): state + reason + ONE `tonal` action —
+                      clear the period when one is set, else create the first
+                      dossier (the header's filled button stays the page primary). */}
+                  <EmptyState
+                    icon={<Inbox />}
+                    title={dateFrom || dateTo ? t('Aucun dossier sur cette période') : `${t('Aucun dossier pour')} ${selectedCompagnie.nom}`}
+                    description={
+                      dateFrom || dateTo
+                        ? `${t('Aucun dossier')} ${selectedCompagnie.nom} ${rangeCaption}.`
+                        : t("Aucun dossier n'est encore associé à cette compagnie.")
+                    }
+                    action={
+                      dateFrom || dateTo ? (
+                        <Button variant="tonal" onClick={() => setFilters({ dateFrom: '', dateTo: '' })}>{t('Effacer la période')}</Button>
+                      ) : (
+                        <Button variant="tonal" onClick={() => setCreateOpen(true)}>{t('Créer un dossier')}</Button>
+                      )
+                    }
+                    dashed={false}
+                    className="rounded-none bg-transparent py-10"
+                  />
+                </TableCell>
+              </TableRow>
+            ) : (
+              dossiers.map((d) => {
+                const assure = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim();
+                return (
+                  <TableRow key={d.id} className="group cursor-pointer" onClick={() => router.push(`/dossiers/${d.id}`)}>
+                    <TableCell className="t-mono sticky left-0 z-[1] border-r border-hairline bg-card font-semibold [tr:hover_&]:bg-surface-2">
+                      {d.refExpert || <span className="text-ink-4">—</span>}
                     </TableCell>
+                    <TableCell className="font-medium">{assure || <span className="text-ink-4">—</span>}</TableCell>
+                    <TableCell className="t-mono">{d.matricule || <span className="text-ink-4">—</span>}</TableCell>
                     <TableCell>
-                      <span className="font-mono text-xs bg-muted/50 px-2 py-0.5 rounded inline-block tabular-nums">
-                        {d.matricule}
-                      </span>
+                      <Badge variant={statusVariant(d.statut || 'Nouveau')}>{t(d.statut || 'Nouveau')}</Badge>
                     </TableCell>
+                    {/* Dates are values → full ink (addendum §3: darker values;
+                        ink-2 columns were part of the "one gray sheet" read). */}
                     <TableCell>
-                      <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(d.statut || 'Nouveau'))}>
-                        {t(d.statut || 'Nouveau')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground tabular-nums">
-                      {d.dateRequete ? format(d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete), 'dd MMM yyyy', { locale: dateFnsLocale() }) : '-'}
+                      {d.dateRequete ? format(d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete), 'dd MMM yyyy', { locale: dateFnsLocale() }) : <span className="text-ink-4">—</span>}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" asChild>
-                        <Link href={`/dossiers/${d.id}`} title={t('Ouvrir le dossier')}>
-                          <ExternalLink className="h-4 w-4" />
+                      {/* Row = link, chevron at the row end (§3 / DESIGN.md §4). */}
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3 hover:text-ink" asChild onClick={(e) => e.stopPropagation()}>
+                        <Link href={`/dossiers/${d.id}`} title={t('Ouvrir le dossier')} aria-label={`${t('Ouvrir le dossier')} ${d.refExpert || ''}`}>
+                          <ChevronRight className="h-4 w-4" />
                         </Link>
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
       </Card>
 
       <CreateDossierDialog

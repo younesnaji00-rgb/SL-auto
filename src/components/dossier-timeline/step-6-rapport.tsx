@@ -10,15 +10,17 @@ export interface Step6RapportProps {
   dossier: Record<string, any> | null | undefined;
   dossierRef: DocumentReference;
   readOnly?: boolean;
+  /** Replay: frozen dossier snapshot forwarded to RapportTab. */
+  dossierOverride?: Record<string, any> | null;
 }
 
-export default function Step6Rapport({ dossierId }: Step6RapportProps) {
+export default function Step6Rapport({ dossierId, dossierOverride, readOnly }: Step6RapportProps) {
   // Thin wrapper over the existing RapportTab which generates the final
   // rapport PDF for the dossier. RapportTab only consumes `dossierId` and
   // subscribes to Firestore itself for everything else.
   return (
     <div className="space-y-6">
-      <RapportTab dossierId={dossierId} />
+      <RapportTab dossierId={dossierId} dossierOverride={dossierOverride} readOnly={readOnly} />
     </div>
   );
 }

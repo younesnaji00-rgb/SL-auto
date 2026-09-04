@@ -21,13 +21,24 @@ export function SortableHeader({ label, sort, onChange, className }: SortableHea
       type="button"
       onClick={() => onChange(next)}
       className={cn(
-        'inline-flex items-center gap-1 hover:text-foreground transition-colors',
-        sort ? 'text-foreground font-semibold' : 'text-muted-foreground',
+        // Inherits the `t-label` column head; the sorted column reads in ink.
+        // Carbon data table: "only the sorted column displays an icon, and
+        // unsorted icons are only visible on hover" — the unsorted glyph is
+        // revealed on hover/focus of the head only.
+        'group inline-flex items-center gap-1 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm',
+        sort ? 'font-medium text-ink' : 'text-ink-3',
         className,
       )}
+      aria-sort={sort === 'asc' ? 'ascending' : sort === 'desc' ? 'descending' : undefined}
     >
       {label}
-      <Icon className="h-3.5 w-3.5 opacity-70" />
+      <Icon
+        className={cn(
+          'h-3.5 w-3.5 transition-opacity',
+          sort ? 'text-ink-2' : 'text-ink-4 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100',
+        )}
+        aria-hidden
+      />
     </button>
   );
 }

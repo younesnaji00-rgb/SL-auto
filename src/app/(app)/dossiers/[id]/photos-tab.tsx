@@ -11,6 +11,7 @@ import {
   X,
   Check,
   Eye,
+  CalendarDays,
   Camera,
   ImageIcon,
   ChevronLeft,
@@ -23,13 +24,6 @@ import {
 } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   collection,
   addDoc,
@@ -45,9 +39,9 @@ import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { useFirestore, useAuth, useStorage, useDoc } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useTabSlopeMorphRef } from '@/hooks/use-tab-morph';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
@@ -84,6 +78,55 @@ interface Photo {
 
 type PartitionMode = 'date' | 'location';
 
+/** Grouping-mode tablist — its own component so the symbiote morph hook can
+ *  attach per strip (owner 2026-09-02: every tab strip animates; this one
+ *  renders once per category section). */
+function PartitionTabs({ value, onChange }: { value: PartitionMode; onChange: (m: PartitionMode) => void }) {
+  const t = useT();
+  const morphRef = useTabSlopeMorphRef();
+  return (
+    <div
+      ref={morphRef}
+      role="tablist"
+      aria-label={t('Mode de regroupement des photos')}
+      className="relative isolate -mx-2 mb-4 flex items-end gap-4 overflow-x-auto border-b border-hairline px-2 scrollbar-thin"
+    >
+      {([
+        ['date', 'Par date', CalendarDays],
+        ['location', 'Par localisation', MapPin],
+      ] as const).map(([mode, label, Icon]) => (
+        <button
+          key={mode}
+          type="button"
+          role="tab"
+          aria-selected={value === mode}
+          onClick={() => onChange(mode)}
+          className={cn(
+            // Browser-tab shape (owner ruling 2026-09-02): `.tab-slope` draws
+            // the sloped card fill via aria-selected. Underline = span, never
+            // border-b-2 (a bottom border lifts the padding box the feet
+            // anchor to — the arcs hung above the line; owner 2026-09-03).
+            'tab-slope relative -mb-px inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap px-3.5 text-[13px] font-medium text-ink-3',
+            'transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+            value === mode && 'text-ink',
+          )}
+        >
+          <Icon className="h-4 w-4" />
+          {t(label)}
+          <span
+            aria-hidden
+            className={cn(
+              'pointer-events-none absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-primary transition-opacity',
+              value === mode ? 'opacity-100' : 'opacity-0',
+            )}
+          />
+          <span className="tab-feet" aria-hidden />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Bucket key + display label used when grouping photos by location.
  * - Prefers an explicit `location` text field if present (option a).
@@ -116,8 +159,25 @@ export const MAX_PHOTOS_PER_SECTION = 30;
 /** Cap when proposition réforme is active. */
 export const MAX_PHOTOS_WITH_REFORME = 60;
 
-export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: { dossierId: string; initialCategory?: PhotoCategory; onlyCategory?: PhotoCategory }) {
+/* Preview-lightbox header height (≈46px) is folded into the lg
+   window-width formula on the DialogContent below. */
+
+export default function PhotosTab({
+  dossierId,
+  initialCategory,
+  onlyCategory,
+  photosOverride,
+}: {
+  dossierId: string;
+  initialCategory?: PhotoCategory;
+  onlyCategory?: PhotoCategory;
+  /** Replay: frozen photo list rendered instead of the live subscription. */
+  photosOverride?: any[];
+}) {
   const visibleCategories = onlyCategory ? CATEGORIES.filter((c) => c.id === onlyCategory) : CATEGORIES;
+  // Mounted inside a step facet tab (`onlyCategory` set): the photos already
+  // have their own tab, so date/location groups open EXPANDED by default.
+  const defaultGroupsOpen = Boolean(onlyCategory);
   const t = useT();
   const db = useFirestore();
   const auth = useAuth();
@@ -142,6 +202,29 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState<Photo | null>(null);
+  // width / height of the previewed photo — measured by PRELOADING the image
+  // (owner ruling 2026-09-02: the window must open AT its final size, no
+  // resize-and-snap after mount; same approach as document-preview-lightbox).
+  // The lightbox renders only once measured; while paging ‹ › the previous
+  // ratio is kept until the next photo's is known (smooth in-place resize).
+  const [previewRatio, setPreviewRatio] = useState<number | null>(null);
+  const [previewMeasured, setPreviewMeasured] = useState(false);
+  const previewWasOpenRef = useRef(false);
+  if (!previewPhoto) previewWasOpenRef.current = false;
+  useEffect(() => {
+    if (!previewPhoto?.url) { setPreviewRatio(null); setPreviewMeasured(false); return; }
+    setPreviewMeasured(false);
+    let alive = true;
+    const probe = new Image();
+    probe.onload = () => {
+      if (!alive) return;
+      if (probe.naturalWidth > 0 && probe.naturalHeight > 0) setPreviewRatio(probe.naturalWidth / probe.naturalHeight);
+      setPreviewMeasured(true);
+    };
+    probe.onerror = () => { if (alive) { setPreviewRatio(null); setPreviewMeasured(true); } };
+    probe.src = previewPhoto.url;
+    return () => { alive = false; };
+  }, [previewPhoto?.url]);
   // How photos are partitioned in the planification view. "date" (default)
   // keeps the historical per-day grouping; "location" groups by an explicit
   // `location` field if available, otherwise by a ~100 m lat/lng bucket, and
@@ -155,6 +238,12 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
   });
 
   useEffect(() => {
+    if (photosOverride !== undefined) {
+      // Replay override: frozen data — no live subscription.
+      setAllPhotos(photosOverride as Photo[]);
+      setLoading(false);
+      return;
+    }
     if (!db || !dossierId) return;
     setLoading(true);
     const photosRef = collection(db, 'dossiers', dossierId, 'photos');
@@ -171,7 +260,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
       },
     );
     return () => unsubscribe();
-  }, [db, dossierId]);
+  }, [db, dossierId, photosOverride]);
 
   const photosForCategory = (cat: PhotoCategory) =>
     allPhotos
@@ -361,17 +450,17 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
     const replayStatus = hl.statusForEntry('photos', photo.id);
     return (
       <div
-        className={cn("group relative bg-muted/30 rounded-md border border-border overflow-hidden transition-all hover:shadow-md", highlightClass(replayStatus))}
+        className={cn("group relative overflow-hidden rounded-md border border-hairline bg-surface-2 transition-shadow hover:shadow-card", highlightClass(replayStatus))}
       >
         {replayStatus && (
-          <div className="absolute top-1 left-1 z-10 rounded bg-background/90 px-1">
+          <div className="absolute left-1 top-1 z-10 rounded bg-card/90 px-1">
             <ChangeBadge status={replayStatus} />
           </div>
         )}
-        <div className="aspect-square w-full relative overflow-hidden bg-black/5">
+        <div className="relative aspect-square w-full overflow-hidden bg-surface-3">
           {photo.pendingUpload ? (
-            <div className="w-full h-full flex flex-col items-center justify-center text-amber-600 bg-amber-50 dark:bg-amber-950/30">
-              <Upload className="h-8 w-8 mb-2 opacity-60" />
+            <div className="flex h-full w-full flex-col items-center justify-center bg-status-warning-bg text-status-warning-fg">
+              <Upload className="mb-2 h-8 w-8" />
               <span className="text-xs font-medium">{t('En attente')}</span>
             </div>
           ) : (
@@ -380,7 +469,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               alt={photo.name}
               loading="lazy"
               decoding="async"
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              className="w-full h-full object-cover transition-transform duration-150 ease-standard motion-safe:group-hover:scale-[1.02]"
             />
           )}
 
@@ -436,7 +525,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
           )}
         </div>
 
-        <div className="p-2 bg-background border-t border-border">
+        <div className="border-t border-hairline bg-card p-2">
           {isEditing ? (
             <div className="flex items-center gap-1">
               <Input
@@ -452,7 +541,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-7 w-7 text-green-600 hover:bg-green-50"
+                className="h-7 w-7 text-status-success-fg hover:bg-status-success-bg hover:text-status-success-fg"
                 onClick={() => handleRename(photo)}
               >
                 <Check className="h-4 w-4" />
@@ -460,7 +549,7 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-7 w-7 text-muted-foreground"
+                className="h-7 w-7 text-ink-3"
                 onClick={() => setEditingId(null)}
               >
                 <X className="h-4 w-4" />
@@ -469,13 +558,13 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
           ) : (
             <>
               <p
-                className="text-[10px] text-muted-foreground font-medium truncate"
+                className="t-caption truncate font-medium text-ink-2"
                 title={photo.name}
               >
                 {photo.name}
               </p>
               {photo.uploadedAt?.toDate && (
-                <p className="text-[9px] text-muted-foreground/70 mt-0.5">
+                <p className="t-caption mt-0.5 tabular-nums">
                   {dateFormat(photo.uploadedAt.toDate(), 'd MMM HH:mm', { locale: dateFnsLocale() })}
                 </p>
               )}
@@ -488,8 +577,8 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex flex-col items-center justify-center gap-4 py-20 text-sm text-ink-3">
+        <Loader2 className="h-8 w-8 animate-spin" />
         <p>{t('Chargement des photos...')}</p>
       </div>
     );
@@ -498,6 +587,10 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
   return (
     <div className="space-y-6">
       <Tabs defaultValue={onlyCategory ?? initialCategory ?? 'avant'} className="w-full">
+        {/* Inside a step facet the phase is already named by the step title
+            (« Planification en cours ») — no category strip, no repeated
+            « Photos en cours » heading (user ruling). */}
+        {!onlyCategory && (
         <TabsList>
           {visibleCategories.map((cat) => {
             const count = photosForCategory(cat.id).length;
@@ -505,55 +598,32 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               <TabsTrigger key={cat.id} value={cat.id} className="gap-2">
                 <Camera className="h-3.5 w-3.5" />
                 {t(cat.label)}
-                <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5 min-w-[20px]">
+                <span className="rounded-full bg-surface-3 px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2">
                   {count}/{photoCap}
-                </Badge>
+                </span>
               </TabsTrigger>
             );
           })}
         </TabsList>
+        )}
 
         {visibleCategories.map((cat) => {
           const catPhotos = photosForCategory(cat.id);
           return (
-            <TabsContent key={cat.id} value={cat.id} className="mt-4" data-tour={`dosd-photos-${cat.id}`}>
+            <TabsContent key={cat.id} value={cat.id} className={onlyCategory ? 'mt-0' : 'mt-4'} data-tour={`dosd-photos-${cat.id}`}>
               {/* Upload header */}
               <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold">{t(cat.fullLabel)}</h3>
-                  <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5 min-w-[20px]">
+                {onlyCategory ? (
+                  <span className="t-caption tabular-nums">{catPhotos.length}/{photoCap} {t('photos')}</span>
+                ) : (
+                <h3 className="t-heading flex items-center gap-2">
+                  {t(cat.fullLabel)}
+                  <span className="rounded-full bg-surface-3 px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2">
                     {catPhotos.length}/{photoCap}
-                  </Badge>
-                </div>
+                  </span>
+                </h3>
+                )}
                 <div className="flex items-center gap-2">
-                  {/* Partition-mode selector: choose between per-date grouping
-                      (existing) and per-location grouping. Same control on
-                      every category — the active mode is shared. */}
-                  <Select
-                    value={partitionMode}
-                    onValueChange={(v) => setPartitionMode(v as PartitionMode)}
-                  >
-                    <SelectTrigger
-                      className="h-8 w-[170px] text-xs"
-                      aria-label={t('Mode de regroupement des photos')}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="date">
-                        <span className="inline-flex items-center gap-2">
-                          <ChevronDown className="h-3.5 w-3.5" />
-                          {t('Par date')}
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="location">
-                        <span className="inline-flex items-center gap-2">
-                          <MapPin className="h-3.5 w-3.5" />
-                          {t('Par localisation')}
-                        </span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
                   <input
                     type="file"
                     accept="image/*"
@@ -583,17 +653,27 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                 </div>
               </div>
 
+              {/* Grouping mode as underline tabs (styled like step-tabs.tsx) —
+                  replaces the previous Select. Both modes show every photo, so
+                  there is no separate "Toutes" (no-filter) state here. */}
+              {catPhotos.length > 0 && (
+                <PartitionTabs value={partitionMode} onChange={setPartitionMode} />
+              )}
+
               {/* Photo grid or empty state */}
               {catPhotos.length === 0 ? (
                 <div
                   className={cn(
-                    'flex flex-col items-center justify-center py-16 text-center gap-3 rounded-md border border-dashed border-border bg-muted/20',
-                    canEdit && 'cursor-pointer hover:bg-muted/40 transition-colors',
+                    'flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-hairline-strong py-16 text-center',
+                    canEdit && 'cursor-pointer transition-colors hover:bg-surface-2',
                   )}
                   onClick={() => canEdit && fileInputRefs.current[cat.id]?.click()}
                 >
-                  <ImageIcon className="h-12 w-12 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground italic">{t('Aucune photo')}</p>
+                  <ImageIcon className="h-12 w-12 text-ink-4" />
+                  <div>
+                    <p className="t-heading">{t('Aucune photo')}</p>
+                    {canEdit && <p className="t-caption mt-1">{t('Déposez ou sélectionnez des photos pour cette section.')}</p>}
+                  </div>
                   {canEdit && (
                     <Button
                       type="button"
@@ -619,13 +699,14 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
                 <PhotosByLocation
                   photos={catPhotos}
                   renderPhoto={renderPhotoCard}
+                  defaultExpanded={defaultGroupsOpen}
                 />
               ) : (
                 <CollapsedByDayList
                   items={catPhotos}
                   getDate={(photo) => (photo.uploadedAt?.toDate ? photo.uploadedAt.toDate() : null)}
                   keyOf={(photo) => photo.id}
-                  defaultExpanded={false}
+                  defaultExpanded={defaultGroupsOpen}
                   gridItems
                   groupLabel={(day, count) =>
                     `${dateFormat(day, 'd MMMM yyyy', { locale: dateFnsLocale() })} — ${count} photo${count > 1 ? 's' : ''}`
@@ -643,7 +724,8 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
           react-zoom-pan-pinch. Per Q-9 A photo opens fit-to-screen; per
           Q-10 A zoom buttons live in a bottom-center floating toolbar;
           per Q-6 A the X close button sits top-right. */}
-      {previewPhoto && (() => {
+      {previewPhoto && (previewMeasured || previewWasOpenRef.current) && (() => {
+        previewWasOpenRef.current = true;
         const siblings = photosForCategory(previewPhoto.category);
         const currentIdx = siblings.findIndex((p) => p.id === previewPhoto.id);
         const total = siblings.length;
@@ -660,9 +742,27 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
         return (
           <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
             <DialogContent
-              className="max-w-[100vw] w-screen h-screen p-0 rounded-none border-0 flex flex-col bg-black/95"
-              onKeyDown={onKey}
               hideCloseButton
+              calm
+              className={cn(
+                // Orientation-aware window (same sizing approach as
+                // document-preview-lightbox): below lg the dialog base is a
+                // bottom sheet; at lg+ the centred window follows the photo's
+                // orientation. Every vh/vw is divided by --app-zoom.
+                // `calm` = fade + centred zoom, nothing else; the size
+                // transition smooths paging onto a differently-oriented photo.
+                'flex h-[calc(85dvh/var(--app-zoom))] flex-col overflow-hidden border-0 bg-black/95 p-0',
+                'lg:transition-[width,height,max-width,max-height,min-width] lg:duration-200 motion-reduce:transition-none',
+                // Ratio unknown (failed measure): neutral box.
+                previewRatio === null && 'lg:h-[calc(85svh/var(--app-zoom))] lg:max-w-4xl',
+                // Measured: the window WRAPS the photo exactly (owner ruling
+                // 2026-09-02, no letterbox bands) — same one-formula sizing
+                // as document-preview-lightbox.
+                previewRatio !== null &&
+                  'lg:h-auto lg:min-w-[360px] lg:w-[min(calc(96vw/var(--app-zoom)),calc((92svh/var(--app-zoom)_-_46px)*var(--ar)),1400px)] lg:max-w-[calc(96vw/var(--app-zoom))]',
+              )}
+              style={previewRatio !== null ? ({ ['--ar' as string]: String(previewRatio) } as React.CSSProperties) : undefined}
+              onKeyDown={onKey}
             >
               <DialogHeader className="px-4 py-3 border-b border-white/10 shrink-0 pr-14">
                 <DialogTitle className="text-sm truncate text-white">
@@ -684,7 +784,15 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
               >
                 <X className="h-5 w-5" />
               </button>
-              <div className="flex-1 relative overflow-hidden">
+              <div
+                className={cn(
+                  'relative flex max-w-full items-center justify-center overflow-hidden',
+                  previewRatio === null && 'flex-1',
+                  // Height follows the window width through the aspect ratio —
+                  // the photo fills the box edge to edge, no letterbox.
+                  previewRatio !== null && 'min-h-0 flex-1 lg:flex-none lg:w-full lg:aspect-[var(--ar)]',
+                )}
+              >
                 <TransformWrapper
                   key={previewPhoto.id /* reset zoom on photo change */}
                   initialScale={1}
@@ -786,9 +894,12 @@ export default function PhotosTab({ dossierId, initialCategory, onlyCategory }: 
 function PhotosByLocation({
   photos,
   renderPhoto,
+  defaultExpanded = false,
 }: {
   photos: Photo[];
   renderPhoto: (photo: Photo) => React.ReactNode;
+  /** Groups open by default (used when the photos live in their own step tab). */
+  defaultExpanded?: boolean;
 }) {
   const t = useT();
   const groups = React.useMemo(() => {
@@ -814,11 +925,11 @@ function PhotosByLocation({
   }, [photos]);
 
   const [expanded, setExpanded] = useState<Map<string, boolean>>(new Map());
-  const isExpanded = (key: string) => expanded.get(key) ?? false;
+  const isExpanded = (key: string) => expanded.get(key) ?? defaultExpanded;
   const toggle = (key: string) => {
     setExpanded((prev) => {
       const next = new Map(prev);
-      next.set(key, !(prev.get(key) ?? false));
+      next.set(key, !(prev.get(key) ?? defaultExpanded));
       return next;
     });
   };
@@ -836,23 +947,23 @@ function PhotosByLocation({
             <button
               type="button"
               onClick={() => toggle(group.key)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-accent text-left"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left transition-colors hover:bg-surface-2"
             >
               {open ? (
-                <ChevronDown className="h-4 w-4 shrink-0" />
+                <ChevronDown className="h-4 w-4 shrink-0 text-ink-3" />
               ) : (
-                <ChevronRight className="h-4 w-4 shrink-0" />
+                <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" />
               )}
               <MapPin
                 className={cn(
                   'h-4 w-4 shrink-0',
-                  isUnknown ? 'text-muted-foreground/50' : 'text-primary',
+                  isUnknown ? 'text-ink-4' : 'text-ink-3',
                 )}
               />
               <span
                 className={cn(
-                  'font-medium',
-                  isUnknown && 'italic text-muted-foreground',
+                  't-body-sm font-medium',
+                  isUnknown && 'italic text-ink-3',
                 )}
               >
                 {isUnknown ? t('Sans localisation') : group.label} — {count} photo{count > 1 ? 's' : ''}

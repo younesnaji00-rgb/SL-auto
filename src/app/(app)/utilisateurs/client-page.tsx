@@ -7,15 +7,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { PageHeader } from '@/components/layout/page-header';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardContent,
-  CardDescription,
-  CardFooter
+  CardFooter,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Form,
   FormControl,
@@ -39,9 +39,12 @@ import {
   TableHead,
   TableBody,
   TableCell,
+  EmptyCell,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Pencil, Trash2, Eye, EyeOff, X, User as UserIcon } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Search, Pencil, Trash2, X, User as UserIcon } from 'lucide-react';
+import { IconChip } from '@/components/ui/icon-chip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
 import {
@@ -57,6 +60,7 @@ import {
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { ROLE_DESCRIPTIONS } from '@/lib/role-descriptions';
 import { useFirestore, useCollection, useFirebaseApp } from '@/firebase';
 import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -109,12 +113,17 @@ function generateEmail(nom: string): string {
   return `${sanitized}@${BRAND.authEmailDomain}`;
 }
 
+// Status chip helper — element-specs §11 (Carbon tag / dataviz: the same state
+// always maps to the same status pair, text label always, never colour alone).
+const statutVariant = (statut: string) => (statut === 'Actif' ? 'success' : 'danger');
+
+
 export default function UtilisateursClientPage() {
   const t = useT();
   const db = useFirestore();
   const app = useFirebaseApp();
   const router = useRouter();
-  const { canDelete } = useCurrentUser();
+  const { canDelete, profile } = useCurrentUser();
 
   // Single source of truth: Firestore. Filter inactive entries client-side.
   const { options: dbRoles } = useOptions('options_roles');
@@ -153,10 +162,9 @@ export default function UtilisateursClientPage() {
     // Only react when the email param changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailParam]);
-  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string; self?: boolean } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const form = useForm<UserFormData>({
@@ -285,7 +293,22 @@ export default function UtilisateursClientPage() {
     }
   }
 
+  // Guard rails (addendum ter E / SaaSUI): the last Admin can never be
+  // removed — prefer a disabled control with a reason over a failing action
+  // (Norman: constraints beat warnings).
+  const adminCount = useMemo(
+    () => (userList ?? []).filter((u: any) => u.role === 'Admin').length,
+    [userList],
+  );
+  const isLastAdmin = (user: any) => user?.role === 'Admin' && adminCount <= 1;
+
   const handleDelete = async (userId: string) => {
+    const target = userList?.find((u: any) => u.id === userId);
+    if (isLastAdmin(target)) {
+      toast({ variant: 'destructive', title: t('Suppression impossible'), description: t('C’est le dernier compte Admin — créez-en un autre avant de supprimer celui-ci.') });
+      setDeleteTarget(null);
+      return;
+    }
     setIsDeleting(true);
     try {
       const user = userList?.find((u: any) => u.id === userId);
@@ -312,10 +335,6 @@ export default function UtilisateursClientPage() {
     }
   };
 
-  const togglePasswordVisibility = (userId: string) => {
-    setShowPasswords(prev => ({ ...prev, [userId]: !prev[userId] }));
-  };
-
   const filteredUsers = useMemo(() => {
     if (!userList) return [];
     return userList.filter((user: any) => {
@@ -331,384 +350,513 @@ export default function UtilisateursClientPage() {
     });
   }, [userList, filters]);
 
+  const hasActiveFilters = !!filters.search || filters.role !== 'Tous';
+  const clearAllFilters = () => {
+    clearFilter('role');
+    setFilters({ search: '' });
+  };
+
+  // Empty cell = « — » in ink-4 (element-specs §10: empty = "—", never a fake value).
+  const emptyCell = <EmptyCell />;
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="md:col-span-1">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <Card className="border shadow-sm rounded-lg" data-tour="usr-create">
-              <CardHeader>
-                <CardTitle>{t('Ajouter un utilisateur')}</CardTitle>
-                <CardDescription>{t('Créez un nouveau profil utilisateur.')}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="nom"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Nom complet')}</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Mot de passe')}</FormLabel>
-                      <FormControl><Input type="password" placeholder={t('Minimum 6 caractères')} {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="confirmPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Confirmez le mot de passe')}</FormLabel>
-                      <FormControl><Input type="password" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center justify-between">
-                        <FormLabel>{t('Rôle')}</FormLabel>
-                        <OptionsManagerModal collectionName="options_roles" title={t('Rôles')} />
-                      </div>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-tour="usr-role"><SelectValue placeholder={t('Sélectionnez un rôle')} /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {roles.map(role => <SelectItem key={role.id} value={role.label}>{t(role.label)}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="compagnies"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center justify-between">
-                        <FormLabel>{t("Compagnies d'Assurance")}</FormLabel>
-                        <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />
-                      </div>
-                      <MultiSelect
-                        options={companyOptions}
-                        selected={field.value}
-                        onChange={field.onChange}
-                        className="w-full"
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="sites"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center justify-between">
-                        <FormLabel>{t('Sites')}</FormLabel>
-                        <OptionsManagerModal collectionName="options_sites" title={t('Sites')} />
-                      </div>
-                      <MultiSelect
-                        options={sitesOptions}
-                        selected={field.value ?? []}
-                        onChange={field.onChange}
-                        className="w-full"
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {form.watch('role') === 'Agent de Terrain' && (
+    <div className="space-y-6">
+      {/* Page header — element-specs §1 (Polaris Page: title = plural object,
+          count pill). No action here: the inline form's submit is the page
+          primary (GOV.UK button: one default button per page). */}
+      <PageHeader
+        title={t('Utilisateurs')}
+        subtitle={t('Ajouter, gérer et assigner des rôles aux utilisateurs.')}
+        count={loading ? undefined : filteredUsers.length}
+      />
+
+      {/* Original two-column layout (3d5629a): inline creation form left,
+          « Gérer » card right. */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="md:col-span-1">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)}>
+              {/* Content card — element-specs §5 (Material 3 cards: container +
+                  one topic; NN/g cards: "a few short, related pieces"): glass
+                  edge, 24 px padding, t-heading title, 16 px between blocks. */}
+              <Card data-tour="usr-create">
+                <CardHeader>
+                  <CardTitle className="t-heading">{t('Ajouter un utilisateur')}</CardTitle>
+                </CardHeader>
+                {/* Form — element-specs §9 + addendum 4 (GOV.UK: "size inputs
+                    to known lengths"; NN/g: field width matches the input):
+                    chunked groups — identité / accès / affectations — rows 16
+                    apart inside a group, 24 px between groups; password fields
+                    content-sized, selects at their natural width; only the
+                    name stays wide. Placeholders are format cues only. */}
+                <CardContent className="space-y-6">
+                  {/* Identité */}
+                  <div className="space-y-4">
                   <FormField
                     control={form.control}
-                    name="zone"
-                    render={({ field }) => {
-                      const trimmedQuery = zoneQuery.trim();
-                      const normalize = (s: string) =>
-                        s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-                      const qNorm = normalize(trimmedQuery);
-                      const sortedZones = [...zones].sort((a, b) =>
-                        a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })
-                      );
-                      const filteredZones = qNorm
-                        ? sortedZones.filter(z => normalize(z.label).startsWith(qNorm))
-                        : sortedZones;
-                      const exactMatch = trimmedQuery
-                        ? zones.some(z => normalize(z.label) === qNorm)
-                        : true;
-                      const selected = field.value || '';
-                      return (
-                        <FormItem className="flex flex-col">
-                          <div className="flex items-center justify-between">
-                            <FormLabel>{t('Zone')}</FormLabel>
-                            <OptionsManagerModal collectionName="options_zones" title={t('Zones')} />
-                          </div>
-                          <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  role="combobox"
-                                  aria-expanded={zonePopoverOpen}
-                                  className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground")}
-                                >
-                                  {selected || t('Sélectionnez ou saisissez une zone')}
-                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                              <Command shouldFilter={false}>
-                                <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
-                                  <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                                  <input
-                                    value={zoneQuery}
-                                    onChange={(e) => setZoneQuery(e.target.value)}
-                                    placeholder={t('Tapez pour rechercher ou créer...')}
-                                    className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' && trimmedQuery) {
-                                        e.preventDefault();
-                                        field.onChange(trimmedQuery);
-                                        setZonePopoverOpen(false);
-                                        setZoneQuery('');
-                                      }
-                                    }}
-                                  />
-                                </div>
-                                <CommandList>
-                                  {filteredZones.length === 0 && !trimmedQuery && (
-                                    <CommandEmpty>{t('Aucune zone enregistrée. Tapez pour créer.')}</CommandEmpty>
-                                  )}
-                                  {filteredZones.length > 0 && (
-                                    <CommandGroup>
-                                      {filteredZones.map(z => (
+                    name="nom"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel>{t('Nom complet')}</FormLabel>
+                        <FormControl><Input {...field} autoComplete="off" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  </div>
+                  {/* Accès */}
+                  <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel>{t('Mot de passe')}</FormLabel>
+                        <p className="t-caption">{t('Au moins 6 caractères')}</p>
+                        <FormControl><Input type="password" autoComplete="new-password" className="max-w-[16rem]" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel>{t('Confirmez le mot de passe')}</FormLabel>
+                        <FormControl><Input type="password" autoComplete="new-password" className="max-w-[16rem]" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <FormLabel>{t('Rôle')}</FormLabel>
+                          <OptionsManagerModal collectionName="options_roles" title={t('Rôles')} />
+                        </div>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="max-w-[16rem]" data-tour="usr-role"><SelectValue placeholder={t('Sélectionnez un rôle')} /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {roles.map(role => <SelectItem key={role.id} value={role.label}>{t(role.label)}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        {/* What the chosen role can do, in plain French, right
+                            where it is assigned (addendum ter E). */}
+                        {ROLE_DESCRIPTIONS[field.value] && (
+                          <p className="t-caption max-w-[24rem]">{t(ROLE_DESCRIPTIONS[field.value])}</p>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  </div>
+                  {/* Affectations */}
+                  <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="compagnies"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <FormLabel>{t("Compagnies d'assurance")}</FormLabel>
+                          <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />
+                        </div>
+                        <MultiSelect
+                          options={companyOptions}
+                          selected={field.value}
+                          onChange={field.onChange}
+                          className="w-full"
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sites"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <FormLabel>{t('Sites')} <span className="text-ink-4">({t('facultatif')})</span></FormLabel>
+                          <OptionsManagerModal collectionName="options_sites" title={t('Sites')} />
+                        </div>
+                        <MultiSelect
+                          options={sitesOptions}
+                          selected={field.value ?? []}
+                          onChange={field.onChange}
+                          className="w-full"
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {form.watch('role') === 'Agent de Terrain' && (
+                    <FormField
+                      control={form.control}
+                      name="zone"
+                      render={({ field }) => {
+                        const trimmedQuery = zoneQuery.trim();
+                        const normalize = (s: string) =>
+                          s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+                        const qNorm = normalize(trimmedQuery);
+                        const sortedZones = [...zones].sort((a, b) =>
+                          a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })
+                        );
+                        const filteredZones = qNorm
+                          ? sortedZones.filter(z => normalize(z.label).startsWith(qNorm))
+                          : sortedZones;
+                        const exactMatch = trimmedQuery
+                          ? zones.some(z => normalize(z.label) === qNorm)
+                          : true;
+                        const selected = field.value || '';
+                        return (
+                          <FormItem className="flex flex-col space-y-1">
+                            <div className="flex items-center justify-between">
+                              <FormLabel>{t('Zone')}</FormLabel>
+                              <OptionsManagerModal collectionName="options_zones" title={t('Zones')} />
+                            </div>
+                            <Popover open={zonePopoverOpen} onOpenChange={(open) => { setZonePopoverOpen(open); if (!open) setZoneQuery(''); }}>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={zonePopoverOpen}
+                                    className={cn("w-full justify-between font-normal", !selected && "text-ink-3")}
+                                  >
+                                    {selected || t('Sélectionnez ou saisissez une zone')}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ink-3" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                <Command shouldFilter={false}>
+                                  <div className="flex items-center border-b border-hairline px-3" cmdk-input-wrapper="">
+                                    <Search className="mr-2 h-4 w-4 shrink-0 text-ink-3" />
+                                    <input
+                                      value={zoneQuery}
+                                      onChange={(e) => setZoneQuery(e.target.value)}
+                                      placeholder={t('Rechercher ou créer une zone')}
+                                      className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-ink-3"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && trimmedQuery) {
+                                          e.preventDefault();
+                                          field.onChange(trimmedQuery);
+                                          setZonePopoverOpen(false);
+                                          setZoneQuery('');
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                  <CommandList>
+                                    {filteredZones.length === 0 && !trimmedQuery && (
+                                      <CommandEmpty>{t('Aucune zone enregistrée. Tapez pour créer.')}</CommandEmpty>
+                                    )}
+                                    {filteredZones.length > 0 && (
+                                      <CommandGroup>
+                                        {filteredZones.map(z => (
+                                          <CommandItem
+                                            key={z.id}
+                                            value={z.label}
+                                            onSelect={() => {
+                                              field.onChange(z.label);
+                                              setZonePopoverOpen(false);
+                                              setZoneQuery('');
+                                            }}
+                                          >
+                                            <Check className={cn("mr-2 h-4 w-4", selected === z.label ? "opacity-100" : "opacity-0")} />
+                                            {z.label}
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    )}
+                                    {trimmedQuery && !exactMatch && (
+                                      <CommandGroup heading={t('Créer')}>
                                         <CommandItem
-                                          key={z.id}
-                                          value={z.label}
+                                          value={`__create__${trimmedQuery}`}
                                           onSelect={() => {
-                                            field.onChange(z.label);
+                                            field.onChange(trimmedQuery);
                                             setZonePopoverOpen(false);
                                             setZoneQuery('');
                                           }}
                                         >
-                                          <Check className={cn("mr-2 h-4 w-4", selected === z.label ? "opacity-100" : "opacity-0")} />
-                                          {z.label}
+                                          <Plus className="mr-2 h-4 w-4" />
+                                          {t('Créer')} «{trimmedQuery}»
                                         </CommandItem>
-                                      ))}
-                                    </CommandGroup>
-                                  )}
-                                  {trimmedQuery && !exactMatch && (
-                                    <CommandGroup heading={t('Créer')}>
-                                      <CommandItem
-                                        value={`__create__${trimmedQuery}`}
-                                        onSelect={() => {
-                                          field.onChange(trimmedQuery);
-                                          setZonePopoverOpen(false);
-                                          setZoneQuery('');
-                                        }}
-                                      >
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        {t('Créer')} «{trimmedQuery}»
-                                      </CommandItem>
-                                    </CommandGroup>
-                                  )}
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      );
-                    }}
-                  />
-                )}
-              </CardContent>
-              <CardFooter>
-                <Button type="submit" className="w-full" loading={isSubmitting}>
-                  {isSubmitting ? t('Création...') : t("Ajouter l'utilisateur")}
-                </Button>
-              </CardFooter>
-            </Card>
-          </form>
-        </Form>
-      </div>
-
-      <div className="md:col-span-2">
-        <Card className="border shadow-sm rounded-lg">
-          <CardHeader>
-            <CardTitle>{t('Gérer les utilisateurs')}</CardTitle>
-            <CardDescription>{t('Modifiez ou supprimez des profils existants.')}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-grow" data-tour="usr-search">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={t('Rechercher par nom...')}
-                  className="pl-10"
-                  value={filters.search}
-                  onChange={e => setFilters({ search: e.target.value })}
-                />
-              </div>
-              <Select value={filters.role} onValueChange={value => setFilters({ role: value })}>
-                <SelectTrigger className="w-full sm:w-[200px]" data-tour="usr-filter-role">
-                  <SelectValue placeholder={t('Filtrer par rôle')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Tous">{t('Tous les rôles')}</SelectItem>
-                  {roles.map(role => <SelectItem key={role.id} value={role.label}>{t(role.label)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {filters.role !== 'Tous' && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">{t('Filtres actifs')}</span>
-                <Badge variant="outline" className="gap-1 pr-1">
-                  {t('Rôle :')} {t(filters.role)}
-                  <button onClick={() => clearFilter('role')} className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive" aria-label={t('Retirer le filtre rôle')}>
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              </div>
-            )}
-            <div className="rounded-lg overflow-hidden bg-muted/10" data-tour="usr-table">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/30 border-0">
-                    <TableHead>{t('Nom')}</TableHead>
-                    <TableHead>{t('Mot de passe')}</TableHead>
-                    <TableHead>{t('Rôle')}</TableHead>
-                    <TableHead>{t('Zone')}</TableHead>
-                    <TableHead>{t('Compagnies')}</TableHead>
-                    <TableHead>{t('Statut')}</TableHead>
-                    <TableHead className="text-right">{t('Actions')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={`sk-${i}`}>
-                        <TableCell colSpan={7} className="p-0">
-                          <SkeletonRow />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : filteredUsers.length === 0 ? (
-                    <TableRow key="empty-users">
-                      <TableCell colSpan={6} className="p-0">
-                        <EmptyState
-                          icon={<UserIcon />}
-                          title={t('Aucun utilisateur trouvé')}
-                          description={filters.search || filters.role !== 'Tous' ? t("Essayez d'ajuster les filtres.") : t('Commencez par ajouter un utilisateur.')}
-                          dashed={false}
-                          className="border-0 bg-transparent py-10"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredUsers.map((user: any) => (
-                      <TableRow
-                        key={user.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => router.push(`/utilisateurs/${user.id}`)}
-                      >
-                        <TableCell className="font-medium">{user.prenom} {user.nom}</TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-1">
-                            <span className="text-sm font-mono">
-                              {showPasswords[user.id] ? (user.password || '-') : '••••••'}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => togglePasswordVisibility(user.id)}
-                            >
-                              {showPasswords[user.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{t(user.role)}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {user.role === 'Agent de Terrain' && user.zone ? (
-                            <Badge variant="secondary" className="text-xs">{user.zone}</Badge>
-                          ) : null}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1 max-w-[200px]">
-                            {(user.compagnies || []).length === 0 ? (
-                              <span className="text-xs text-muted-foreground">{t('Toutes')}</span>
-                            ) : (user.compagnies || []).map((c: string, i: number) => (
-                              <Badge key={i} variant="secondary" className="text-xs">{c}</Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={user.statut === 'Actif' ? 'success' : 'destructive'}>{t(user.statut || 'Actif')}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                              <Link href={`/utilisateurs/${user.id}`} title={t('Modifier')}>
-                                <Pencil className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                              </Link>
-                            </Button>
-                            {canDelete && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ id: user.id, nom: `${user.prenom || ''} ${user.nom || ''}`.trim() || t('cet utilisateur') })} title={t('Supprimer')}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                                      </CommandGroup>
+                                    )}
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
+                    />
                   )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+                  </div>
+                </CardContent>
+                {/* Submit — element-specs §8 (GOV.UK: "use a default button for
+                    the main call to action on a page"; Material 3: one filled
+                    button per screen). THE page primary; label verb + noun. */}
+                <CardFooter>
+                  <Button type="submit" className="w-full" loading={isSubmitting}>
+                    {isSubmitting ? t('Création…') : t("Ajouter l'utilisateur")}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </form>
+          </Form>
+        </div>
+
+        <div className="md:col-span-2">
+          <Card className="overflow-hidden">
+            <CardHeader>
+              <CardTitle className="t-heading flex items-center gap-2">
+                {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip beside the
+                    section that anchors the page. */}
+                <IconChip><UserIcon /></IconChip>
+                {t('Gérer les utilisateurs')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filter toolbar — element-specs §2 (Polaris filters: labelled
+                  search first, ≤ 3 promoted filters, applied filters as chips
+                  + clear-all; NN/g: general → specific). No filled button. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-0 flex-1 basis-56" data-tour="usr-search">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
+                  <Input
+                    placeholder={t('Nom, prénom ou email')}
+                    className="pl-9"
+                    value={filters.search}
+                    onChange={e => setFilters({ search: e.target.value })}
+                    aria-label={t('Rechercher un utilisateur')}
+                  />
+                </div>
+                <Select value={filters.role} onValueChange={value => setFilters({ role: value })}>
+                  <SelectTrigger className="w-full sm:w-[200px]" aria-label={t('Filtrer par rôle')} data-tour="usr-filter-role">
+                    <SelectValue placeholder={t('Filtrer par rôle')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Tous">{t('Tous les rôles')}</SelectItem>
+                    {roles.map(role => <SelectItem key={role.id} value={role.label}>{t(role.label)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {hasActiveFilters && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {filters.role !== 'Tous' && (
+                    <Badge variant="neutral" className="h-6 gap-1 pr-1">
+                      {t('Rôle :')} {t(filters.role)}
+                      <button
+                        type="button"
+                        onClick={() => clearFilter('role')}
+                        className="rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={t('Retirer le filtre rôle')}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {filters.search && (
+                    <Badge variant="neutral" className="h-6 gap-1 pr-1">
+                      {t('Recherche :')} {filters.search}
+                      <button
+                        type="button"
+                        onClick={() => setFilters({ search: '' })}
+                        className="rounded-full p-0.5 text-ink-3 hover:bg-surface-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={t('Effacer la recherche')}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  <Button variant="link" size="sm" className="h-6 px-1" onClick={clearAllFilters}>
+                    {t('Effacer')}
+                  </Button>
+                </div>
+              )}
+
+              {/* Data table — element-specs §3 (Polaris: text left, headers
+                  aligned with their data; NN/g: first column = human identifier,
+                  hover highlight, 1–2 inline row actions; Carbon: sticky header,
+                  skeleton instead of spinner). No numeric columns here. The
+                  table sits in the card WITHOUT a second frame (§5): it bleeds
+                  to the card edges under a hairline. */}
+              <div className="-mx-6 -mb-6 border-t border-hairline" data-tour="usr-table">
+                <Table regionLabel={t('Utilisateurs')}>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-6">{t('Nom')}</TableHead>
+                      {/* The « Mot de passe » column was removed 2026-09-02
+                          (owner: "implement everything"): a scannable table of
+                          plaintext passwords is a shoulder-surfing risk with no
+                          list-page job — the masked value + toggle lives on the
+                          user's detail page. */}
+                      <TableHead>{t('Rôle')}</TableHead>
+                      <TableHead>{t('Zone')}</TableHead>
+                      <TableHead>{t('Compagnies')}</TableHead>
+                      <TableHead>{t('Statut')}</TableHead>
+                      <TableHead className="w-24 pr-6 text-right"><span className="sr-only">{t('Actions')}</span></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={`sk-${i}`}>
+                          <TableCell colSpan={6} className="p-0">
+                            <SkeletonRow />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : filteredUsers.length === 0 ? (
+                      <TableRow key="empty-users" className="hover:bg-transparent">
+                        <TableCell colSpan={6} className="p-0">
+                          {/* Empty state — element-specs §12 (NN/g: state + reason
+                              + one pathway; Polaris: one action, no-results variant
+                              says which filter to clear). */}
+                          <EmptyState
+                            icon={<UserIcon />}
+                            title={hasActiveFilters ? t('Aucun utilisateur ne correspond') : t('Ajouter le premier utilisateur')}
+                            description={hasActiveFilters ? t('Effacez la recherche ou le filtre de rôle.') : t('Le formulaire « Ajouter un utilisateur » crée le compte et son identifiant.')}
+                            action={
+                              hasActiveFilters ? (
+                                <Button variant="tonal" onClick={clearAllFilters}>{t('Effacer les filtres')}</Button>
+                              ) : (
+                                <Button variant="tonal" onClick={() => form.setFocus('nom')}>{t('Remplir le formulaire')}</Button>
+                              )
+                            }
+                            dashed={false}
+                            className="bg-transparent py-10"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredUsers.map((user: any) => {
+                        const displayName = `${user.prenom || ''} ${user.nom || ''}`.trim() || t('Sans nom');
+                        const statut = user.statut || 'Actif';
+                        const compagnies: string[] = user.compagnies || [];
+                        return (
+                          <TableRow
+                            key={user.id}
+                            className="cursor-pointer"
+                            onClick={() => router.push(`/utilisateurs/${user.id}`)}
+                          >
+                            <TableCell className="pl-6">
+                              <span className="block truncate font-semibold text-ink">{displayName}</span>
+                              {user.email && <span className="t-caption block truncate font-mono">{user.email}</span>}
+                            </TableCell>
+                            <TableCell>
+                              {/* Chips — §11: neutral for informational categories (role). */}
+                              {user.role ? <Badge variant="neutral">{t(user.role)}</Badge> : emptyCell}
+                            </TableCell>
+                            <TableCell>
+                              {user.role === 'Agent de Terrain' && user.zone ? (
+                                <span className="text-ink">{user.zone}</span>
+                              ) : emptyCell}
+                            </TableCell>
+                            <TableCell className="whitespace-normal">
+                              <div className="flex max-w-[260px] flex-wrap gap-1">
+                                {compagnies.length === 0 ? (
+                                  <span className="t-caption">{t('Toutes')}</span>
+                                ) : compagnies.map((c: string, i: number) => (
+                                  <Badge key={i} variant="neutral" title={c}>{t(c)}</Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {/* Status pair with a text label — never colour alone (§11). */}
+                              <Badge variant={statutVariant(statut)}>{t(statut)}</Badge>
+                            </TableCell>
+                            <TableCell className="pr-6 text-right" onClick={(e) => e.stopPropagation()}>
+                              {/* Row actions — §3/§8: ≤ 2 inline `ghost` icon buttons
+                                  with tooltips (Apple HIG toolbars: edit is one of the
+                                  actions "not well-represented by symbols" → tooltip);
+                                  Supprimer last. */}
+                              <div className="flex items-center justify-end gap-1">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3 hover:text-ink" asChild>
+                                      <Link href={`/utilisateurs/${user.id}`} aria-label={`${t('Modifier')} ${displayName}`}>
+                                        <Pencil className="h-4 w-4" />
+                                      </Link>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>{t('Modifier')}</TooltipContent>
+                                </Tooltip>
+                                {canDelete && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-ink-3 hover:text-destructive disabled:pointer-events-auto"
+                                        disabled={isLastAdmin(user)}
+                                        onClick={() => {
+                                          if (isLastAdmin(user)) return;
+                                          setDeleteTarget({
+                                            id: user.id,
+                                            nom: displayName === t('Sans nom') ? t('cet utilisateur') : displayName,
+                                            self: user.id === profile?.uid,
+                                          });
+                                        }}
+                                        aria-label={`${t('Supprimer')} ${displayName}`}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {isLastAdmin(user) ? t('Impossible : dernier compte Admin') : t('Supprimer')}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
+      {/* Confirmation dialog — element-specs §13 (Material 3 dialogs: headline
+          names the object, ≤ 2 actions, confirm closest to the edge). */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('Supprimer cet utilisateur ?')}</AlertDialogTitle>
+            <AlertDialogTitle>{t('Supprimer')} « {deleteTarget?.nom} » ?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.nom && <span className="font-semibold">{deleteTarget.nom}</span>} {t('sera définitivement supprimé. Son compte Firebase, sa fiche et ses entrées dans les collections liées (options_agents / chiffreurs) seront retirés. Cette action est irréversible.')}
+              {deleteTarget?.self && (
+                <span className="font-medium text-status-danger-fg">{t('Il s’agit de votre propre compte — vous perdrez immédiatement l’accès.')} </span>
+              )}
+              {t('Son compte, sa fiche et ses entrées dans les collections liées (agents / chiffreurs) seront retirés. Cette action est irréversible.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>{t('Annuler')}</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className={buttonVariants({ variant: 'destructive' })}
               disabled={isDeleting}
               onClick={(e) => {
                 e.preventDefault();
                 if (deleteTarget) handleDelete(deleteTarget.id);
               }}
             >
-              {t('Supprimer')}
+              {isDeleting ? t('Suppression…') : t('Supprimer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

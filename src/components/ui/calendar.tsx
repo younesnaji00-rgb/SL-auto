@@ -11,12 +11,13 @@ import {
   isSameDay,
   isSameMonth,
   isToday,
+  isWeekend,
   format,
   addDays,
   addMonths,
   subMonths,
 } from "date-fns"
-import { dateFnsLocale, useLocale } from "@/i18n"
+import { dateFnsLocale, useLocale, useT } from "@/i18n"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
@@ -36,6 +37,7 @@ function Calendar({
   disabled,
 }: CalendarProps) {
   const { locale } = useLocale()
+  const t = useT()
   const weekdays = React.useMemo(() => {
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
     return Array.from({ length: 7 }, (_, i) =>
@@ -62,41 +64,40 @@ function Calendar({
   }
 
   return (
-    <div className={cn("p-4 w-[280px]", className)}>
-      {/* Header: navigation + month label */}
-      <div className="flex items-center justify-between mb-3">
-        <button
-          type="button"
-          onClick={handlePrevMonth}
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "h-8 w-8 p-0 hover:bg-accent hover:text-accent-foreground transition-colors"
-          )}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="text-sm font-semibold capitalize">
+    // 7 × 40 px cells (element-specs §17 / Material 3 date picker: 40–48 dp
+    // day cells; NN/g date input: show today, spell the month out).
+    <div className={cn("w-[280px] p-4", className)}>
+      {/* Header: month spelled out (t-heading) at the left, ‹ › ghost icon
+          buttons at the right end. */}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="t-heading capitalize">
           {format(currentMonth, "MMMM yyyy", { locale: dateFnsLocale() })}
         </span>
-        <button
-          type="button"
-          onClick={handleNextMonth}
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "h-8 w-8 p-0 hover:bg-accent hover:text-accent-foreground transition-colors"
-          )}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            aria-label={t("Mois précédent")}
+            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            aria-label={t("Mois suivant")}
+            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Weekday headers */}
-      <div className="grid grid-cols-7 mb-1">
+      {/* Weekday headers — t-label, sentence case (never uppercase).
+          Labels come from the active date-fns locale (EN/FR). */}
+      <div className="mb-1 grid grid-cols-7">
         {weekdays.map((day) => (
-          <div
-            key={day}
-            className="text-center text-xs font-medium text-muted-foreground uppercase tracking-wide py-2"
-          >
+          <div key={day} className="t-label py-2 text-center">
             {day}
           </div>
         ))}
@@ -109,27 +110,31 @@ function Calendar({
           const isCurrentMonth = isSameMonth(day, currentMonth)
           const isDayToday = isToday(day)
           const isDisabled = disabled?.(day) ?? false
+          const isWeekendDay = isWeekend(day)
 
           return (
-            <div key={day.toISOString()} className="p-0.5">
-              <button
-                type="button"
-                onClick={() => handleDayClick(day)}
-                disabled={isDisabled}
-                className={cn(
-                  "h-9 w-full rounded-md text-sm font-normal transition-colors",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  !isCurrentMonth && "text-muted-foreground/40",
-                  isCurrentMonth && "text-foreground",
-                  isDayToday && !isSelected && "bg-accent text-accent-foreground font-semibold border border-primary/30",
-                  isSelected && "bg-primary text-primary-foreground font-semibold hover:bg-primary/90 hover:text-primary-foreground shadow-sm",
-                  isDisabled && "opacity-40 cursor-not-allowed hover:bg-transparent"
-                )}
-              >
-                {format(day, "d")}
-              </button>
-            </div>
+            <button
+              key={day.toISOString()}
+              type="button"
+              onClick={() => handleDayClick(day)}
+              disabled={isDisabled}
+              className={cn(
+                // Day cell 40 px, t-body-sm tabular; today = 1 px primary
+                // ring; selected = accent pair (the one accent use);
+                // weekends ink-3, other-month days ink-4; hover on the
+                // surface ladder. No palette colours, no terracotta.
+                "h-10 w-full rounded-md text-[13px] font-normal tabular-nums transition-colors",
+                "hover:bg-surface-3 hover:text-ink",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                !isCurrentMonth && "text-ink-4",
+                isCurrentMonth && (isWeekendDay ? "text-ink-3" : "text-ink"),
+                isDayToday && !isSelected && "font-semibold ring-1 ring-inset ring-primary",
+                isSelected && "bg-accent font-semibold text-accent-foreground shadow-rim hover:bg-accent hover:text-accent-foreground",
+                isDisabled && "cursor-not-allowed opacity-40 hover:bg-transparent"
+              )}
+            >
+              {format(day, "d")}
+            </button>
           )
         })}
       </div>

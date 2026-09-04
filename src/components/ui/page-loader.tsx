@@ -13,15 +13,15 @@ const PageLoader = React.forwardRef<HTMLDivElement, PageLoaderProps>(
       <div
         ref={ref}
         className={cn(
-          "flex min-h-[60vh] w-full flex-col items-center justify-center gap-3 text-muted-foreground",
+          "flex min-h-[calc(60vh/var(--app-zoom))] w-full flex-col items-center justify-center gap-3 text-ink-3",
           className
         )}
         aria-live="polite"
         aria-busy="true"
         {...props}
       >
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        {label ? <p className="text-sm">{label}</p> : null}
+        <Loader2 className="h-6 w-6 animate-spin text-ink-3 motion-reduce:animate-none" />
+        {label ? <p className="t-caption">{label}</p> : null}
       </div>
     )
   }

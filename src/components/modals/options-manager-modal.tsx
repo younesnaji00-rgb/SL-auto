@@ -139,6 +139,11 @@ export function OptionsManagerModal({
     }
   };
 
+  // Only admins can manage options. The guard sits AFTER every hook so the
+  // hook order is unconditional (rules-of-hooks); it used to sit above the
+  // useState block, which crashed when `isAdmin` flipped after auth resolved.
+  if (!isAdmin) return null;
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -231,7 +236,7 @@ export function OptionsManagerModal({
         </div>
 
         <DialogFooter className="flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <p className="text-[10px] text-muted-foreground italic flex-1">{t("Les modifications sont appliquées instantanément partout dans l'application.")}</p>
+          <p className="text-[11px] text-muted-foreground italic flex-1">{t("Les modifications sont appliquées instantanément partout dans l'application.")}</p>
           {collectionName !== 'options_statuts' && !!getDefaultsFor(collectionName)?.length && (
             <Button
               type="button"

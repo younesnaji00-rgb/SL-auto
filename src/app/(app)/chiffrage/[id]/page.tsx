@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/layout/page-header';
 import React, { useEffect, useState, use, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -10,12 +11,12 @@ import { ref, getDownloadURL } from 'firebase/storage';
 import { useFirestore, useStorage } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, FileType, Eye } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { FileType } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { SkeletonCard } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useT } from '@/i18n';
-import Link from 'next/link';
+import Loading from './loading';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -45,7 +46,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
   const [chiffrage, setChiffrage] = useState<ChiffrageDoc | null>(null);
   const [downloadUrls, setDownloadUrls] = useState<Record<number, string>>({});
   const [pageReady, setPageReady] = useState(false);
-  
+
   const hasLoadedRef = useRef(false);
   const fetchedPathsRef = useRef<Set<string>>(new Set());
 
@@ -53,7 +54,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
 
   useEffect(() => {
     if (!chiffrageRef) return;
-    
+
     const unsub = onSnapshot(chiffrageRef, (snap) => {
       if (!snap.exists()) {
         if (hasLoadedRef.current) {
@@ -68,7 +69,7 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
     }, (error) => {
       console.error("Chiffrage listener error:", error);
     });
-    
+
     return () => unsub();
   }, [chiffrageRef, router, toast]);
 
@@ -96,121 +97,130 @@ export default function ChiffragePage({ params }: { params: Promise<{ id: string
   }, [chiffrage?.files, storage]);
 
   if (!pageReady || !chiffrage) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-lg animate-pulse bg-muted" />
-          <div className="space-y-2 flex-1">
-            <div className="h-6 w-48 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-64 animate-pulse rounded bg-muted" />
-          </div>
-          <div className="h-10 w-40 animate-pulse rounded-lg bg-muted" />
-        </div>
-        <div className="grid gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </div>
-      </div>
-    );
+    // Loading (element-specs §15): the route skeleton mirrors this exact layout.
+    return <Loading />;
   }
 
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
-          <Link href="/dashboard"><ArrowLeft className="h-4 w-4" /></Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{chiffrage.dossierNom}</h1>
-          <p className="text-muted-foreground text-sm">
-            {t('Correcteur assigné :')} {chiffrage.assignedChiffreurNom}
-          </p>
-        </div>
-        <div className="ml-auto">
-          <Badge variant={chiffrage.status === 'done' ? 'success' : 'secondary'} className="gap-1.5 py-1 px-3">
-            {chiffrage.status === 'done' ? t('Terminé') : t('En cours')}
-          </Badge>
-        </div>
-      </div>
+  const done = chiffrage.status === 'done';
 
-      <div className="grid gap-4">
+  return (
+    <div className="mx-auto max-w-4xl space-y-8">
+      {/* Page header (element-specs §1: Polaris Page ✓ breadcrumb back to the
+          parent, compact t-title on a record page; meta chip §11 for the
+          correction state — success once done, neutral while open). No
+          filled button: this page has no page-level action. */}
+      <PageHeader
+        size="compact"
+        backHref="/assignations-chiffrage"
+        backLabel={t('Assignations au chiffrage')}
+        title={chiffrage.dossierNom || t('Sans réf.')}
+        titleText={chiffrage.dossierNom || t('Sans réf.')}
+        subtitle={<>{t('Correcteur assigné :')} <span className="font-semibold text-ink">{chiffrage.assignedChiffreurNom || '—'}</span></>}
+        meta={
+          <Badge variant={done ? 'success' : 'neutral'}>
+            {done ? t('Terminé') : t('En cours')}
+          </Badge>
+        }
+      />
+
+      {/* One caption for the whole board — the same sentence under every file
+          was the "repeated title" anti-pattern (blueprint). */}
+      {chiffrage.files.length > 0 && (
+        <p className="t-caption">
+          {t("Mode « Correction native » : utilisez l'éditeur pour barrer les erreurs et ajouter vos corrections directement sur le document.")}
+        </p>
+      )}
+
+      <div className="grid gap-6">
         {chiffrage.files.length === 0 && (
+          // Empty state (element-specs §12: NN/g ✓ state + reason; Polaris ✓
+          // one line). No action: files are attached upstream by the
+          // gestionnaire. Flat well, not dashed — dashed is the drop cue.
           <EmptyState
             icon={<FileType />}
-            title={t('Aucun fichier')}
+            title={t("Aucun fichier")}
             description={t("Aucun fichier n'a encore été associé à ce chiffrage.")}
+            dashed={false}
           />
         )}
-        {chiffrage.files.map((file, i) => (
-          <div
-            key={`${file.storagePath}-${i}`}
-            className="border rounded-lg p-4 flex flex-col sm:flex-row gap-4 items-start bg-card shadow-sm hover:shadow-md transition-all group cursor-pointer"
-            onClick={() => router.push(`/viewer?chiffrageId=${id}&dossierId=${chiffrage.dossierId}&fileIndex=${i}`)}
-          >
-            <div className="w-28 h-28 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden border shadow-inner relative">
-              {downloadUrls[i] && (file.type === "photo" || file.name.match(/\.(jpg|jpeg|png)$/i)) ? (
-                <img
-                  src={downloadUrls[i]}
-                  alt={file.name}
-                  loading="lazy"
-                  decoding="async"
-                  className="object-cover w-full h-full"
-                />
-              ) : (
-                <div className="flex flex-col items-center gap-1">
-                  <FileType className="h-8 w-8 text-muted-foreground opacity-40" />
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground">{file.type === 'photo' ? 'Image' : 'PDF/Doc'}</span>
+        {chiffrage.files.map((file, i) => {
+          const isImage = !!downloadUrls[i] && (file.type === "photo" || /\.(jpg|jpeg|png)$/i.test(file.name));
+          const open = () => router.push(`/viewer?chiffrageId=${id}&dossierId=${chiffrage.dossierId}&fileIndex=${i}`);
+          return (
+            // Clickable list card (element-specs §5: NN/g cards ✓ "whole card
+            // clickable when it links"; Material 3 cards ✓ container is the
+            // only required element; Carbon tile ✓ no drop shadow to reveal
+            // more). One horizontal paper per file, padding 24, hover =
+            // surface-2, keyboard-operable; no scale on hover.
+            <Card
+              key={`${file.storagePath}-${i}`}
+              role="button"
+              tabIndex={0}
+              aria-label={`${t("Ouvrir")} ${file.name} ${t("dans l'éditeur")}`}
+              onClick={open}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  open();
+                }
+              }}
+              className="flex cursor-pointer flex-col items-start gap-4 p-6 transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:flex-row"
+            >
+              {/* Leading anchor (§4: 36–40 px+ media on `surface-2` with the rim). */}
+              <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2 shadow-rim">
+                {isImage ? (
+                  <img
+                    src={downloadUrls[i]}
+                    alt={file.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-1">
+                    <FileType className="h-8 w-8 text-ink-4" aria-hidden />
+                    <span className="t-label">{file.type === "photo" ? t("Image") : t("PDF/Doc")}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1 space-y-3">
+                {/* Name 14/600 ink + status chip (§11). */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="min-w-0 break-words text-sm font-semibold text-ink">{file.name}</span>
+                  <StatusBadge status={file.status} hasAnnotations={!!file.annotations?.length} />
                 </div>
-              )}
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <Eye className="h-6 w-6 text-white" />
-              </div>
-            </div>
 
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-bold text-sm">{file.name}</span>
-                <StatusBadge status={file.status} hasAnnotations={!!file.annotations?.length} />
-              </div>
-
-              <p className="text-xs text-muted-foreground line-clamp-2 italic bg-muted/30 p-2 rounded">
-                {t('Mode "Correction Native" : Utilisez l\'éditeur pour barrer les erreurs et ajouter vos corrections directement sur le document.')}
-              </p>
-
-              <div className="flex gap-2 flex-wrap pt-2">
+                {/* Secondary action (§8: `outline` — the card itself is the primary
+                    path); stopPropagation keeps it from also opening the editor. */}
                 {file.pdfUrl && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    asChild
-                  >
-                    <a href={file.pdfUrl} target="_blank" rel="noopener noreferrer">{t('Voir le PDF Exporté')}</a>
+                  <Button variant="outline" asChild onClick={(e) => e.stopPropagation()}>
+                    <a href={file.pdfUrl} target="_blank" rel="noopener noreferrer">{t("Voir le PDF exporté")}</a>
                   </Button>
                 )}
               </div>
-            </div>
-          </div>
-        ))}
+            </Card>
+          );
+        })}
       </div>
-
     </div>
   );
 }
 
+/** Status chip (element-specs §11): one helper, same state → same pair; no pulse. */
 function StatusBadge({ status, hasAnnotations }: { status: string; hasAnnotations: boolean }) {
   const t = useT();
   if (hasAnnotations) {
     return <Badge variant="success">{t('Corrigé')}</Badge>;
   }
   if (status === 'processing') {
-    return <Badge variant="chiffrage" className="animate-pulse">{t('En traitement')}</Badge>;
+    return <Badge variant="info">{t("En traitement")}</Badge>;
   }
   if (status === 'error') {
-    return <Badge variant="destructive">{t('Erreur')}</Badge>;
+    return <Badge variant="danger">{t("Erreur")}</Badge>;
   }
   if (status === 'done') {
     return <Badge variant="success">{t('Terminé')}</Badge>;
   }
-  return <Badge variant="secondary">{t('En attente')}</Badge>;
+  return <Badge variant="neutral">{t("En attente")}</Badge>;
 }

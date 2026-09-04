@@ -289,11 +289,11 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
         disabled={isSubmitting}
       />
 
-      <Card className="shadow-sm border-primary/10">
-        <CardContent className="p-4 space-y-4">
+      <Card>
+        <CardContent className="space-y-4 p-5">
           <Textarea
             placeholder={t('Écrire un commentaire...')}
-            className="min-h-[100px] resize-none focus-visible:ring-primary"
+            className="min-h-[100px] resize-none"
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             disabled={isSubmitting}
@@ -303,9 +303,9 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary" className="gap-1 pr-1">
                 <span className="truncate max-w-[150px]">{selectedFile.name}</span>
-                <button 
+                <button
                   type="button"
-                  className="h-4 w-4 rounded-full hover:bg-muted" 
+                  className="h-4 w-4 rounded-full hover:bg-surface-3"
                   onClick={() => setSelectedFile(null)}
                 >
                   <X className="h-3 w-3" />
@@ -314,11 +314,11 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
             </div>
           )}
 
-          <div className="flex items-center justify-between border-t pt-4">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="text-muted-foreground hover:text-primary"
+          <div className="flex items-center justify-between border-t border-hairline pt-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-ink-3 hover:text-ink"
               onClick={() => attachmentInputRef.current?.click()}
               disabled={isSubmitting}
               title={t('Attacher un fichier')}
@@ -358,44 +358,44 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
           />
         ) : (
           comments.map((comment) => (
-            <div key={comment.id} className="flex gap-4 group">
-              <Avatar className="h-10 w-10 shrink-0 border">
-                <AvatarFallback className="bg-primary/5 text-primary">
+            <div key={comment.id} className="group flex gap-4">
+              <Avatar className="h-10 w-10 shrink-0 border border-hairline">
+                <AvatarFallback className="bg-surface-3 text-sm font-semibold text-ink-2">
                   {(comment.auteurNom || comment.auteur || comment.authorName || 'U').charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 space-y-2">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm">{comment.auteurNom || comment.auteur || comment.authorName}</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-ink">{comment.auteurNom || comment.auteur || comment.authorName}</span>
                       {comment.auteurRole && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-medium">{t(comment.auteurRole)}</Badge>
+                        <Badge variant="outline" className="px-1.5 py-0 text-[11px] font-medium text-ink-2">{t(comment.auteurRole)}</Badge>
                       )}
-                      <span className="text-xs text-muted-foreground">•</span>
-                      <span className="text-xs text-muted-foreground">{formatDate(comment.date || comment.createdAt)}</span>
+                      <span className="text-xs text-ink-4" aria-hidden>•</span>
+                      <span className="t-caption tabular-nums">{formatDate(comment.date || comment.createdAt)}</span>
                     </div>
                     {comment.auteurNom && comment.auteur && comment.auteurNom !== comment.auteur && (
-                      <div className="text-[10px] text-muted-foreground">{comment.auteur}</div>
+                      <div className="t-caption">{comment.auteur}</div>
                     )}
                   </div>
-                  
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+
+                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                     {(comment.auteur === currentUserEmail || comment.authorName === currentUserEmail) && editingId !== comment.id && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-ink-3 hover:text-ink"
                         onClick={() => handleStartEdit(comment)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
                     )}
                     {(comment.auteur === currentUserEmail || comment.authorName === currentUserEmail || canDelete) && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-ink-3 hover:text-destructive"
                         onClick={() => handleDeleteComment(comment.id, comment.pieceJointe?.storagePath || comment.attachments?.[0]?.storagePath)}
                         disabled={deletingId === comment.id}
                       >
@@ -427,10 +427,10 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-accent/30 rounded-2xl rounded-tl-none p-4 text-sm text-foreground/90 whitespace-pre-wrap relative">
+                  <div className="relative whitespace-pre-wrap rounded-xl rounded-tl-sm bg-surface-2 p-4 text-sm text-ink">
                     {comment.contenu || comment.text}
                     {comment.editedAt && (
-                      <div className="mt-2 text-[10px] text-muted-foreground italic">
+                      <div className="t-caption mt-2 italic">
                         {t('Modifié le')} {formatDate(comment.editedAt)}
                       </div>
                     )}
@@ -443,12 +443,12 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 text-[11px] gap-2 rounded-full border-primary/20 hover:bg-primary/5"
+                        className="h-8 gap-2 rounded-full text-[11px]"
                         onClick={() => handleDownload(comment.pieceJointe!.url, comment.pieceJointe!.nom)}
                       >
-                        <FileIcon className="h-3 w-3 text-primary" />
+                        <FileIcon className="h-3 w-3 text-ink-3" />
                         <span className="max-w-[120px] truncate">{comment.pieceJointe.nom}</span>
-                        <Download className="h-3 w-3 opacity-50" />
+                        <Download className="h-3 w-3 text-ink-4" />
                       </Button>
                     ) : (
                       comment.attachments?.map((file: any, i: number) => (
@@ -456,12 +456,12 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                           key={i}
                           variant="outline"
                           size="sm"
-                          className="h-8 text-[11px] gap-2 rounded-full border-primary/20 hover:bg-primary/5"
+                          className="h-8 gap-2 rounded-full text-[11px]"
                           onClick={() => handleDownload(file.downloadURL, file.fileName)}
                         >
-                          <FileIcon className="h-3 w-3 text-primary" />
+                          <FileIcon className="h-3 w-3 text-ink-3" />
                           <span className="max-w-[120px] truncate">{file.fileName}</span>
-                          <Download className="h-3 w-3 opacity-50" />
+                          <Download className="h-3 w-3 text-ink-4" />
                         </Button>
                       ))
                     )}

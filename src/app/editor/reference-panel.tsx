@@ -5,14 +5,22 @@ import {
   X,
   Image as ImageIcon,
   FileText,
-  ChevronDown,
+  Eye,
   ChevronsUp,
   ChevronsDown,
   Rows2,
   Minimize2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
+import PdfCanvas, {
+  ViewerZoomPill,
+  useWheelZoomNotch,
+  VIEWER_ZOOM_MAX,
+  VIEWER_ZOOM_MIN,
+} from './pdf-canvas';
 import { cn } from '@/lib/utils';
+import { useTabSlopeMorphRef } from '@/hooks/use-tab-morph';
 import { useFirestore, useStorage, useCollection } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { ref, getDownloadURL } from 'firebase/storage';
@@ -24,7 +32,7 @@ interface ReferencePanelProps {
   dossierId: string;
   isOpen: boolean;
   onClose: () => void;
-  /** Overrides the default root classes (width/border). Default: "w-1/2 min-w-[300px] border-r". */
+  /** Overrides the default root classes (width/border). Default: "w-1/2 min-w-[300px] border-r border-hairline". */
   className?: string;
   /**
    * When provided, the first pane opens in `documents` mode and auto-selects
@@ -42,22 +50,24 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className, 
   if (!isOpen) return null;
 
   return (
-    <div className={cn('bg-card flex flex-col shrink-0', className ?? 'w-1/2 min-w-[300px] border-r')}>
-      {/* Outer panel header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50 shrink-0">
-        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t('Comparaison')}</span>
+    <div className={cn('flex shrink-0 flex-col bg-card', className ?? 'w-1/2 min-w-[300px] border-r border-hairline')}>
+      {/* Panel header — element-specs §18 side panels (flat surface, not glass
+          on glass) + §1: one `t-heading` naming the panel, tool icons
+          (`ghost`, aria-pressed on the split toggle) at the right end. */}
+      <div className="flex min-h-[40px] shrink-0 items-center justify-between gap-2 border-b border-hairline px-4 py-1.5">
+        <h2 className="t-heading truncate">{t("Comparaison")}</h2>
         <div className="flex items-center gap-1">
           <Button
-            variant={split ? 'default' : 'ghost'}
+            variant={split ? 'tonal' : 'ghost'}
             size="icon"
-            className="h-6 w-6"
+            className="h-7 w-7"
             onClick={() => setSplit((s) => !s)}
             title={split ? t('Fermer le second panneau') : t('Diviser le panneau pour comparer 2 documents')}
             aria-pressed={split}
           >
             {split ? <Minimize2 className="h-3.5 w-3.5" /> : <Rows2 className="h-3.5 w-3.5" />}
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} title={t('Fermer')}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title={t("Fermer")} aria-label={t("Fermer")}>
             <X className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -66,16 +76,68 @@ export default function ReferencePanel({ dossierId, isOpen, onClose, className, 
       {/* Pane 1 */}
       <ReferencePane dossierId={dossierId} label={split ? 'Vue 1' : null} initialDocType={initialDocType} />
 
-      {/* Pane 2 (split) */}
+      {/* Pane 2 (split) — hairline separation only (no coloured rule). */}
       {split && (
         <>
-          <div className="border-t-2 border-primary/40 shrink-0" aria-hidden />
+          <div className="shrink-0 border-t border-hairline-strong" aria-hidden />
           <ReferencePane dossierId={dossierId} label="Vue 2" />
         </>
       )}
     </div>
   );
 }
+
+/** Raised tab on a recessed track — addendum §2 (supersedes the underline
+ *  idiom; NN/g Flat design: text-only controls get missed by new users —
+ *  backgrounds/borders/shadows restore clickability; NN/g Tabs Used Right:
+ *  "at least two selection indicators"): the tab list is a `surface-2` track
+ *  (see PaneTabList), the active tab a raised `bg-card` card with `shadow-rim`
+ *  + a 2 px accent bar, inactive tabs quiet ink-2 with a surface-3 hover.
+ *  Mirrors `components/ui/tabs.tsx`; the compact photo sub-tabs pass their
+ *  own height. */
+function PaneTab({
+  active,
+  onClick,
+  children,
+  className,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        // Browser-tab shape (owner rulings 2026-09-02 + ter): `.tab-slope`
+        // draws the sloped body + outward feet; aria-selected drives the
+        // active card + rim, inactive tabs are grey surface-4.
+        'tab-slope relative flex min-h-[32px] flex-1 items-center justify-center gap-1.5 whitespace-nowrap px-3.5 py-1 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        active ? 'font-semibold text-ink' : 'text-ink-2 hover:text-ink',
+        className,
+      )}
+    >
+      {children}
+      {/* Accent bar (second indicator) — a real element because ::after
+          now draws the tab feet. */}
+      <span
+        aria-hidden
+        className={cn('pointer-events-none absolute inset-x-3 bottom-[3px] h-0.5 rounded-full bg-primary transition-opacity', active ? 'opacity-100' : 'opacity-0')}
+      />
+      <span className="tab-feet" aria-hidden />
+    </button>
+  );
+}
+
+/** The recessed track the raised tabs sit on (addendum §2): hairline border,
+ *  `surface-2` fill, rounded-lg — visibly a control. px-2 (8px) keeps the
+ *  tabs' 7px outward feet inside the track. */
+const PANE_TABLIST_CLASS =
+  'relative isolate flex shrink-0 items-end gap-4 rounded-lg border border-hairline bg-surface-2 px-2 pt-1';
 
 function ReferencePane({
   dossierId,
@@ -92,12 +154,18 @@ function ReferencePane({
   const db = useFirestore();
   const storage = useStorage();
   const [mode, setMode] = useState<Mode>(initialDocType ? 'documents' : 'photos');
+  // Symbiote morph on both pane tablists (owner 2026-09-02: every tab strip
+  // animates); callback refs because the strips mount with listOpen.
+  const modeMorphRef = useTabSlopeMorphRef();
+  const subTabMorphRef = useTabSlopeMorphRef();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const autoSelectedRef = useRef(false);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const [listOpen, setListOpen] = useState(true);
   const [photoSubTab, setPhotoSubTab] = useState<'avant' | 'en_cours' | 'apres'>('avant');
+  // Lightbox: the eye icon is the only way in (clicking the media does nothing).
+  const [preview, setPreview] = useState<{ url: string; nom: string } | null>(null);
 
   // Fetch photos
   const photosQuery = useMemo(
@@ -186,77 +254,80 @@ function ReferencePane({
   }, [mode, photos, documents, selectedId]);
 
   const isImageFile = (name: string) => /\.(jpg|jpeg|png|webp|gif)$/i.test(name || '');
+  // C2 — only files we know to be PDFs go through the pdfjs canvas viewer;
+  // anything else keeps the iframe (unchanged behavior).
+  const isPdfFile = (name: string) => /\.pdf$/i.test(name || '');
+  const selectedName: string = selectedItem?.name || selectedItem?.nom || '';
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      {/* Pane mini-header: label (if any) + listOpen toggle */}
-      <div className="flex items-center justify-between px-3 py-1 border-b bg-muted/30 shrink-0">
-        <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Pane mini-header: `t-label` (pane name · selected file) · eye button
+          opening the DocumentPreviewLightbox (net-new, kept) · list toggle —
+          `ghost` icon buttons with aria-pressed on the toggle (§18). */}
+      <div className="flex min-h-[32px] shrink-0 items-center justify-between gap-2 border-b border-hairline px-3 py-0.5">
+        <span className="t-label truncate">
           {label ? t(label) : ''}
+          {selectedName && <span className="text-ink-2">{label ? ' · ' : ''}{selectedName}</span>}
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-5 w-5"
-          onClick={() => setListOpen((o) => !o)}
-          title={listOpen ? t('Reduire la liste') : t('Afficher la liste')}
-          aria-pressed={listOpen}
-        >
-          {listOpen ? <ChevronsUp className="h-3 w-3" /> : <ChevronsDown className="h-3 w-3" />}
-        </Button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-ink-3 hover:text-ink"
+            onClick={() => viewerUrl && setPreview({ url: viewerUrl, nom: selectedName || 'document' })}
+            disabled={!viewerUrl}
+            title={t("Ouvrir en plein écran")}
+            aria-label={t("Ouvrir en plein écran")}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-ink-3 hover:text-ink"
+            onClick={() => setListOpen((o) => !o)}
+            title={listOpen ? t("Reduire la liste") : t("Afficher la liste")}
+            aria-pressed={listOpen}
+          >
+            {listOpen ? <ChevronsUp className="h-3.5 w-3.5" /> : <ChevronsDown className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
       </div>
 
-      {/* Mode toggle */}
+      {/* Mode toggle — raised tabs on a recessed track (addendum §2) */}
       {listOpen && (
-        <div className="flex border-b shrink-0">
-          <button
-            className={cn(
-              'flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors',
-              mode === 'photos' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:bg-muted/50'
-            )}
-            onClick={() => setMode('photos')}
-          >
+        <div ref={modeMorphRef} className={cn(PANE_TABLIST_CLASS, 'mx-2 my-2')} role="tablist">
+          <PaneTab active={mode === 'photos'} onClick={() => setMode('photos')}>
             <ImageIcon className="h-3.5 w-3.5" />
-            {t('Photos')} ({photos?.length || 0})
-          </button>
-          <button
-            className={cn(
-              'flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors',
-              mode === 'documents' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:bg-muted/50'
-            )}
-            onClick={() => setMode('documents')}
-          >
+            {t("Photos")} ({photos?.length || 0})
+          </PaneTab>
+          <PaneTab active={mode === 'documents'} onClick={() => setMode('documents')}>
             <FileText className="h-3.5 w-3.5" />
-            {t('Documents')} ({documents?.length || 0})
-          </button>
+            {t("Documents")} ({documents?.length || 0})
+          </PaneTab>
         </div>
       )}
 
       {/* Compact item selector */}
       {listOpen && mode === 'photos' && (
-        <div className="shrink-0 border-b flex flex-col">
-          <div className="flex border-b shrink-0">
+        <div className="flex shrink-0 flex-col border-b border-hairline">
+          <div ref={subTabMorphRef} className={cn(PANE_TABLIST_CLASS, 'mx-2 mb-2')} role="tablist">
             {(['avant', 'en_cours', 'apres'] as const).map((key) => (
-              <button
+              <PaneTab
                 key={key}
-                type="button"
-                className={cn(
-                  'flex-1 px-2 py-1.5 text-[11px] font-medium transition-colors',
-                  photoSubTab === key
-                    ? 'bg-primary/10 text-primary border-b-2 border-primary'
-                    : 'text-muted-foreground hover:bg-muted/50'
-                )}
+                active={photoSubTab === key}
                 onClick={() => setPhotoSubTab(key)}
+                className="min-h-[28px] py-1 text-xs"
               >
                 {t(categoryLabels[key])} ({groupedPhotos[key].length})
-              </button>
+              </PaneTab>
             ))}
           </div>
           <div className="max-h-[220px] overflow-y-auto">
             {groupedPhotos[photoSubTab].length === 0 ? (
-              <div className="px-3 py-8 text-center text-xs text-muted-foreground italic">{t('Aucune photo')}</div>
+              <div className="t-caption px-3 py-8 text-center">{t("Aucune photo")}</div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 p-2">
+              <div className="grid grid-cols-2 gap-1.5 p-2 sm:grid-cols-3">
                 {groupedPhotos[photoSubTab].map((p: any) => (
                   <PhotoThumb
                     key={p.id}
@@ -275,10 +346,10 @@ function ReferencePane({
       )}
 
       {listOpen && mode === 'documents' && (
-        <div className="border-b max-h-[260px] overflow-auto">
+        <div className="max-h-[260px] overflow-auto border-b border-hairline">
           {(() => {
             if (!documents || documents.length === 0) {
-              return <div className="px-3 py-4 text-center text-xs text-muted-foreground italic">{t('Aucun document')}</div>;
+              return <div className="t-caption px-3 py-4 text-center">{t("Aucun document")}</div>;
             }
             const groups: Record<string, any[]> = {};
             for (const d of documents) {
@@ -290,24 +361,27 @@ function ReferencePane({
               <div className="min-w-max">
                 {Object.entries(groups).map(([type, items]) => (
                   <div key={type}>
-                    <div className="px-3 py-1 bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    {/* Group label: t-label on the surface-2 step (no uppercase band). */}
+                    <div className="t-label bg-surface-2 px-3 py-1">
                       {t(type)} ({items.length})
                     </div>
                     {items.map((d: any) => (
                       <button
                         key={d.id}
+                        type="button"
                         className={cn(
-                          'w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors flex items-center gap-2',
-                          selectedId === d.id && 'bg-primary/10 text-primary font-semibold'
+                          'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors duration-150 hover:bg-surface-2',
+                          selectedId === d.id ? 'bg-surface-3 font-semibold text-ink' : 'text-ink-2'
                         )}
+                        aria-pressed={selectedId === d.id}
                         onClick={() => {
                           setSelectedId(d.id);
                           setListOpen(false);
                         }}
                         title={d.nom || d.name || t('Document')}
                       >
-                        <FileText className="h-3 w-3 shrink-0" />
-                        <span className="whitespace-nowrap">{d.nom || d.name || t('Document')}</span>
+                        <FileText className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                        <span className="whitespace-nowrap">{d.nom || d.name || t("Document")}</span>
                       </button>
                     ))}
                   </div>
@@ -318,50 +392,100 @@ function ReferencePane({
         </div>
       )}
 
-      {/* Full-height viewer */}
-      <div className="flex-1 min-h-0 overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+      {/* Full-height viewer — `bg-ink-solid` is the sanctioned functional
+          backdrop for document media (Apple HIG materials: the content layer
+          is not glass); the zoom pill inside ZoomableImage follows the owner's
+          zoom ruling (−/%/+, 25 % steps, wheel ≈ ×1.3). */}
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-ink-solid">
         {!selectedId ? (
-          <div className="text-center p-6">
-            <ChevronDown className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-xs text-muted-foreground italic">
-              {t('Sélectionnez un élément ci-dessus pour le visualiser')}
+          <div className="p-6 text-center">
+            <ChevronsUp className="mx-auto mb-2 h-6 w-6 text-on-ink/40" aria-hidden />
+            <p className="text-xs text-on-ink/70">
+              {t("Sélectionnez un élément ci-dessus pour le visualiser")}
             </p>
           </div>
         ) : isLoadingUrl ? (
-          <div className="text-xs text-muted-foreground animate-pulse">{t('Chargement...')}</div>
+          <div className="animate-pulse text-xs text-on-ink/70">{t("Chargement...")}</div>
         ) : viewerUrl ? (
-          isImageFile(selectedItem?.name || selectedItem?.nom || '') ? (
-            <ZoomableImage src={viewerUrl} alt={selectedItem?.name || t('Référence')} />
+          isImageFile(selectedName) ? (
+            <ZoomableImage src={viewerUrl} alt={selectedItem?.name || t("Référence")} />
+          ) : isPdfFile(selectedName) ? (
+            // C2 — pdfjs canvas viewer with the image chrome (zoom/rotate/
+            // page nav) replaces the dead-zoom iframe; the iframe stays as
+            // the graceful fallback when pdfjs can't load the file
+            // (chiffrage-redesign-spec).
+            <PdfCanvas
+              src={viewerUrl}
+              title={selectedItem?.nom || selectedItem?.name || t("Document")}
+              fallback={
+                <iframe
+                  src={viewerUrl}
+                  className="h-full w-full border-none"
+                  title={selectedItem?.nom || t("Document")}
+                />
+              }
+            />
           ) : (
             <iframe
               src={viewerUrl}
-              className="w-full h-full border-none"
-              title={selectedItem?.nom || t('Document')}
+              className="h-full w-full border-none"
+              title={selectedItem?.nom || t("Document")}
             />
           )
         ) : (
-          <p className="text-xs text-muted-foreground italic">{t('Impossible de charger le fichier')}</p>
+          <p className="text-xs text-on-ink/70">{t("Impossible de charger le fichier")}</p>
         )}
       </div>
+
+      <DocumentPreviewLightbox doc={preview} onClose={() => setPreview(null)} />
     </div>
   );
 }
 
+// C2 — zoom bounds + pill + wheel-notch logic now live in ./pdf-canvas so the
+// PDF pane shares the exact chrome (chiffrage-redesign-spec).
+const IMG_ZOOM_MIN = VIEWER_ZOOM_MIN;
+const IMG_ZOOM_MAX = VIEWER_ZOOM_MAX;
+
 /**
- * Image viewer with double-click zoom toggle (1x ↔ 2.5x) and mouse-drag pan
- * while zoomed. Pan resets on zoom-out and on image change.
+ * Image viewer following the lightbox rules (document-preview-lightbox):
+ * on-canvas − / % / + pill (25 % steps, % = fit), wheel = one notch ≈ +30 %
+ * (deltaY accumulated to 100 px so multi-event wheels count once),
+ * double-click toggles 1x ↔ 2.5x, mouse-drag pans while zoomed. Pan resets
+ * on zoom-out and on image change. Clicking the image does nothing.
  */
 function ZoomableImage({ src, alt }: { src: string; alt: string }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  // Quarter-turn rotation (owner 2026-09-02: sideways-scanned devis must be
+  // readable in the compare pane); animates on the existing 150ms transform
+  // transition.
+  const [rotation, setRotation] = useState(0);
   const draggingRef = useRef(false);
   const lastRef = useRef<{ x: number; y: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   // Reset when image changes.
   useEffect(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    setRotation(0);
   }, [src]);
+
+  const applyZoom = (next: number) => {
+    const clamped = Math.min(IMG_ZOOM_MAX, Math.max(IMG_ZOOM_MIN, +next.toFixed(3)));
+    setZoom(clamped);
+    if (clamped === 1) setPan({ x: 0, y: 0 });
+  };
+
+  // Wheel notch gate — shared with the PDF pane (C2).
+  useWheelZoomNotch(wrapRef, (direction) => {
+    setZoom((prev) => {
+      const next = Math.min(IMG_ZOOM_MAX, Math.max(IMG_ZOOM_MIN, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3)));
+      if (next === 1) setPan({ x: 0, y: 0 });
+      return next;
+    });
+  });
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -393,27 +517,33 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
   };
 
   return (
-    <div
-      className={cn(
-        'w-full h-full flex items-center justify-center overflow-hidden select-none',
-        zoom > 1 ? (draggingRef.current ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'
-      )}
-      onDoubleClick={handleDoubleClick}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={stopDrag}
-      onMouseLeave={stopDrag}
-    >
-      <img
-        src={src}
-        alt={alt}
-        draggable={false}
-        className="max-w-full max-h-full object-contain transition-transform duration-150 ease-out pointer-events-none"
-        style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: 'center center',
-        }}
-      />
+    <div ref={wrapRef} className="relative h-full w-full">
+      <div
+        className={cn(
+          'flex h-full w-full select-none items-center justify-center overflow-hidden',
+          zoom > 1 ? (draggingRef.current ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
+        )}
+        onDoubleClick={handleDoubleClick}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={stopDrag}
+        onMouseLeave={stopDrag}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt}
+          draggable={false}
+          className="pointer-events-none max-h-full max-w-full object-contain transition-transform duration-150 ease-standard motion-reduce:transition-none"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+            transformOrigin: 'center center',
+          }}
+        />
+      </div>
+      {/* Zoom pill — same anatomy as the lightbox ZoomControls, shared with
+          the PDF pane via ViewerZoomPill (C2). */}
+      <ViewerZoomPill zoom={zoom} onZoomTo={applyZoom} onRotate={() => setRotation((r) => (r + 90) % 360)} />
     </div>
   );
 }
@@ -445,16 +575,18 @@ function PhotoThumb({
       type="button"
       onClick={onClick}
       className={cn(
-        'relative aspect-square overflow-hidden rounded-md border bg-muted',
-        'hover:ring-2 hover:ring-primary transition-shadow focus:outline-none',
-        selected && 'ring-2 ring-primary'
+        'relative aspect-square overflow-hidden rounded-md bg-surface-2 ring-1 ring-hairline transition-[box-shadow] duration-150',
+        'hover:ring-hairline-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        selected && 'ring-2 ring-ring hover:ring-ring'
       )}
-      title={photo.name || t('Photo')}
+      aria-pressed={selected}
+      title={photo.name || t("Photo")}
     >
       {url ? (
-        <img src={url} alt={photo.name || t('Photo')} className="w-full h-full object-cover" />
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt={photo.name || t("Photo")} className="h-full w-full object-cover" />
       ) : (
-        <div className="flex items-center justify-center w-full h-full text-[10px] text-muted-foreground">…</div>
+        <div className="flex h-full w-full items-center justify-center text-[11px] text-ink-4">…</div>
       )}
     </button>
   );

@@ -57,11 +57,11 @@ export default function ModalTelecharger({
         </DialogHeader>
 
         <div className="py-2">
-          <div className="flex items-start gap-3 p-3 rounded-lg border border-primary bg-primary/10">
-            <FileText className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 rounded-lg bg-surface-2 p-3">
+            <FileText className="mt-0.5 h-5 w-5 shrink-0 text-ink-3" />
             <div>
-              <p className="font-medium">{t('Rapport de Chiffrage')}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-sm font-medium text-ink">{t('Rapport de Chiffrage')}</p>
+              <p className="t-caption mt-0.5">
                 {t("PDF avec véhicule, assuré, diagrammes de choc, pièces, main d'œuvre, récapitulatif et observation.")}
               </p>
             </div>

@@ -41,7 +41,7 @@ function GpsPublisherHostInner() {
           surface a banner if the agent declined background permission. */}
       {native.isNative
         ? native.status === 'denied' && (
-            <div data-tour="atg-gps" className="border-b border-amber-200/70 bg-amber-50/80 px-4 py-2 text-sm text-amber-800 flex items-center gap-3">
+            <div data-tour="atg-gps" role="status" className="flex items-center gap-3 border-b border-status-warning-fg/30 bg-status-warning-bg px-4 py-2 text-[13px] text-status-warning-fg">
               <MapPin className="h-4 w-4 shrink-0" />
               <span className="flex-1">
                 {t("Le partage de position est désactivé. Autorisez la localisation « Toujours » dans les paramètres de l'application pour que la planification tienne compte de votre position.")}
@@ -50,7 +50,7 @@ function GpsPublisherHostInner() {
           )
         : permission !== 'granted' &&
           permission !== 'unavailable' && (
-            <div data-tour="atg-gps" className="border-b border-amber-200/70 bg-amber-50/80 px-4 py-2 text-sm text-amber-800 flex items-center gap-3">
+            <div data-tour="atg-gps" role="status" className="flex items-center gap-3 border-b border-status-warning-fg/30 bg-status-warning-bg px-4 py-2 text-[13px] text-status-warning-fg">
               <MapPin className="h-4 w-4 shrink-0" />
               {permission === 'denied' ? (
                 <span className="flex-1">
@@ -100,7 +100,7 @@ function IosInstallHint() {
     setHidden(true);
   };
   return (
-    <div className="border-b border-sky-200/70 bg-sky-50/80 px-4 py-2 text-sm text-sky-800 flex items-center gap-3">
+    <div role="status" className="flex items-center gap-3 border-b border-status-info-fg/30 bg-status-info-bg px-4 py-2 text-[13px] text-status-info-fg">
       <Smartphone className="h-4 w-4 shrink-0" />
       <span className="flex-1">
         {t("Pour recevoir les notifications sur iPhone, ajoutez cette page à l'écran d'accueil : appuyez sur")} <strong>{t('Partager')}</strong> {t('puis')} <strong>{t("Ajouter à l'écran d'accueil")}</strong>.

@@ -2,7 +2,9 @@
 
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { FileWarning } from 'lucide-react';
 import { PageLoader } from '@/components/ui/page-loader';
+import { EmptyState } from '@/components/ui/empty-state';
 import { DevisEditor } from '@/components/chiffreurs/devis-editor';
 import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
 import { useT } from '@/i18n';
@@ -16,9 +18,17 @@ function DevisEditorInner() {
   const accordSlot = searchParams.get('accordSlot') || undefined;
 
   if (!chiffrageId) {
+    // Empty state — element-specs §12 (NN/g: state + reason, no repeated
+    // title in the description; standalone on the canvas → dashed frame is
+    // fine). No action: the route is opened from an assignation.
     return (
-      <div className="max-w-screen-lg mx-auto px-6 py-10 text-sm text-muted-foreground">
-        {t('Paramètres manquants : chiffrageId est requis.')}
+      <div className="mx-auto max-w-screen-lg px-4 py-10 sm:px-6">
+        <EmptyState
+          role="alert"
+          icon={<FileWarning />}
+          title={t('Paramètres manquants')}
+          description={t("Le paramètre chiffrageId est requis pour ouvrir l'éditeur.")}
+        />
       </div>
     );
   }

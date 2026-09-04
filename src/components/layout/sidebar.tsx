@@ -1,8 +1,16 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
+/**
+ * Product navigation. Quiet by design (Linear: "don't compete for attention
+ * you haven't earned"): tinted active row, hairline border, no shadow, no
+ * editing inside the nav. Universal actions (create, account, theme) live in
+ * the header; the profile row and help live in the footer.
+ */
+
+import React from 'react';
+import { usePathname } from 'next/navigation';
+import NextLink from 'next/link';
+import { Calculator, FolderOpen, HelpCircle, PanelLeft } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -14,239 +22,196 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
-  SidebarTrigger,
+  SidebarMenuBadge,
   useSidebar,
 } from '@/components/ui/sidebar';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  Moon,
-  Sun,
-  Plus,
-  X,
-  LogOut,
-  ChevronDown,
-} from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import Logo from '@/components/logo';
 import { LanguageSwitcher } from '@/components/language-switcher';
-import { useCompagnies } from '@/hooks/use-compagnies';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useRappels } from '@/hooks/use-rappels';
-import NextLink from 'next/link';
+import { useVisibleNav } from '@/hooks/use-visible-nav';
+import { useWorkspaceStore, TAB_KINDS } from '@/hooks/use-workspace-tabs';
+import { userInitials } from '@/components/layout/user-menu';
 import { cn } from '@/lib/utils';
-import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
-import { hasPermission } from '@/lib/permissions';
 import { useT } from '@/i18n';
-import { BRAND } from '@/lib/brand';
+
+/**
+ * The single source of the active row's SURFACE (tint + light rim + 2px teal
+ * bar): one absolutely-positioned indicator that SLIDES from the old row to
+ * the new one (200ms, standard curve) instead of the highlight teleporting —
+ * owner ruling 2026-09-02 ("the contour highlight morphs into the other
+ * tab"). Rows keep their text/icon active treatment (ui/sidebar.tsx) and
+ * paint above the indicator. Measured with the offsetTop chain (layout px —
+ * CSS-zoom- and scroll-safe); re-measured when the container resizes
+ * (collapse/expand) via ResizeObserver. Reduced motion: it snaps.
+ */
+const ActiveRowIndicator = ({ deps }: { deps: React.DependencyList }) => {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [box, setBox] = React.useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const readyRef = React.useRef(false);
+
+  const measure = React.useCallback(() => {
+    const el = ref.current;
+    const container = el?.parentElement;
+    if (!el || !container) return;
+    const btn = container.querySelector<HTMLElement>('[data-sidebar="menu-button"][data-active="true"]');
+    if (!btn) {
+      setBox(null);
+      return;
+    }
+    let top = 0;
+    let left = 0;
+    let node: HTMLElement | null = btn;
+    while (node && node !== container) {
+      top += node.offsetTop;
+      left += node.offsetLeft;
+      node = node.offsetParent as HTMLElement | null;
+    }
+    setBox({ top, left, width: btn.offsetWidth, height: btn.offsetHeight });
+  }, []);
+
+  /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  React.useLayoutEffect(measure, deps);
+  React.useEffect(() => {
+    const container = ref.current?.parentElement;
+    if (!container) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [measure]);
+  // Transitions only AFTER the first placement — the indicator must not fly
+  // in from 0,0 on mount.
+  React.useEffect(() => {
+    if (box) readyRef.current = true;
+  }, [box]);
+
+  return (
+    <div
+      ref={ref}
+      aria-hidden
+      className={cn(
+        'pointer-events-none absolute z-0 rounded-md bg-sidebar-active shadow-rim',
+        readyRef.current && 'transition-[top,left,width,height,opacity] duration-300 ease-standard motion-reduce:transition-none',
+        box ? 'opacity-100' : 'opacity-0',
+      )}
+      style={box ?? undefined}
+    >
+      {/* The 2px teal bar rides the indicator; hidden in icon-collapsed mode
+          (same rule the old per-row bar had). */}
+      <span className="absolute bottom-1.5 left-0 top-1.5 w-0.5 rounded-full bg-sidebar-primary group-data-[collapsible=icon]:hidden" />
+    </div>
+  );
+};
 
 const AppSidebar = () => {
   const pathname = usePathname();
-  const router = useRouter();
-  const { state } = useSidebar();
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  const { compagnies, addCompagnie, deleteCompagnie } = useCompagnies();
-  const { profile, signOut } = useCurrentUser();
+  const { state, toggleSidebar, isMobile, setOpenMobile } = useSidebar();
+  const isCollapsed = state === 'collapsed';
+  const { navGroups, footerItems, isVisible } = useVisibleNav();
+  const { rappels } = useRappels();
+  const { recents } = useWorkspaceStore();
+  const { profile } = useCurrentUser();
   const t = useT();
 
-  const [showAddInput, setShowAddInput] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
-  const [logoErrors, setLogoErrors] = useState<Set<string>>(new Set());
-  const markLogoFailed = (id: string) =>
-    setLogoErrors((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-
-  const isCollapsed = state === 'collapsed';
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const { rappels } = useRappels();
-  const unreadRappelsCount = rappels.filter((r) => !r.read).length;
-
-  // Per-user overrides: applied AROUND the role gate. The toggle UI on
-  // /utilisateurs/[uid] writes hrefs to deny (revoke) into
-  // `users/{uid}.deniedNavItems` and hrefs to grant (extra privilege) into
-  // `grantedNavItems`. Precedence (top-down):
-  //   1. "Signaler un bug" — always visible.
-  //   2. grantedNavItems — explicit grant overrides everything else.
-  //   3. deniedNavItems — explicit deny hides even if the role allows.
-  //   4. Role gate — the baseline.
-  // The admin UI writes clean lists (an href is never in both), but if it
-  // ever happens, grant wins per the order above.
-  const deniedNavItems = profile?.deniedNavItems ?? [];
-  const grantedNavItems = profile?.grantedNavItems ?? [];
-  const visibleGroups = NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => {
-      if (item.href === '/signaler-bug') return true;
-      if (grantedNavItems.includes(item.href)) return true;
-      if (deniedNavItems.includes(item.href)) return false;
-      return isItemVisibleToRole(item, profile?.role);
-    }),
-  })).filter((group) => group.items.length > 0);
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/login');
+  const unreadRappelsCount = rappels.filter((r) => !r.read && !r.resolvedAt).length;
+  const closeOnMobile = () => {
+    if (isMobile) setOpenMobile(false);
   };
 
-  const confirmDeleteCompagnie = async () => {
-    if (!deleteTarget) return;
-    await deleteCompagnie(deleteTarget.id);
-    setDeleteTarget(null);
-  };
+  const visibleRecents = recents.filter((r) =>
+    r.kind === 'dossier' ? isVisible('/dossiers') : isVisible('/assignations-chiffrage'),
+  ).slice(0, 5);
 
-  const userInitials = profile
-    ? (profile.prenom ? profile.prenom[0] : '') + (profile.nom ? profile.nom[0] : '')
-    : 'U';
-
-  const displayName = profile?.nom || t('Utilisateur');
-  const displayRole = profile?.role || '';
+  const displayName = profile ? `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || t('Profil') : t('Profil');
+  const isProfilActive = pathname === '/profil' || pathname.startsWith('/profil/');
 
   return (
-    <Sidebar collapsible="icon" className="shadow-xl z-50">
-      <SidebarHeader className={cn("flex shrink-0 bg-background px-4", isCollapsed ? "flex-col items-center gap-2 py-3" : "flex-row items-center justify-between h-14")}>
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+      <SidebarHeader
+        className={cn(
+          'flex shrink-0 bg-sidebar px-3',
+          isCollapsed ? 'flex-col items-center gap-2 py-3' : 'h-14 flex-row items-center justify-between',
+        )}
+      >
         <Logo collapsed={isCollapsed} />
-        <SidebarTrigger className="h-8 w-8 shrink-0" />
+        {/* The toggle stays at the TOP in both states (owner ruling
+            2026-09-02 — it used to jump to the footer when collapsed). */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              onClick={toggleSidebar}
+              aria-label={isCollapsed ? t('Agrandir la barre latérale') : t('Réduire la barre latérale')}
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{isCollapsed ? t('Agrandir') : t('Réduire')}</TooltipContent>
+        </Tooltip>
       </SidebarHeader>
 
-      <SidebarContent className="bg-background/50">
-        {visibleGroups.map((group) => (
+      <SidebarContent className="relative bg-sidebar">
+        <ActiveRowIndicator deps={[pathname, isCollapsed, visibleRecents.length]} />
+        {navGroups.map((group) => (
           <SidebarGroup key={group.label}>
-            {!isCollapsed && (
-              <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-                {t(group.label)}
-              </SidebarGroupLabel>
-            )}
+            {!isCollapsed && <SidebarGroupLabel>{t(group.label)}</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
-                  const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                  const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`)) || (item.href !== '/dashboard' && pathname === item.href);
                   const Icon = item.icon;
-
-                  if (item.label === 'Compagnies') {
-                    return (
-                      <Collapsible key={item.href} className="group/collapsible">
-                        <SidebarMenuItem>
-                          <CollapsibleTrigger asChild>
-                            <SidebarMenuButton
-                              isActive={isActive}
-                              tooltip={t(item.label)}
-                              className="transition-all duration-200"
-                            >
-                              <Icon />
-                              <span>{t(item.label)}</span>
-                              {!isCollapsed && <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
-                            </SidebarMenuButton>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            <SidebarMenuSub className="ml-4 mr-2">
-                              {compagnies
-                                .filter((c) => hasPermission(profile, `/compagnies#${c.id}`, true))
-                                .map((c) => (
-                                <SidebarMenuSubItem key={c.id}>
-                                  <SidebarMenuSubButton asChild isActive={pathname.includes(`selected=${c.id}`)}>
-                                    <NextLink href={`/compagnies?selected=${c.id}`} className="group flex items-center gap-2">
-                                      {c.logoUrl && !logoErrors.has(c.id) ? (
-                                        <img
-                                          src={c.logoUrl}
-                                          alt=""
-                                          className="h-8 w-8 rounded-sm object-contain shrink-0"
-                                          onError={() => markLogoFailed(c.id)}
-                                        />
-                                      ) : (
-                                        <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: c.couleur }} />
-                                      )}
-                                      <span className="flex-1 truncate">{c.nom}</span>
-                                      {!isCollapsed && (
-                                        <button
-                                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget({ id: c.id, nom: c.nom }); }}
-                                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
-                                        >
-                                          <X className="h-3 w-3" />
-                                        </button>
-                                      )}
-                                    </NextLink>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              ))}
-
-                              {!isCollapsed && (
-                                <SidebarMenuSubItem>
-                                  {showAddInput ? (
-                                    <div className="flex items-center gap-1 px-2 mt-1">
-                                      <Input
-                                        autoFocus
-                                        value={newName}
-                                        onChange={(e) => setNewName(e.target.value)}
-                                        onKeyDown={async (e) => {
-                                          if (e.key === 'Enter' && newName.trim()) {
-                                            await addCompagnie(newName.trim());
-                                            setNewName('');
-                                            setShowAddInput(false);
-                                          }
-                                          if (e.key === 'Escape') {
-                                            setShowAddInput(false);
-                                            setNewName('');
-                                          }
-                                        }}
-                                        placeholder={t('Nom de la compagnie...')}
-                                        className="h-8 text-xs"
-                                      />
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => setShowAddInput(true)}
-                                      className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-primary transition-colors w-full"
-                                    >
-                                      <Plus className="h-3 w-3" /> {t('Ajouter')}
-                                    </button>
-                                  )}
-                                </SidebarMenuSubItem>
-                              )}
-                            </SidebarMenuSub>
-                          </CollapsibleContent>
-                        </SidebarMenuItem>
-                      </Collapsible>
-                    );
-                  }
-
+                  const tooltip = t(item.label);
                   return (
                     <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild isActive={isActive} tooltip={t(item.label)} data-tour={`nav-${item.href}`}>
-                        <NextLink href={item.href}>
+                      {/* `data-tour="nav-<href>"` anchors the guided tours to
+                          each destination — never rename these. */}
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={tooltip} data-tour={`nav-${item.href}`}>
+                        <NextLink href={item.href} onClick={closeOnMobile} aria-current={isActive ? 'page' : undefined}>
                           <Icon />
                           <span>{t(item.label)}</span>
-                          {item.href === '/mes-rappels' && unreadRappelsCount > 0 && (
-                            <span className="ml-auto text-[10px] font-bold border border-primary text-primary bg-background rounded-full px-1.5 min-w-[1.25rem] text-center leading-tight py-0.5">
-                              +{unreadRappelsCount}
-                            </span>
-                          )}
+                        </NextLink>
+                      </SidebarMenuButton>
+                      {item.href === '/mes-rappels' && unreadRappelsCount > 0 && (
+                        <SidebarMenuBadge className="bg-status-info-bg font-semibold text-status-info-fg peer-hover/menu-button:text-status-info-fg peer-data-[active=true]/menu-button:text-status-info-fg">
+                          {unreadRappelsCount > 99 ? '99+' : unreadRappelsCount}
+                        </SidebarMenuBadge>
+                      )}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+
+        {visibleRecents.length > 0 && (
+          <SidebarGroup>
+            {!isCollapsed && <SidebarGroupLabel>{t('Récents')}</SidebarGroupLabel>}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleRecents.map((r) => {
+                  const href = TAB_KINDS[r.kind].detailHref(r.id);
+                  const Icon = r.kind === 'dossier' ? FolderOpen : Calculator;
+                  const isActive = pathname === href;
+                  return (
+                    <SidebarMenuItem key={`${r.kind}:${r.id}`}>
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={r.label} size="sm">
+                        <NextLink href={href} onClick={closeOnMobile}>
+                          <Icon className="text-sidebar-muted" />
+                          <span>{r.label}</span>
                         </NextLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -255,68 +220,66 @@ const AppSidebar = () => {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        ))}
+        )}
       </SidebarContent>
 
-      <SidebarFooter className="bg-muted/20 shrink-0 p-2 gap-2">
-        {mounted && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn("w-full justify-start gap-2 text-muted-foreground hover:text-foreground", isCollapsed && "px-0 justify-center")}
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            {!isCollapsed && <span>{theme === 'dark' ? t('Mode clair') : t('Mode sombre')}</span>}
-          </Button>
-        )}
-
-        <div className={cn("flex items-center gap-3 p-2 rounded-lg bg-primary/5 overflow-hidden transition-all duration-300", isCollapsed && "p-1 justify-center")}>
-          {!isCollapsed ? (
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-xs font-semibold truncate">{displayName}</span>
-              <span className="text-[10px] text-muted-foreground truncate uppercase tracking-[0.08em] font-semibold">{t(displayRole)}</span>
-            </div>
-          ) : (
-            <span className="text-[10px] font-bold">{userInitials.toUpperCase()}</span>
-          )}
-        </div>
-
-        {/* The guided-tour entry point is the single bottom-right "?"
-            button (TutorialLauncher) — no duplicate here. */}
-        <div className={cn("flex gap-1", isCollapsed ? "flex-col" : "flex-row")}>
-          <LanguageSwitcher className={cn('h-8', isCollapsed ? 'w-full justify-center' : 'flex-1 justify-center')} />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-full justify-center text-muted-foreground hover:text-destructive"
-            title={t('Déconnexion')}
-            onClick={handleSignOut}
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
+      <SidebarFooter className={cn('shrink-0 border-t border-sidebar-border bg-sidebar p-2', isCollapsed && 'items-center')}>
+        {/* Profil row at the bottom of the nav (owner ruling 2026-09-03) with
+            a quiet icon-only Aide menu beside it. The guided-tour entry point
+            is the single bottom-right "?" button (TutorialLauncher) — no
+            duplicate here. */}
+        <div className={cn('flex gap-1', isCollapsed ? 'flex-col items-center' : 'flex-row items-center')}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <NextLink
+                href="/profil"
+                onClick={closeOnMobile}
+                aria-current={isProfilActive ? 'page' : undefined}
+                className={cn(
+                  'flex min-w-0 items-center gap-2 rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent',
+                  isCollapsed ? 'h-8 w-8 justify-center' : 'h-9 flex-1 px-1.5',
+                  isProfilActive && 'bg-sidebar-active shadow-rim',
+                )}
+              >
+                <Avatar className="h-6 w-6 shrink-0">
+                  <AvatarFallback className="bg-surface-4 text-[10px] font-semibold text-ink">{userInitials(profile)}</AvatarFallback>
+                </Avatar>
+                {!isCollapsed && <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{displayName}</span>}
+              </NextLink>
+            </TooltipTrigger>
+            <TooltipContent side="right">{t('Profil')}</TooltipContent>
+          </Tooltip>
+          {/* Brand-gated EN/FR switcher (hidden on single-language brands). */}
+          <LanguageSwitcher className="h-8 shrink-0 justify-center text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                aria-label={t('Aide')}
+              >
+                <HelpCircle className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-56">
+              <DropdownMenuLabel>{t('Aide')}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {footerItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <DropdownMenuItem key={item.href} asChild>
+                    <NextLink href={item.href} onClick={closeOnMobile}>
+                      <Icon className="mr-2 h-4 w-4" />
+                      {t(item.label)}
+                    </NextLink>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </SidebarFooter>
-
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('Supprimer')} {deleteTarget?.nom} ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('Cette action est irréversible. Les dossiers liés à cette compagnie ne seront pas supprimés.')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('Annuler')}</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={confirmDeleteCompagnie}
-            >
-              {t('Supprimer')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Sidebar>
   );
 };
