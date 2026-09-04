@@ -667,3 +667,41 @@ following are now standing rulings for queue pages:
     ≤ 150 m required). Always a suggestion, never a silent auto-stamp;
     dismissal holds for the session; the confirm reuses the check-in write
     + historique log.
+
+---
+
+# Addendum 2026-09-04 — table column heads move to small caps (rule reversal)
+
+Owner ruling after reviewing an external UI critique: column headers go to
+CAPITALS. This REVERSES, for table heads only, the app-wide "labels never
+uppercase" rule in §3/§9 and the anti-pattern list — every other use of
+`t-label` is unchanged.
+
+**Why it holds even though the critique's reasoning did not.** The critique
+argued capitals make heads *recede*; render-verified false — capitals plus
+tracking make a head occupy more width and hold more attention. The real
+benefit is REGISTER: a capitalised head cannot be misread as a data value,
+which is exactly what a column head wants in a dense row. The uppercase
+legibility penalty in the literature concerns prose that is READ; a column
+head is recognised once and thereafter navigated by position.
+
+**Spec (variant C of four rendered 2026-09-04).** On `TableHead` only:
+`text-[11px]` (caps read larger at the same size, so the size comes DOWN
+from 12), `font-normal` (400 — NOT 500; at 12/500 the heads shouted over the
+values, verified), `uppercase`, `tracking-[0.08em]`, ink-3 unchanged. Variant
+D (ink 215 13% 52%, tracking .09em) is the quieter fallback if C still reads
+too present — a one-token change.
+
+**Scope guard.** The rule lives on the table-head component, never on the
+`t-label` type role. Form labels (`Label` keeps its own `normal-case
+tracking-normal`), KPI/tile labels, definition-list keys, cmdk group
+headings and calendar weekday heads all STAY sentence case. Anything that is
+read rather than recognised keeps sentence case.
+
+**Costs accepted.** ~65 px extra width per 9 columns (more sideways panning
+on the 14-column dossiers table). French accents survive `text-transform`
+correctly (ANCIENNETÉ / CRÉÉ PAR / RÉFÉRENCE DE COMPAGNIE — render-checked).
+
+Applies app-wide through the shared primitive: dossiers, chiffrage and ATG
+queues, mes-rappels, consultation, utilisateurs — every table gets it, so
+the register stays consistent.

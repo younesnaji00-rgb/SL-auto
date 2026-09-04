@@ -123,7 +123,20 @@ const TableHead = React.forwardRef<
       // 44 px like the body rows (Carbon data table: "the column header row
       // should always match the row size of the table"); compact density
       // drops both to 36 px via globals.css.
-      "t-label sticky top-0 z-[1] h-11 whitespace-nowrap bg-card px-3 text-left align-middle font-normal normal-case tracking-normal tabular-nums [&:has([role=checkbox])]:pr-0",
+      //
+      // CASE (owner ruling 2026-09-04, reversing the app-wide "labels never
+      // uppercase" rule FOR TABLE HEADERS ONLY): small caps differentiate a
+      // header from a data value — in a dense row a capitalised head can
+      // never be misread as a cell value, which is the register a column
+      // head wants. The uppercase legibility penalty applies to prose that
+      // is READ; a column head is RECOGNISED once and then navigated by
+      // position. It only works with compensating discipline — smaller
+      // (11 px, since caps read larger at the same size), still 400 weight,
+      // and letter-spaced, or the heads shout over the values they label
+      // (render-verified 2026-09-04: at 12 px/500 they do). Form labels,
+      // tile labels and definition keys keep `t-label` in sentence case —
+      // this rule lives on the table head, never on the type role.
+      "t-label sticky top-0 z-[1] h-11 whitespace-nowrap bg-card px-3 text-left align-middle text-[11px] font-normal uppercase tracking-[0.08em] tabular-nums [&:has([role=checkbox])]:pr-0",
       className
     )}
     {...props}
