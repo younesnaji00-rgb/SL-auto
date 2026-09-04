@@ -220,7 +220,7 @@ function normalizeValue(v: unknown): string | null {
 export async function retrieveFieldCorrectionGuidance(compagnie?: string | null, limit = 60): Promise<string> {
   const db = adminDb();
   try {
-    let q: FirebaseFirestore.Query = db.collection('ai_field_corrections').orderBy('at', 'desc').limit(limit);
+    const q: FirebaseFirestore.Query = db.collection('ai_field_corrections').orderBy('at', 'desc').limit(limit);
     const snap = await q.get();
     const rows = snap.docs.map((d) => d.data());
     const scoped = compagnie ? rows.filter((r) => !r.compagnie || String(r.compagnie).toLowerCase() === compagnie.toLowerCase()) : rows;
