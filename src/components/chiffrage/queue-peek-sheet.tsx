@@ -55,7 +55,7 @@ export function QueuePeekSheet({ open, onOpenChange, data, onOpen, onShowObserva
   const t = useT();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex flex-col gap-6 overflow-y-auto lg:max-w-[480px]">
+      <SheetContent side="right" data-tour="ach-peek" className="flex flex-col gap-6 overflow-y-auto lg:max-w-[480px]">
         {data && (
           <>
             <SheetHeader>

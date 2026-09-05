@@ -11,6 +11,34 @@ let active: Driver | null = null;
 let activeKey: string | null = null;
 
 /**
+ * Step-by-step tracing. The engine logged ~10 lines per step to the console
+ * on every run, in production, for every user. Opt in per browser with
+ * `localStorage['<prefix>.tour.debug'] = '1'` when a tour misbehaves.
+ */
+const DEBUG = (() => {
+  try {
+    return window.localStorage.getItem(`${BRAND.storagePrefix}.tour.debug`) === '1';
+  } catch {
+    return false;
+  }
+})();
+function log(...args: unknown[]): void {
+  if (DEBUG) console.debug('[tour]', ...args);
+}
+
+/**
+ * Set while `destroyActiveTour()` is tearing a tour down on purpose (route
+ * change, a new tour starting, the user switching the tutorial off). The
+ * `onDestroyStarted` hook refuses destroy requests that arrive with no recent
+ * user input — a guard against driver.js's event machinery, which would
+ * otherwise kill the journey around portal dialogs. That guard applied to OUR
+ * OWN teardown too: navigating more than ~1.2s after the last click left the
+ * overlay, the cutout and the pointing hand painted over the next page, with
+ * no way to dismiss them.
+ */
+let forcedDestroy = false;
+
+/**
  * Key of the tour currently on screen (null when none). The launcher uses it
  * to treat an in-flight tour as resumable progress: toggling the ATG phone
  * view swaps the whole layout under a RUNNING tour, and the "?" button must
@@ -86,21 +114,36 @@ const posTitleKey = (key: string) => `${BRAND.storagePrefix}.tour.${key}.posTitl
 // MAX(re-entry point, furthest) so a hop never sends the user backwards
 // through steps they already completed.
 const farKey = (key: string) => `${BRAND.storagePrefix}.tour.${key}.far`;
+// Title of the step the last run was interrupted on, path-scoped. The numeric
+// marker below indexes the FILTERED step list, and that list depends on page
+// state (a step whose goal is already met is dropped, a collapsed section
+// hides its anchors) — so the same number can mean a different step on the
+// next visit, which is how a resume landed a couple of steps away from where
+// the user actually left off. The title is stable; the index stays as the
+// fallback for markers written before this key existed.
+const posExactKey = (key: string) => `${BRAND.storagePrefix}.tour.${key}.at`;
 
 // Resume markers are PATH-SCOPED: tours whose route matches many pages
 // (dossier detail, mission detail) must not resume dossier A's position on
 // freshly opened dossier B — a stale marker means "restart", not "resume".
 // Markers written from ANOTHER page (chainAt hops) use the '*' wildcard.
-function readResumeIndex(key: string, max: number): number {
+function readResumeIndex(key: string, steps: TourStep[]): number {
+  const max = steps.length;
   try {
+    // Prefer the title marker: it survives a step list that filtered
+    // differently this time round.
+    const ttl = readScopedTitle(posExactKey(key));
+    if (ttl) {
+      const idx = steps.findIndex((st) => st.title === ttl);
+      if (idx > 0 && idx < max) return idx;
+    }
     const raw = window.localStorage.getItem(posKey(key));
     if (raw == null) return 0;
     const at = raw.indexOf('@');
     const n = parseInt(at >= 0 ? raw.slice(0, at) : raw, 10);
     const path = at >= 0 ? raw.slice(at + 1) : null;
     if (path && path !== '*' && path !== window.location.pathname) {
-      // eslint-disable-next-line no-console
-      console.debug('[tour] stale resume dropped', key, path, '!=', window.location.pathname);
+      log('stale resume dropped', key, path, '!=', window.location.pathname);
       window.localStorage.removeItem(posKey(key));
       return 0;
     }
@@ -110,17 +153,26 @@ function readResumeIndex(key: string, max: number): number {
   }
 }
 
-function writeResumeIndex(key: string, index: number | null): void {
+function writeResumeIndex(key: string, index: number | null, title?: string): void {
   try {
     if (index == null) {
       window.localStorage.removeItem(posKey(key));
       window.localStorage.removeItem(posTitleKey(key));
+      window.localStorage.removeItem(posExactKey(key));
       window.localStorage.removeItem(farKey(key));
     } else {
       window.localStorage.setItem(
         posKey(key),
         `${index}@${window.location.pathname}`,
       );
+      if (title) {
+        window.localStorage.setItem(
+          posExactKey(key),
+          `${title}@@${window.location.pathname}`,
+        );
+      } else {
+        window.localStorage.removeItem(posExactKey(key));
+      }
     }
   } catch {
     // Non-fatal.
@@ -159,16 +211,19 @@ function readScopedTitle(storageKey: string): string | null {
 /** Kill any running tour (call on route change/unmount to avoid stranded overlays). */
 export function destroyActiveTour(): void {
   if (active) {
-    // eslint-disable-next-line no-console
-    console.debug(
-      '[tour] destroyActiveTour from',
+    log('destroyActiveTour from',
       new Error().stack?.split('\n').slice(2, 5).join(' | ').slice(0, 180),
     );
   }
+  // Tell onDestroyStarted this teardown is ours, so its "spurious destroy"
+  // guard steps aside instead of stranding the overlay on the next page.
+  forcedDestroy = true;
   try {
     active?.destroy();
   } catch {
     // Already destroyed.
+  } finally {
+    forcedDestroy = false;
   }
   active = null;
   notifyTourListeners();
@@ -191,9 +246,27 @@ function escapeHtml(s: string): string {
 }
 
 /**
- * Start a page tutorial. Steps whose anchor is missing from the DOM are
- * skipped (unless dynamic/click reveals them) — this is how one step list
- * serves desktop and mobile layouts.
+ * Is any element carrying this anchor actually ON SCREEN?
+ *
+ * Presence alone is not enough. The responsive layout keeps both variants of
+ * a control mounted and hides one with CSS (`lg:hidden` on the mobile bottom
+ * bar, `hidden md:block` on the breadcrumb), so a presence-only test made
+ * the tour highlight an invisible element — the popover pointed at a corner
+ * of the page with nothing in it. `getClientRects()` is empty for anything
+ * `display:none`, which is exactly the distinction the "one step list serves
+ * desktop AND mobile" convention needs.
+ */
+function anchorVisible(anchor: string): boolean {
+  return Array.from(
+    document.querySelectorAll<HTMLElement>(`[data-tour="${anchor}"]`),
+  ).some((el) => el.getClientRects().length > 0);
+}
+
+/**
+ * Start a page tutorial. Steps whose anchor is missing from the DOM — or
+ * present but hidden by the responsive layout — are skipped (unless
+ * dynamic/click/expand reveals them): this is how one step list serves
+ * desktop and mobile.
  */
 export function startTutorial(
   tut: PageTutorial,
@@ -224,7 +297,10 @@ export function startTutorial(
       !s.anchor ||
       s.dynamic ||
       !!s.click ||
-      !!document.querySelector(`[data-tour="${s.anchor}"]`)
+      // `expand` opens a collapsed section at step time — its anchor is
+      // legitimately absent right now (see prepare()).
+      !!s.expand ||
+      anchorVisible(s.anchor)
     );
   });
   if (steps.length === 0) return;
@@ -242,11 +318,10 @@ export function startTutorial(
       journeyBase = parseInt(window.localStorage.getItem(journeyBaseKey()) ?? '0', 10) || 0;
     }
   } catch { /* non-fatal */ }
-  // eslint-disable-next-line no-console
-  console.debug('[tour] start', tut.key, 'steps', steps.length);
+  log('start', tut.key, 'steps', steps.length);
   // Manual starts (the "?" buttons) always begin at the very first step —
   // resume markers only serve interrupted runs and chained hops.
-  let resumeAt = opts?.fresh ? 0 : readResumeIndex(tut.key, steps.length);
+  let resumeAt = opts?.fresh ? 0 : readResumeIndex(tut.key, steps);
   if (opts?.fresh) writeResumeIndex(tut.key, null);
   else {
     try {
@@ -269,8 +344,7 @@ export function startTutorial(
           if (farIdx > idx) idx = farIdx;
         }
         if (idx >= 0) resumeAt = idx;
-        // eslint-disable-next-line no-console
-        console.debug('[tour] resume-title', tut.key, ttl, 'chainAt', isChainAt, '->', idx);
+        log('resume-title', tut.key, ttl, 'chainAt', isChainAt, '->', idx);
       }
     } catch { /* non-fatal */ }
   }
@@ -287,6 +361,22 @@ export function startTutorial(
   // the anchor, then continue.
   const prepare = (index: number, done: () => void) => {
     const s: TourStep | undefined = steps[index];
+    // Collapsed disclosures (the dossier timeline's per-step sections, the
+    // collapsible observation panels) unmount their content, so every anchor
+    // inside one is missing and the step gets filtered away — the same tour
+    // walked the whole dossier for one user and half of it for another,
+    // purely because of a toggle left closed weeks earlier. Open it first;
+    // already-open ones are left alone so the tour never CLOSES a section the
+    // user is reading.
+    if (s?.expand) {
+      const dis = Array.from(
+        document.querySelectorAll<HTMLElement>(`[data-tour="${s.expand}"]`),
+      ).find((el) => el.getClientRects().length > 0);
+      if (dis?.getAttribute('aria-expanded') === 'false') {
+        log('expand', s.expand);
+        dis.click();
+      }
+    }
     if (s?.click) {
       const el = document.querySelector<HTMLElement>(`[data-tour="${s.click}"]`);
       if (el) {
@@ -355,14 +445,12 @@ export function startTutorial(
       d.destroy();
       return;
     }
-    // eslint-disable-next-line no-console
-    console.debug('[tour] advance', tut.key, i, '->', next);
+    log('advance', tut.key, i, '->', next);
     prepare(next, () => {
       try {
         d.moveTo(next);
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.debug('[tour] moveTo threw', e);
+        log('moveTo threw', e);
       }
       // Self-heal: a step change racing a dialog unmount can leave driver
       // with no popover (transition math on a detached node). Re-drive the
@@ -370,8 +458,7 @@ export function startTutorial(
       window.setTimeout(() => {
         if (active !== d) return;
         if (!document.querySelector('.driver-popover')) {
-          // eslint-disable-next-line no-console
-          console.debug('[tour] popover missing after advance — re-driving', next);
+          log('popover missing after advance — re-driving', next);
           try {
             d.moveTo(next);
           } catch { /* torn down */ }
@@ -399,8 +486,7 @@ export function startTutorial(
       // Optional: enter the target tour at a specific step. Written from
       // THIS page for the target page → wildcard path scope.
       if (s.chainAt) window.localStorage.setItem(posTitleKey(s.chain), `${s.chainAt}@@*`);
-      // eslint-disable-next-line no-console
-      console.debug('[tour] chain->', s.chain, 'written');
+      log('chain->', s.chain, 'written');
     } catch { /* non-fatal */ }
     // Round-trip hop: chaining back into THIS tour later resumes at
     // the step after the hop (stored by TITLE — indexes shift when
@@ -417,8 +503,7 @@ export function startTutorial(
   const beginInteract = (i: number, el: HTMLElement) => {
     cleanupInteract();
     const s = steps[i];
-    // eslint-disable-next-line no-console
-    console.debug('[tour] interact-attach', tut.key, i, s.anchor ?? '(modal)', s.interact);
+    log('interact-attach', tut.key, i, s.anchor ?? '(modal)', s.interact);
     const cleanups: Array<() => void> = [];
     interactCleanup = () => cleanups.forEach((f) => {
       try {
@@ -463,15 +548,13 @@ export function startTutorial(
           const ok = s.until!();
           polls += 1;
           if (polls % 8 === 0) {
-            // eslint-disable-next-line no-console
-            console.debug('[tour] until-poll', tut.key, i, 'result', ok);
+            log('until-poll', tut.key, i, 'result', ok);
           }
           if (ok) advanceFrom(i);
         } catch { /* keep polling */ }
       }, 450);
       cleanups.push(() => {
-        // eslint-disable-next-line no-console
-        console.debug('[tour] until-cleanup', tut.key, i, 'after', polls, 'polls');
+        log('until-cleanup', tut.key, i, 'after', polls, 'polls');
         window.clearInterval(iv);
       });
     }
@@ -488,8 +571,7 @@ export function startTutorial(
           if (s.resetIf!()) {
             window.clearInterval(rv);
             const idx = steps.findIndex((st) => st.title === s.resetTo);
-            // eslint-disable-next-line no-console
-            console.debug('[tour] reset', tut.key, i, '->', s.resetTo, idx);
+            log('reset', tut.key, i, '->', s.resetTo, idx);
             if (idx >= 0) {
               cleanupInteract();
               prepare(idx, () => {
@@ -697,8 +779,7 @@ export function startTutorial(
       }
       btn.textContent = t('Fichiers déposés !');
     })().catch((e) => {
-      // eslint-disable-next-line no-console
-      console.debug('[tour] prefill failed', e);
+      log('prefill failed', e);
       btn.textContent = t('Échec — utilisez les boutons de téléchargement');
       delete btn.dataset.busy;
     });
@@ -775,8 +856,7 @@ export function startTutorial(
     // painted overlay (this killed the tour at the PDF-preview step).
     // Realign instead — quitting stays available via the popover ✕ / Esc.
     overlayClickBehavior: (() => {
-      // eslint-disable-next-line no-console
-      console.debug('[tour] overlay click — realigning, not closing');
+      log('overlay click — realigning, not closing');
       try {
         d.refresh();
       } catch { /* torn down */ }
@@ -789,15 +869,13 @@ export function startTutorial(
       const at = d.getActiveIndex() ?? 0;
       const ptrAge = lastPointerDown ? Date.now() - lastPointerDown.t : Infinity;
       const escAge = lastEscape ? Date.now() - lastEscape : Infinity;
-      // eslint-disable-next-line no-console
-      console.debug('[tour] destroy-hook', tut.key, 'at', at, 'ptr-age', ptrAge, 'esc-age', escAge);
+      log('destroy-hook', tut.key, 'at', at, 'ptr-age', ptrAge, 'esc-age', escAge);
       // A quit must come from actual input (popover ✕ click or Escape).
       // Destroy requests arriving with NO recent pointer/keyboard activity
       // are spurious (event-machinery glitches around portal dialogs) and
       // must not kill the guided journey.
-      if (ptrAge > 1200 && escAge > 1200) {
-        // eslint-disable-next-line no-console
-        console.debug('[tour] declined spurious destroy (no recent input)');
+      if (!forcedDestroy && ptrAge > 1200 && escAge > 1200) {
+        log('declined spurious destroy (no recent input)');
         try {
           d.refresh();
         } catch { /* torn down */ }
@@ -809,6 +887,7 @@ export function startTutorial(
       // the tour — realign and carry on.
       const s: TourStep | undefined = steps[at];
       if (
+        !forcedDestroy &&
         s?.anchor &&
         lastPointerDown &&
         Date.now() - lastPointerDown.t < 500
@@ -825,8 +904,7 @@ export function startTutorial(
           lastPointerDown.y >= r.top &&
           lastPointerDown.y <= r.bottom
         ) {
-          // eslint-disable-next-line no-console
-          console.debug('[tour] declined overlay-close — click was inside the anchor');
+          log('declined overlay-close — click was inside the anchor');
           try {
             d.refresh();
           } catch { /* torn down */ }
@@ -840,17 +918,15 @@ export function startTutorial(
       if (at >= steps.length - 1) {
         completed = true;
         writeResumeIndex(tut.key, null);
-      } else writeResumeIndex(tut.key, at);
+      } else writeResumeIndex(tut.key, at, steps[at]?.title);
       d.destroy();
     },
     onHighlightStarted: () => {
-      // eslint-disable-next-line no-console
-      console.debug('[tour] highlight-start', tut.key, d.getActiveIndex());
+      log('highlight-start', tut.key, d.getActiveIndex());
       cleanupInteract();
     },
     onDestroyed: () => {
-      // eslint-disable-next-line no-console
-      console.debug('[tour] destroyed', tut.key, 'at', d.getActiveIndex(), 'completed', completed);
+      log('destroyed', tut.key, 'at', d.getActiveIndex(), 'completed', completed);
       cleanupInteract();
       cursorEl?.remove();
       cursorEl = null;
@@ -1029,7 +1105,7 @@ export function startTutorial(
         // position, so anything that tears the page down under a running
         // tour (phone-view toggle, hard reload) resumes right here instead
         // of restarting the lab.
-        if (i < steps.length - 1) writeResumeIndex(tut.key, i);
+        if (i < steps.length - 1) writeResumeIndex(tut.key, i, s.title);
         // Track the furthest step ever reached (by title, path-scoped) so
         // chain returns never send the user backwards.
         try {
@@ -1091,8 +1167,7 @@ export function startTutorial(
   document.addEventListener('click', onPrefillClick, true);
   refreshIv = window.setInterval(safeRefresh, 600);
   prepare(resumeAt, () => {
-    // eslint-disable-next-line no-console
-    console.debug('[tour] drive', tut.key, 'at', resumeAt, 'active===d', active === d);
+    log('drive', tut.key, 'at', resumeAt, 'active===d', active === d);
     d.drive(resumeAt);
     // Driving straight into a hands-on step (resume, chainAt re-entry):
     // make sure its interact listener is attached even if the step-level
@@ -1121,6 +1196,54 @@ export function startTutorial(
  * tutorials) and points at the single "?" button — the entry to the
  * comprehensive hands-on lab.
  */
+/**
+ * Keep a popover fully inside the window. driver.js places it from the
+ * anchor's rect and only flips sides for overflows it knows about — a button
+ * parked in a corner (which the launcher now can be, anywhere the user drags
+ * it) still ended up with the bubble hanging off the edge, hiding its
+ * buttons. Written on the inline style, which is exactly where driver.js
+ * writes its own coordinates, so its next reposition overwrites us cleanly.
+ */
+function clampPopoverIntoView(): void {
+  const pop = document.querySelector<HTMLElement>('.driver-popover');
+  if (!pop) return;
+  const M = 8; // breathing room from the window edge
+  const r = pop.getBoundingClientRect();
+  if (r.width === 0 && r.height === 0) return;
+  const x = Math.min(Math.max(r.left, M), Math.max(M, window.innerWidth - r.width - M));
+  const y = Math.min(Math.max(r.top, M), Math.max(M, window.innerHeight - r.height - M));
+  const dx = x - r.left;
+  const dy = y - r.top;
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+  pop.style.left = `${parseFloat(pop.style.left || '0') + dx}px`;
+  pop.style.top = `${parseFloat(pop.style.top || '0') + dy}px`;
+  // Moved far enough that the arrow would point at empty space: hide it
+  // rather than leave a stray tick floating beside the box.
+  const arrow = pop.querySelector<HTMLElement>('.driver-popover-arrow');
+  if (arrow) arrow.style.visibility = Math.abs(dx) > 12 || Math.abs(dy) > 12 ? 'hidden' : '';
+}
+
+/**
+ * Popover side/alignment that opens AWAY from the nearest screen edges — the
+ * launcher is draggable, so its bubble has to work in any corner.
+ */
+function placeAround(el: HTMLElement | null): {
+  side: 'top' | 'bottom' | 'left' | 'right';
+  align: 'start' | 'center' | 'end';
+} {
+  const r = el?.getBoundingClientRect();
+  if (!r || (r.width === 0 && r.height === 0)) return { side: 'top', align: 'end' };
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  // Open into the taller free half vertically.
+  const side = cy > window.innerHeight - cy ? 'top' : 'bottom';
+  // Horizontally, anchor the bubble on the button's own side of the screen so
+  // it grows inwards: a button near the right edge gets an 'end'-aligned box.
+  const third = window.innerWidth / 3;
+  const align = cx < third ? 'start' : cx > window.innerWidth - third ? 'end' : 'center';
+  return { side, align };
+}
+
 export function pointToLauncher(onClosed?: () => void): void {
   destroyActiveTour();
   const targets: Array<{ sel: string; title: string; body: string }> = [
@@ -1145,16 +1268,43 @@ export function pointToLauncher(onClosed?: () => void): void {
     steps: targets.map((s) => ({
       element: s.sel,
       popover: {
+        // The launcher used to be pinned to the bottom-right corner. The user
+        // can now park it anywhere, so the bubble's side and alignment are
+        // derived from where the button actually is — fixed values pushed it
+        // off-screen for every other corner.
+        ...placeAround(document.querySelector<HTMLElement>(s.sel)),
         title: escapeHtml(t(s.title)),
         description: escapeHtml(t(s.body)),
       },
     })),
     onDestroyed: () => {
       if (active === d) active = null;
+      window.clearInterval(guardIv);
+      window.removeEventListener('resize', onResize);
       onClosed?.();
     },
   });
   active = d;
   activeKey = null;
   d.drive(0);
+  // Belt and braces: re-clamp after the pop-in settles, on resize, and on a
+  // slow poll (mobile URL bars and on-screen keyboards resize the viewport
+  // without firing anything else useful).
+  const onResize = () => {
+    if (active !== d) return;
+    try {
+      d.refresh();
+    } catch { /* torn down */ }
+    clampPopoverIntoView();
+  };
+  const guardIv = window.setInterval(() => {
+    if (active !== d) {
+      window.clearInterval(guardIv);
+      return;
+    }
+    clampPopoverIntoView();
+  }, 500);
+  window.addEventListener('resize', onResize);
+  window.requestAnimationFrame(clampPopoverIntoView);
+  window.setTimeout(clampPopoverIntoView, 220);
 }

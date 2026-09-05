@@ -7,7 +7,7 @@
  * the header; the profile row and help live in the footer.
  */
 
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import NextLink from 'next/link';
 import { Calculator, FolderOpen, HelpCircle, PanelLeft } from 'lucide-react';
@@ -45,6 +45,13 @@ import { useWorkspaceStore, TAB_KINDS } from '@/hooks/use-workspace-tabs';
 import { userInitials } from '@/components/layout/user-menu';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
+import { tutorialsEnabledFor } from '@/lib/tutorial/access';
+import {
+  setTutorialsDisabled,
+  subscribeTutorialPrefs,
+  tutorialsDisabled,
+  tutorialsDisabledServer,
+} from '@/lib/tutorial/prefs';
 
 /**
  * The single source of the active row's SURFACE (tint + light rim + 2px teal
@@ -135,6 +142,16 @@ const AppSidebar = () => {
 
   const displayName = profile ? `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || t('Profil') : t('Profil');
   const isProfilActive = pathname === '/profil' || pathname.startsWith('/profil/');
+  // The guided tour's own "?" button is its only entry point, and the welcome
+  // lightbox lets the user switch the tutorial off — which hides that button.
+  // This Aide entry is the way back; it exists ONLY while the tutorial is off,
+  // and only for a role this brand offers it to.
+  const tourOff = useSyncExternalStore(
+    subscribeTutorialPrefs,
+    tutorialsDisabled,
+    tutorialsDisabledServer,
+  );
+  const canUseTutorials = tutorialsEnabledFor(profile?.role);
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -154,6 +171,7 @@ const AppSidebar = () => {
               size="icon"
               className="h-8 w-8 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
               onClick={toggleSidebar}
+              data-tour="nav-toggle"
               aria-label={isCollapsed ? t('Agrandir la barre latérale') : t('Réduire la barre latérale')}
             >
               <PanelLeft className="h-4 w-4" />
@@ -198,7 +216,7 @@ const AppSidebar = () => {
         ))}
 
         {visibleRecents.length > 0 && (
-          <SidebarGroup>
+          <SidebarGroup data-tour="nav-recents">
             {!isCollapsed && <SidebarGroupLabel>{t('Récents')}</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
@@ -235,6 +253,7 @@ const AppSidebar = () => {
                 href="/profil"
                 onClick={closeOnMobile}
                 aria-current={isProfilActive ? 'page' : undefined}
+                data-tour="nav-profil"
                 className={cn(
                   'flex min-w-0 items-center gap-2 rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent',
                   isCollapsed ? 'h-8 w-8 justify-center' : 'h-9 flex-1 px-1.5',
@@ -258,13 +277,23 @@ const AppSidebar = () => {
                 size="icon"
                 className="h-8 w-8 shrink-0 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
                 aria-label={t('Aide')}
+                data-tour="nav-aide-trigger"
               >
                 <HelpCircle className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start" className="w-56">
+            <DropdownMenuContent side="top" align="start" className="w-56" data-tour="nav-aide">
               <DropdownMenuLabel>{t('Aide')}</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {canUseTutorials && tourOff && (
+                <>
+                  <DropdownMenuItem onSelect={() => setTutorialsDisabled(false)}>
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    {t('Réactiver le tutoriel guidé')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               {footerItems.map((item) => {
                 const Icon = item.icon;
                 return (

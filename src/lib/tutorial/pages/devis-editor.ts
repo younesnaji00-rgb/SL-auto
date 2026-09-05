@@ -19,6 +19,35 @@ export const devisEditorTutorial: PageTutorial = {
         "L'IA a transformé le devis scanné du garage en tableau : vous vérifiez, sans rien ressaisir.",
     },
     {
+      anchor: 'dev-header',
+      title: 'Le devis en un coup d’œil',
+      body:
+        "En haut : le dossier, le garage, la version en cours d'édition. C'est le contexte que vous gardez sous les yeux pendant toute la correction.",
+      side: 'bottom',
+      cursorAt: 'left',
+    },
+    {
+      anchor: 'dev-files',
+      title: 'Le fichier d’origine',
+      body: "Le PDF ou la photo que l'IA a lu reste rattaché ici, consultable à tout moment.",
+      side: 'bottom',
+    },
+    {
+      anchor: 'dev-comparer',
+      title: 'Comparer côte à côte',
+      body:
+        "« Comparer » ouvre le document source à gauche et le tableau à droite : plus d'allers-retours entre deux fenêtres.\nSur petit écran, le document passe simplement au-dessus du tableau.",
+      side: 'bottom',
+    },
+    {
+      anchor: 'dev-split',
+      title: 'La séparation se déplace',
+      body:
+        "Glissez cette poignée pour donner plus de place au document ou au tableau. Votre réglage est retenu pour les prochains devis.",
+      side: 'right',
+      dynamic: true,
+    },
+    {
       anchor: 'dev-verify',
       title: 'Confirmer la vérification',
       body: "Comparez avec l'original, puis cliquez « J'ai vérifié » pour déverrouiller le tableau.",
@@ -26,11 +55,32 @@ export const devisEditorTutorial: PageTutorial = {
       interact: 'click',
     },
     {
+      anchor: 'dev-reextract',
+      title: 'Relire le document',
+      body:
+        "Extraction ratée ou document remplacé ? « Ré-extraire » relance la lecture automatique — elle écrase le tableau, à n'utiliser qu'en connaissance de cause.",
+      side: 'bottom',
+    },
+    {
       anchor: 'dev-table',
       title: 'Tout se calcule tout seul',
       body:
-        'Modifiez une quantité ou un prix : Total HT, TTC et les sommes en pied de tableau se recalculent instantanément.',
+        "Modifiez une quantité ou un prix : Total HT, TTC et les sommes en pied de tableau se recalculent instantanément.\nÇa se saisit comme un tableur : Entrée descend d'une ligne dans la même colonne, Tab passe à la cellule suivante.",
       side: 'top',
+    },
+    {
+      anchor: 'dev-add-row',
+      title: 'Une ligne oubliée par le garage',
+      body:
+        "« Ajouter une ligne » crée une ligne vide en bas et place le curseur dans sa désignation — pour ce que le devis ne mentionnait pas.",
+      side: 'top',
+    },
+    {
+      anchor: 'dev-sans-tva',
+      title: 'Un devis sans TVA',
+      body:
+        "Certains garages facturent hors taxe. Cochez « Sans TVA » et toute la colonne disparaît des calculs et du PDF.",
+      side: 'bottom',
     },
     {
       // Anchor the TABLE, not the Type column header: the overlay only lets
@@ -98,6 +148,11 @@ export const devisEditorTutorial: PageTutorial = {
         }
         return !!w['sl.devPreviewSeen'];
       },
+    },
+    {
+      title: 'Enregistré — et au suivant',
+      body:
+        "Après l'enregistrement, un bandeau vert confirme et propose « Dossier suivant » : le chiffrage d'après dans la file, sans repasser par la liste.\nC'est ce qui permet d'enchaîner une file entière.",
     },
     {
       anchor: 'nav-/dossiers',

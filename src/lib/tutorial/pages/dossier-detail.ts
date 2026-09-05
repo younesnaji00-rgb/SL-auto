@@ -64,17 +64,25 @@ export const dossierDetailTutorial: PageTutorial = {
         "Toute la vie du sinistre sur une seule page.\nSuivons-la de haut en bas avec les documents du kit.",
     },
     {
-      anchor: 'dos-tabs',
+      anchor: 'shell-tabs',
       title: 'Vos dossiers ouverts',
       body:
-        "Chaque dossier ouvert reste ici, comme les onglets d'un navigateur. L'onglet « Dossiers » ramène à la liste.",
+        "Chaque dossier ouvert reste ici, comme les onglets d'un navigateur : l'onglet « Dossiers » ramène à la liste, la croix ferme, et un onglet en italique est un simple aperçu — double-cliquez dessus pour l'épingler.\nUne pastille sur un onglet signale des modifications non enregistrées ; l'app vous prévient avant de le fermer.",
       side: 'bottom',
       cursorAt: 'left',
     },
     {
+      anchor: 'shell-tabs-menu',
+      title: 'Quand il y en a beaucoup',
+      body:
+        "Ce menu liste tous les onglets ouverts, épingle celui du moment, ferme les autres — et rouvre le dernier onglet fermé.",
+      side: 'bottom',
+    },
+    {
       anchor: 'dosd-header',
-      title: 'En-tête',
-      body: "L'assuré, la compagnie et la référence restent toujours visibles ici.",
+      title: 'La barre du dossier',
+      body:
+        "L'assuré, la compagnie et la référence restent visibles quoi que vous fassiez : cette barre est collée en haut pendant que la page défile.\nÀ droite, l'action principale du moment et le menu « … » (historique, envoi par courriel, téléchargement).",
       side: 'bottom',
       cursorAt: 'left',
     },
@@ -152,6 +160,14 @@ export const dossierDetailTutorial: PageTutorial = {
       },
     },
     {
+      anchor: 'dosd-info-edit',
+      title: 'Corriger une information',
+      body:
+        "Le formulaire est en lecture seule tant que vous ne cliquez pas sur « Modifier » — un garde-fou contre les modifications involontaires.\nVos saisies sont conservées localement au fil de la frappe : un onglet fermé par erreur ne vous fait rien perdre.",
+      side: 'left',
+      dynamic: true,
+    },
+    {
       anchor: 'dosd-compare-btn',
       title: 'Le comparateur',
       body:
@@ -195,8 +211,17 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-timeline',
       title: 'La frise des étapes',
-      body: "Chaque bouton est une étape de la vie du dossier. Suivons-les dans l'ordre.",
+      body:
+        "La page n'a plus d'onglets : c'est une frise. Chaque bouton mène à une étape de la vie du dossier, et la frise reste collée en haut pour vous dire où vous êtes pendant que vous défilez.\nSuivons-les dans l'ordre.",
       side: 'bottom',
+    },
+    {
+      anchor: 'dosd-sec-1',
+      title: 'Une étape = une section',
+      body:
+        "Sous la frise, chaque étape est une section repliable, avec la date et l'auteur de sa dernière action.\nRepliez celles qui ne vous concernent pas : le dossier se souvient de votre choix. La visite guidée rouvre d'elle-même les sections dont elle a besoin.",
+      side: 'bottom',
+      cursorAt: 'left',
     },
     {
       anchor: 'dosd-step-4',
@@ -208,6 +233,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-planif-new',
       click: 'dosd-step-4',
+      expand: 'dosd-sec-4',
       delay: 600,
       title: 'Programmons la visite terrain',
       body:
@@ -290,6 +316,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-planif-new',
       click: 'dosd-step-4',
+      expand: 'dosd-sec-4',
       delay: 500,
       title: 'Une 2ème destination',
       body:
@@ -324,6 +351,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-photos-avant',
       click: 'dosd-step-4',
+      expand: 'dosd-sec-4',
       delay: 600,
       title: 'Les photos avant réparation',
       body:
@@ -355,6 +383,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-observations',
       click: 'dosd-step-4',
+      expand: 'dosd-sec-4',
       delay: 600,
       title: 'Les remarques',
       body:
@@ -371,6 +400,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-devis-slot',
       click: 'dosd-step-6',
+      expand: 'dosd-sec-6',
       delay: 600,
       title: 'Le devis du garage',
       body: 'Téléchargez le devis ci-dessous, puis ajoutez-le dans cette carte « Devis Garage ».',
@@ -396,6 +426,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-assign-chiffrage',
       click: 'dosd-step-6',
+      expand: 'dosd-sec-6',
       delay: 600,
       title: 'Assignez le chiffrage',
       body:
@@ -443,6 +474,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-photos-en_cours',
       click: 'dosd-step-9',
+      expand: 'dosd-sec-9',
       delay: 600,
       title: 'Les photos pendant travaux',
       body: 'Téléchargez les 2 photos ci-dessous, puis cliquez sur « Ajouter ».',
@@ -468,6 +500,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-accord2',
       click: 'dosd-step-11',
+      expand: 'dosd-sec-11',
       delay: 600,
       title: 'La sérialisation des accords',
       body:
@@ -485,6 +518,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-photos-apres',
       click: 'dosd-step-10',
+      expand: 'dosd-sec-10',
       delay: 600,
       title: 'Le véhicule réparé',
       body: 'Téléchargez les 2 photos ci-dessous, puis cliquez sur « Ajouter ».',
@@ -510,6 +544,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-rapport-generer',
       click: 'dosd-step-7',
+      expand: 'dosd-sec-7',
       delay: 600,
       title: 'Générer le rapport',
       body:
@@ -526,6 +561,7 @@ export const dossierDetailTutorial: PageTutorial = {
     {
       anchor: 'dosd-honoraire-slot',
       click: 'dosd-step-8',
+      expand: 'dosd-sec-8',
       delay: 600,
       title: "La note d'honoraire",
       body: 'La facture du cabinet se dépose ici : elle clôt le dossier.',

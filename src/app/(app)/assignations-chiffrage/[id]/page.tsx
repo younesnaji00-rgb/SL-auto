@@ -479,7 +479,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             <>
               {/* Queue spine (B5): hidden when the queue page stored no order. */}
               {queueCtx && (
-                <div className="mr-1 flex items-center gap-0.5">
+                <div className="mr-1 flex items-center gap-0.5" data-tour="chd-queue-spine">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -533,7 +533,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           strip swaps to the completion banner — auto-advance is offered,
           never forced (« Rester » reverts to the normal strip). */}
       {traitementActif && (
-        <div className="glass-bar flex h-11 items-center gap-3 rounded-lg px-4 animate-in fade-in-0 duration-250 ease-enter motion-reduce:animate-none">
+        <div data-tour="chd-mode-traitement" className="glass-bar flex h-11 items-center gap-3 rounded-lg px-4 animate-in fade-in-0 duration-250 ease-enter motion-reduce:animate-none">
           {showCompletionBanner ? (
             queueCtx?.nextId ? (
               <>

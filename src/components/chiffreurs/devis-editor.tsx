@@ -1977,7 +1977,7 @@ export function DevisEditor({
             the card between the table and the totals strip. Appends a blank
             manual row and focuses its Désignation cell (see addRow). */}
         <div className="border-t border-hairline px-2 py-1">
-          <Button variant="ghost" size="sm" onClick={addRow} disabled={!isEditable}>
+          <Button variant="ghost" size="sm" onClick={addRow} disabled={!isEditable} data-tour="dev-add-row">
             <Plus className="h-4 w-4" />
             {t("Ajouter une ligne")}
           </Button>
@@ -2042,6 +2042,7 @@ export function DevisEditor({
                 stays mid-viewport; hover/drag tint per spec. */}
             <SplitSeparator
               aria-label={t("Redimensionner la comparaison")}
+              data-tour="dev-split"
               className="relative mx-1.5 w-2 shrink-0 rounded-full transition-colors duration-150 hover:bg-surface-3 data-[separator=active]:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div aria-hidden className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-hairline" />

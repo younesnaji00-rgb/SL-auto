@@ -39,10 +39,28 @@ export const assignationsAtgTutorial: PageTutorial = {
       interact: 'click',
     },
     {
+      anchor: 'atg-triage',
+      title: 'Le résumé, en haut',
+      body:
+        "« En retard », « Aujourd'hui », « À venir » : la charge de la journée en une ligne.\nCe ne sont pas des étiquettes — cliquez sur l'une d'elles et la liste saute directement à ce groupe.",
+      side: 'bottom',
+      dynamic: true,
+      cursorAt: 'left',
+    },
+    {
       anchor: 'atg-gps',
       title: 'Partage de position',
-      body: 'Activez-le pour recevoir les missions proches de vous.',
+      body:
+        "Activez-le pour recevoir les missions proches de vous — et pour que le dispatcher voie où en est la tournée.",
       side: 'bottom',
+    },
+    {
+      anchor: 'atg-scan',
+      title: 'Scanner une plaque',
+      body:
+        "Devant le véhicule, l'agent photographie la plaque : l'app reconnaît l'immatriculation et ouvre directement la bonne mission.\nPlus de recherche dans la liste, gants aux mains.",
+      side: 'bottom',
+      dynamic: true,
     },
     {
       // Presentational: switching tabs must NOT advance the tour — the
@@ -95,6 +113,22 @@ export const assignationsAtgTutorial: PageTutorial = {
       title: 'À venir',
       body: 'Les missions des prochains jours, déjà planifiées.',
       side: 'bottom',
+      dynamic: true,
+    },
+    {
+      anchor: 'atg-lens',
+      title: 'Liste ou carte',
+      body:
+        "La même tournée en carte : les missions du jour placées géographiquement, et la position en direct des agents sur le terrain.\nPratique pour décider qui prend quoi.",
+      side: 'bottom',
+      dynamic: true,
+    },
+    {
+      anchor: 'atg-checkin',
+      title: 'Arrivé sur place',
+      body:
+        "Quand le téléphone de l'agent le situe à l'adresse d'une mission, cette bannière propose l'arrivée en un geste — l'heure de check-in part dans le dossier.\nElle ne s'affiche que sur place ; on peut toujours l'écarter.",
+      side: 'top',
       dynamic: true,
     },
     {

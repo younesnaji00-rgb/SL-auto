@@ -52,6 +52,7 @@ export default function UserMenu() {
           variant="ghost"
           className="h-9 gap-2 rounded-full px-1 pr-2 text-sm font-medium text-ink hover:bg-surface-3"
           aria-label={`${t('Compte :')} ${displayName}`}
+          data-tour="shell-user-menu"
         >
           <Avatar className="h-7 w-7">
             <AvatarFallback className="bg-surface-4 text-[11px] font-semibold text-ink">{userInitials(profile)}</AvatarFallback>

@@ -84,6 +84,14 @@ export const monitoringTutorial: PageTutorial = {
       interact: 'click',
     },
     {
+      anchor: 'mon-user-filtres',
+      title: "Cibler une personne",
+      body:
+        "Restreignez la vue à un utilisateur, un rôle ou une période : de quoi préparer un point d'équipe sur des chiffres précis.",
+      side: 'bottom',
+      dynamic: true,
+    },
+    {
       anchor: 'mon-user-table',
       title: "L'activité de l'équipe",
       body: 'Ce que chaque personne a réalisé sur la période.',

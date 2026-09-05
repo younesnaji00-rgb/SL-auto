@@ -28,6 +28,16 @@ export interface TourStep {
   /** Settle delay after `click`, ms (default 350). */
   delay?: number;
   /**
+   * data-tour value of a DISCLOSURE button (a dossier timeline section
+   * heading, a collapsible panel) to open before this step shows — clicked
+   * only when it reports `aria-expanded="false"`, so a section the user has
+   * already opened is never closed by the tour. A collapsed disclosure
+   * unmounts its content, which hides the step's anchor and drops the step
+   * silently; steps carrying `expand` therefore survive the presence filter
+   * the way `click` ones do.
+   */
+  expand?: string;
+  /**
    * Include the step even when its anchor is absent at tour start
    * (because `click` reveals it). Steps without `dynamic` are filtered
    * by DOM presence, which lets one step list serve desktop AND mobile

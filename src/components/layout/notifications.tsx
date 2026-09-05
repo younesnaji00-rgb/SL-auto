@@ -94,6 +94,7 @@ function NotificationsInner() {
               : t('Rappels')
           }
           title={t('Rappels')}
+          data-tour="shell-notifications"
         >
           <Bell className="h-[18px] w-[18px]" />
           {count > 0 && (

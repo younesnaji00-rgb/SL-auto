@@ -26,9 +26,18 @@ export interface KpiTile {
   onClick: () => void;
 }
 
-export function DossierKpiStrip({ tiles, loading }: { tiles: KpiTile[]; loading?: boolean }) {
+export function DossierKpiStrip({
+  tiles,
+  loading,
+  dataTour,
+}: {
+  tiles: KpiTile[];
+  loading?: boolean;
+  /** Guided-tour anchor (the strip is shared by several list pages). */
+  dataTour?: string;
+}) {
   return (
-    <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 xl:grid-cols-4" data-tour={dataTour}>
       {tiles.map((t) => (
         <Card
           key={t.key}

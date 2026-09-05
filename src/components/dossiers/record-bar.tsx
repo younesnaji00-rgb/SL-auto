@@ -224,7 +224,10 @@ export function RecordBar({
       </div>
 
       {rappel?.active && (
-        <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-status-warning-fg/30 bg-status-warning-bg px-2 py-1 text-xs text-status-warning-fg">
+        // data-tour: the reminder-treatment walkthrough points here. The
+        // banner became this chip in the record bar during the redesign; the
+        // tour step lost its anchor and stopped rendering.
+        <div data-tour="dosd-rappel-banner" className="flex shrink-0 items-center gap-1.5 rounded-md border border-status-warning-fg/30 bg-status-warning-bg px-2 py-1 text-xs text-status-warning-fg">
           <Bell className="h-3.5 w-3.5" aria-hidden />
           <span className="hidden sm:inline">{t('Rappel en cours')}</span>
           {rappel.pendingCount > 0 && (

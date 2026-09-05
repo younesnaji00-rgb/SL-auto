@@ -544,6 +544,7 @@ export default function AssignationsChiffragePage() {
               <div
                 role="group"
                 aria-label={t('Portée de la file')}
+                data-tour="ach-scope"
                 className="relative isolate flex h-9 w-fit items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
               >
                 <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[queueScope, nbATraiter, filteredChiffrages.length]} />
@@ -578,6 +579,7 @@ export default function AssignationsChiffragePage() {
                   onChange={(e) => setFilters({ q: e.target.value })}
                   placeholder={t('Réf., assuré, plaque…')}
                   aria-label={t('Rechercher dans la file')}
+                  data-tour="ach-search"
                   className="h-9 w-[220px] pl-8"
                 />
               </div>
@@ -697,7 +699,7 @@ export default function AssignationsChiffragePage() {
                   // hairline only (no tinted section), layer-cake scanning.
                   return (
                     <TableRow key={`band-${row.band}`} className="hover:bg-transparent">
-                      <TableCell colSpan={colCount} className="h-auto pb-1.5 pt-5">
+                      <TableCell colSpan={colCount} className="h-auto pb-1.5 pt-5" data-tour="ach-band">
                         <span className="inline-flex items-center gap-2">
                           <span className="t-label">{t(row.band)}</span>
                           <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">

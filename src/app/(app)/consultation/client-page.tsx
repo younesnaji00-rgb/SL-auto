@@ -624,7 +624,7 @@ export default function ConsultationClientPage() {
         <div className="ms-auto flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title={t('Afficher / masquer des colonnes')}>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title={t('Afficher / masquer des colonnes')} data-tour="consult-colonnes">
                 <Columns3 className="h-4 w-4" aria-hidden />
                 {t('Colonnes')}
                 {filters.hiddenCols.length > 0 && (
@@ -666,7 +666,7 @@ export default function ConsultationClientPage() {
           {/* Export = the FILTERED rows in the VISIBLE column order, never the
               raw collection (Retool forums: the mismatch is the failure mode). */}
           {sortedList.length > 0 && (
-            <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" onClick={handleExport} disabled={exported} title={t('Exporter la liste filtrée en Excel')}>
+            <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" onClick={handleExport} disabled={exported} title={t('Exporter la liste filtrée en Excel')} data-tour="consult-export">
               {exported ? <Check className="h-4 w-4" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
               {exported ? t('Exporté') : t('Exporter')}
             </Button>

@@ -54,6 +54,10 @@ import { I18N_FIX_2_EN } from './i18n-fix-2';
 import { I18N_FIX_3_EN } from './i18n-fix-3';
 import { I18N_FIX_4_EN } from './i18n-fix-4';
 import { I18N_FIX_5_EN } from './i18n-fix-5';
+// Tutorial refresh (2026-09-05): copy for the redesigned shell and pages the
+// guided tour now walks (workspace tabs, top bar, timeline sections, urgency
+// bands, preview panels, the draggable « ? » launcher and its off switch).
+import { TUTORIAL_SHELL_EN } from './tutorial-shell';
 
 export const EN: Record<string, string> = {
   ...COMMON_EN,
@@ -79,6 +83,7 @@ export const EN: Record<string, string> = {
   ...TUTORIAL_DOSSIERS_EN,
   ...TUTORIAL_DASHBOARD_EN,
   ...TUTORIAL_CORE_EN,
+  ...TUTORIAL_SHELL_EN,
   ...LABS_EN,
   ...LEFTOVERS_EN,
   ...TRIAL_EN,

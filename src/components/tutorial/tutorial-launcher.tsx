@@ -1,6 +1,13 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { usePathname } from 'next/navigation';
 import { HelpCircle } from 'lucide-react';
 import { tutorialForPath } from '@/lib/tutorial/registry';
@@ -13,17 +20,99 @@ import {
   activeTourKey,
   JOURNEY_KEYS,
 } from '@/lib/tutorial/tour';
+import {
+  readLauncherPosition,
+  setTutorialsDisabled,
+  subscribeTutorialPrefs,
+  tutorialsDisabled,
+  tutorialsDisabledServer,
+  writeLauncherPosition,
+  type LauncherPosition,
+} from '@/lib/tutorial/prefs';
 import { BRAND } from '@/lib/brand';
 import { tutorialsEnabledFor } from '@/lib/tutorial/access';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
+// ── Draggable "?" button ────────────────────────────────────────────────
+// Size of the button (h-11 w-11) — needed to clamp its centre so the whole
+// circle stays on screen, and to convert between the centre fractions we
+// persist and the top-left pixels CSS wants.
+const BTN = 44;
+const EDGE = 12;
+/** Past this many pixels a pointer gesture is a DRAG, not a click. */
+const DRAG_SLOP = 4;
+
+function clampCentre(x: number, y: number): { left: number; top: number } {
+  const half = BTN / 2 + EDGE;
+  const cx = Math.min(Math.max(x, half), Math.max(half, window.innerWidth - half));
+  const cy = Math.min(Math.max(y, half), Math.max(half, window.innerHeight - half));
+  return { left: cx - BTN / 2, top: cy - BTN / 2 };
+}
+
 /**
- * The single tutorial entry point (bottom-right "?" button) plus the
- * discovery UX:
+ * The launcher's parked position.
+ *
+ * Persisted as a FRACTION of the viewport (see prefs.ts) and resolved to
+ * pixels on mount and on every resize, so the button keeps its corner across
+ * screens — the same account is used on a phone, a laptop and a wide monitor.
+ * `null` means "never moved": the button stays in its default bottom-right
+ * corner, laid out by CSS classes (safe-area aware) rather than inline
+ * coordinates.
+ */
+function useLauncherPosition() {
+  const [frac, setFrac] = useState<LauncherPosition | null>(null);
+  const [px, setPx] = useState<{ left: number; top: number } | null>(null);
+
+  // Read AFTER mount: localStorage is unavailable during SSR, and rendering
+  // the stored position on the server would mismatch on hydration.
+  useEffect(() => {
+    setFrac(readLauncherPosition());
+  }, []);
+
+  // Fraction → pixels, re-resolved whenever the viewport changes (rotation,
+  // window resize, the mobile URL bar collapsing).
+  useEffect(() => {
+    if (!frac) {
+      setPx(null);
+      return;
+    }
+    const apply = () =>
+      setPx(clampCentre(frac.x * window.innerWidth, frac.y * window.innerHeight));
+    apply();
+    window.addEventListener('resize', apply);
+    window.addEventListener('orientationchange', apply);
+    return () => {
+      window.removeEventListener('resize', apply);
+      window.removeEventListener('orientationchange', apply);
+    };
+  }, [frac]);
+
+  /** Live drag feedback — pixels only; nothing is persisted until the drop. */
+  const moveTo = useCallback((cx: number, cy: number) => setPx(clampCentre(cx, cy)), []);
+
+  const commit = useCallback((cx: number, cy: number) => {
+    const { left, top } = clampCentre(cx, cy);
+    const next = {
+      x: (left + BTN / 2) / window.innerWidth,
+      y: (top + BTN / 2) / window.innerHeight,
+    };
+    setFrac(next);
+    setPx({ left, top });
+    writeLauncherPosition(next);
+  }, []);
+
+  return { px, moveTo, commit };
+}
+
+/**
+ * The single tutorial entry point (draggable "?" button) plus the discovery
+ * UX:
  *  - Every sign-in → a centered "want a tour?" lightbox.
  *  - Dismissing it → a spotlight on the "?" button.
+ *  - Declining it for good → the tutorial is off everywhere until the user
+ *    re-enables it from the sidebar's Aide menu.
  * The "?" button IS the comprehensive hands-on lab: it resumes an
  * interrupted run on the current page, or starts the lab from the sidebar
  * intro when there is nothing to resume.
@@ -36,10 +125,21 @@ export function TutorialLauncher() {
   // (app) layout (login) there is no provider, so the role is unknown there
   // and a role-restricted brand shows nothing.
   const { profile } = useCurrentUser();
-  const allowed = tutorialsEnabledFor(profile?.role);
+  const disabled = useSyncExternalStore(
+    subscribeTutorialPrefs,
+    tutorialsDisabled,
+    tutorialsDisabledServer,
+  );
+  const allowed = tutorialsEnabledFor(profile?.role) && !disabled;
   const [seen, setSeen] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showPointer, setShowPointer] = useState(false);
+  const { px, moveTo, commit } = useLauncherPosition();
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  // Set while a pointer gesture has travelled past the slop: the click that
+  // ends a drag must NOT launch the tour.
+  const draggedRef = useRef(false);
+  const [dragging, setDragging] = useState(false);
 
   const flag = useCallback((suffix: string) => `${BRAND.storagePrefix}.tour.${suffix}`, []);
   const storageKey = tut ? flag(tut.key) : null;
@@ -63,8 +163,6 @@ export function TutorialLauncher() {
     // Chained hand-off (sidebar intro -> page walkthrough): auto-start.
     try {
       const pending = window.localStorage.getItem(flag('pending'));
-      // eslint-disable-next-line no-console
-      console.debug('[tour] launcher', pathname, 'tut', tut.key, 'pending', pending);
       if (pending && tut.key === pending) {
         window.localStorage.removeItem(flag('pending'));
         window.localStorage.setItem(storageKey, '1');
@@ -72,15 +170,16 @@ export function TutorialLauncher() {
         // Wait for the page's data-driven anchors before starting — detail
         // pages render their sections only once the document has loaded, and
         // the presence filter would silently drop every not-yet-rendered step.
-        // Layout-level anchors (tab bar, sidebar nav) exist immediately and
-        // prove nothing, so skip them when picking the poll target.
+        // Layout-level anchors (the workspace tab strip, the sidebar nav)
+        // exist immediately and prove nothing, so skip them when picking the
+        // poll target.
         const lastAnchor = [...tut.steps]
           .reverse()
           .find(
             (s) =>
               s.anchor &&
               !s.dynamic &&
-              s.anchor !== 'dos-tabs' &&
+              !s.anchor.startsWith('shell-') &&
               !s.anchor.startsWith('nav-'),
           )?.anchor;
         let tries = 0;
@@ -89,8 +188,6 @@ export function TutorialLauncher() {
           const ready = !lastAnchor || !!document.querySelector(`[data-tour="${lastAnchor}"]`);
           if (!ready && tries < 50) return;
           window.clearInterval(iv);
-          // eslint-disable-next-line no-console
-          console.debug('[tour] chained start', tut.key, 'ready', ready, 'tries', tries);
           startTutorial(tut, {
             // End of the WHOLE chain. `onComplete` only fires on a genuine
             // completion (last step reached); mid-journey hand-offs leave a
@@ -115,11 +212,7 @@ export function TutorialLauncher() {
       }
       // Stale hand-off (e.g. the guided click landed elsewhere): a pending
       // flag survives at most one navigation.
-      if (pending) {
-        // eslint-disable-next-line no-console
-        console.debug('[tour] stale pending cleared', pending, 'on', pathname);
-        window.localStorage.removeItem(flag('pending'));
-      }
+      if (pending) window.localStorage.removeItem(flag('pending'));
     } catch { /* non-fatal */ }
     setSeen(pageSeen === '1');
     if (pathname === '/login') {
@@ -129,8 +222,8 @@ export function TutorialLauncher() {
       return () => window.clearTimeout(timer);
     }
     // Fresh sign-in (marker set by the login page): offer the tutorial on
-    // EVERY login, not just the first one. Dismissing it spotlights both
-    // "?" buttons with their explanations.
+    // EVERY login, not just the first one. Dismissing it spotlights the
+    // "?" button with its explanation.
     let justLogged = '';
     try {
       justLogged = window.sessionStorage.getItem(flag('justLoggedIn')) ?? '';
@@ -169,6 +262,38 @@ export function TutorialLauncher() {
     [],
   );
 
+  // Turning the tutorial off mid-flight must take the overlay with it.
+  useEffect(() => {
+    if (disabled) destroyActiveTour();
+  }, [disabled]);
+
+  const dismissWelcome = useCallback(() => {
+    try {
+      window.localStorage.setItem(flag('welcomed'), '1');
+    } catch { /* non-fatal */ }
+    setShowWelcome(false);
+    // Hand off to the spotlight so they know where to find it later.
+    setShowPointer(true);
+    try {
+      if (storageKey) window.localStorage.setItem(`${storageKey}.pointed`, '1');
+      // On app pages the spotlight introduces the "?" button — that IS the
+      // help intro. On /login the button belongs to the login tour; the
+      // real one is introduced after the first sign-in instead.
+      if (pathname !== '/login') window.localStorage.setItem(flag('helpBtns'), '1');
+    } catch { /* non-fatal */ }
+  }, [flag, pathname, storageKey]);
+
+  // Escape closes the lightbox exactly like the "Later" button — a modal the
+  // keyboard cannot dismiss is a trap, and this one greets every sign-in.
+  useEffect(() => {
+    if (!showWelcome) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') dismissWelcome();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showWelcome, dismissWelcome]);
+
   if (!allowed || !tut) return null;
 
   const markWelcomed = () => {
@@ -197,8 +322,8 @@ export function TutorialLauncher() {
   };
 
   // The comprehensive lab, from the very beginning: forget every saved
-  // position, walk the sidebar (each page explained), then chain into the
-  // File Management walkthrough at step 1.
+  // position, walk the shell and the sidebar (each page explained), then
+  // chain into the File Management walkthrough at step 1.
   const startLab = () => {
     resetTourProgress(JOURNEY_KEYS);
     try {
@@ -245,39 +370,110 @@ export function TutorialLauncher() {
     startLab();
   };
 
-  const dismissWelcome = () => {
+  // "Never show this again": kills the lightbox, the spotlight and the button
+  // in one go. The sidebar's Aide menu grows a "reactivate" entry so the
+  // decision is reversible without clearing site data.
+  const turnOffForGood = () => {
     markWelcomed();
     setShowWelcome(false);
-    // Hand off to the spotlight so they know where to find it later.
-    setShowPointer(true);
+    setShowPointer(false);
+    destroyActiveTour();
+    setTutorialsDisabled(true);
+  };
+
+  // ── Drag gesture ──────────────────────────────────────────────────────
+  const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    // Left button / touch / pen only — a right-click must not start a drag.
+    if (e.button !== 0) return;
+    const el = btnRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    // Grab offset: without it the button jumps so its centre snaps under the
+    // finger on the first move.
+    const grabX = e.clientX - (rect.left + rect.width / 2);
+    const grabY = e.clientY - (rect.top + rect.height / 2);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    draggedRef.current = false;
+    let moved = false;
+
+    const onMove = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_SLOP) return;
+      moved = true;
+      draggedRef.current = true;
+      setDragging(true);
+      moveTo(ev.clientX - grabX, ev.clientY - grabY);
+    };
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      try {
+        el.releasePointerCapture(ev.pointerId);
+      } catch { /* the capture may already be gone */ }
+      setDragging(false);
+      if (moved) commit(ev.clientX - grabX, ev.clientY - grabY);
+      // The guard is deliberately NOT cleared here: the `click` that ends a
+      // drag is dispatched after pointerup, and a timer racing it decided at
+      // random whether dropping the button also launched the tour. It is
+      // cleared at the start of the next gesture instead (pointerdown, or a
+      // keyboard activation), by which time that click has been and gone.
+    };
+
     try {
-      if (storageKey) window.localStorage.setItem(`${storageKey}.pointed`, '1');
-      // On app pages the spotlight introduces the "?" button — that IS the
-      // help intro. On /login the button belongs to the login tour; the
-      // real one is introduced after the first sign-in instead.
-      if (pathname !== '/login') window.localStorage.setItem(flag('helpBtns'), '1');
-    } catch { /* non-fatal */ }
+      el.setPointerCapture(e.pointerId);
+    } catch { /* capture is an optimisation, not a requirement */ }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  const onClick = () => {
+    if (draggedRef.current) return; // this click ended a drag
+    start();
+  };
+
+  // Arrow keys nudge the button while it has focus — the drag equivalent for
+  // anyone who cannot use a pointer. Shift makes it a coarse jump.
+  const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    // Enter/Space activate the button, and no pointerdown precedes them — so
+    // clear the drag guard here too, or the tour would refuse to start after
+    // the button had once been dragged.
+    if (e.key === 'Enter' || e.key === ' ') draggedRef.current = false;
+    const step = e.shiftKey ? 48 : 8;
+    const delta: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
+    const d = delta[e.key];
+    if (!d) return;
+    e.preventDefault();
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    commit(rect.left + rect.width / 2 + d[0], rect.top + rect.height / 2 + d[1]);
   };
 
   return (
     <>
       {showWelcome && (
-        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-md rounded-2xl bg-card border shadow-2xl p-6 text-center animate-in fade-in zoom-in-95 duration-300">
-            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-teal-700 text-white">
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-ink/40 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-2xl border border-hairline bg-surface-1 p-6 text-center shadow-2xl animate-in fade-in zoom-in-95 duration-300">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground">
               <HelpCircle className="h-8 w-8" />
             </div>
-            <h2 className="text-xl font-semibold">{t('Envie d’un tutoriel guidé ?')}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <h2 className="t-title">{t('Envie d’un tutoriel guidé ?')}</h2>
+            <p className="mt-2 text-sm text-ink-2">
               {t('Un laboratoire guidé vous fait vivre un dossier de A à Z : création, terrain, chiffrage, rapport — avec des documents fournis à chaque étape.')}
             </p>
             {pathname !== '/login' && (
               <div className="mt-4 space-y-2 text-left">
-                <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-2.5">
-                  <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-teal-700 dark:text-teal-400" />
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">{t('« ? » en bas à droite :')}</span>{' '}
-                    {t('lance la visite guidée — et reprend toujours là où vous vous étiez arrêté.')}
+                <div className="flex items-start gap-2 rounded-lg border border-hairline bg-surface-2 p-2.5">
+                  <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <p className="text-xs text-ink-2">
+                    <span className="font-semibold text-ink">{t('Le bouton « ? » :')}</span>{' '}
+                    {t('lance la visite guidée — et reprend toujours là où vous vous étiez arrêté. Glissez-le où vous voulez sur l’écran.')}
                   </p>
                 </div>
               </div>
@@ -286,39 +482,60 @@ export function TutorialLauncher() {
               <button
                 type="button"
                 onClick={start}
-                className="rounded-lg bg-teal-700 px-4 py-2.5 text-white font-medium hover:bg-teal-600 transition"
+                className="rounded-lg bg-primary px-4 py-2.5 font-medium text-primary-foreground transition hover:opacity-90"
               >
                 {t('Commencer la visite guidée')}
               </button>
               <button
                 type="button"
                 onClick={dismissWelcome}
-                className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition"
+                className="rounded-lg px-4 py-2 text-sm text-ink-3 transition hover:text-ink"
               >
                 {t('Plus tard')}
               </button>
+            </div>
+            <div className="mt-4 border-t border-hairline pt-3">
+              <button
+                type="button"
+                onClick={turnOffForGood}
+                className="text-xs text-ink-3 underline underline-offset-2 transition hover:text-ink"
+              >
+                {t('Ne plus afficher le tutoriel')}
+              </button>
+              <p className="t-caption mt-1">
+                {t('Réactivable à tout moment depuis le menu « Aide » de la barre latérale.')}
+              </p>
             </div>
           </div>
         </div>
       )}
 
       <button
+        ref={btnRef}
         type="button"
         data-tour="tutorial-launcher"
-        onClick={start}
-        title={t('Visite guidée')}
-        aria-label={t('Visite guidée')}
+        onClick={onClick}
+        onPointerDown={onPointerDown}
+        onKeyDown={onKeyDown}
+        title={t('Visite guidée — glissez le bouton pour le déplacer')}
+        aria-label={t('Visite guidée — glissez le bouton pour le déplacer')}
         className={cn(
-          'fixed z-[70] bottom-4 right-4 h-11 w-11 rounded-full shadow-lg',
-          'bg-teal-700 text-white hover:bg-teal-600 active:scale-95 transition',
-          'grid place-items-center print:hidden',
+          'fixed z-[70] h-11 w-11 rounded-full shadow-lg',
+          'bg-primary text-primary-foreground transition hover:opacity-90',
+          'grid place-items-center touch-none select-none print:hidden',
+          'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          dragging ? 'scale-105 cursor-grabbing shadow-xl' : 'cursor-grab active:scale-95',
+          // Only the never-moved default corner is laid out by CSS; a parked
+          // button gets explicit coordinates instead. `bottom-20` on small
+          // screens keeps it clear of the mobile bottom nav.
+          !px && 'bottom-20 right-4 lg:bottom-4',
         )}
-        style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+        style={px ? { left: px.left, top: px.top } : { marginBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {(!seen || showPointer) && (
-          <span className="absolute inline-flex h-full w-full rounded-full bg-teal-500 opacity-60 animate-ping" />
+        {(!seen || showPointer) && !dragging && (
+          <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
         )}
-        <HelpCircle className="h-6 w-6 relative" />
+        <HelpCircle className="relative h-6 w-6" />
       </button>
     </>
   );

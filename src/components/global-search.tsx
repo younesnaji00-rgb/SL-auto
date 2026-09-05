@@ -197,7 +197,7 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="top-[12%] translate-y-0 overflow-hidden p-0 sm:max-w-xl" onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}>
+      <DialogContent data-tour="shell-palette" className="top-[12%] translate-y-0 overflow-hidden p-0 sm:max-w-xl" onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}>
         <DialogTitle className="sr-only">{t('Rechercher et naviguer')}</DialogTitle>
         {/* Group headings = t-label (spelled out: `.t-*` are component classes,
             so they can't be applied through an arbitrary variant) — 12 px,

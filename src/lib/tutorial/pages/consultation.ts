@@ -17,7 +17,16 @@ export const consultationTutorial: PageTutorial = {
   steps: [
     {
       title: 'Consultation des dossiers',
-      body: "Retrouvez n'importe quel dossier, en lecture seule : aucun risque de modification.",
+      body:
+        "Retrouvez n'importe quel dossier, en lecture seule : aucun risque de modification.\nC'est la page à ouvrir pour répondre à une question au téléphone — jamais celle où l'on travaille.",
+    },
+    {
+      anchor: 'consult-filters',
+      title: 'Une seule barre de recherche',
+      body:
+        "Recherche à gauche, puis les filtres du plus général au plus précis, et les outils discrets à droite.\nLes filtres actifs s'affichent en pastilles sous la barre — un clic sur la croix en retire un.",
+      side: 'bottom',
+      cursorAt: 'left',
     },
     {
       anchor: 'consult-search',
@@ -46,9 +55,24 @@ export const consultationTutorial: PageTutorial = {
       side: 'bottom',
     },
     {
+      anchor: 'consult-colonnes',
+      title: 'Choisir les colonnes',
+      body:
+        "Masquez ce qui ne vous sert pas : le réglage vaut pour vous seul, et l'export reprend exactement les colonnes affichées.",
+      side: 'bottom',
+    },
+    {
+      anchor: 'consult-export',
+      title: 'Exporter la liste',
+      body:
+        "Un clic exporte la liste FILTRÉE vers Excel — pas toute la base.\nLe bouton se change en « Exporté » le temps d'un instant pour confirmer.",
+      side: 'bottom',
+    },
+    {
       anchor: 'consult-table',
       title: 'Résultats',
-      body: 'Cliquez sur une ligne pour ouvrir le dossier.',
+      body:
+        "Une ligne par dossier. La consultation reste en lecture seule : pour modifier, passez par la Gestion des dossiers.",
       side: 'top',
     },
   ],

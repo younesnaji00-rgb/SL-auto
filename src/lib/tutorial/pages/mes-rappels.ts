@@ -52,9 +52,18 @@ export const mesRappelsTutorial: PageTutorial = {
       interact: 'click',
     },
     {
+      anchor: 'rap-recus-table',
+      title: 'La file et le détail',
+      body:
+        "Sur grand écran, la liste des rappels reçus tient à gauche et le détail du rappel sélectionné à droite : vous les traitez à la file sans perdre votre place.\nSur petit écran, le détail passe simplement sous la liste.",
+      side: 'top',
+      dynamic: true,
+      cursorAt: 'left',
+    },
+    {
       anchor: 'rap-statut',
       title: 'Statuts',
-      body: 'Nouveau, Lu ou Traité.',
+      body: 'Nouveau, Lu ou Traité — la colonne dit où en est chaque demande.',
       side: 'left',
     },
     {

@@ -247,7 +247,7 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
       {(overflowing || tabs.length > 1) && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 self-center px-1.5 text-xs text-ink-3" aria-label={t('Tous les onglets')}>
+            <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 self-center px-1.5 text-xs text-ink-3" aria-label={t('Tous les onglets')} data-tour="shell-tabs-menu">
               <ChevronDown className="h-3.5 w-3.5" />
               {overflowing && <span className="tabular-nums">{tabs.length}</span>}
             </Button>
@@ -321,7 +321,7 @@ function WorkspaceTabsInner() {
   if (kinds.length === 0) return null;
 
   return (
-    <div className="flex h-10 w-full min-w-0 items-center gap-2 border-b border-hairline bg-surface-2" data-workspace-tabs>
+    <div className="flex h-10 w-full min-w-0 items-center gap-2 border-b border-hairline bg-surface-2" data-workspace-tabs data-tour="shell-tabs">
       {kinds.map((api, i) => (
         <React.Fragment key={api.kind}>
           {i > 0 && <div className="my-1.5 w-px shrink-0 bg-hairline-strong" aria-hidden />}

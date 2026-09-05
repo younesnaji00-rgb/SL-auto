@@ -35,6 +35,21 @@ export const dossiersTutorial: PageTutorial = {
         "Votre vue d'ensemble : chaque ligne du tableau est un dossier.\nD'un coup d'œil : où chacun est rendu (son statut), qui a fait la dernière action et quand, la compagnie, l'échéance… et des filtres dédiés pour retrouver n'importe quoi en une seconde.\nDe la création à la facture, tout part d'ici — et à la création, l'IA lit le document de mission et remplit le dossier pour vous.",
     },
     {
+      anchor: 'dos-scope-tabs',
+      title: 'À traiter, ou tout',
+      body:
+        "« À traiter » — la vue par défaut — ne montre que les dossiers qui attendent encore quelque chose de vous. « Tous » ouvre l'archive complète.\nLe compteur de chaque onglet dit combien il y en a.",
+      side: 'bottom',
+      cursorAt: 'left',
+    },
+    {
+      anchor: 'dos-kpis',
+      title: 'Les compteurs sont des filtres',
+      body:
+        "Ces quatre tuiles ne font pas qu'afficher : cliquez sur « En retard » et la liste se réduit aux dossiers en retard, triés du plus ancien au plus récent.\nLa tuile active reste soulignée pour que vous sachiez toujours ce que vous regardez.",
+      side: 'bottom',
+    },
+    {
       // Presentational: interacting with the field must NOT advance the
       // tour — the user tries it, then clicks « Suivant » himself.
       anchor: 'dos-search',
@@ -43,9 +58,23 @@ export const dossiersTutorial: PageTutorial = {
       side: 'bottom',
     },
     {
+      anchor: 'dos-views',
+      title: 'Enregistrer une vue',
+      body:
+        "Une combinaison de filtres que vous refaites tous les matins ? Enregistrez-la ici et rappelez-la en un clic — recherche, période, colonnes et densité comprises.",
+      side: 'bottom',
+    },
+    {
       anchor: 'dos-date-presets',
       title: 'Filtrer par date',
       body: 'Cliquez sur Jour, Semaine ou Mois.',
+      side: 'bottom',
+    },
+    {
+      anchor: 'dos-affichage',
+      title: 'Colonnes et densité',
+      body:
+        "« Affichage » masque les colonnes dont vous n'avez pas besoin et resserre ou aère les lignes.\nC'est par écran et par personne : votre réglage ne change rien pour vos collègues.",
       side: 'bottom',
     },
     {
@@ -209,6 +238,28 @@ export const dossiersTutorial: PageTutorial = {
     // into the page intro, so the return from the reminder loop lands
     // straight on the horizontal-scroll step.)
     {
+      anchor: 'dos-row',
+      title: 'Un aperçu, sans quitter la liste',
+      body:
+        "Un simple clic sur une ligne ouvre un panneau d'aperçu à droite : l'essentiel du dossier, la liste toujours visible derrière.\nCliquez sur une ligne pour l'ouvrir.",
+      side: 'top',
+      interact: 'until',
+      until: () => !!document.querySelector('[data-tour="dos-peek"]'),
+    },
+    {
+      anchor: 'dos-peek',
+      title: 'Le panneau d’aperçu',
+      body:
+        "Assuré, véhicule, statut, échéance — de quoi décider sans ouvrir le dossier.\nDe là : « Ouvrir » va au dossier complet, ou vous refermez et vous passez au suivant. Échap le referme.",
+      side: 'left',
+      dynamic: true,
+    },
+    {
+      title: 'Au clavier, la liste se parcourt seule',
+      body:
+        "↑ ↓ (ou J et K) passent d'une ligne à l'autre, Entrée ouvre, Espace affiche l'aperçu, X coche la ligne, Échap referme tout.\nDe quoi trier une file entière sans lâcher le clavier.",
+    },
+    {
       anchor: 'dos-hscroll',
       title: 'Défilement horizontal',
       body: 'Glissez la barre en bas du tableau pour voir toutes les colonnes.',
@@ -262,7 +313,7 @@ export const dossiersTutorial: PageTutorial = {
       anchor: 'dos-table',
       title: 'Rouvrez votre dossier',
       body:
-        "Votre dossier est en haut de la liste : cliquez sur sa ligne pour reprendre la visite.\nSon onglet en haut (comme un navigateur) y ramène aussi — et dans le dossier, la frise des étapes vous ramène à l'étape où vous étiez.",
+        "Votre dossier est en haut de la liste : cliquez sur sa ligne pour reprendre la visite.\nSon onglet, dans la barre d'onglets sous l'en-tête, y ramène aussi — et dans le dossier, la frise des étapes vous ramène à l'étape où vous étiez.",
       side: 'top',
       interact: 'click',
       chain: 'dossier-detail',

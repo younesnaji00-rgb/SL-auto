@@ -22,7 +22,7 @@ function QuickCreate() {
   const { openCreateDossier, canCreateDossier } = useShellUi();
   if (!canCreateDossier) return null;
   return (
-    <Button onClick={openCreateDossier} className="h-9 gap-1.5 px-3" title={t('Nouveau dossier')}>
+    <Button onClick={openCreateDossier} className="h-9 gap-1.5 px-3" title={t('Nouveau dossier')} data-tour="shell-create">
       <Plus className="h-4 w-4" />
       <span className="hidden sm:inline">{t('Nouveau')}</span>
     </Button>
@@ -62,7 +62,7 @@ const Header = () => {
           <Logo collapsed />
         </Link>
         <MobileUpCrumb />
-        <div className="hidden min-w-0 md:block">
+        <div className="hidden min-w-0 md:block" data-tour="shell-breadcrumb">
           <Breadcrumb />
         </div>
       </div>

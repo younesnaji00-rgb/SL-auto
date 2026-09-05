@@ -60,11 +60,14 @@ export function SavedViews<T extends Record<string, any>>({
   current,
   onApply,
   className,
+  dataTour,
 }: {
   storageKey: string;
   current: T;
   onApply: (filters: T) => void;
   className?: string;
+  /** Guided-tour anchor (the control is shared by several list pages). */
+  dataTour?: string;
 }) {
   const t = useT();
   const [views, setViews] = useState<SavedView<T>[]>([]);
@@ -100,7 +103,7 @@ export function SavedViews<T extends Record<string, any>>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className={cn('h-9 gap-1.5', className)} title={t('Vues enregistrées')}>
+        <Button variant="outline" size="sm" className={cn('h-9 gap-1.5', className)} title={t('Vues enregistrées')} data-tour={dataTour}>
           <Bookmark className={cn('h-4 w-4', active && 'fill-current text-primary')} />
           <span className="max-w-[10rem] truncate">{active ? active.name : t('Vues')}</span>
         </Button>

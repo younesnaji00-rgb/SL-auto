@@ -78,6 +78,7 @@ export function DossierPeekPanel({
         'animate-in fade-in-0 slide-in-from-right-4 duration-200 ease-enter motion-reduce:animate-none',
       )}
       role="complementary"
+      data-tour="dos-peek"
       aria-label={`${t('Aperçu du dossier')} ${d.refExpert || ''}`}
     >
       {/* Identity header */}

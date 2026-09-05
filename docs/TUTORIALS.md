@@ -12,11 +12,27 @@ writing/maintaining them.
   registered in `src/lib/tutorial/registry.ts` (already wired — fill the
   stub's `steps`, don't touch the registry).
 - Entry point: `src/components/tutorial/tutorial-launcher.tsx` — a floating
-  "?" button (bottom-right) mounted globally in the (app) layout and on
-  /login. It appears only when the current route's tutorial has ≥1 step and
-  pulses until first opened (localStorage `<brand>.tour.<key>`).
+  "?" button mounted globally in the (app) layout and on /login. It appears
+  only when the current route's tutorial has ≥1 step and pulses until first
+  opened (localStorage `<brand>.tour.<key>`). It **starts** bottom-right and
+  is **draggable**: the drop point is stored as a fraction of the viewport
+  (`<brand>.tour.launcherPos`) so the same corner survives a different
+  screen. Arrow keys nudge it when it has focus.
+- User preferences: `src/lib/tutorial/prefs.ts` — the off switch
+  (`<brand>.tour.disabled`) and the launcher position, kept out of
+  `tour.ts` so the sidebar can read them without pulling driver.js into its
+  chunk. Both are per browser and per brand.
 - Anchors: `data-tour="…"` attributes on the real UI. Prefix values with a
   short page code (e.g. `dos-`, `dash-`, `atg-`) to avoid collisions.
+
+## Turning the tutorial off (and back on)
+
+The welcome lightbox carries **« Ne plus afficher le tutoriel »**. It sets
+`<brand>.tour.disabled`, which hides the lightbox, the discovery spotlight
+AND the "?" button — so the only way back is the **« Réactiver le tutoriel
+guidé »** row the sidebar's *Aide* menu grows while the flag is set (visible
+only to a role the brand offers tutorials to). If you ever remove that row,
+you strand every user who declined.
 
 ## Step conventions (follow the exemplar `pages/consultation.ts`)
 
@@ -42,7 +58,22 @@ writing/maintaining them.
    final step that clicks back to the first tab, or anchor the last step
    outside the tabs).
 8. Mobile: popovers are width-capped; keep bodies short. Don't anchor to
-   elements inside horizontal scrollers if avoidable.
+   elements inside horizontal scrollers if avoidable. The sidebar lives in an
+   off-canvas sheet below `lg`, so every `nav-*` anchor is absent there —
+   give a mobile-only counterpart step (see `shell-mobile-nav` in
+   `pages/sidebar-intro.ts`) rather than branching.
+9. **Collapsible sections**: a collapsed disclosure unmounts its content, so
+   anchors inside one do not exist and the step is dropped. Set
+   `expand: '<data-tour of the disclosure button>'` — the engine clicks it
+   only when it reports `aria-expanded="false"`, so a section the user has
+   already opened is never closed. Steps carrying `expand` survive the
+   presence filter, like `click` ones. Every dossier-timeline step uses this
+   (`expand: 'dosd-sec-<id>'`).
+10. **Resume markers are title-based.** `tour.ts` stores the interrupted
+   step's TITLE (`<brand>.tour.<key>.at`) as well as its index, and prefers
+   the title on resume — the index refers to the FILTERED list, which changes
+   with page state. Renaming a step title is therefore harmless; it only
+   costs one stale resume.
 
 ## data-tour placement rules
 
@@ -55,10 +86,23 @@ writing/maintaining them.
 
 ## Verification
 
-- `npx tsc --noEmit` must pass.
-- Every step's `anchor`/`click` value must exist in the page's JSX (grep it).
-- Every French string in your steps must have an EN entry in your dictionary
-  file (or already exist in another dictionary — grep before adding).
+- `npm run typecheck` must pass.
+- `npm run check:tours` must pass. `scripts/check-tour-anchors.mjs` parses
+  the real syntax tree and fails when a tour references an anchor no component
+  can render — following ternaries, local consts, small render helpers and
+  `dataTour` props. This is the guard against the failure mode that made the
+  tutorial drift out of date in the first place: a redesigned page drops a
+  `data-tour`, the engine silently filters the step out, and the tour quietly
+  teaches less every release. Anchors built from a template
+  (`\`nav-\${item.href}\``) are declared in that script's `DYNAMIC` table —
+  add the values the app can emit when you introduce one, or the check fails
+  with "template anchor prefix with no DYNAMIC entry".
+  `--list` prints every anchor the app renders, which file owns it, and the
+  ones no tour uses yet.
+- Every French string in your steps must have an EN entry in a dictionary file
+  (or already exist in another — grep before adding). Copy the French key
+  verbatim; typographic apostrophes and « » must match exactly.
+- `npm run build` for BOTH brands (`NEXT_PUBLIC_BRAND=demo npm run build`).
 
 ## Who sees the tutorials (brand gating)
 

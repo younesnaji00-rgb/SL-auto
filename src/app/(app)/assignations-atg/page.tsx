@@ -430,7 +430,7 @@ function TriageStrip({
   const t = useT();
   const chip = 'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent px-2.5 py-1 text-xs font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   return (
-    <div className={cn('flex flex-wrap items-center gap-2', className)} role="group" aria-label={t('Résumé des missions')}>
+    <div className={cn('flex flex-wrap items-center gap-2', className)} role="group" aria-label={t('Résumé des missions')} data-tour="atg-triage">
       <button
         type="button"
         onClick={() => onJumpGroup('expired')}
@@ -1633,7 +1633,7 @@ export default function AssignationsATGPage() {
                 browser-tab shape like every other view switcher (§4). */}
             <div className="ml-auto">
               <Tabs value={lens} onValueChange={(v) => setFilters({ lens: v as 'liste' | 'carte' })}>
-                <TabsList aria-label={t('Affichage des missions')}>
+                <TabsList aria-label={t('Affichage des missions')} data-tour="atg-lens">
                   <TabsTrigger value="liste" className="gap-1.5">
                     <List className="h-4 w-4 text-ink-3" aria-hidden />
                     {t('Liste')}

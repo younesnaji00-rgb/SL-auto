@@ -32,6 +32,13 @@ export const loginTutorial: PageTutorial = {
       align: 'end',
     },
     {
+      anchor: 'login-roles',
+      title: 'Qui fait quoi',
+      body:
+        "« Découvrir les rôles » explique chaque métier de l'application — gestionnaire, chiffreur, agent de terrain, responsable — et ce que chacun voit.\nUtile avant de choisir le compte avec lequel se connecter.",
+      side: 'top',
+    },
+    {
       anchor: 'login-demo',
       title: 'Comptes de démonstration',
       body: "Utilisez l'un de ces noms avec le mot de passe indiqué.",

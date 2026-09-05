@@ -887,7 +887,7 @@ export default function DossiersClientPage() {
           // anatomy (owner ruling §4: "every tab switch"; the Tabs primitive
           // carries .tab-slope). « À traiter » is the armed default view.
           <Tabs value={filters.scope} onValueChange={(v) => { setFilters({ scope: v as 'a-traiter' | 'tous' }); setPage(1); }}>
-            <TabsList aria-label={t('Portée de la liste')}>
+            <TabsList aria-label={t('Portée de la liste')} data-tour="dos-scope-tabs">
               <TabsTrigger value="a-traiter">
                 {t('À traiter')}
                 <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
@@ -931,6 +931,7 @@ export default function DossiersClientPage() {
       {/* KPI strip — actionable counters (each tile SETS a view/filter). The
           « En retard » value is the page's only exception colour (§6). */}
       <DossierKpiStrip
+        dataTour="dos-kpis"
         loading={loading}
         tiles={[
           {
@@ -993,7 +994,7 @@ export default function DossiersClientPage() {
           {/* Merge over the defaults: a view saved before a filter key
               existed (scope, lateOnly, hiddenCols, density…) must not strip
               that key from the state. */}
-          <SavedViews storageKey="dossiers" current={filters} onApply={(f) => { setFilters(() => ({ ...filterDefaults, ...f })); setPage(1); }} />
+          <SavedViews storageKey="dossiers" dataTour="dos-views" current={filters} onApply={(f) => { setFilters(() => ({ ...filterDefaults, ...f })); setPage(1); }} />
         </div>
 
         {/* Date cluster: presets + range are ONE tool (they write the same
@@ -1056,7 +1057,7 @@ export default function DossiersClientPage() {
               default keeps everything visible so nothing changes unasked). */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title={t("Colonnes et densité d'affichage")}>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-ink-3" title={t("Colonnes et densité d'affichage")} data-tour="dos-affichage">
                 <Columns3 className="h-4 w-4" aria-hidden />
                 {t('Affichage')}
                 {filters.hiddenCols.length > 0 && (
