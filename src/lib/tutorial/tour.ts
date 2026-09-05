@@ -1244,7 +1244,16 @@ function placeAround(el: HTMLElement | null): {
   return { side, align };
 }
 
-export function pointToLauncher(onClosed?: () => void): void {
+export function pointToLauncher(
+  onClosed?: () => void,
+  /**
+   * Turn the tutorial off for good. THIS popover is the one users meet most
+   * often — it greets them on every page they open for the first time — so
+   * the way out has to be here, not only in the sign-in lightbox they may
+   * have dismissed weeks ago.
+   */
+  onDisable?: () => void,
+): void {
   destroyActiveTour();
   const targets: Array<{ sel: string; title: string; body: string }> = [
     {
@@ -1277,6 +1286,26 @@ export function pointToLauncher(onClosed?: () => void): void {
         description: escapeHtml(t(s.body)),
       },
     })),
+    onPopoverRender: (popover: { description?: HTMLElement } | undefined) => {
+      const desc = popover?.description;
+      if (!desc || !onDisable || desc.querySelector('.sl-tour-off')) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sl-tour-off';
+      btn.textContent = t('Ne plus afficher le tutoriel');
+      // Capture phase + stopPropagation: driver.js listens for clicks on the
+      // popover to advance, and would eat this one.
+      btn.addEventListener(
+        'click',
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onDisable();
+        },
+        true,
+      );
+      desc.appendChild(btn);
+    },
     onDestroyed: () => {
       if (active === d) active = null;
       window.clearInterval(guardIv);

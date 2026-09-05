@@ -246,14 +246,29 @@ export function TutorialLauncher() {
     }
   }, [tut, storageKey, flag, pathname, allowed]);
 
+  // Kill the lightbox, the spotlight and the button in one go. The sidebar's
+  // Aide menu grows a "reactivate" entry so the decision is reversible
+  // without clearing site data.
+  const turnOffForGood = useCallback(() => {
+    try {
+      window.localStorage.setItem(flag('welcomed'), '1');
+    } catch { /* non-fatal */ }
+    setShowWelcome(false);
+    setShowPointer(false);
+    destroyActiveTour();
+    setTutorialsDisabled(true);
+  }, [flag]);
+
   // The pointer is a driver.js spotlight — the same dim-everything-except-
-  // the-target overlay the tutorials use, aimed at the "?" button.
+  // the-target overlay the tutorials use, aimed at the "?" button. It carries
+  // the opt-out too: this is the popup users actually meet when they move
+  // around the app, so "stop showing me this" has to be reachable from it.
   useEffect(() => {
     if (!showPointer) return;
-    pointToLauncher(() => setShowPointer(false));
+    pointToLauncher(() => setShowPointer(false), turnOffForGood);
     const hide = window.setTimeout(() => destroyActiveTour(), 9000);
     return () => window.clearTimeout(hide);
-  }, [showPointer]);
+  }, [showPointer, turnOffForGood]);
 
   useEffect(
     () => () => {
@@ -368,17 +383,6 @@ export function TutorialLauncher() {
       return;
     }
     startLab();
-  };
-
-  // "Never show this again": kills the lightbox, the spotlight and the button
-  // in one go. The sidebar's Aide menu grows a "reactivate" entry so the
-  // decision is reversible without clearing site data.
-  const turnOffForGood = () => {
-    markWelcomed();
-    setShowWelcome(false);
-    setShowPointer(false);
-    destroyActiveTour();
-    setTutorialsDisabled(true);
   };
 
   // ── Drag gesture ──────────────────────────────────────────────────────

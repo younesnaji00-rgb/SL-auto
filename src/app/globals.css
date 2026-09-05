@@ -1045,6 +1045,25 @@ body.driver-active:has(.sl-step-dos-hscroll) [data-tour="dos-table"] {
   font-style: italic;
   color: hsl(var(--muted-foreground));
 }
+/* "Never show the tutorial again" — the opt-out inside the discovery
+   spotlight. Deliberately quiet (a text link, not a button): it sits beside
+   the primary "got it" action and must not compete with it. */
+.driver-popover.sl-tour .sl-tour-off {
+  display: block;
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.72rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.driver-popover.sl-tour .sl-tour-off:hover {
+  color: hsl(var(--foreground));
+}
+
 /* "Do the uploads for me" button (no-download alternative) */
 .driver-popover.sl-tour .sl-tour-prefill {
   background: #0f766e;
