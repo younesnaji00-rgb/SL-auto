@@ -746,3 +746,149 @@ below extend §6 (stat tile) and §4 (list rows); shared code in
   dashboard, hidden admin-only metrics, activity feeds on queue dashboards,
   « · période » captions, five tile widths, tiles above the worklist on the
   phone.
+
+---
+
+# Addendum 2026-09-06 bis — the phone (mobile pass)
+
+Owner ask: « the mobile version totally sucks — deep research on how to convert
+EACH element into a phone version… make it very easy to navigate ». Six research
+reports (`docs/research/mobile-{shell-navigation,lists-tables,forms-inputs,
+overlays-feedback,record-pages,density-readability}.md`, ~250 fetched sources)
+and the binding decisions in `docs/research/mobile-synthesis.md`. What follows is
+the element layer; the synthesis holds the reasoning and the owner-question calls.
+
+**Breakpoints.** Three shells: phone < 768 (`max-md:`), tablet 768–1023
+(`md:max-lg:`), desktop ≥ 1024. `sm` (640) never means "phone". Phone rules are
+gated on width OR height (`max-height: 30rem`) so a landscape phone keeps the
+phone rhythm.
+
+- **Bottom bar** (A1): 56 px + safe-area, role-derived by the combo rule — ≤ 4
+  destinations → all + Profil, ≥ 5 → top 4 + « Plus » sheet. 48×48 hit areas,
+  24 px icons, 11.5 px labels, active = teal icon on a 56×32 `accent` pill.
+  Never hides on scroll; hidden while the keyboard is open and in landscape;
+  replaced (never stacked) by a `<BottomActionBar>`. Must not: a hamburger, a
+  side drawer, an action as a tab, more than 5 tabs, a scrolling bar.
+- **Phone top bar** (A2): 48 px + safe-area-top, pinned. Leading = monogram on a
+  root destination, « ‹ Parent » up-link elsewhere (up ≠ back; back is the
+  platform's, and every overlay pushes a history entry so it closes first).
+  Centre = the registered page title (17/600) + count pill + optional subtitle
+  line. Trailing ≤ 2 icon buttons + avatar; everything else in a « ⋯ » sheet.
+  Must not: logo + breadcrumb + title together, a body H1 as well, a scroll-away
+  bar on a page whose primary action lives in it.
+- **Record row** (B1): the phone form of a 9–14-column table. `<ul>` of
+  full-bleed rows, hairlines only, no card frame, no chevron, no per-row ⋯.
+  Line 1 identifier `t-mono` 14/600 + the decision figure trailing; line 2 name ·
+  compagnie; line 3 status chip + observation. 64 px (2 lines) / 84 px (3).
+  Whole row = one tap. Must not: a card per homogeneous record, labels before
+  self-labelling chips, hover-only affordances.
+- **Frozen table** (B2): survives ONLY where the job is comparing figures across
+  rows (monitoring, per-user stats, compagnie amounts). Identifier column frozen,
+  right edge deliberately cutting a column + a fade overlay that disappears at
+  scroll end, ≤ 3 figure columns by default with a « Colonnes » sheet.
+- **Search row** (B3): 48 px sticky under the top bar — search field (16 px,
+  clear ×, `enterkeyhint="search"`) + « Filtres » 44×44 with a count badge +
+  « Trier : <current> ». Hides on scroll-down, returns on scroll-up.
+- **Filter sheet** (B4): `BottomSheet tall`, one section per filter with its own
+  selection marker, batch apply through a filled « Afficher N dossiers » whose
+  count is live, ghost « Réinitialiser », × discards. Applied chips row under the
+  search row — every active filter is a chip, KPI-tile filters included.
+- **Paging** (B7): 25 rows then « Afficher 25 de plus » with « 25 sur 312 »;
+  never page numbers, never infinite scroll, never a custom pull-to-refresh (the
+  lists are live snapshots).
+- **Bottom sheet** (D1): 24 px handle zone (tap toggles 60 ↔ 92 dvh), 48 px
+  header with a 44 px ×, scrolling body, sticky footer with the primary at the
+  bottom. Swipe-to-dismiss on the handle/header only. Scrim colour-only on
+  phones — no blur.
+- **Full-screen dialog** (D2): every form with > 3 fields or a picker. 56 px
+  header: × left, title, text primary right (the keyboard covers fixed-bottom
+  bars). Dirty → « Abandonner les modifications ? ». Never a sheet on a sheet.
+- **Action sheet** (D3): the touch form of every row menu and dropdown. 52 px
+  rows, destructive last and separated, ≤ 6 rows, no Cancel row. Hover clusters
+  are gated `(hover:hover)` and replaced by a visible 44 px « ⋯ ».
+- **Toast** (D5): above the bottom bar (`--bottom-bar` + 12 px), one at a time,
+  8 s when it carries « Annuler ». Errors are never toasts.
+- **Alert dialog** (D6): centred even on phones, stacked 48 px buttons,
+  destructive on top, « Annuler » below, no scrim dismissal.
+- **Record hub** (E1): a phone record lands on a hub — identity, « À faire »,
+  the 8 steps as a 56 px task list, then Observations / Rappels / Historique
+  summaries. One step per screen (`?etape=N&onglet=x`), each a history entry.
+  No stepper strip, no scroll-spy, no restored last step.
+- **Bottom action bar** (E4): 56 px, ONE full-width primary (≤ 24 chars), ≤ 2
+  icon actions, amber during a rappel session, hidden while typing.
+- **Facet tabs** (E5): fixed full-width, ≤ 3 cells, 48 px, badge on a second
+  line, never scrollable, no morph on touch.
+- **Sockets / photos** (E6–E7): sockets 2-up, photos 3-up (`aspect-square`),
+  capture and import as two explicit affordances, delete from the lightbox.
+- **Forms** (C): single column, 48 px controls, 16 px text, labels above; select
+  on touch = segmented (≤ 5) / sheet (6–12) / sheet + search (> 12); near dates
+  = sheet calendar, known dates = one masked typed field; validate on submit
+  (format fields on blur), error summary at the top; the primary is never
+  disabled.
+- **Density** (F): body 15, captions 12 (floor 12 for words, 11 for digit
+  pills), page margin 16, card padding 16, rows 48 / tall 64, buttons 48
+  primary / 44 secondary, chips 32 with a 24 px ×, tiles 2-up (hero 1-up), no
+  charts on phones, blur on the two bars only, no grain, `min-height` never
+  `height`, everything reflows at 320 px.
+
+---
+
+# Addendum 2026-09-06 bis — Vue Direction, chiffres et graphiques
+
+Owner ask: "way more metrics and KPIs", useful to each role AND convincing to a
+buyer. Four research rounds: `docs/research/dashboard-kpi-expansion.md` (what to
+measure, ~55 KPIs with formulas on our fields), `dashboard-aesthetics.md` (76
+binding rules R1–R76), `dashboard-charts.md` (which visual form per metric),
+`dashboard-demo-impact.md` (what a buyer evaluates). Metric layer:
+`src/app/(app)/dashboard/analytics.ts` (pure, unit-tested). Primitives:
+`src/components/viz/`.
+
+**Placement rule (the one that keeps this from bloating).** The three role
+dashboards stay worklist views and take at most TWO additions each; the depth
+lives on the Direction tab. Adding the whole catalogue to every dashboard would
+recreate the 52-metric failure the research documents.
+
+- **Numbers** (R6/R7/R10, OQLF): thousands separated by a narrow no-break space
+  (`12 500`), never a period — `fr-MA` in ICU groups with a period, so figures go
+  through `components/viz/scale.ts`, never a bare `toLocaleString()`. Currency
+  label AFTER the number (`124 500 MAD`), SI prefix only past a million. Negative
+  numbers use the true minus (−), never the hyphen. Percentages print `12 %` with
+  a narrow space and at most one decimal.
+- **Every rate prints its denominator.** « 92 % · 46 sur 50 ». A rate with no
+  observations prints « aucune donnée sur la période », never « 0 % ». This is
+  the single most load-bearing honesty rule on the Direction view: a 100 % over
+  n = 2 must be readable as n = 2.
+- **Cohort discipline.** Délais are measured on the CLOSED cohort (dossiers
+  deposited inside the window), never on a mix of open and closed; stocks
+  (« en retard », « en cours ») are at `maintenant`. Each caption says which.
+- **Percentiles, not averages.** Durations are skewed, so every distribution
+  prints P50 and P90 with its n. `Dist` from `analytics.ts` is the only shape.
+- **Charts are hand-drawn inline SVG** (`components/viz/`), never Recharts on a
+  dashboard: it renders on the server, themes from the CSS tokens, adds 0 KB and
+  has no entrance animation to switch off. Every primitive wraps in `Viz` — a
+  `<figure>` with `role="img"` and a visually-hidden data table, because ARIA
+  inside SVG is unreliable and the table is the real alternative.
+- **Form per metric** (charts Part C): counts over time → columns; rates and
+  durations → line; distribution → dot strip with median and P90 lines; share of
+  a whole → one segmented bar with 2 px surface gaps and a counted legend;
+  measure vs target → bullet strip. Zero baseline always. Never a pie, donut,
+  gauge, dual axis or cumulative-flow diagram.
+- **The incomplete period is drawn differently** (hatched last column, dashed
+  final line segment, « en cours » in the axis label) so a partial week is never
+  read as a fall.
+- **External benchmarks are ticks with a source and a date**, in the terracotta
+  deep tone, never a score and never "vous vs le marché" — no published Moroccan
+  cabinet benchmark exists, and the (i) popover says so.
+- **The money figure is gated.** « Écart devis → accord » appears only when at
+  least 5 dossiers and 60 % of the counted devis carry a structured accord
+  column; otherwise the block is ABSENT, not zero. Accord values are typed into
+  the table by hand, so the figure is labelled an estimate.
+- **(i) popover on every non-obvious figure** (R26): formula, window, exclusions.
+  It is also the trust furniture a regulated buyer looks for.
+- **Period selector belongs to the Direction view only** (E.6): the role
+  dashboards are "now" views and keep the live stamp instead. It sits top-right,
+  scopes the whole view, and every caption still prints its own real window.
+- **Must not**: colour a delta green/red by direction (plain ink unless a band is
+  breached); rank people; animate a number on load or grow a bar; put a chart on
+  a queue dashboard where a count answers the question; show a rate without its
+  denominator; print a benchmark without its source.

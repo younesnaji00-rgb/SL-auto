@@ -20,7 +20,10 @@ import type { SlaItem } from '../monitoring/metrics';
 import type { FunnelDossier } from '../monitoring/funnel';
 import type { Rappel } from '@/hooks/use-rappels';
 import { computeGestionnaireView, fmtWindow, type PersonRef, type WaitingParty, type WorkItem } from './metrics';
+import { factureToDepot48, photosToChiffrageOpen } from './analytics';
+import type { DashboardChiffrage } from './use-dashboard-data';
 import { BarList, Block, Delta, DoneLine, StatTile, WorkRow, fmtHours } from './ui';
+import { fmtPct } from '@/components/viz';
 
 const WORKLIST_CAP = 7;
 const STALE_CAP = 5;
@@ -39,6 +42,8 @@ const PARTY_LABEL: Record<WaitingParty, string> = {
 
 export interface GestionnaireDashboardProps {
   dossiers: FunnelDossier[];
+  /** Queue assignments — used to spot dossiers whose photos never left for chiffrage. */
+  chiffrages?: DashboardChiffrage[];
   sla: SlaItem[];
   rappelsRecus: Rappel[];
   holidays: ReadonlySet<string>;
@@ -49,7 +54,7 @@ export interface GestionnaireDashboardProps {
   viewAs?: boolean;
 }
 
-export function GestionnaireDashboard({ dossiers, sla, rappelsRecus, holidays, now, person, loading, viewAs }: GestionnaireDashboardProps) {
+export function GestionnaireDashboard({ dossiers, chiffrages = [], sla, rappelsRecus, holidays, now, person, loading, viewAs }: GestionnaireDashboardProps) {
   const t = useT();
   const view = useMemo(
     () => computeGestionnaireView(dossiers, sla, rappelsRecus, holidays, now, person),
@@ -57,6 +62,17 @@ export function GestionnaireDashboard({ dossiers, sla, rappelsRecus, holidays, n
   );
   const { tiles } = view;
   const week = fmtWindow(now, 7);
+  const month = fmtWindow(now, 30);
+
+  // The hand-off nobody clocks today (kpi-expansion §4.1.1): photos are in, the
+  // dossier has not been sent to a chiffreur, and the wait is invisible to every
+  // other view because no SLA clock covers it.
+  const handoff = useMemo(
+    () => photosToChiffrageOpen(dossiers, chiffrages, holidays, now, person),
+    [dossiers, chiffrages, holidays, now, person],
+  );
+  // The firm's most quotable promise: the report follows the invoice inside 48 h.
+  const facture48 = useMemo(() => factureToDepot48(dossiers, holidays, now, 30), [dossiers, holidays, now]);
   const rowOf = (w: WorkItem) => (
     <WorkRow
       key={w.id}
@@ -208,6 +224,45 @@ export function GestionnaireDashboard({ dossiers, sla, rappelsRecus, holidays, n
         </Block>
         <Block title={t('Âge des dossiers ouverts')} caption={t('Jours calendaires depuis la requête de la compagnie')}>
           <BarList rows={view.ageBuckets.map((b) => ({ key: b.key, label: b.label, value: b.count }))} labelWidth="w-16" />
+        </Block>
+      </div>
+
+      {/* Row 4 — my own hand-off, and the promise the firm is judged on. */}
+      <div className="grid items-start gap-6 lg:grid-cols-3">
+        <Block
+          title={t('Photos reçues, chiffrage pas encore demandé')}
+          count={handoff.length}
+          caption={t('L’attente qu’aucun délai ne mesure — elle est entre vos mains')}
+          moreHref={handoff.length > STALE_CAP ? '/dossiers' : undefined}
+          moreLabel={`${t('Voir les')} ${Math.max(0, handoff.length - STALE_CAP)} ${t('autres')}`}
+          className="lg:col-span-2"
+        >
+          {handoff.length === 0 ? (
+            <DoneLine title={t('Tout ce qui est photographié est parti au chiffrage.')} />
+          ) : (
+            handoff.slice(0, STALE_CAP).map((h) => (
+              <WorkRow
+                key={h.dossier.id}
+                href={`/dossiers/${h.dossier.id}`}
+                id={refOf(h.dossier)}
+                who={whoOf(h.dossier)}
+                label={t('À envoyer au chiffrage')}
+                time={`${t('depuis')} ${fmtHours(h.sinceHours)}`}
+                timeTone={h.sinceHours > 24 ? 'danger' : 'neutral'}
+              />
+            ))
+          )}
+        </Block>
+        <Block title={t('Facture → rapport déposé')} caption={`${t('Part déposée en 48 h ouvrées ou moins')} · ${month}`}>
+          <div className="px-5 pb-3">
+            <p className="text-2xl font-semibold leading-tight text-ink">{fmtPct(facture48.pct)}</p>
+            <p className="t-caption mt-1 tabular-nums">
+              {facture48.den === 0
+                ? t('aucune facture validée sur la période')
+                : `${facture48.num} ${t('sur')} ${facture48.den} ${t('dossiers déposés')}`}
+            </p>
+            <p className="t-caption mt-2">{t('Le délai que les compagnies citent en premier quand elles comparent deux cabinets.')}</p>
+          </div>
         </Block>
       </div>
     </div>

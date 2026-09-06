@@ -25,6 +25,7 @@ import { useHolidays } from '@/hooks/use-holidays';
 import type { Rappel } from '@/hooks/use-rappels';
 import type { FunnelDossier, WorkflowLog } from '../monitoring/funnel';
 import type { ChiffrageAssignment, TerrainMission } from '../monitoring/metrics';
+import type { StructuredDevis } from '@/lib/devis-schema';
 
 /** `chiffrages/{id}` with the queue's extra fields the dashboard shows. */
 export interface DashboardChiffrage extends ChiffrageAssignment {
@@ -32,6 +33,8 @@ export interface DashboardChiffrage extends ChiffrageAssignment {
   status?: string;
   files?: unknown[];
   sentByNom?: string;
+  /** Structured devis snapshots keyed by doc type (`Devis Garage`, `Devis accordé`, …). */
+  structuredEditables?: Record<string, StructuredDevis>;
 }
 
 /** `dossiers/{id}/planifications/{pid}` with the fields the terrain queue shows. */
@@ -40,6 +43,8 @@ export interface DashboardMission extends TerrainMission {
   zone?: string;
   adresse?: string;
   checkinAt?: any;
+  checkinLat?: number;
+  checkinLng?: number;
   agentTerrainUid?: string | null;
 }
 

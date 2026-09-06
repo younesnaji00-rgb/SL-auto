@@ -54,7 +54,8 @@ function DashboardInner({ role }: { role: string }) {
   const t = useT();
   const { profile } = useCurrentUser();
   const isAdmin = ADMIN_ROLES.includes(role);
-  const data = useDashboardData({ withUsers: isAdmin, withRappels: role === 'Gestionnaire' });
+  // The workflow logs are the Direction view's « touches par dossier » — admin only.
+  const data = useDashboardData({ withUsers: isAdmin, withWorkflow: isAdmin, withRappels: role === 'Gestionnaire' });
   const { dossiers, chiffrages, missions, holidays, loading } = data;
 
   // One "now" per data change so every « maintenant » figure agrees.
@@ -78,10 +79,20 @@ function DashboardInner({ role }: { role: string }) {
     <div className="flex-1 space-y-6">
       <PageHeader title={t('Tableau de bord')} subtitle={subtitle} size="compact" meta={<Freshness at={data.updatedAt} />} />
       {isAdmin && (
-        <AdminDashboard dossiers={dossiers} chiffrages={chiffrages} missions={missions} users={data.users} sla={sla} holidays={holidays} now={now} loading={loading} />
+        <AdminDashboard
+          dossiers={dossiers}
+          chiffrages={chiffrages}
+          missions={missions}
+          users={data.users}
+          workflowLogs={data.workflowLogs}
+          sla={sla}
+          holidays={holidays}
+          now={now}
+          loading={loading}
+        />
       )}
       {role === 'Gestionnaire' && (
-        <GestionnaireDashboard dossiers={dossiers} sla={sla} rappelsRecus={data.rappelsRecus} holidays={holidays} now={now} person={person} loading={loading} />
+        <GestionnaireDashboard dossiers={dossiers} chiffrages={chiffrages} sla={sla} rappelsRecus={data.rappelsRecus} holidays={holidays} now={now} person={person} loading={loading} />
       )}
       {role === 'Chiffreur' && <ChiffreurDashboard chiffrages={chiffrages} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
       {role === 'Agent de Terrain' && <TerrainDashboard missions={missions} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}

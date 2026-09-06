@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, Calculator, ChevronLeft, UserCheck, Users } from 'lucide-react';
+import { Building2, Calculator, ChevronLeft, LineChart, UserCheck, Users } from 'lucide-react';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -21,21 +21,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { SlaItem } from '../monitoring/metrics';
-import type { FunnelDossier } from '../monitoring/funnel';
+import type { FunnelDossier, WorkflowLog } from '../monitoring/funnel';
 import { DASHBOARD_ROLES, computeTeamView, fmtWindow, type DashboardRole, type PersonRow, type TeamView } from './metrics';
 import type { DashboardChiffrage, DashboardMission, DashboardUser } from './use-dashboard-data';
 import { BarList, Block, CompareStrip, Delta, DoneLine, StatTile, WorkRow, fmtHours } from './ui';
 import { GestionnaireDashboard } from './gestionnaire-dashboard';
 import { ChiffreurDashboard } from './chiffreur-dashboard';
 import { TerrainDashboard } from './terrain-dashboard';
+import { DirectionDashboard } from './direction-dashboard';
 
 const EXCEPTIONS_CAP = 10;
 const ALL_TEAM = '__team__';
 
-type Vue = 'gestionnaires' | 'chiffreurs' | 'terrain';
+/**
+ * « Direction » is first because a director opens on the outcome and peels
+ * back to the teams (demo-impact C1.1: do the last thing first); the three
+ * role tabs keep the operating view unchanged behind it.
+ */
+type Vue = 'direction' | 'gestionnaires' | 'chiffreurs' | 'terrain';
 const VUE_OF_ROLE: Record<DashboardRole, Vue> = { Gestionnaire: 'gestionnaires', Chiffreur: 'chiffreurs', 'Agent de Terrain': 'terrain' };
-const TAB_LABEL: Record<Vue, string> = { gestionnaires: 'Gestionnaires', chiffreurs: 'Chiffreurs', terrain: 'Terrain' };
-const TAB_ICON: Record<Vue, React.ElementType> = { gestionnaires: Building2, chiffreurs: Calculator, terrain: UserCheck };
+const TAB_LABEL: Record<Vue, string> = { direction: 'Direction', gestionnaires: 'Gestionnaires', chiffreurs: 'Chiffreurs', terrain: 'Terrain' };
+const TAB_ICON: Record<Vue, React.ElementType> = { direction: LineChart, gestionnaires: Building2, chiffreurs: Calculator, terrain: UserCheck };
+const VUES: Vue[] = ['direction', 'gestionnaires', 'chiffreurs', 'terrain'];
 
 /** Vocabulary of the per-role tiles and columns (same measures, role words). */
 const WORDS: Record<DashboardRole, { enCours: string; enCoursCaption: string; termines: string; sla: string; queueHref: string }> = {
@@ -51,6 +58,8 @@ export interface AdminDashboardProps {
   chiffrages: DashboardChiffrage[];
   missions: DashboardMission[];
   users: DashboardUser[];
+  /** Per-dossier audit entries — the Direction view's « touches par dossier ». */
+  workflowLogs: WorkflowLog[];
   sla: SlaItem[];
   holidays: ReadonlySet<string>;
   now: Date;
@@ -59,20 +68,20 @@ export interface AdminDashboardProps {
 
 export function AdminDashboard(props: AdminDashboardProps) {
   const t = useT();
-  const [vue, setVue] = useState<Vue>('gestionnaires');
+  const [vue, setVue] = useState<Vue>('direction');
   const [userId, setUserId] = useState<string | null>(null);
 
   // URL ↔ state (NN/g tabs: the selected tab is addressable; a person's view can be linked).
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const v = sp.get('vue');
-    if (v && (v === 'gestionnaires' || v === 'chiffreurs' || v === 'terrain')) setVue(v);
+    if (v && (VUES as string[]).includes(v)) setVue(v as Vue);
     const u = sp.get('user');
     if (u) setUserId(u);
   }, []);
   const sync = (nextVue: Vue, nextUser: string | null) => {
     const url = new URL(window.location.href);
-    if (nextVue === 'gestionnaires') url.searchParams.delete('vue');
+    if (nextVue === 'direction') url.searchParams.delete('vue');
     else url.searchParams.set('vue', nextVue);
     if (nextUser) url.searchParams.set('user', nextUser);
     else url.searchParams.delete('user');
@@ -91,7 +100,7 @@ export function AdminDashboard(props: AdminDashboardProps) {
   return (
     <Tabs value={vue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-6">
       <TabsList data-tour="dash-tabs">
-        {(Object.keys(TAB_LABEL) as Vue[]).map((v) => {
+        {VUES.map((v) => {
           const Icon = TAB_ICON[v];
           return (
             <TabsTrigger key={v} value={v} data-tour={`dash-tab-${v}`} className="gap-2">
@@ -101,6 +110,18 @@ export function AdminDashboard(props: AdminDashboardProps) {
           );
         })}
       </TabsList>
+      <TabsContent value="direction" className="space-y-6">
+        <DirectionDashboard
+          dossiers={props.dossiers}
+          chiffrages={props.chiffrages}
+          missions={props.missions}
+          workflowLogs={props.workflowLogs}
+          sla={props.sla}
+          holidays={props.holidays}
+          now={props.now}
+          loading={props.loading}
+        />
+      </TabsContent>
       {DASHBOARD_ROLES.map((role) => (
         <TabsContent key={role} value={VUE_OF_ROLE[role]} className="space-y-6">
           <RoleTab role={role} userId={userId} onSelectUser={changeUser} {...props} />
@@ -288,7 +309,7 @@ function PersonView({
   holidays,
   now,
   loading,
-}: Omit<AdminDashboardProps, 'users'> & { role: DashboardRole; user: DashboardUser; team: TeamView; onBack: () => void }) {
+}: Omit<AdminDashboardProps, 'users' | 'workflowLogs'> & { role: DashboardRole; user: DashboardUser; team: TeamView; onBack: () => void }) {
   const t = useT();
   const person = { uid: user.id, nom: user.nom, email: user.email };
   const row: PersonRow | undefined = team.perPerson.find((r) => r.user.id === user.id);
@@ -310,7 +331,9 @@ function PersonView({
         </Button>
       </div>
 
-      {role === 'Gestionnaire' && <GestionnaireDashboard dossiers={dossiers} sla={sla} rappelsRecus={[]} holidays={holidays} now={now} person={person} loading={loading} viewAs />}
+      {role === 'Gestionnaire' && (
+        <GestionnaireDashboard dossiers={dossiers} chiffrages={chiffrages} sla={sla} rappelsRecus={[]} holidays={holidays} now={now} person={person} loading={loading} viewAs />
+      )}
       {role === 'Chiffreur' && <ChiffreurDashboard chiffrages={chiffrages} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
       {role === 'Agent de Terrain' && <TerrainDashboard missions={missions} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
 

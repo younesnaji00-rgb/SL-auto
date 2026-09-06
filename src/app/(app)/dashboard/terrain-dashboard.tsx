@@ -20,9 +20,11 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { FunnelDossier } from '../monitoring/funnel';
-import { computeTerrainView, type MissionView, type PersonRef } from './metrics';
+import { computeTerrainView, missionOwnedBy, type MissionView, type PersonRef } from './metrics';
+import { terrainQuality } from './analytics';
 import type { DashboardMission } from './use-dashboard-data';
 import { Block, DoneLine, StatTile, WorkRow, fmtHours } from './ui';
+import { fmtPct } from '@/components/viz';
 
 const refOf = (v: MissionView): string => {
   const raw = (v.dossier as any)?.refExpert ?? v.mission.dossierNom;
@@ -68,6 +70,12 @@ export interface TerrainDashboardProps {
 export function TerrainDashboard({ missions, dossiers, holidays, now, person, loading }: TerrainDashboardProps) {
   const t = useT();
   const view = useMemo(() => computeTerrainView(missions, dossiers, holidays, now, person), [missions, dossiers, holidays, now, person]);
+  // One quality number, self-referenced and never ranked (kpi-expansion §4.3.1):
+  // was the vehicle actually seen on the day it was booked for.
+  const quality = useMemo(
+    () => terrainQuality(missions, dossiers, holidays, now, 30, (m) => (person ? missionOwnedBy(m, person) : false)),
+    [missions, dossiers, holidays, now, person],
+  );
   const next = view.next;
   const fmtTime = (d: Date | null) => (d ? format(d, 'HH:mm', { locale: dateFnsLocale() }) : '—');
   const fmtDay = (d: Date | null) => (d ? format(d, 'EEE d MMM', { locale: dateFnsLocale() }) : '');
@@ -206,8 +214,8 @@ export function TerrainDashboard({ missions, dossiers, holidays, now, person, lo
         </Block>
       )}
 
-      {/* 5 — Tomorrow collapsed + two detail tiles (one chunk on a phone). */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* 5 — Tomorrow collapsed + three detail tiles (one chunk on a phone). */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <StatTile
           label={t('Cette semaine')}
           size="detail"
@@ -227,6 +235,21 @@ export function TerrainDashboard({ missions, dossiers, holidays, now, person, lo
           caption={<span>{view.laterCount > 0 ? `${view.laterCount} ${t('ensuite')}` : t('rien ensuite')}</span>}
           loading={loading}
           href="/assignations-atg"
+        />
+        <StatTile
+          label={t('Visites le jour du RDV')}
+          size="detail"
+          value={fmtPct(quality.visiteJourRdv.pct)}
+          caption={
+            <span>
+              {quality.visiteJourRdv.den === 0
+                ? t('aucune visite sur 30 j')
+                : `${quality.visiteJourRdv.num} ${t('sur')} ${quality.visiteJourRdv.den} · 30 j`}
+            </span>
+          }
+          loading={loading}
+          title={t('Missions dont les photos portent la date du rendez-vous, sur les 30 derniers jours')}
+          className="col-span-2 sm:col-span-1"
         />
       </div>
     </div>

@@ -15,9 +15,11 @@ import { useMemo } from 'react';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import type { FunnelDossier } from '../monitoring/funnel';
-import { computeChiffreurView, fmtWindow, type PersonRef, type QueueBand, type QueueEntry } from './metrics';
+import { chiffrageOwnedBy, computeChiffreurView, fmtWindow, type PersonRef, type QueueBand, type QueueEntry } from './metrics';
+import { devisLineStats, devisRates } from './analytics';
 import type { DashboardChiffrage } from './use-dashboard-data';
 import { BandHeader, Block, Delta, DoneLine, Meter, StatTile, WorkRow, fmtHours } from './ui';
+import { StackedBar, fmtPct } from '@/components/viz';
 
 const QUEUE_CAP = 7;
 
@@ -59,6 +61,15 @@ export function ChiffreurDashboard({ chiffrages, dossiers, holidays, now, person
   const { tiles } = view;
   const week = fmtWindow(now, 7);
   const month = fmtWindow(now, 30);
+
+  // The control the chiffreur actually exercises, counted in LINES rather than
+  // dirhams (kpi-expansion §4.2.1): what was struck off the garage's devis.
+  // It sits beside « Révisions » because speed and judgment are read together.
+  const lines = useMemo(
+    () => devisLineStats(chiffrages, now, 30, (c) => (person ? chiffrageOwnedBy(c, person) : false)),
+    [chiffrages, now, person],
+  );
+  const lineRates = useMemo(() => devisRates(lines), [lines]);
 
   // Rows grouped by band, in urgency order, capped as a whole.
   const shown = view.queue.slice(0, QUEUE_CAP);
@@ -175,6 +186,33 @@ export function ChiffreurDashboard({ chiffrages, dossiers, holidays, now, person
                 {view.revisions30.revisions} {t('révisions')} {t('sur')} {view.revisions30.total} {t('assignations reçues')}
               </p>
               <p className="t-caption mt-2">{t('Le pendant qualité de la vitesse : un accord repris est un accord à refaire.')}</p>
+            </div>
+          </Block>
+
+          <Block title={t('Mon contrôle du devis')} caption={`${t('Lignes écartées et pièces retenues')} · ${month}`}>
+            <div className="px-5 pb-3">
+              {lines.rows === 0 ? (
+                <p className="t-caption">{t('Aucun devis structuré sur la période.')}</p>
+              ) : (
+                <>
+                  <p className="text-2xl font-semibold leading-tight text-ink">{fmtPct(lineRates.ecartees.pct)}</p>
+                  <p className="t-caption mt-1 tabular-nums">
+                    {lines.ecartees} {t('lignes écartées sur')} {lines.rows} · {lines.dossiers} {t('dossiers')}
+                  </p>
+                  {lines.remplacement > 0 && (
+                    <div className="mt-3">
+                      <StackedBar
+                        label={t('Nature des pièces remplacées')}
+                        segments={[
+                          { key: 'ori', label: t('Originale'), value: lines.originale, tone: 'accent' },
+                          { key: 'ada', label: t('Adaptable'), value: lines.adaptable, tone: 'accent-2' },
+                          { key: 'occ', label: t('Occasion'), value: lines.occasion, tone: 'accent-3' },
+                        ]}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </Block>
           <Block title={t('Par urgence')} caption={t('Ma file, telle que la file la découpe')}>
