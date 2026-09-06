@@ -27,7 +27,10 @@ export function HeatTable({
   const map = new Map<string, number>();
   for (const c of cells) map.set(`${c.weekday}-${c.hour}`, c.count);
   const hourList = Array.from({ length: hours[1] - hours[0] + 1 }, (_, i) => hours[0] + i);
-  const step = (v: number) => (v <= 0 || max <= 0 ? 0 : Math.min(4, Math.ceil((v / max) * 4)));
+  // Scale on what is actually drawn, so a hidden day never dims the visible grid.
+  const shown = Math.max(0, ...cells.filter((c) => c.weekday < days && c.hour >= hours[0] && c.hour <= hours[1]).map((c) => c.count));
+  const top = Math.min(max, shown) || max;
+  const step = (v: number) => (v <= 0 || top <= 0 ? 0 : Math.min(4, Math.ceil((v / top) * 4)));
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-[11px] tabular-nums" aria-label={label}>

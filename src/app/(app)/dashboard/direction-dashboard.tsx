@@ -640,7 +640,14 @@ export function DirectionDashboard({ dossiers, chiffrages, missions, workflowLog
             {view.heat.max === 0 ? (
               <p className="t-caption">{t('Aucun dossier sur la période.')}</p>
             ) : (
-              <HeatTable cells={view.heat.cells} max={view.heat.max} label={t('Créations par jour et par heure')} />
+              /* Sunday earns its column only when something landed on it — otherwise
+                 it is an empty strip, and its counts would still scale the others. */
+              <HeatTable
+                cells={view.heat.cells}
+                max={view.heat.max}
+                label={t('Créations par jour et par heure')}
+                days={view.heat.cells.some((c) => c.weekday === 6 && c.count > 0) ? 7 : 6}
+              />
             )}
           </Card>
 
