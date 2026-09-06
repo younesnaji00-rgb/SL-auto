@@ -48,7 +48,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useHotkeys } from '@/hooks/use-hotkeys';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DossierPeekPanel } from '@/components/dossiers/dossier-peek-panel';
 import { DossierKpiStrip } from '@/components/dossiers/dossier-kpi-strip';
 import { MoreHorizontal, ExternalLink } from 'lucide-react';
 import { getStatusDotColor } from '@/lib/status-colors';
@@ -500,28 +499,6 @@ export default function DossiersClientPage() {
   }, [focusIdx]);
   const focusedRow = focusIdx !== null ? pageRows[focusIdx] : undefined;
 
-  // Peek panel (owner-approved 2026-09-03) — the ephemeral detail tier.
-  // Single click opens it; ↑/↓ retarget it; Entrée / « Ouvrir » commit to the
-  // full page; Échap closes (before dropping the row focus).
-  const [peekId, setPeekId] = useState<string | null>(null);
-  const peekDossier = useMemo(
-    () => (peekId ? dossierList.find(d => d.id === peekId) ?? null : null),
-    [peekId, dossierList],
-  );
-  const peekPosition = useMemo(() => {
-    if (!peekId) return undefined;
-    const i = dossierList.findIndex(d => d.id === peekId);
-    return i === -1 ? undefined : { index: i + 1, total: dossierList.length };
-  }, [peekId, dossierList]);
-  // Retarget the open peek when the keyboard focus moves to another row.
-  useEffect(() => {
-    if (peekId && focusedRow && focusedRow.id !== peekId) setPeekId(focusedRow.id);
-  }, [peekId, focusedRow]);
-  // Close the peek when its row leaves the filtered list.
-  useEffect(() => {
-    if (peekId && !dossierList.some(d => d.id === peekId)) setPeekId(null);
-  }, [peekId, dossierList]);
-
   // Clean up stale row selections when filters change
   const dossierIds = useMemo(() => new Set(dossierList.map(d => d.id)), [dossierList]);
   useEffect(() => {
@@ -580,26 +557,13 @@ export default function DossiersClientPage() {
       handler: () => { if (focusedRow) handleToggleRow(focusedRow.id); },
     },
     {
-      keys: 'space',
-      label: t("Aperçu de la ligne (ouvrir / fermer)"),
-      group: t('Liste des dossiers'),
-      enabled: !exportMode && !!focusedRow,
-      handler: () => {
-        if (!focusedRow) return;
-        setPeekId(prev => (prev === focusedRow.id ? null : focusedRow.id));
-      },
-    },
-    {
       keys: 'escape',
-      label: t("Fermer l'aperçu / quitter la surbrillance"),
+      label: t('Quitter la surbrillance'),
       group: t('Liste des dossiers'),
-      enabled: peekId !== null || focusIdx !== null,
-      handler: () => {
-        if (peekId !== null) setPeekId(null);
-        else setFocusIdx(null);
-      },
+      enabled: focusIdx !== null,
+      handler: () => setFocusIdx(null),
     },
-  ], [moveFocus, focusedRow, focusIdx, peekId, exportMode, handleToggleRow, openDossier, t]);
+  ], [moveFocus, focusedRow, focusIdx, exportMode, handleToggleRow, openDossier, t]);
 
   useEffect(() => {
     if (!isSendToOpen || !db) return;
@@ -908,7 +872,7 @@ export default function DossiersClientPage() {
           // selection-mode entry is outline (blueprint §6: emphasis follows the job).
           exportMode ? undefined : (
             <>
-              <Button variant="outline" onClick={() => { setPeekId(null); setExportMode(true); }} title={t('Sélectionner des dossiers à rappeler')} data-tour="dos-rappeler">
+              <Button variant="outline" onClick={() => setExportMode(true)} title={t('Sélectionner des dossiers à rappeler')} data-tour="dos-rappeler">
                 {t('Rappeler')}
               </Button>
               {canEditDossiers && (
@@ -1645,18 +1609,17 @@ export default function DossiersClientPage() {
                     // No row tint for observations — the warning chip carries it.
                     "group",
                     !exportMode && "cursor-pointer",
-                    (isFocused || (!exportMode && peekId === d.id)) && "bg-surface-2",
+                    isFocused && "bg-surface-2",
                     exportMode && selectedRows.has(d.id) && "bg-accent/40 hover:bg-accent/40",
                   )}
                   aria-selected={exportMode ? selectedRows.has(d.id) : undefined}
-                  // Two-tier detail access (owner-approved 2026-09-03): single
-                  // click = ephemeral peek; double-click / Entrée / « Ouvrir »
-                  // = the committed full page. Middle-click keeps opening a
-                  // background tab.
+                  // Owner ruling 2026-09-06: no side peek panel. Single click
+                  // = preview tab (DESIGN.md §2 workspace tabs), double-click
+                  // = permanent tab, middle-click = background tab.
                   onClick={() => {
                     setFocusIdx(idx);
                     if (exportMode) handleToggleRow(d.id);
-                    else setPeekId(prev => (prev === d.id ? null : d.id));
+                    else openDossier(d);
                   }}
                   onDoubleClick={() => { if (!exportMode) openDossier(d, { preview: false }); }}
                   onAuxClick={(e) => { if (!exportMode && e.button === 1) { e.preventDefault(); openDossier(d, { preview: false, navigate: false }); } }}
@@ -1788,20 +1751,6 @@ export default function DossiersClientPage() {
           </Button>
         </div>
       </div>
-
-      <DossierPeekPanel
-        dossier={peekDossier}
-        position={peekPosition}
-        onClose={() => setPeekId(null)}
-        onOpen={() => peekDossier && openDossier(peekDossier, { preview: false })}
-        onOpenInTab={() => peekDossier && openDossier(peekDossier, { preview: false, navigate: false })}
-        onStatusHistory={() => peekDossier && setStatusHistoryDossier(peekDossier)}
-        onObservationHistory={() => peekDossier && setObservationHistoryDossier(peekDossier)}
-        formatDate={formatDate}
-        relativeDate={relativeDate}
-        renderAssure={renderAssure}
-        creatorName={peekDossier ? resolveCreatorName(peekDossier) : ''}
-      />
 
       <WorkflowStatusSheet
         open={!!workflowDossier}

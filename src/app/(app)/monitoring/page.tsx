@@ -2,7 +2,6 @@
 
 import { PageHeader } from '@/components/layout/page-header';
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
   collection,
   collectionGroup,
@@ -17,10 +16,7 @@ import {
   Users,
   RotateCcw,
   Search,
-  ChevronRight,
-  CheckCircle2,
 } from 'lucide-react';
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { startOfDay, endOfDay, startOfWeek, startOfMonth, isSameDay, format } from 'date-fns';
 import { useT, useLocale, dateFnsLocale, t as tGlobal } from '@/i18n';
 
@@ -29,7 +25,6 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useCompagnies } from '@/hooks/use-compagnies';
 import { useHolidays } from '@/hooks/use-holidays';
 import { cn } from '@/lib/utils';
-import { scrollBehavior } from '@/lib/motion';
 import { assureName } from '@/lib/dossier-label';
 import {
   Card,
@@ -51,11 +46,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart';
 import { Button } from '@/components/ui/button';
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { Input } from '@/components/ui/input';
@@ -84,7 +74,6 @@ import {
 } from './funnel';
 import {
   STAGE_HAS_SLA,
-  agingItems,
   buildSlaItems,
   computeCycleTimes,
   computeHeadline,
@@ -92,15 +81,12 @@ import {
   dossiersForStepMeasure,
   computePerCompagnieMeasures,
   computePerUserMeasures,
-  computeWeeklyTrend,
   formatBusinessHours,
-  type AgingItem,
   type ChiffrageAssignment,
   type TerrainMission,
   type CycleTimeRow,
   type GroupMeasures,
   type Headline,
-  type WeekPoint,
 } from './metrics';
 
 type DrawerMode = 'realise' | 'nonRealise' | 'horsDelai';
@@ -132,17 +118,6 @@ const formatPeriodLabel = (from: Date | null, to: Date | null): string => {
   if (from) return `${tGlobal('depuis le')} ${day(from, true)}`;
   return `${tGlobal("jusqu'au")} ${day(to as Date, true)}`;
 };
-
-/** Funnel step → dossier timeline section (`#step-N` anchors in dossier-timeline/timeline.tsx). */
-const STEP_SECTION: Partial<Record<StepKey, number>> = {
-  photosAvant: 4,
-  photosEnCours: 9,
-  photosApres: 10,
-  accord: 11,
-};
-
-/** Cap for the exception list — beyond this the list is a report, not a to-do. */
-const AGING_LIST_CAP = 50;
 
 /**
  * First column frozen while the 13-column tables pan sideways (NN/g data
@@ -255,16 +230,6 @@ export default function MonitoringPage() {
     else url.searchParams.set('vue', next);
     window.history.replaceState(window.history.state, '', url);
   };
-  // « En retard aujourd'hui » → the list, whichever tab is open.
-  const jumpToAging = () => {
-    changeVue('global');
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() =>
-        document.getElementById('a-traiter')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' }),
-      ),
-    );
-  };
-
   const openDrawer = (step: StepKey, mode: DrawerMode) => {
     setSelectedStep(step);
     setSelectedStepMode(mode);
@@ -438,9 +403,7 @@ export default function MonitoringPage() {
     [dossiers],
   );
   const headline = useMemo(() => computeHeadline(dossiers, range, now, sla, holidays), [dossiers, range, now, sla, holidays]);
-  const aging = useMemo(() => agingItems(sla, now, holidays), [sla, now, holidays]);
   const cycleTimes = useMemo(() => computeCycleTimes(dossiers, range, sla, holidays), [dossiers, range, sla, holidays]);
-  const weeklyTrend = useMemo(() => computeWeeklyTrend(dossiers, range, now), [dossiers, range, now]);
   const scopedCompagnieNames = useMemo(() => {
     const allowed = (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim());
     const names = allCompagnies.map((c) => c.nom).filter((n): n is string => !!n);
@@ -621,7 +584,7 @@ export default function MonitoringPage() {
         </div>
       ) : (
         totalDossiersInScope > 0 && (
-          <HeadlineRow headline={headline} periodLabel={periodLabel} onJumpToAging={jumpToAging} />
+          <HeadlineRow headline={headline} periodLabel={periodLabel} />
         )
       )}
 
@@ -658,20 +621,8 @@ export default function MonitoringPage() {
                 <Skeleton className="mb-4 h-4 w-40" />
                 <Skeleton className="h-64 w-full" />
               </div>
-              {/* À traiter + Délais par étape */}
-              <div className="grid gap-6 lg:grid-cols-3">
-                <div className="paper p-5 lg:col-span-2">
-                  <Skeleton className="mb-4 h-4 w-44" />
-                  <div className="space-y-3">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-4">
-                        <Skeleton className="h-10 w-14 rounded-lg" />
-                        <Skeleton className="h-4 flex-1" />
-                        <Skeleton className="h-4 w-20" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              {/* Délais par étape */}
+              <div className="grid gap-6 lg:grid-cols-2">
                 <div className="paper p-5">
                   <Skeleton className="mb-4 h-4 w-32" />
                   <div className="space-y-3">
@@ -692,9 +643,7 @@ export default function MonitoringPage() {
               realiseAllTimeCounts={globalRealiseAllTime}
               totalDossiers={totalDossiersInScope}
               periodLabel={periodLabel}
-              aging={aging}
               cycleTimes={cycleTimes}
-              trend={weeklyTrend}
               loading={loading}
               onSelectStep={openDrawer}
             />
@@ -758,9 +707,7 @@ function GlobalView({
   realiseAllTimeCounts,
   totalDossiers,
   periodLabel,
-  aging,
   cycleTimes,
-  trend,
   loading,
   onSelectStep,
 }: {
@@ -769,9 +716,7 @@ function GlobalView({
   realiseAllTimeCounts: Record<StepKey, number>;
   totalDossiers: number;
   periodLabel: string;
-  aging: AgingItem[];
   cycleTimes: CycleTimeRow[];
-  trend: WeekPoint[];
   loading: boolean;
   onSelectStep: (step: StepKey, mode: DrawerMode) => void;
 }) {
@@ -894,10 +839,6 @@ function GlobalView({
       <CycleTimeCard rows={cycleTimes} periodLabel={periodLabel} />
       </div>
 
-      {/* NN/g dashboards: exceptions (what is late now) sit above trends. */}
-      <AgingCard items={aging} />
-
-      <TrendCard points={trend} />
     </>
   );
 }
@@ -910,11 +851,9 @@ function GlobalView({
 function HeadlineRow({
   headline,
   periodLabel,
-  onJumpToAging,
 }: {
   headline: Headline;
   periodLabel: string;
-  onJumpToAging: () => void;
 }) {
   const t = useT();
   return (
@@ -932,25 +871,19 @@ function HeadlineRow({
       />
       <HeadlineTile label={t('En attente')} value={headline.enAttente} caption={`${t('sans rapport déposé')} · ${t("aujourd'hui")}`} />
       {/* Exception tile — the status colour only when there IS an exception (Few:
-          bright colour for highlighting only; no red/green pair), and a jump to the list. */}
-      <Card className="min-w-0 p-0">
-        <button
-          type="button"
-          onClick={onJumpToAging}
-          className="block w-full rounded-xl p-4 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          title={t("Voir la liste « À traiter aujourd'hui »")}
+          bright colour for highlighting only; no red/green pair). The late list
+          itself now lives on the role dashboards (owner 2026-09-06). */}
+      <Card className="min-w-0 p-4">
+        <p className="t-label">{t("En retard aujourd'hui")}</p>
+        <p
+          className={cn(
+            'mt-2 text-[36px] font-semibold leading-none',
+            headline.enRetard > 0 ? 'text-status-danger-fg' : 'text-ink',
+          )}
         >
-          <p className="t-label">{t("En retard aujourd'hui")}</p>
-          <p
-            className={cn(
-              'mt-2 text-[36px] font-semibold leading-none',
-              headline.enRetard > 0 ? 'text-status-danger-fg' : 'text-ink',
-            )}
-          >
-            {headline.enRetard}
-          </p>
-          <p className="t-caption mt-2">{t('assignations au-delà de 24 h ouvrées · maintenant')}</p>
-        </button>
+          {headline.enRetard}
+        </p>
+        <p className="t-caption mt-2">{t('assignations au-delà de 24 h ouvrées · maintenant')}</p>
       </Card>
     </div>
   );
@@ -1109,132 +1042,6 @@ function KpiBarRow({
   );
 }
 
-/**
- * « À traiter aujourd'hui » — Kanban work-item age (ProKanban): the LEADING
- * indicator, what is past the SLA right now and not done. Row anatomy follows
- * the planification date-block pattern (tinted block + rim as the row anchor).
- */
-function AgingCard({ items, className }: { items: AgingItem[]; className?: string }) {
-  const t = useT();
-  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
-  /* Owner rollup (owner ruling 2026-09-02, «À traiter» option 2 — support-desk
-     queue practice: the LIST stays flat and oldest-first, grouping lives in a
-     filter layer above it). '' keys the unassigned bucket. */
-  const owners = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const it of items) {
-      const k = it.owner ?? '';
-      m.set(k, (m.get(k) ?? 0) + 1);
-    }
-    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'fr'));
-  }, [items]);
-  // A stale filter (its owner cleared their queue) silently deactivates.
-  const activeOwner =
-    ownerFilter != null && owners.some(([k]) => k === ownerFilter) ? ownerFilter : null;
-  const filtered =
-    activeOwner == null ? items : items.filter((it) => (it.owner ?? '') === activeOwner);
-  const shown = filtered.slice(0, AGING_LIST_CAP);
-  const rest = filtered.length - shown.length;
-  return (
-    <Card id="a-traiter" className={cn('overflow-hidden', className)}>
-      <CardHeader className="gap-2 space-y-0">
-        <CardTitle className="flex items-center gap-2">
-          <span>{t("À traiter aujourd'hui")}</span>
-          <span className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium tabular-nums text-ink-2">
-            {items.length}
-          </span>
-        </CardTitle>
-        {/* One chip per porteur, click = filter (toggle). Rendered only when
-            there is something to discriminate. F0: no animation on filters. */}
-        {owners.length >= 2 && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            {owners.map(([k, n]) => (
-              <button
-                key={k || '__none'}
-                type="button"
-                aria-pressed={activeOwner === k}
-                onClick={() => setOwnerFilter(activeOwner === k ? null : k)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  activeOwner === k
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-surface-2 text-ink-2 hover:bg-surface-3',
-                )}
-              >
-                <span className={cn(!k && 'italic')}>{k || t('non affecté')}</span>
-                <span className="font-semibold tabular-nums">{n}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </CardHeader>
-      <CardContent className="p-0">
-        {items.length === 0 ? (
-          <EmptyState
-            icon={<CheckCircle2 />}
-            title={t('Rien en retard')}
-            description={t("Aucune étape n'a dépassé 24 h ouvrées.")}
-            dashed={false}
-            className="border-0 bg-transparent py-8 [&>div:first-child]:bg-status-success-bg [&>div:first-child]:text-status-success-fg"
-          />
-        ) : (
-          <>
-            <ul className="divide-y divide-hairline">
-              {shown.map((item) => {
-                const danger = item.ageHours > 72;
-                const section = STEP_SECTION[item.step];
-                const href = section ? `/dossiers/${item.dossier.id}#step-${section}` : `/dossiers/${item.dossier.id}`;
-                const assure = dossierAssure(item.dossier);
-                return (
-                  <li key={`${item.dossier.id}-${item.step}`}>
-                    <Link
-                      href={href}
-                      className="flex items-center gap-4 px-6 py-3 transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                    >
-                      <div
-                        className={cn(
-                          'flex w-16 shrink-0 flex-col items-center justify-center rounded-lg px-2 py-1.5 shadow-rim',
-                          danger
-                            ? 'bg-status-danger-bg text-status-danger-fg'
-                            : 'bg-status-warning-bg text-status-warning-fg',
-                        )}
-                      >
-                        <span className="text-base font-semibold leading-none tabular-nums">
-                          {formatBusinessHours(item.ageHours)}
-                        </span>
-                        <span className="mt-1 text-[11px] leading-none">{t('ouvrées')}</span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                          <span className="t-mono font-semibold">{dossierRef(item.dossier)}</span>
-                          {assure && <span className="truncate text-sm text-ink-2">{assure}</span>}
-                          <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-ink-2">
-                            {item.kind === 'chiffrage' ? `${t('Chiffrage')} · ` : `${t('Terrain')} · `}
-                            {t(STEP_LABELS_SHORT[item.step])}
-                          </span>
-                        </div>
-                        <p className="t-caption mt-0.5 truncate">
-                          {item.owner ? <>{item.kind === 'chiffrage' ? t('chiffreur') : t('agent')} <b className="font-medium text-ink-2">{item.owner}</b> · </> : null}
-                          {t('depuis')} {format(item.since, 'dd/MM HH:mm')}
-                          {item.dossier.compagnie ? ` · ${item.dossier.compagnie}` : ''}
-                        </p>
-                      </div>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-            {rest > 0 && (
-              <p className="t-caption border-t border-hairline px-6 py-3 tabular-nums">+{rest} {t('autres')}</p>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 /** « Délais par étape » — claims-operations KPI: cycle time by stage (median, business hours). */
 function CycleTimeCard({ rows, periodLabel }: { rows: CycleTimeRow[]; periodLabel: string }) {
   const t = useT();
@@ -1271,44 +1078,6 @@ function CycleTimeCard({ rows, periodLabel }: { rows: CycleTimeRow[]; periodLabe
             ))}
           </TableBody>
         </Table>
-      </CardContent>
-    </Card>
-  );
-}
-
-/** « Créés vs déposés par semaine » — dataviz: trend over time → line; ≥ 2 series → legend. */
-function TrendCard({ points }: { points: WeekPoint[] }) {
-  const t = useT();
-  if (points.length < 2) return null;
-  const config = {
-    crees: { label: t('Créés'), color: 'hsl(var(--chart-1))' },
-    deposes: { label: t('Rapports déposés'), color: 'hsl(var(--chart-2))' },
-  };
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('Créés vs déposés par semaine')}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ChartContainer config={config} className="h-64 w-full">
-          <LineChart data={points} margin={{ top: 8, right: 16, left: -8, bottom: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--hairline))" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} />
-            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--ink-3))' }} allowDecimals={false} />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <Line type="monotone" dataKey="crees" stroke="var(--color-crees)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
-            <Line type="monotone" dataKey="deposes" stroke="var(--color-deposes)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
-          </LineChart>
-        </ChartContainer>
-        {/* Legend always present for ≥ 2 series (same pattern as the dashboard). */}
-        <ul className="mt-4 flex flex-wrap justify-center gap-x-3 gap-y-1.5">
-          {(Object.keys(config) as Array<keyof typeof config>).map((k) => (
-            <li key={k} className="t-caption flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: config[k].color }} aria-hidden />
-              <span>{config[k].label}</span>
-            </li>
-          ))}
-        </ul>
       </CardContent>
     </Card>
   );

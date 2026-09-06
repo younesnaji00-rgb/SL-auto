@@ -239,25 +239,15 @@ export const dossiersTutorial: PageTutorial = {
     // straight on the horizontal-scroll step.)
     {
       anchor: 'dos-row',
-      title: 'Un aperçu, sans quitter la liste',
+      title: 'Ouvrir un dossier',
       body:
-        "Un simple clic sur une ligne ouvre un panneau d'aperçu à droite : l'essentiel du dossier, la liste toujours visible derrière.\nCliquez sur une ligne pour l'ouvrir.",
+        "Un clic sur une ligne ouvre le dossier dans un onglet d'aperçu ; un double-clic le garde ouvert. Le clic molette l'ouvre en arrière-plan.",
       side: 'top',
-      interact: 'until',
-      until: () => !!document.querySelector('[data-tour="dos-peek"]'),
-    },
-    {
-      anchor: 'dos-peek',
-      title: 'Le panneau d’aperçu',
-      body:
-        "Assuré, véhicule, statut, échéance — de quoi décider sans ouvrir le dossier.\nDe là : « Ouvrir » va au dossier complet, ou vous refermez et vous passez au suivant. Échap le referme.",
-      side: 'left',
-      dynamic: true,
     },
     {
       title: 'Au clavier, la liste se parcourt seule',
       body:
-        "↑ ↓ (ou J et K) passent d'une ligne à l'autre, Entrée ouvre, Espace affiche l'aperçu, X coche la ligne, Échap referme tout.\nDe quoi trier une file entière sans lâcher le clavier.",
+        "↑ ↓ (ou J et K) passent d'une ligne à l'autre, Entrée ouvre, X coche la ligne, Échap quitte la surbrillance.\nDe quoi trier une file entière sans lâcher le clavier.",
     },
     {
       anchor: 'dos-hscroll',
