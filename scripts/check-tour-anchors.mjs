@@ -49,9 +49,8 @@ const DYNAMIC = {
   'dosd-photos-': ['avant', 'en_cours', 'apres'],
   // src/app/(app)/assignations-atg/page.tsx
   'atg-group-': ['today', 'expired', 'future'],
-  // src/app/(app)/dashboard/page.tsx (two side-by-side change panels)
-  'dash-changements-': ['1', '2'],
-  'dash-chg-filtres-': ['1', '2'],
+  // src/app/(app)/dashboard/admin-dashboard.tsx (one tab per role)
+  'dash-tab-': ['gestionnaires', 'chiffreurs', 'terrain'],
   // src/app/(app)/dossiers/client-page.tsx (sortable column headers)
   'dos-col-': ['nature', 'statut'],
 };

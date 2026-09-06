@@ -1,99 +1,80 @@
 import type { PageTutorial } from '../types';
 
 /**
- * Guided tour of the dashboard (Admin / Responsable d'équipe only).
- * Anchors live in src/app/(app)/dashboard/page.tsx (prefix `dash-`).
+ * Guided tour of the Tableau de bord (2026-09-06 role dashboards).
+ * Anchors live in src/app/(app)/dashboard/*.tsx (prefix `dash-`).
  *
- * Ordering note: the "Répartition par Compagnie" card always exists in the
- * DOM, but its chart body swaps to an "Aucune donnée" empty state as soon as
- * the period filter excludes every dossier (the old lab made users click
- * «Semaine» FIRST, which blanked the charts on aged demo data). All chart
- * steps therefore run BEFORE the interactive period step, and the period
- * step comes last among the data widgets — the activity feeds after it
- * ignore the period filter entirely.
+ * One step list serves every role: steps whose anchor is not on screen are
+ * dropped by the DOM-presence filter, so a Chiffreur sees the tiles + file
+ * steps, an Agent de Terrain the next-mission steps, an Admin the tab steps.
  */
-
-/**
- * True once the user actually picked a period: choosing a preset or a
- * calendar date fills the Du/Au DatePicker triggers with a formatted date
- * (digits). Preset labels and empty-picker placeholders contain no digits in
- * FR or EN, so this only fires on a real selection — merely opening the
- * calendar changes nothing inside the zone (the calendar is portaled).
- */
-const periodePicked = (): boolean => {
-  const zone = document.querySelector('[data-tour="dash-etat-periode"]');
-  if (!zone) return false;
-  return Array.from(zone.querySelectorAll('button')).some((b) =>
-    /\d/.test(b.textContent || ''),
-  );
-};
-
 export const dashboardTutorial: PageTutorial = {
   key: 'dashboard',
   match: (p) => p === '/dashboard',
   steps: [
     {
       title: 'Tableau de bord',
-      body:
-        "L'activité du cabinet en direct : volumes, statuts et derniers changements.",
+      body: "Ce qui vous attend maintenant, ce qui est en retard, et votre rythme — rien d'autre.\nLes analyses d'équipe (entonnoir, délais, tendances) restent dans Suivi d'équipe.",
     },
     {
-      anchor: 'dash-etat-card',
-      title: 'Dossiers par état',
-      body: 'Chaque ligne montre un statut et son nombre de dossiers.',
-      side: 'right',
-    },
-    {
-      anchor: 'dash-etat-card',
-      title: 'Choisissez un statut',
-      body: "Cliquez sur une ligne : ses dossiers s'affichent.",
-      side: 'right',
-      interact: 'click',
-    },
-    {
-      anchor: 'dash-status-table',
-      title: 'Les dossiers du statut',
-      body: 'Voici la liste correspondante ; une référence ouvre le dossier.',
-      side: 'left',
-    },
-    {
-      anchor: 'dash-pie',
-      title: 'Volume par statut',
-      body: 'La part de chaque statut sur la période.',
-      side: 'left',
-    },
-    {
-      anchor: 'dash-compagnie',
-      title: 'Par compagnie',
-      body: "Le volume de dossiers de chaque compagnie d'assurance.",
-      side: 'left',
-    },
-    {
-      anchor: 'dash-etat-periode',
-      title: 'Filtrer par période',
-      body: 'Choisissez une période : Jour, Semaine ou Mois.',
+      anchor: 'dash-tiles',
+      title: 'Les chiffres du jour',
+      body: 'En cours, en retard, terminés sur 7 jours face aux 7 jours précédents.\nUne couleur n’apparaît que quand quelque chose dépasse le délai.',
       side: 'bottom',
-      interact: 'until',
-      until: periodePicked,
     },
     {
-      anchor: 'dash-changements-1',
-      title: 'Changements récents',
-      body: 'Chaque action du cabinet apparaît ici, en temps réel.',
+      anchor: 'dash-worklist',
+      title: 'À traiter',
+      body: 'La liste de ce qui vous revient, du plus ancien au plus récent. Chaque ligne ouvre le dossier ou la mission.\nQuand elle est vide, c’est une bonne nouvelle : tout avance.',
       side: 'right',
     },
     {
-      anchor: 'dash-chg-filtres-1',
-      title: 'Filtrer le fil',
-      body: 'Cliquez sur un des filtres pour affiner le fil.',
-      side: 'bottom',
-      interact: 'click',
+      anchor: 'dash-context',
+      title: 'Ce qui attend un tiers',
+      body: 'Ici, rien ne dépend de vous : le dossier est chez le chiffreur, chez l’agent, ou n’a pas bougé depuis plus de 2 jours ouvrés.',
+      side: 'left',
     },
     {
-      anchor: 'dash-changements-2',
-      title: 'Deuxième fil',
-      body: 'Un second fil indépendant, pour surveiller deux activités à la fois.',
+      anchor: 'dash-next',
+      title: 'Prochaine mission',
+      body: 'Heure, dossier, adresse — et trois boutons : ouvrir la mission, l’itinéraire, appeler.',
+      side: 'bottom',
+    },
+    {
+      anchor: 'dash-late',
+      title: 'En retard',
+      body: 'RDV passé sans photos, ou plus de 24 h ouvrées depuis la planification. « Rien en retard » est le meilleur écran possible.',
+      side: 'top',
+    },
+    {
+      anchor: 'dash-tabs',
+      title: 'Un onglet par rôle',
+      body: 'Gestionnaires, Chiffreurs, Terrain : les mêmes blocs que le tableau de bord de chacun, additionnés pour l’équipe.',
+      side: 'bottom',
+    },
+    {
+      anchor: 'dash-exceptions',
+      title: 'Exceptions',
+      body: 'Tout ce qui est en retard maintenant, avec la personne concernée. Une ligne ouvre l’élément.',
+      side: 'right',
+    },
+    {
+      anchor: 'dash-charge',
+      title: 'Charge par personne',
+      body: 'La longueur de la barre, c’est la charge ; le second chiffre, le retard. Cliquez sur une personne pour voir son tableau de bord.',
       side: 'left',
+    },
+    {
+      anchor: 'dash-par-personne',
+      title: 'Par personne',
+      body: 'Les mêmes définitions que chacun voit chez soi, et la ligne « Médiane équipe » pour situer — jamais un classement.',
+      side: 'top',
+    },
+    {
+      anchor: 'dash-user-select',
+      title: 'Voir une personne',
+      body: 'Choisissez quelqu’un : la page devient son tableau de bord, exactement comme il le voit, suivi de son contexte de charge.',
+      side: 'bottom',
     },
   ],
 };

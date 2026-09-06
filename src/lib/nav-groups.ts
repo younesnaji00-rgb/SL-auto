@@ -51,7 +51,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Opérations',
     items: [
-      { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe"], mobileRank: 3, hotkey: 'g t' },
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur', 'Agent de Terrain'], mobileRank: 3, hotkey: 'g t' },
       { href: '/monitoring', icon: Gauge, label: "Suivi d'équipe", subtitle: 'Funnel des étapes — combien de dossiers ont franchi chaque étape.', roles: ['Admin', "Responsable d'équipe"], hotkey: 'g s' },
       { href: '/dossiers', icon: FolderOpen, label: 'Dossiers', subtitle: 'Gérer et suivre tous les dossiers de sinistres', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'], mobileRank: 1, hotkey: 'g d' },
       { href: '/mes-rappels', icon: Bell, label: 'Rappels', title: 'Mes rappels', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'], mobileRank: 2, hotkey: 'g r' },

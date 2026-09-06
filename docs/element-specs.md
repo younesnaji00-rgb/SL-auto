@@ -705,3 +705,44 @@ correctly (ANCIENNETÉ / CRÉÉ PAR / RÉFÉRENCE DE COMPAGNIE — render-checke
 Applies app-wide through the shared primitive: dossiers, chiffrage and ATG
 queues, mes-rappels, consultation, utilisateurs — every table gets it, so
 the register stays consistent.
+
+---
+
+# Addendum 2026-09-06 — Tableau de bord par rôle (research-first rebuild)
+
+Owner ask: one dashboard per role + an admin three-tab window with a per-user
+toggle. Four research rounds (`docs/research/dashboard-theory.md`,
+`dashboard-industry-kpis.md`, `dashboard-role-based.md`,
+`dashboard-elements.md`; decisions in `dashboard-synthesis.md`). Elements
+below extend §6 (stat tile) and §4 (list rows); shared code in
+`src/app/(app)/dashboard/ui.tsx`.
+
+- **Stat tile with comparison** (elements B1): label · 36 px value (one 48 px
+  hero per view, 24 px detail on the phone) · caption printing the REAL window
+  (« 30 août – 6 sept. », « maintenant ») and, for throughput, a delta line
+  « ▲ +2 (3 → 5) vs 7 j préc. » — raw change under n = 10, never a bare %.
+  Arrows are plain ink; the danger pair goes on the value only when the count
+  IS an exception (Few #12). Never two big numbers, never colour on a zero.
+- **Worklist row** (B4): 44 px (56 on the phone) · `identifier (mono, the only
+  bold) · who · what · time text · chevron`, whole row = link. SLA queues print
+  the countdown (« échéance dans 3 h ») or the lateness (« dépassée depuis
+  2 h », danger); non-SLA lists print « sans mouvement depuis 3 j ». Urgency
+  bands as counted `t-label` headers (the queue's own bands), cap 5–7 rows then
+  « Voir les N autres → ». Empty = a calm completion line (« Rien à traiter —
+  vos dossiers avancent. »), the card keeps its height.
+- **Segmented meter** (B3): 100 % strip, the judged segment on the baseline
+  (late-first on desk/admin views, done-first on the terrain strip); danger
+  only on the judged segment and only when > 0; legend prints counts.
+- **Compare strip** (B6, admin only): person bar on a zero-based strip, light
+  Q1–Q3 band, 1 px median tick, caption « médiane équipe N · écart ±x ». Never
+  a ranked bar list; the person's 30-day intake is printed beside every rate.
+- **Next-mission card** (B7): the ONE solid terracotta block of the phone
+  screen is the next RDV's time; three 48 px actions (Ouvrir · Itinéraire ·
+  Appeler); status chips carry a word, never colour alone.
+- **Freshness stamp**: « En direct · HH:MM » in the page header meta (time of
+  the last snapshot), no seconds; no period selector on these pages.
+- **Must not** (from the four do-not lists): widget grids, charts/sparklines
+  on personal dashboards, leaderboards or percentiles, peers on a personal
+  dashboard, hidden admin-only metrics, activity feeds on queue dashboards,
+  « · période » captions, five tile widths, tiles above the worklist on the
+  phone.
