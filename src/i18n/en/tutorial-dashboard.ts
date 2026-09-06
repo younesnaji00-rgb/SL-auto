@@ -55,4 +55,41 @@ export const TUTORIAL_DASHBOARD_EN: Record<string, string> = {
   'Explorer les dossiers': 'Drill into the files',
   "Cliquez sur une barre colorée d'une carte pour ouvrir la liste des dossiers concernés. Un clic sur un dossier vous amène directement à l'étape correspondante du dossier.":
     'Click a colored bar on a card to open the list of files behind it. Clicking a file takes you straight to the matching step of the file.',
+
+  // ── Role dashboards tour (2026-09-06) ──
+  "Ce qui vous attend maintenant, ce qui est en retard, et votre rythme — rien d'autre.\nLes analyses d'équipe (entonnoir, délais, tendances) restent dans Suivi d'équipe.":
+    'What is waiting for you now, what is late, and your own pace — nothing else.\nTeam analytics (funnel, cycle times, trends) stay in Team monitoring.',
+  'Les chiffres du jour': 'Today’s numbers',
+  'En cours, en retard, terminés sur 7 jours face aux 7 jours précédents.\nUne couleur n’apparaît que quand quelque chose dépasse le délai.':
+    'In progress, late, and completed over 7 days against the 7 days before.\nA color only appears when something goes past its deadline.',
+  'La liste de ce qui vous revient, du plus ancien au plus récent. Chaque ligne ouvre le dossier ou la mission.\nQuand elle est vide, c’est une bonne nouvelle : tout avance.':
+    'The list of what is yours to handle, oldest to newest. Each row opens the file or the assignment.\nWhen it is empty, that is good news: everything is moving.',
+  'Ce qui attend un tiers': 'What is waiting on someone else',
+  'Ici, rien ne dépend de vous : le dossier est chez le chiffreur, chez l’agent, ou n’a pas bougé depuis plus de 2 jours ouvrés.':
+    'Nothing here is on you: the file is with the estimator, with the field appraiser, or it has not moved for more than 2 business days.',
+  'Heure, dossier, adresse — et trois boutons : ouvrir la mission, l’itinéraire, appeler.':
+    'Time, file, address — and three buttons: open the assignment, get directions, call.',
+  'RDV passé sans photos, ou plus de 24 h ouvrées depuis la planification. « Rien en retard » est le meilleur écran possible.':
+    'Appointment passed with no photos, or more than 24 business hours since scheduling. “Nothing late” is the best screen you can get.',
+  'Direction, puis un onglet par rôle': 'Leadership, then one tab per role',
+  'Direction répond à « où en est le cabinet » ; Gestionnaires, Chiffreurs et Terrain reprennent les mêmes blocs que le tableau de bord de chacun, additionnés pour l’équipe.':
+    'Leadership answers “where does the firm stand”; File handlers, Estimators and Field pick up the same blocks as each person’s own dashboard, added up for the team.',
+  'Le délai qui vous juge': 'The cycle time you are judged on',
+  'De la requête de la compagnie au dépôt du rapport, en médiane, sur les dossiers CLÔTURÉS de la période.\nLe P90 à côté dit ce que vit le dossier le plus lent sur dix : c’est lui qui fait les réclamations.':
+    'From the carrier’s assignment request to the report being submitted, as a median, on the files CLOSED in the period.\nThe P90 beside it tells you what the slowest file in ten goes through: that is the one that generates complaints.',
+  'Où passent les jours': 'Where the days go',
+  'Le délai total découpé étape par étape. La barre pleine est la médiane, le fond clair le P90, et chaque ligne imprime son effectif — une étape mesurée sur trois dossiers ne se lit pas comme une étape mesurée sur cent.':
+    'The total cycle time broken down step by step. The solid bar is the median, the light background the P90, and every row prints its count — a step measured on three files does not read like a step measured on a hundred.',
+  'La profondeur, par question': 'Depth, one question at a time',
+  'Compagnies, Qualité, Terrain, Portefeuille, Flux : chaque onglet répond à une question, pour que l’écran d’accueil garde cinq chiffres et pas quarante.':
+    'Carriers, Quality, Field, Portfolio, Flow: each tab answers one question, so the landing screen keeps five figures instead of forty.',
+  'Tout ce qui est en retard maintenant, avec la personne concernée. Une ligne ouvre l’élément.':
+    'Everything that is late right now, with the person it belongs to. A row opens the item.',
+  'La longueur de la barre, c’est la charge ; le second chiffre, le retard. Cliquez sur une personne pour voir son tableau de bord.':
+    'The length of the bar is the workload; the second figure is what is late. Click a person to see their dashboard.',
+  'Les mêmes définitions que chacun voit chez soi, et la ligne « Médiane équipe » pour situer — jamais un classement.':
+    'The same definitions each person sees on their own screen, plus the “Team median” row to place yourself — never a ranking.',
+  'Voir une personne': 'View one person',
+  'Choisissez quelqu’un : la page devient son tableau de bord, exactement comme il le voit, suivi de son contexte de charge.':
+    'Pick someone: the page becomes their dashboard, exactly as they see it, followed by their workload context.',
 };
