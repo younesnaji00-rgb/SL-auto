@@ -139,6 +139,9 @@ export function DirectionDashboard({ dossiers, chiffrages, missions, workflowLog
   const win = fmtWindow(now, days);
   const prevWin = t('vs période préc.');
 
+  // Stocks are read at « maintenant », never over the window (demo-impact D3).
+  const lateNow = useMemo(() => sla.filter((s) => s.late && !s.doneAt).length, [sla]);
+
   // North star: the median a director is judged on, its P90 and its 13-week shape.
   const ns = view.lead.requeteRapport;
   const trend = view.flow.map((w) => ({ label: w.label, value: w.termines }));
@@ -221,10 +224,11 @@ export function DirectionDashboard({ dossiers, chiffrages, missions, workflowLog
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" data-tour="dir-tiles">
         <StatTile
           label={t('En retard maintenant')}
-          value={view.enCours === 0 ? 0 : sla.filter((s) => s.late && !s.doneAt).length}
-          danger={sla.some((s) => s.late && !s.doneAt)}
+          value={lateNow}
+          danger={lateNow > 0}
           loading={loading}
           caption={<span>{t('délai de 24 h ouvrées dépassé')} · {t('maintenant')}</span>}
+          title={t('Assignations chiffrage, terrain ou création au-delà de 24 h ouvrées et non terminées')}
         />
         <StatTile
           label={t('Dans les délais')}
