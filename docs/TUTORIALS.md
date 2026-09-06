@@ -103,6 +103,27 @@ you strand every user who declined.
   (or already exist in another — grep before adding). Copy the French key
   verbatim; typographic apostrophes and « » must match exactly.
 - `npm run build` for BOTH brands (`NEXT_PUBLIC_BRAND=demo npm run build`).
+- If you touch the launcher's POSITIONING, run `npm run check:launcher-drag`
+  against a demo-brand dev server (`NEXT_PUBLIC_BRAND=demo npx next dev -p 9011`;
+  the demo brand offers tutorials to every role, so the button renders on
+  /login without signing in). It drives a real Chrome over the DevTools
+  Protocol and sweeps the density zooms.
+
+  **Why a browser test:** the app sets CSS `zoom` on <html> (0.9 on 1080p, 1.1
+  on 1440p). Pointer coordinates and `getBoundingClientRect()` are in VISUAL
+  viewport pixels; an inline `left`/`top` is in the ZOOMED document space and
+  renders at `value * zoom`. Writing one into the other displaced the button
+  by (zoom − 1) × its distance from the origin — it teleported the moment it
+  was grabbed. **At zoom 1 it looked perfect**, which is what a default
+  headless window reports, so any check that does not sweep the zoom values
+  will pass a broken build. Convert with `appZoom()` /  `place()` in
+  tutorial-launcher.tsx, and note that the button's on-screen radius is
+  `BTN * zoom`, not `BTN`.
+
+  Two traps when running dev servers for this: never run two `next dev`
+  instances from the same checkout (they share `.next` and overwrite each
+  other's client bundle, so the wrong BRAND is served), and killing the task
+  wrapper does not always kill `next dev` — free the port explicitly.
 
 ## Who sees the tutorials (brand gating)
 

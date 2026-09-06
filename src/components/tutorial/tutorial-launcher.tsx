@@ -44,11 +44,41 @@ const EDGE = 12;
 /** Past this many pixels a pointer gesture is a DRAG, not a click. */
 const DRAG_SLOP = 4;
 
-function clampCentre(x: number, y: number): { left: number; top: number } {
-  const half = BTN / 2 + EDGE;
-  const cx = Math.min(Math.max(x, half), Math.max(half, window.innerWidth - half));
-  const cy = Math.min(Math.max(y, half), Math.max(half, window.innerHeight - half));
-  return { left: cx - BTN / 2, top: cy - BTN / 2 };
+/**
+ * The CSS `zoom` the app puts on <html> (density ruling 2026-09-01: 0.9 on
+ * 1080p, 1.1 on 1440p, 1 elsewhere).
+ *
+ * This matters here because the two coordinate systems disagree. Pointer
+ * coordinates and getBoundingClientRect() are reported in VISUAL viewport
+ * pixels, but an inline `left`/`top` is interpreted in the ZOOMED document
+ * space and renders at `value * zoom`. Writing a pointer coordinate straight
+ * into `left` therefore displaced the button by (zoom − 1) × its distance
+ * from the origin — on a 1440p screen, grabbing it near the bottom-right
+ * corner flung it clean off the edge. Measured with scripts/drag-probe: at
+ * zoom 0.9 an inline left of 577.8px rendered at 520.
+ */
+function appZoom(): number {
+  try {
+    const z = parseFloat(getComputedStyle(document.documentElement).zoom || '1');
+    return Number.isFinite(z) && z > 0 ? z : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/**
+ * Clamp a VISUAL centre point so the whole button stays on screen, and return
+ * both that point (what gets persisted, so it means the same place on a
+ * screen with a different zoom) and the inline coordinates that render there.
+ */
+function place(cx: number, cy: number): { left: number; top: number; cx: number; cy: number } {
+  const z = appZoom();
+  // The button's on-screen radius is BTN*z, not BTN — the margin has to be
+  // measured in the same (visual) space as innerWidth.
+  const half = (BTN * z) / 2 + EDGE;
+  const vx = Math.min(Math.max(cx, half), Math.max(half, window.innerWidth - half));
+  const vy = Math.min(Math.max(cy, half), Math.max(half, window.innerHeight - half));
+  return { left: vx / z - BTN / 2, top: vy / z - BTN / 2, cx: vx, cy: vy };
 }
 
 /**
@@ -78,8 +108,10 @@ function useLauncherPosition() {
       setPx(null);
       return;
     }
-    const apply = () =>
-      setPx(clampCentre(frac.x * window.innerWidth, frac.y * window.innerHeight));
+    const apply = () => {
+      const at = place(frac.x * window.innerWidth, frac.y * window.innerHeight);
+      setPx({ left: at.left, top: at.top });
+    };
     apply();
     window.addEventListener('resize', apply);
     window.addEventListener('orientationchange', apply);
@@ -90,16 +122,19 @@ function useLauncherPosition() {
   }, [frac]);
 
   /** Live drag feedback — pixels only; nothing is persisted until the drop. */
-  const moveTo = useCallback((cx: number, cy: number) => setPx(clampCentre(cx, cy)), []);
+  const moveTo = useCallback((cx: number, cy: number) => {
+    const at = place(cx, cy);
+    setPx({ left: at.left, top: at.top });
+  }, []);
 
   const commit = useCallback((cx: number, cy: number) => {
-    const { left, top } = clampCentre(cx, cy);
-    const next = {
-      x: (left + BTN / 2) / window.innerWidth,
-      y: (top + BTN / 2) / window.innerHeight,
-    };
+    const at = place(cx, cy);
+    setPx({ left: at.left, top: at.top });
+    // Persist the VISUAL fraction, not the inline one: the same account opens
+    // the app on screens whose density zoom differs, and "bottom-right corner"
+    // has to survive that.
+    const next = { x: at.cx / window.innerWidth, y: at.cy / window.innerHeight };
     setFrac(next);
-    setPx({ left, top });
     writeLauncherPosition(next);
   }, []);
 

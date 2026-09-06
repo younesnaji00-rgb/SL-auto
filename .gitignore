@@ -80,3 +80,6 @@ tmp/
 # local-only: nested dev working copy + assistant workspace
 /SL-auto-main/
 /.claude/
+
+# firebase-tools deploy caches (written by scripts/deploy-demo.ps1)
+.firebase/
