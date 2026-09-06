@@ -232,7 +232,7 @@ function RoleTab({
                     href={e.href}
                     id={(e.dossier as any)?.refExpert || e.dossierId}
                     who={e.owner}
-                    label={t(e.label)}
+                    label={[t(e.label), e.round ? `${e.round}ᵉ ${t('accord')}` : null, e.detail ? t(e.detail) : null].filter(Boolean).join(' · ')}
                     time={fmtHours(e.ageHours)}
                     timeTone="danger"
                   />

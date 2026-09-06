@@ -612,7 +612,17 @@ export interface ExceptionRow {
   owner: string;
   dossier: FunnelDossier | null;
   dossierId: string;
+  /**
+   * Translatable on its own. Anything variable goes in `detail` / `round`
+   * instead: a label built by concatenation (« Chiffrage en retard · 2ᵉ
+   * accord ») can never match a dictionary key, so it would stay French on
+   * the English build. The view joins the pieces after translating each.
+   */
   label: string;
+  /** Second translatable fragment (mission type, next-step label). */
+  detail?: string;
+  /** Accord round ≥ 2 — the view renders « 2ᵉ accord » in its own language. */
+  round?: number;
   ageHours: number;
   href: string;
 }
@@ -715,7 +725,8 @@ export function computeTeamView(
           owner: displayName(u),
           dossier: w.dossier,
           dossierId: w.dossier.id,
-          label: w.todo.id === 'stale' ? `Sans mouvement · ${w.todo.label}` : w.todo.label,
+          label: w.todo.id === 'stale' ? 'Sans mouvement' : w.todo.label,
+          detail: w.todo.id === 'stale' ? w.todo.label : undefined,
           ageHours: w.ageHours,
           href: hrefDossier(w.dossier.id),
         });
@@ -761,7 +772,8 @@ export function computeTeamView(
           owner: displayName(u),
           dossier: e.dossier,
           dossierId: e.chiffrage.dossierId,
-          label: e.revision ? `Chiffrage en retard · ${e.round}ᵉ accord` : 'Chiffrage en retard',
+          label: 'Chiffrage en retard',
+          round: e.revision ? e.round : undefined,
           ageHours: e.elapsedHours,
           href: hrefChiffrage(e.chiffrage.id),
         });
@@ -808,7 +820,8 @@ export function computeTeamView(
         owner: displayName(u),
         dossier: x.dossier,
         dossierId: x.mission.dossierId,
-        label: x.lateReason === 'rdv' ? `RDV passé sans photos · ${x.type ?? ''}`.trim() : `Mission hors délai · ${x.type ?? ''}`.trim(),
+        label: x.lateReason === 'rdv' ? 'RDV passé sans photos' : 'Mission hors délai',
+        detail: x.type ?? undefined,
         ageHours: x.ageHours,
         href: hrefMission(x.mission.dossierId, x.type),
       });

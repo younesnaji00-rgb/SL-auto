@@ -223,7 +223,7 @@ export function GestionnaireDashboard({ dossiers, chiffrages = [], sla, rappelsR
           <BarList rows={view.parEtape.map((s) => ({ key: String(s.stepId), label: t(s.label), value: s.count, late: s.late }))} labelWidth="w-44" />
         </Block>
         <Block title={t('Âge des dossiers ouverts')} caption={t('Jours calendaires depuis la requête de la compagnie')}>
-          <BarList rows={view.ageBuckets.map((b) => ({ key: b.key, label: b.label, value: b.count }))} labelWidth="w-16" />
+          <BarList rows={view.ageBuckets.map((b) => ({ key: b.key, label: t(b.label), value: b.count }))} labelWidth="w-16" />
         </Block>
       </div>
 

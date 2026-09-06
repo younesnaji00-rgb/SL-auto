@@ -390,4 +390,14 @@ export const DASHBOARD_EN: Record<string, string> = {
   'Dépôt → note d’honoraire': 'Submission → fee invoice',
   'Assignations chiffrage, terrain ou création au-delà de 24 h ouvrées et non terminées':
     'Estimating, field or creation assignments past 24 business hours and not finished',
+  // Age buckets (AGE_BUCKET_DEFS) — « j » is jours.
+  '0–7 j': '0–7 d',
+  '8–15 j': '8–15 d',
+  '16–30 j': '16–30 d',
+  '31–60 j': '31–60 d',
+  '> 60 j': '> 60 d',
+  // Exception rows compose « base · detail », each translated on its own.
+  // « Sans mouvement » and « Chiffrage en retard » are already above.
+  'RDV passé sans photos': 'Appointment passed, no photos',
+  'Mission hors délai': 'Assignment past due',
 };
