@@ -39,7 +39,7 @@ import { useFirestore, useStorage } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useHotkeys } from '@/hooks/use-hotkeys';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useViewportClass } from '@/hooks/use-viewport-class';
 import { getQueueContext } from '@/lib/queue-session';
 import { enqueueUpload } from '@/lib/offline/upload-queue';
 import {
@@ -186,8 +186,11 @@ export function DevisEditor({
     id: 'sl-auto:devis-editor-split',
     storage: splitStorage,
   });
-  // Below lg (1024) the compare layout stacks instead of splitting.
-  const stackedCompare = useIsMobile();
+  // Below lg (1024) the compare layout stacks instead of splitting. This is a
+  // WIDTH need, not a phone rule: `useIsMobile` now means < 768 (mobile pass
+  // 2026-09-06), so the split keys on the viewport class or a tablet would try
+  // to show two panes in 800 px.
+  const stackedCompare = useViewportClass() !== 'desktop';
 
   // Task #33: post-scan warning / edit-lock state. `scanReviewed` defaults to
   // true so the existing persisted-reload flow is untouched. Only a fresh

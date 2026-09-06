@@ -418,12 +418,12 @@ export default function RapportTab({
             </TabsPrimitive.List>
             <TabsPrimitive.Content value="dessus" className="pt-5 focus-visible:outline-none">
           <div className={cn("space-y-4 rounded-md", highlightClass(pointsChocStatus) && `${highlightClass(pointsChocStatus)} p-3`)}>
-            <div className={cn("grid items-center gap-10", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "mx-auto max-w-md grid-cols-1")}>
+            <div className={cn("grid items-center gap-6 md:gap-10", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "mx-auto max-w-md grid-cols-1")}>
               <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>
                 <CarSvgTop zones={pointsChoc} onToggleZone={canEditDossiers ? (zone) => handleToggleZone(zone) : () => {}} />
               </div>
               {canEditDossiers && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {Object.keys(pointsChoc).map(zone => (
                     <div key={zone} className="flex items-center space-x-3 rounded-md bg-surface-2 p-3 transition-colors hover:bg-surface-3">
                       <Checkbox id={`top-${zone}`} checked={pointsChoc[zone]} onCheckedChange={() => handleToggleZone(zone)} />
@@ -437,7 +437,7 @@ export default function RapportTab({
             </TabsPrimitive.Content>
             <TabsPrimitive.Content value="dessous" className="pt-5 focus-visible:outline-none">
           <div className={cn("space-y-4 rounded-md", highlightClass(pointsChocDessousStatus) && `${highlightClass(pointsChocDessousStatus)} p-3`)}>
-            <div className={cn("grid items-center gap-10", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "mx-auto max-w-md grid-cols-1")}>
+            <div className={cn("grid items-center gap-6 md:gap-10", canEditDossiers ? "grid-cols-1 lg:grid-cols-2" : "mx-auto max-w-md grid-cols-1")}>
               <div className={cn("mx-auto", !canEditDossiers && "pointer-events-none")}>
                 <CarSvgBottom zones={pointsChocDessous} onToggleZone={canEditDossiers ? (zone) => handleToggleZone(zone, true) : () => {}} />
               </div>

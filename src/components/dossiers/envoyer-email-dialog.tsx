@@ -30,6 +30,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { INPUT_EMAIL, INPUT_TEXT } from '@/lib/input-attrs';
+import { FormErrorSummary, useFormErrors, type FieldRule } from '@/components/ui/form';
+import { AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   findLatestChiffrageDocs,
@@ -127,6 +130,36 @@ export function EnvoyerEmailDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sources, checked, refLabel]);
 
+  // Validation on submit; the e-mail address also re-checks on blur once it
+  // looks plausible (Baymard's "after reaching correct character length"
+  // carve-out — §2.6). Messages appear inline AND in the summary (NN/g: a
+  // summary "shouldn't be the only indication").
+  const formErrors = useFormErrors(
+    { recipient, checkedCount: checked.size },
+    React.useMemo<FieldRule<{ recipient: string; checkedCount: number }>[]>(
+      () => [
+        {
+          id: 'email-recipient',
+          label: t('Destinataire'),
+          format: true,
+          plausible: (v) => v.recipient.includes('@') && v.recipient.trim().length > 4,
+          validate: (v) =>
+            !v.recipient.trim()
+              ? t("Renseignez l'adresse du destinataire.")
+              : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.recipient.trim())
+                ? null
+                : t('Adresse e-mail invalide.'),
+        },
+        {
+          id: 'email-sources',
+          label: t('Documents à joindre'),
+          validate: (v) => (v.checkedCount > 0 ? null : t('Sélectionnez au moins un document à joindre.')),
+        },
+      ],
+      [t],
+    ),
+  );
+
   const toggle = (sourceId: string) => {
     setChecked((prev) => {
       const next = new Set(prev);
@@ -137,14 +170,10 @@ export function EnvoyerEmailDialog({
   };
 
   const handleSubmit = async () => {
+    // Errors are never toasts (D §5): they belong under the field and in the
+    // summary at the top of the body (§2.6 / GOV.UK error summary).
+    if (!formErrors.validateAll()) return;
     const picked = sources.filter((s) => checked.has(s.sourceId));
-    if (picked.length === 0) {
-      toast({
-        title: t('Sélectionnez au moins un document à joindre'),
-        variant: 'destructive',
-      });
-      return;
-    }
 
     const payload = {
       to: recipient,
@@ -204,15 +233,29 @@ export function EnvoyerEmailDialog({
     }
   };
 
-  const canSubmit =
-    recipient.trim().length > 0 && checked.size > 0 && !isSubmitting;
+  // §2.6: the primary is NEVER disabled — a disabled button is a dead end
+  // that never says why (Smashing, "Frustrating design patterns: disabled
+  // buttons"). Validation runs on submit and the summary names the fix.
+  const canSubmit = !isSubmitting;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Dialog — element-specs §13 (M3 dialogs: brief headline + one line;
           confirm at the edge, dismissive `outline` to its left; bottom sheet
           below `lg`). 2xl because the message body needs the width. */}
-      <DialogContent className="lg:max-w-2xl">
+      <DialogContent
+        // Two text fields, a textarea and a checkbox list -> full-screen on a
+        // phone (research 2.4); the desktop 2xl dialog is unchanged.
+        fullScreen
+        primary={{
+          label: sent ? t('Envoyé') : t('Envoyer'),
+          onClick: handleSubmit,
+          disabled: sent || !canSubmit,
+          loading: isSubmitting,
+        }}
+        dirty={recipient.trim().length > 0 && !sent}
+        className="lg:max-w-2xl"
+      >
         <DialogHeader>
           <DialogTitle className="t-title">{t('Envoyer un email')}</DialogTitle>
           <DialogDescription>
@@ -224,21 +267,29 @@ export function EnvoyerEmailDialog({
             control, single column, rows 16 apart; the address field carries
             no sample value — an empty input, never a placeholder-as-label). */}
         <div className="space-y-4">
+          <FormErrorSummary errors={formErrors.summary} />
           <div className="space-y-1">
             <Label htmlFor="email-recipient">{t('Destinataire')}</Label>
             <Input
               id="email-recipient"
-              type="email"
-              autoComplete="off"
+              {...INPUT_EMAIL}
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
+              {...formErrors.fieldProps('email-recipient')}
             />
+            {formErrors.errors['email-recipient'] && (
+              <p className="flex items-start gap-1.5 text-[13px] font-medium text-status-danger-fg">
+                <AlertCircle aria-hidden className="mt-px h-4 w-4 shrink-0" />
+                {formErrors.errors['email-recipient']}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1">
             <Label htmlFor="email-subject">{t('Objet')}</Label>
             <Input
               id="email-subject"
+              {...INPUT_TEXT}
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
             />
@@ -248,14 +299,22 @@ export function EnvoyerEmailDialog({
             <Label htmlFor="email-body">{t('Message')}</Label>
             <Textarea
               id="email-body"
-              rows={4}
+              minRows={4}
+              maxRows={10}
+              autoCapitalize="sentences"
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1" id="email-sources" tabIndex={-1}>
             <Label>{t('Documents à joindre')}</Label>
+            {formErrors.errors['email-sources'] && (
+              <p className="flex items-start gap-1.5 text-[13px] font-medium text-status-danger-fg">
+                <AlertCircle aria-hidden className="mt-px h-4 w-4 shrink-0" />
+                {formErrors.errors['email-sources']}
+              </p>
+            )}
             {loading ? (
               <div className="flex items-center gap-2 text-[13px] text-ink-3">
                 <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
@@ -305,10 +364,11 @@ export function EnvoyerEmailDialog({
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
+            className="max-md:hidden"
           >
             {t('Annuler')}
           </Button>
-          <Button onClick={handleSubmit} disabled={sent || !canSubmit} loading={isSubmitting}>
+          <Button onClick={handleSubmit} disabled={sent || !canSubmit} loading={isSubmitting} className="max-md:h-12 max-md:text-[15px] max-md:font-semibold">
             {sent ? <Check className="h-4 w-4" /> : null}
             {sent ? t('Envoyé') : isSubmitting ? t('Envoi…') : t('Envoyer')}
           </Button>

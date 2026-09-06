@@ -314,13 +314,13 @@ export default function TamponsSettingsPage() {
 
       {/* Card 1 — element-specs §5 (Material 3 cards: one topic per container). */}
       <Card data-tour="tam-import">
-        <CardHeader>
+        <CardHeader className="max-md:p-4 max-md:pb-2">
           <CardTitle className="t-heading">{t('Importer des tampons')}</CardTitle>
           <CardDescription className="t-caption">
             {t("Le nom du tampon est dérivé du nom de fichier, sans l'extension.")}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 max-md:p-4 max-md:pt-0">
           {/* File picker — element-specs §21 (owner ruling: ONE plain button
               that is also a drop target, ring on drag-over, no banner, no
               dashed panel, no copy). Emphasis follows the job (§8, GOV.UK
@@ -333,14 +333,14 @@ export default function TamponsSettingsPage() {
               variant={queued.length > 0 ? 'tonal' : 'default'}
               onClick={openPicker}
               disabled={isImporting}
-              className={cn(dragOver && 'ring-2 ring-ring ring-offset-2 ring-offset-background')}
+              className={cn('max-md:h-12 max-md:w-full', dragOver && 'ring-2 ring-ring ring-offset-2 ring-offset-background')}
               {...dropProps}
             >
               <ImageIcon className="h-4 w-4" aria-hidden />
               {t('Choisir des images')}
             </Button>
             {queued.length > 0 && !isImporting && (
-              <Button type="button" onClick={handleBatchImport}>
+              <Button type="button" onClick={handleBatchImport} className="max-md:h-12 max-md:w-full">
                 {t('Importer')} {queued.length} {queued.length > 1 ? t('tampons') : t('tampon')}
               </Button>
             )}
@@ -406,7 +406,7 @@ export default function TamponsSettingsPage() {
 
       {/* Card 2 — the registered stamps as a vertical LIST (original layout). */}
       <Card data-tour="tam-list">
-        <CardHeader>
+        <CardHeader className="max-md:p-4 max-md:pb-2">
           <CardTitle className="t-heading flex items-center gap-2">
             {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip beside the
                 section that anchors the page. */}
@@ -417,7 +417,7 @@ export default function TamponsSettingsPage() {
             {t('Activez, désactivez ou supprimez les tampons existants.')}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="max-md:p-4 max-md:pt-0">
           {stampsLoading ? (
             // Row-shaped skeleton (§15), not a spinner.
             <div className="divide-y divide-hairline border-t border-hairline">
@@ -458,7 +458,7 @@ export default function TamponsSettingsPage() {
                 const assignees = assigneesByStampId.get(stamp.id) ?? [];
                 const switchId = `stamp-active-${stamp.id}`;
                 return (
-                  <li key={stamp.id} className="flex flex-wrap items-center gap-4 py-3">
+                  <li key={stamp.id} className="flex min-h-[64px] flex-wrap items-center gap-4 py-3 max-md:gap-3">
                     <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-surface-3 p-1 shadow-rim">
                       {stamp.url ? (
                         <img
@@ -519,13 +519,13 @@ export default function TamponsSettingsPage() {
 
       {/* Card 3 — assignment rows. */}
       <Card data-tour="tam-assign">
-        <CardHeader>
+        <CardHeader className="max-md:p-4 max-md:pb-2">
           <CardTitle className="t-heading">{t('Assignation par chiffreur')}</CardTitle>
           <CardDescription className="t-caption">
             {t('Sélectionnez le tampon à utiliser pour chaque chiffreur. Chaque chiffreur peut avoir un tampon distinct.')}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="max-md:p-4 max-md:pt-0">
           {chiffreursLoading ? (
             <div className="divide-y divide-hairline border-t border-hairline">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -571,7 +571,7 @@ export default function TamponsSettingsPage() {
                 return (
                   <li
                     key={u.id}
-                    className="flex flex-wrap items-center gap-3 py-3"
+                    className="flex min-h-[64px] flex-wrap items-center gap-3 py-3"
                   >
                     <div className="flex min-w-0 flex-1 basis-60 items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-3 p-0.5 shadow-rim">
@@ -600,12 +600,12 @@ export default function TamponsSettingsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="w-full sm:w-72">
+                    <div className="w-full md:w-72">
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
-                            className="w-full justify-between font-normal"
+                            className="w-full justify-between font-normal max-md:h-12"
                             aria-label={`${t('Tampons de')} ${label}`}
                           >
                             <span className="truncate text-left">{triggerLabel}</span>

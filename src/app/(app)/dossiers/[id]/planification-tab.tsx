@@ -182,7 +182,7 @@ export default function PlanificationTab({
                     </Button>
                   </div>
 
-                  <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                  <dl className="grid grid-cols-1 gap-x-6 gap-y-2 md:grid-cols-2">
                     <div>
                       <dt className="t-label">{t('Agent de terrain')}</dt>
                       <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-ink">
@@ -197,7 +197,7 @@ export default function PlanificationTab({
                         {plan.zone || <span className="font-normal text-ink-3">—</span>}
                       </dd>
                     </div>
-                    <div className="sm:col-span-2">
+                    <div className="md:col-span-2">
                       <dt className="t-label">{t('Adresse complète')}</dt>
                       <dd className="mt-0.5 text-sm text-ink">{plan.adresse || <span className="text-ink-3">—</span>}</dd>
                     </div>

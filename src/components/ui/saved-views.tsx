@@ -55,6 +55,52 @@ function sameFilters(a: any, b: any): boolean {
   }
 }
 
+/**
+ * The saved-view store, headless — so the phone « Filtres » sheet can offer
+ * the same views the desktop dropdown does (mobile-synthesis §4: the sheet
+ * carries EVERY desktop filter, saved views included) without mounting a
+ * `DropdownMenu` inside a bottom sheet.
+ */
+export function useSavedViews<T extends Record<string, any>>(storageKey: string, current: T) {
+  const t = useT();
+  const [views, setViews] = useState<SavedView<T>[]>([]);
+  useEffect(() => setViews(read<T>(storageKey)), [storageKey]);
+
+  const active = views.find((v) => sameFilters(v.filters, current));
+
+  /** Prompt for a name and store `snapshot` (defaults to the current filters). */
+  const save = useCallback(
+    (snapshot?: T) => {
+      const filters = snapshot ?? current;
+      const name = window.prompt(t('Nom de la vue :'), active?.name ?? '');
+      if (!name || !name.trim()) return;
+      const trimmed = name.trim();
+      setViews((prev) => {
+        const existing = prev.find((v) => v.name.toLowerCase() === trimmed.toLowerCase());
+        const next = existing
+          ? prev.map((v) => (v.id === existing.id ? { ...v, filters, createdAt: Date.now() } : v))
+          : [...prev, { id: `v-${Date.now()}`, name: trimmed, filters, createdAt: Date.now() }];
+        write(storageKey, next);
+        return next;
+      });
+    },
+    [active, current, storageKey, t],
+  );
+
+  const remove = useCallback(
+    (id: string) => {
+      setViews((prev) => {
+        const next = prev.filter((v) => v.id !== id);
+        write(storageKey, next);
+        return next;
+      });
+    },
+    [storageKey],
+  );
+
+  return { views, active, save, remove };
+}
+
 export function SavedViews<T extends Record<string, any>>({
   storageKey,
   current,
@@ -70,35 +116,7 @@ export function SavedViews<T extends Record<string, any>>({
   dataTour?: string;
 }) {
   const t = useT();
-  const [views, setViews] = useState<SavedView<T>[]>([]);
-  useEffect(() => setViews(read<T>(storageKey)), [storageKey]);
-
-  const active = views.find((v) => sameFilters(v.filters, current));
-
-  const save = useCallback(() => {
-    const name = window.prompt(t('Nom de la vue :'), active?.name ?? '');
-    if (!name || !name.trim()) return;
-    const trimmed = name.trim();
-    setViews((prev) => {
-      const existing = prev.find((v) => v.name.toLowerCase() === trimmed.toLowerCase());
-      const next = existing
-        ? prev.map((v) => (v.id === existing.id ? { ...v, filters: current, createdAt: Date.now() } : v))
-        : [...prev, { id: `v-${Date.now()}`, name: trimmed, filters: current, createdAt: Date.now() }];
-      write(storageKey, next);
-      return next;
-    });
-  }, [active, current, storageKey, t]);
-
-  const remove = useCallback(
-    (id: string) => {
-      setViews((prev) => {
-        const next = prev.filter((v) => v.id !== id);
-        write(storageKey, next);
-        return next;
-      });
-    },
-    [storageKey],
-  );
+  const { views, active, save, remove } = useSavedViews<T>(storageKey, current);
 
   return (
     <DropdownMenu>
@@ -131,7 +149,7 @@ export function SavedViews<T extends Record<string, any>>({
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={save}>
+        <DropdownMenuItem onSelect={() => save()}>
           <BookmarkPlus className="mr-2 h-4 w-4" />
           {active ? t('Mettre à jour cette vue…') : t('Enregistrer la vue actuelle…')}
         </DropdownMenuItem>

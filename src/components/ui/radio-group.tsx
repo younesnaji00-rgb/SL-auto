@@ -29,7 +29,10 @@ const RadioGroupItem = React.forwardRef<
       ref={ref}
       className={cn(
         // Rimmed control; accent ring + dot when checked; no scale motion.
-        "aspect-square h-4 w-4 rounded-full border border-hairline-strong bg-card text-primary shadow-rim ring-offset-background transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary",
+        // On touch a transparent ::before grows the hit area to 44 px without
+        // changing the painted control (density §7).
+        "relative aspect-square h-4 w-4 max-md:h-5 max-md:w-5 rounded-full border border-hairline-strong bg-card text-primary shadow-rim ring-offset-background transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary",
+        "max-md:before:absolute max-md:before:-inset-3 max-md:before:content-['']",
         className
       )}
       {...props}

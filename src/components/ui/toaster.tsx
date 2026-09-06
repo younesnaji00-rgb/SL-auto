@@ -3,6 +3,7 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info } from "lucide-react"
 
 import { useToast } from "@/hooks/use-toast"
+import { useIsPhone } from "@/hooks/use-viewport-class"
 import {
   Toast,
   ToastClose,
@@ -29,9 +30,12 @@ const TOAST_DURATION_MS = 5000
 
 export function Toaster() {
   const { toasts } = useToast()
+  // Swipe follows the position (Sonner): the phone toast sits at the bottom
+  // of the screen, so it is flicked DOWN, not to the right (D §5).
+  const isPhone = useIsPhone()
 
   return (
-    <ToastProvider duration={TOAST_DURATION_MS}>
+    <ToastProvider duration={TOAST_DURATION_MS} swipeDirection={isPhone ? "down" : "right"}>
       {toasts.map(function ({ id, title, description, action, ...props }) {
         const Icon = props.variant ? STATUS_ICON[props.variant as keyof typeof STATUS_ICON] : undefined
         return (

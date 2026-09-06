@@ -77,11 +77,14 @@ export function ChiffreurDashboard({ chiffrages, dossiers, holidays, now, person
 
   return (
     <div className="space-y-6">
-      <div data-tour="dash-tiles" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div data-tour="dash-tiles" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatTile
           label={t('En attente')}
           value={tiles.enAttente}
           size="hero"
+          // The one hero of the view is full width on a phone: a 48 px figure
+          // does not fit a 2-up tile at 320 px (density §4).
+          className="col-span-2 sm:col-span-1"
           loading={loading}
           caption={<span>{tiles.revisionsEnAttente} {t('révisions')} · {t('maintenant')}</span>}
           href="/assignations-chiffrage"

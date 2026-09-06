@@ -13,7 +13,7 @@ import { WorkspaceTabsProvider } from '@/hooks/use-workspace-tabs';
 import { PageChromeProvider, SkipToContent } from '@/components/layout/page-chrome';
 import { ShellUiProvider } from '@/components/layout/shell-ui';
 import WorkspaceTabs from '@/components/layout/workspace-tabs';
-import MobileNav from '@/components/layout/mobile-nav';
+import MobileNav, { useBottomBarState } from '@/components/layout/mobile-nav';
 import { useRouter, usePathname } from 'next/navigation';
 import { PageLoader } from '@/components/ui/page-loader';
 import { TutorialLauncher } from '@/components/tutorial/tutorial-launcher';
@@ -63,8 +63,24 @@ function AppShell({ children }: { children: React.ReactNode }) {
     FLUSH_ROUTE_PATTERNS.some((re) => re.test(pathname));
   const uncapped = UNCAPPED_ROUTES.some((r) => pathname === r);
 
+  // ONE bottom bar at a time (mobile-synthesis §2): the nav bar, a page's
+  // <BottomActionBar>, or nothing (keyboard open / phone landscape). The
+  // height lands in `--bottom-bar` so the page scroller, the toasts and the
+  // sheets all clear whatever is actually there.
+  const bottomBar = useBottomBarState();
+  const bottomBarHeight =
+    bottomBar === 'nav'
+      ? 'calc(56px + env(safe-area-inset-bottom))'
+      : bottomBar === 'action'
+        ? 'calc(56px + env(safe-area-inset-bottom))'
+        : '0px';
+
   return (
-    <div className="relative flex h-svh w-full overflow-hidden">
+    <div
+      className="relative flex h-svh w-full overflow-hidden"
+      data-bottom-bar={bottomBar}
+      style={{ ['--bottom-bar' as string]: bottomBarHeight }}
+    >
       <SkipToContent />
       <CompagnieLogosPreload />
       <AppSidebar />
@@ -80,7 +96,11 @@ function AppShell({ children }: { children: React.ReactNode }) {
           // the gutter must be reserved here or a filter/tab change that
           // shrinks the content below one screen drops the scrollbar and
           // shifts the centered column (owner 2026-09-02, « par compagnie »).
-          className="min-h-0 flex-1 overflow-y-auto bg-background/35 pb-[calc(60px+env(safe-area-inset-bottom))] [scrollbar-gutter:stable] lg:pb-0"
+          //
+          // `scroll-padding-top` keeps hash targets and `scrollIntoView` clear
+          // of the sticky phone bars (top bar 48 + a page's own sticky row).
+          className="min-h-0 flex-1 overflow-y-auto bg-background/35 [scrollbar-gutter:stable] scroll-pt-[104px] md:scroll-pt-0"
+          style={{ paddingBottom: 'var(--bottom-bar, 0px)' }}
           tabIndex={-1}
         >
           <div

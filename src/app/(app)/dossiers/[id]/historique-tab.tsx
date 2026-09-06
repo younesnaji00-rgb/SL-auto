@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { CheckCircle, XCircle, AlertTriangle, User } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,10 +19,10 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useDossierDocWrite, applyPendingToDossier } from './rappel-draft';
-import { displayUserName } from '@/lib/display-user';
 import { UserNameLink } from '@/components/user-name-link';
 import { useT, intlLocale } from '@/i18n';
 import { auditText } from '@/lib/audit-i18n';
+import { cn } from '@/lib/utils';
 
 /**
  * AI-sourced date fields visible in Dates clés. For these fields:
@@ -38,29 +38,28 @@ const AI_SOURCED_DATE_FIELDS = new Set<string>([
   'dateSinistre',
 ]);
 
-type HistoriqueTabProps = {
-  dossierId: string;
-};
+/** Entry types the status timeline shows (round 9 item 005 kept `document`). */
+export const TIMELINE_ENTRY_TYPES = new Set(['statut', 'sinistre_douteux', 'document']);
 
-export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
-  const t = useT();
-  const db = useFirestore();
-  const auth = useAuth();
-  const { toast } = useToast();
-  const { canWrite } = useCurrentUser();
+export interface DateClesRow {
+  label: string;
+  /** Dossier field name when the row is inline-editable. */
+  field?: string;
+  value: any;
+}
 
+/**
+ * The historique subcollection + the parent dossier doc, with the rappel-draft
+ * buffer overlaid (an in-session date edit shows immediately, publishes on
+ * « Sauvegarder »). Shared by the desktop tab and the phone full screen
+ * (docs/research/mobile-record-pages.md E9) so there is one listener pair.
+ */
+export function useHistoriqueData(dossierId: string) {
   const [entries, setEntries] = useState<any[]>([]);
   const [rawDossier, setRawDossier] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
-  // Rappel session: date edits & sinistre-douteux decisions buffer until
-  // « Sauvegarder »; the displayed dossier gets the buffer overlaid so the
-  // Dates clés reflect the session's local edits.
-  const { write: writeDossierDoc, buffered, draft } = useDossierDocWrite(dossierId);
-  const dossier = useMemo(
-    () => (draft.active ? applyPendingToDossier(rawDossier, draft.pending) : rawDossier),
-    [rawDossier, draft.active, draft.pending],
-  );
+  const db = useFirestore();
+  const { draft } = useDossierDocWrite(dossierId);
 
   // Listen to historique subcollection
   useEffect(() => {
@@ -70,7 +69,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       collection(db, 'dossiers', dossierId, 'historique'),
       orderBy('date', 'desc')
     );
-    
+
     const unsubscribeHistory = onSnapshot(q, (snapshot) => {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setEntries(items);
@@ -79,7 +78,7 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       console.error('Historique listener error:', err);
       setLoading(false);
     });
-    
+
     return () => unsubscribeHistory();
   }, [db, dossierId]);
 
@@ -92,32 +91,65 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
         setRawDossier({ id: snapshot.id, ...snapshot.data() });
       }
     });
-    
+
     return () => unsubscribeDossier();
   }, [db, dossierId]);
 
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return t('Date inconnue');
-    const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return d.toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' })
-      + ' ' + d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
-  };
+  const dossier = useMemo(
+    () => (draft.active ? applyPendingToDossier(rawDossier, draft.pending) : rawDossier),
+    [rawDossier, draft.active, draft.pending],
+  );
 
-  /**
-   * Format for the Dates clés table: when `timeKnown` is false, the time
-   * portion renders as `--/--` (Q-2 / item 006). Date is still shown when
-   * the value is present.
-   */
-  const formatDateWithTimeFlag = (value: any, timeKnown: boolean): string => {
-    if (!value) return '—';
-    const d = value.toDate ? value.toDate() : new Date(value);
-    const datePart = d.toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
-    if (!timeKnown) return `${datePart} --/--`;
-    const timePart = d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
-    return `${datePart} ${timePart}`;
-  };
+  return { entries, dossier, loading };
+}
 
-  const currentUserEmail = auth?.currentUser?.email || 'Admin';
+/** `dd/MM/yyyy HH:mm` — the audit-row stamp. */
+export function formatAuditDate(timestamp: any, fallback: string): string {
+  if (!timestamp) return fallback;
+  const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  return d.toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' })
+    + ' ' + d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Every « Dates clés » row in reading order. Phase rows stay adjacent so a
+ * one-column list keeps demande → expertise together.
+ */
+export function buildDatesClesRows(dossier: any, t: (s: string) => string): DateClesRow[] {
+  const phases = (['avant', 'en cours', 'après'] as const).flatMap((phase) => {
+    const key = phase === 'avant' ? 'Avant' : phase === 'en cours' ? 'EnCours' : 'Apres';
+    return [
+      { label: `${t('Date demande expertise')} (${t(phase)})`, value: dossier?.[`dateDemandeExpertise${key}`] },
+      { label: `${t('Date expertise')} (${t(phase)})`, value: dossier?.[`datePhotos${key}`] },
+    ];
+  });
+  return [
+    { label: t('Date réception mission'), field: 'dateRequete', value: dossier?.dateRequete },
+    { label: t('Date sinistre'), field: 'dateSinistre', value: dossier?.dateSinistre },
+    { label: t('Date création dossier'), field: 'createdAt', value: dossier?.createdAt },
+    { label: t('Date mission AT'), field: 'dateMissionAgentTerrain', value: dossier?.dateMissionAgentTerrain },
+    ...phases,
+    { label: t('Date chiffrage'), value: dossier?.dateChiffrage },
+    { label: t('Date validation facture'), value: dossier?.dateFactureValide },
+    { label: t('Date envoi accord devis'), value: dossier?.dateEnvoiAccordDevis },
+    { label: t('Date validation rapport'), value: dossier?.directorValidated?.at },
+    { label: t('Date dépôt rapport'), value: dossier?.dateRapportDepose },
+    { label: t("Date dépôt note d'honoraire"), value: (dossier as any)?.dateDepotNoteHonoraire },
+  ];
+}
+
+/**
+ * « Dates clés » — the dossier's date ledger, with inline editing of the two
+ * AI-sourced fields (item 007). `layout="list"` is the phone form: one column,
+ * 40 px rows, label over value (mobile-record-pages.md E9); `layout="grid"` is
+ * the desktop tab's two-column arrangement.
+ */
+export function DatesCles({ dossierId, dossier, layout = 'grid' }: { dossierId: string; dossier: any; layout?: 'grid' | 'list' }) {
+  const t = useT();
+  const db = useFirestore();
+  const { toast } = useToast();
+  const { canWrite } = useCurrentUser();
+  const { write: writeDossierDoc, buffered } = useDossierDocWrite(dossierId);
 
   // Item 007 — inline edit of AI-sourced date/time when the gestionnaire wants
   // to fill what the AI didn't pick up. State is per-row keyed by the
@@ -263,7 +295,9 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
     }, 0);
   };
 
-  const renderDateClesRow = (row: { label: string; field?: string; value: any }) => {
+  const list = layout === 'list';
+
+  const renderDateClesRow = (row: DateClesRow) => {
     const aiSourced = !!row.field && AI_SOURCED_DATE_FIELDS.has(row.field);
     const timeKnown = aiSourced ? !!dossier?.[`${row.field}TimeKnown`] : true;
     // Source provenance for AI-sourced fields. Legacy rows (set before the
@@ -293,19 +327,24 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
 
     const aiTextStyle = isAiFilled ? 'text-ink-3 italic' : 'text-ink';
     const inlineInputClass =
-      'h-6 px-1.5 text-sm rounded border border-input bg-background ' +
+      'h-8 px-1.5 text-sm rounded border border-input bg-background ' +
       'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring tabular-nums';
     // Subtle hover-only affordance — no underline so the `--/--` / `—`
-    // glyphs aren't visually doubled.
+    // glyphs aren't visually doubled. On touch the row is a 44 px target.
     const dashedClickable =
       'cursor-pointer rounded px-1 hover:bg-surface-2 hover:text-ink transition-colors';
 
     return (
-      <div className="flex items-center justify-between border-b border-hairline py-1.5 text-sm last:border-0">
-        <span className="text-ink-3">{row.label}</span>
+      <div
+        className={cn(
+          'flex items-center justify-between gap-3 border-b border-hairline text-sm last:border-0',
+          list ? 'min-h-[40px] py-1' : 'py-1.5',
+        )}
+      >
+        <span className="min-w-0 text-ink-3">{row.label}</span>
         <span
           ref={inEdit ? editRowRef : undefined}
-          className={`flex items-center gap-1.5 font-medium tabular-nums ${aiTextStyle}`}
+          className={`flex shrink-0 items-center gap-1.5 font-medium tabular-nums ${aiTextStyle}`}
         >
           {inEdit ? (
             <>
@@ -368,9 +407,75 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
     );
   };
 
-  // Approve/reject share one path: the dossier write goes through the rappel
-  // buffer (when a session is active) and the audit entry is deferred with it
-  // so the historique never gets ahead of the visible dossier state.
+  // Phone: ONE column, 40 px rows, no `md:grid-cols-2` (E9 do-not list).
+  if (list) {
+    return (
+      <div>
+        {buildDatesClesRows(dossier, t).map((row) => (
+          <React.Fragment key={row.label}>{renderDateClesRow(row)}</React.Fragment>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Top block: single-column rows (no left/right pairing). */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+        {[
+          { label: t('Date réception mission'), field: 'dateRequete', value: dossier?.dateRequete },
+          { label: t('Date sinistre'), field: 'dateSinistre', value: dossier?.dateSinistre },
+          { label: t('Date création dossier'), field: 'createdAt', value: dossier?.createdAt },
+          { label: t('Date mission AT'), field: 'dateMissionAgentTerrain', value: dossier?.dateMissionAgentTerrain },
+        ].map((row) => (
+          <React.Fragment key={row.label}>{renderDateClesRow(row)}</React.Fragment>
+        ))}
+      </div>
+      {/* Paired rows: demande on the left, expertise on the right, per phase. */}
+      {([
+        { phase: 'avant', demande: dossier?.dateDemandeExpertiseAvant, expertise: dossier?.datePhotosAvant },
+        { phase: 'en cours', demande: dossier?.dateDemandeExpertiseEnCours, expertise: dossier?.datePhotosEnCours },
+        { phase: 'après', demande: dossier?.dateDemandeExpertiseApres, expertise: dossier?.datePhotosApres },
+      ] as const).map((row) => (
+        <div key={row.phase} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+          {renderDateClesRow({ label: `${t('Date demande expertise')} (${t(row.phase)})`, value: row.demande })}
+          {renderDateClesRow({ label: `${t('Date expertise')} (${t(row.phase)})`, value: row.expertise })}
+        </div>
+      ))}
+      {/* Tail block: remaining single-column rows. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+        {[
+          { label: t('Date chiffrage'), value: dossier?.dateChiffrage },
+          { label: t('Date validation facture'), value: dossier?.dateFactureValide },
+          { label: t('Date envoi accord devis'), value: dossier?.dateEnvoiAccordDevis },
+          { label: t('Date validation rapport'), value: dossier?.directorValidated?.at },
+          { label: t('Date dépôt rapport'), value: dossier?.dateRapportDepose },
+          { label: t("Date dépôt note d'honoraire"), value: (dossier as any)?.dateDepotNoteHonoraire },
+        ].map((row) => (
+          <React.Fragment key={row.label}>{renderDateClesRow(row)}</React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sinistre douteux — the one coloured callout the history keeps on every
+ * viewport (E9: "no colour except the sinistre-douteux callout"). Approve and
+ * reject share one path: the dossier write goes through the rappel buffer
+ * (when a session is active) and the audit entry is deferred with it so the
+ * historique never gets ahead of the visible dossier state.
+ */
+export function SinistreDouteuxCallout({ dossierId, dossier }: { dossierId: string; dossier: any }) {
+  const t = useT();
+  const db = useFirestore();
+  const auth = useAuth();
+  const { toast } = useToast();
+  const { write: writeDossierDoc, buffered, draft } = useDossierDocWrite(dossierId);
+  const currentUserEmail = auth?.currentUser?.email || 'Admin';
+
+  if (!dossier?.sinistreDouteux?.active) return null;
+
   const handleDouteuxDecision = async (decision: 'Sinistre Douteux Approuvé' | 'Sinistre Douteux Rejeté') => {
     if (!db || !dossierId) return;
     const details =
@@ -402,8 +507,46 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
     }
   };
 
-  const handleApprove = () => handleDouteuxDecision('Sinistre Douteux Approuvé');
-  const handleReject = () => handleDouteuxDecision('Sinistre Douteux Rejeté');
+  return (
+    // Danger pair on a flat surface: one primary (approve) + one destructive (reject).
+    <Card variant="flat" className="bg-status-danger-bg" role="alert">
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div className="rounded-full bg-card/70 p-2 text-status-danger-fg">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+          <div className="flex-1 space-y-1">
+            <h3 className="t-heading text-status-danger-fg">{t('Sinistre Douteux - En attente de validation')}</h3>
+            <p className="text-sm text-ink-2">
+              {t('Demandé par')} <span className="font-semibold text-ink">{dossier.sinistreDouteux.demandePar || 'N/A'}</span> {t('le')} {formatAuditDate(dossier.sinistreDouteux.dateDemande, t('Date inconnue'))}
+            </p>
+            {dossier.sinistreDouteux.motif && (
+              <p className="mt-2 rounded-md bg-card/70 p-2 text-sm italic text-ink-2">
+                &quot;{dossier.sinistreDouteux.motif}&quot;
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button onClick={() => handleDouteuxDecision('Sinistre Douteux Approuvé')} className="gap-2" size="sm">
+                <CheckCircle className="h-4 w-4" /> {t('Approuver')}
+              </Button>
+              <Button onClick={() => handleDouteuxDecision('Sinistre Douteux Rejeté')} variant="destructive" className="gap-2" size="sm">
+                <XCircle className="h-4 w-4" /> {t('Rejeter')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type HistoriqueTabProps = {
+  dossierId: string;
+};
+
+export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
+  const t = useT();
+  const { entries, dossier, loading } = useHistoriqueData(dossierId);
 
   if (loading) {
     return (
@@ -424,6 +567,8 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
     );
   }
 
+  const statusEntries = entries.filter((e) => TIMELINE_ENTRY_TYPES.has(e.type));
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="space-y-1">
@@ -435,125 +580,49 @@ export default function HistoriqueTab({ dossierId }: HistoriqueTabProps) {
       <Card>
         <CardContent className="space-y-4 p-5">
           <h3 className="t-heading">{t('Dates clés')}</h3>
-          {/* Top block: single-column rows (no left/right pairing). */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-            {[
-              { label: t('Date réception mission'), field: 'dateRequete',          value: dossier?.dateRequete },
-              { label: t('Date sinistre'),          field: 'dateSinistre',         value: dossier?.dateSinistre },
-              { label: t('Date création dossier'),  field: 'createdAt',            value: dossier?.createdAt },
-              { label: t('Date mission AT'),        field: 'dateMissionAgentTerrain', value: dossier?.dateMissionAgentTerrain },
-            ].map((row) => (
-              <React.Fragment key={row.label}>{renderDateClesRow(row)}</React.Fragment>
-            ))}
-          </div>
-          {/* Paired rows: demande on the left, expertise on the right, per phase. */}
-          {([
-            { phase: 'avant',    demande: dossier?.dateDemandeExpertiseAvant,    expertise: dossier?.datePhotosAvant },
-            { phase: 'en cours', demande: dossier?.dateDemandeExpertiseEnCours,  expertise: dossier?.datePhotosEnCours },
-            { phase: 'après',    demande: dossier?.dateDemandeExpertiseApres,    expertise: dossier?.datePhotosApres },
-          ] as const).map((row) => (
-            <div key={row.phase} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-              {renderDateClesRow({ label: `${t('Date demande expertise')} (${t(row.phase)})`, value: row.demande })}
-              {renderDateClesRow({ label: `${t('Date expertise')} (${t(row.phase)})`, value: row.expertise })}
-            </div>
-          ))}
-          {/* Tail block: remaining single-column rows. */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-            {[
-              { label: t('Date chiffrage'), value: dossier?.dateChiffrage },
-              { label: t('Date validation facture'), value: dossier?.dateFactureValide },
-              { label: t('Date envoi accord devis'), value: dossier?.dateEnvoiAccordDevis },
-              { label: t('Date validation rapport'), value: dossier?.directorValidated?.at },
-              { label: t('Date dépôt rapport'), value: dossier?.dateRapportDepose },
-              { label: t("Date dépôt note d'honoraire"), value: (dossier as any)?.dateDepotNoteHonoraire },
-            ].map((row) => (
-              <React.Fragment key={row.label}>{renderDateClesRow(row)}</React.Fragment>
-            ))}
-          </div>
+          <DatesCles dossierId={dossierId} dossier={dossier} layout="grid" />
         </CardContent>
       </Card>
 
       {/* SINISTRE DOUTEUX APPROVAL BANNER */}
-      {dossier?.sinistreDouteux?.active && (
-        // Danger pair on a flat surface: one primary (approve) + one destructive (reject).
-        <Card variant="flat" className="bg-status-danger-bg" role="alert">
-          <CardContent className="p-5">
-            <div className="flex items-start gap-4">
-              <div className="rounded-full bg-card/70 p-2 text-status-danger-fg">
-                <AlertTriangle className="h-6 w-6" />
-              </div>
-              <div className="flex-1 space-y-1">
-                <h3 className="t-heading text-status-danger-fg">{t('Sinistre Douteux - En attente de validation')}</h3>
-                <p className="text-sm text-ink-2">
-                  {t('Demandé par')} <span className="font-semibold text-ink">{dossier.sinistreDouteux.demandePar || 'N/A'}</span> {t('le')} {formatDate(dossier.sinistreDouteux.dateDemande)}
-                </p>
-                {dossier.sinistreDouteux.motif && (
-                  <p className="mt-2 rounded-md bg-card/70 p-2 text-sm italic text-ink-2">
-                    &quot;{dossier.sinistreDouteux.motif}&quot;
-                  </p>
-                )}
-                <div className="mt-4 flex gap-3">
-                  <Button
-                    onClick={handleApprove}
-                    className="gap-2"
-                    size="sm"
-                  >
-                    <CheckCircle className="h-4 w-4" /> {t('Approuver')}
-                  </Button>
-                  <Button
-                    onClick={handleReject}
-                    variant="destructive"
-                    className="gap-2"
-                    size="sm"
-                  >
-                    <XCircle className="h-4 w-4" /> {t('Rejeter')}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <SinistreDouteuxCallout dossierId={dossierId} dossier={dossier} />
 
       {/* TIMELINE — status changes + chiffreur document saves. Round 9
           item 005: include 'document' so the gestionnaire sees exactly
           what type of doc the chiffreur edited ("Enregistré Devis Garage"
           etc.) in the same audit timeline. */}
-      {(() => {
-        const statusEntries = entries.filter((e) => e.type === 'statut' || e.type === 'sinistre_douteux' || e.type === 'document');
-        return statusEntries.length === 0 ? (
-          <div className="py-16 text-center">
-            <p className="t-heading">{t('Aucun changement de statut')}</p>
-            <p className="t-caption mt-1">{t('Aucun changement de statut enregistré pour ce dossier.')}</p>
-          </div>
-        ) : (
-          <div className="relative pl-8 pt-4">
-            {/* Vertical line */}
-            <div className="absolute bottom-0 left-[5px] top-0 w-0.5 bg-hairline-strong" />
+      {statusEntries.length === 0 ? (
+        <div className="py-16 text-center">
+          <p className="t-heading">{t('Aucun changement de statut')}</p>
+          <p className="t-caption mt-1">{t('Aucun changement de statut enregistré pour ce dossier.')}</p>
+        </div>
+      ) : (
+        <div className="relative pl-8 pt-4">
+          {/* Vertical line */}
+          <div className="absolute bottom-0 left-[5px] top-0 w-0.5 bg-hairline-strong" />
 
-            <div className="space-y-8">
-              {statusEntries.map((entry) => (
-                <div key={entry.id} className="relative">
-                  {/* Bullet */}
-                  <div className="absolute -left-[27px] top-1.5 z-10 h-3 w-3 rounded-full border-2 border-background bg-ink-3" />
+          <div className="space-y-8">
+            {statusEntries.map((entry) => (
+              <div key={entry.id} className="relative">
+                {/* Bullet */}
+                <div className="absolute -left-[27px] top-1.5 z-10 h-3 w-3 rounded-full border-2 border-background bg-ink-3" />
 
-                  <div className="space-y-1">
-                    <p className="t-heading">{auditText(entry.action, t)}</p>
-                    <p className="t-caption">
-                      {formatDate(entry.date)} {t('par')} <UserNameLink entry={entry} className="font-medium text-ink-2" />
-                    </p>
-                    {entry.details && (
-                      <div className="mt-2 border-l-2 border-hairline-strong py-0.5 pl-4 text-sm italic text-ink-2">
-                        &quot;{auditText(entry.details, t)}&quot;
-                      </div>
-                    )}
-                  </div>
+                <div className="space-y-1">
+                  <p className="t-heading">{auditText(entry.action, t)}</p>
+                  <p className="t-caption">
+                    {formatAuditDate(entry.date, t('Date inconnue'))} {t('par')} <UserNameLink entry={entry} className="font-medium text-ink-2" />
+                  </p>
+                  {entry.details && (
+                    <div className="mt-2 border-l-2 border-hairline-strong py-0.5 pl-4 text-sm italic text-ink-2">
+                      &quot;{auditText(entry.details, t)}&quot;
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
   );
 }

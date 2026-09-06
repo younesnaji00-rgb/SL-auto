@@ -221,7 +221,7 @@ export function DirectionDashboard({ dossiers, chiffrages, missions, workflowLog
       </Card>
 
       {/* ── Bloc 2 — five tiles, the ceiling (demo-impact D1, R17) ── */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" data-tour="dir-tiles">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5" data-tour="dir-tiles">
         <StatTile
           label={t('En retard maintenant')}
           value={lateNow}

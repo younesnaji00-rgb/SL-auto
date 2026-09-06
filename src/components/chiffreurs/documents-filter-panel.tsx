@@ -693,7 +693,7 @@ export function DocumentsFilterPanel(props: DocumentsFilterPanelProps) {
                       {/* Hover / focus overlay with actions (dark functional scrim) */}
                       <div
                         className={cn(
-                          'absolute inset-0 flex items-center justify-center gap-1.5 bg-ink-solid/60 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100',
+                          'absolute inset-0 flex items-center justify-center gap-1.5 bg-ink-solid/60 transition-opacity duration-150 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100',
                           selectionMode && 'hidden'
                         )}
                       >

@@ -318,7 +318,10 @@ export default function ChiffrageTab({ dossierId }: { dossierId: string }) {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 ml-auto opacity-0 group-hover:opacity-100"
+                            // Touch has no hover: the delete stays visible on coarse pointers
+                            // (mobile pass 2026-09-06 — a hover-revealed control is
+                            // simply unreachable on a phone).
+                            className="ml-auto h-7 w-7 p-0 text-destructive hover:bg-destructive/10 max-md:h-11 max-md:w-11 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                             onClick={() => setDeletingIndex(i)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />

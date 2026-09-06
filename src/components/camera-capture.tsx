@@ -1,10 +1,17 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Camera, X, Trash2, Check, RotateCcw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { X, Check, SwitchCamera } from 'lucide-react';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
+
+/**
+ * Camera chrome sits on top of a live viewfinder whose brightness is unknown,
+ * so every glyph carries a 1 px shadow (LeewayHertz camera study: "use a
+ * gradient background or a single-pixel shadow behind the icons … to keep them
+ * visible on all kind of camera view backgrounds").
+ */
+const GLYPH_SHADOW = 'drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]';
 
 interface CapturedPhoto {
   id: string;
@@ -95,6 +102,14 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
     };
   }, [open, facingMode, startCamera]);
 
+  // The strip always shows the shot just taken (Apple: confirm the capture
+  // without leaving the camera).
+  const stripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = stripRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [captures.length]);
+
   const atCap = captures.length >= maxCaptures;
 
   const handleCapture = useCallback(() => {
@@ -150,22 +165,30 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
 
   if (!open) return null;
 
+  // Strip caption: « 38/40 » against a finite cap, plain count otherwise.
+  const stripCount = Number.isFinite(maxCaptures)
+    ? `${captures.length}/${maxCaptures}`
+    : String(captures.length);
+  // At most 6 thumbnails are visible; the strip scrolls to the newest.
+  const visibleCaptures = captures.slice(-24);
+
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Camera viewfinder */}
-      <div className="flex-1 relative overflow-hidden">
+    <div className="fixed inset-0 z-50 flex h-[100dvh] flex-col bg-black">
+      {/* Camera viewfinder — the whole screen; every control floats over it so
+          the centre of the frame (what the agent is aiming at) stays clear. */}
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className={cn("w-full h-full object-cover", facingMode === 'user' && "scale-x-[-1]")}
+          className={cn('h-full w-full object-cover', facingMode === 'user' && 'scale-x-[-1]')}
         />
         <canvas ref={canvasRef} className="hidden" />
 
         {error && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-6">
-            <p className="text-white text-center">{error}</p>
+            <p className="text-center text-white">{error}</p>
           </div>
         )}
 
@@ -175,80 +198,96 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
           </div>
         )}
 
-        {/* Top bar */}
-        {/* Camera chrome sits on a functional black backdrop (like the lightbox); flat scrim, no gradient. */}
-        <div className="absolute left-0 right-0 top-0 flex items-center justify-between bg-black/50 p-4">
-          <Button variant="ghost" size="icon" onClick={handleClose} className="text-white hover:bg-white/20">
-            <X className="h-6 w-6" />
-          </Button>
-          <span className="text-white text-sm font-medium">
+        {/* Top row — close only (the count lives on the « Terminé » badge and
+            in the strip, where the eye already is). 44 px corner target. */}
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between pt-[env(safe-area-inset-top)]">
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label={t('Fermer')}
+            className="inline-flex h-11 w-11 items-center justify-center text-white"
+          >
+            <X className={cn('h-6 w-6', GLYPH_SHADOW)} />
+          </button>
+          <span className={cn('px-3 text-sm font-medium tabular-nums text-white', GLYPH_SHADOW)}>
             {Number.isFinite(maxCaptures)
-              ? `${captures.length} / ${maxCaptures} photo${maxCaptures > 1 ? 's' : ''}`
-              : (captures.length > 0 ? `${captures.length} photo${captures.length > 1 ? 's' : ''}` : t('Prendre des photos'))}
+              ? `${captures.length} / ${maxCaptures} ${maxCaptures > 1 ? t('photos') : t('photo')}`
+              : captures.length > 0
+                ? `${captures.length} ${captures.length > 1 ? t('photos') : t('photo')}`
+                : t('Prendre des photos')}
           </span>
-          <Button variant="ghost" size="icon" onClick={toggleFacing} className="text-white hover:bg-white/20">
-            <RotateCcw className="h-5 w-5" />
-          </Button>
+          <span className="h-11 w-11" aria-hidden />
         </div>
       </div>
 
-      {/* Thumbnail strip */}
+      {/* Captured-thumbnail strip — 56 px, ABOVE the shutter row so it never
+          covers the centre of the viewfinder (WhatsApp's in-camera gallery
+          strip is the counter-example the research calls out). Scrollable;
+          each thumb carries a 44 px remove target. */}
       {captures.length > 0 && (
-        <div className="bg-black/90 px-3 py-2 flex gap-2 overflow-x-auto">
-          {captures.map(c => (
-            <div key={c.id} className="relative shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 border-white/30">
-              <img src={c.url} className="w-full h-full object-cover" alt="" />
+        <div ref={stripRef} className="flex shrink-0 items-center gap-2 overflow-x-auto bg-black px-3 py-2" aria-label={t('Photos prises')}>
+          <span className="shrink-0 pr-1 text-[12px] font-medium tabular-nums text-white/70">{stripCount}</span>
+          {visibleCaptures.map((c) => (
+            <div key={c.id} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/30">
+              <img src={c.url} className="h-full w-full object-cover" alt="" />
               <button
                 type="button"
                 aria-label={t('Retirer la photo')}
                 onClick={() => handleRemove(c.id)}
-                className="absolute right-0 top-0 rounded-bl-lg bg-status-danger-fg p-0.5 text-status-danger-bg"
+                className="absolute inset-0 flex items-start justify-end"
               >
-                <X className="h-3 w-3" />
+                <span className="m-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/70">
+                  <X className="h-3 w-3 text-white" />
+                </span>
               </button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Bottom controls */}
-      <div className="bg-black px-6 py-5 flex items-center justify-between safe-area-bottom">
-        <Button
-          variant="ghost"
-          onClick={handleClose}
-          className="text-white/70 hover:text-white hover:bg-white/10 text-sm"
-        >
-          {t('Annuler')}
-        </Button>
-
-        {/* Shutter button — disabled once the per-section cap is reached so
-            the user cannot tap their way past the limit (the parent uploader
-            used to silently drop the excess). */}
+      {/* Bottom controls — flip 44 left · shutter 72 centre · Terminé 44 right
+          (Hoober: controls in the lower portion, corners for the edge actions). */}
+      <div className="flex shrink-0 items-center justify-between bg-black px-4 py-4 pb-[max(16px,env(safe-area-inset-bottom))]">
         <button
+          type="button"
+          onClick={toggleFacing}
+          aria-label={t('Changer de caméra')}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white transition-colors active:bg-white/15"
+        >
+          <SwitchCamera className={cn('h-6 w-6', GLYPH_SHADOW)} />
+        </button>
+
+        {/* Shutter — disabled once the per-section cap is reached so the user
+            cannot tap their way past the limit (the parent uploader used to
+            silently drop the excess). */}
+        <button
+          type="button"
           onClick={handleCapture}
           disabled={!cameraReady || atCap}
           aria-label={atCap ? t('Limite de photos atteinte') : t('Prendre une photo')}
-          className="w-18 h-18 rounded-full border-4 border-white flex items-center justify-center disabled:opacity-30 motion-safe:active:scale-90 transition-transform duration-150 ease-standard"
+          className="flex items-center justify-center rounded-full border-4 border-white transition-transform duration-150 ease-standard disabled:opacity-30 motion-safe:active:scale-90"
           style={{ width: 72, height: 72 }}
         >
-          <div className="w-14 h-14 rounded-full bg-white" style={{ width: 58, height: 58 }} />
+          <span className="block rounded-full bg-white" style={{ width: 58, height: 58 }} />
         </button>
 
-        {/* Confirm button */}
-        <Button
-          variant="ghost"
+        <button
+          type="button"
           onClick={handleConfirm}
           disabled={captures.length === 0}
+          aria-label={`${t('Terminé')} (${captures.length})`}
           className={cn(
-            "text-sm font-semibold transition-colors",
-            captures.length > 0
-              ? "text-white hover:bg-white/10 hover:text-white"
-              : "text-white/30"
+            'relative inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors',
+            captures.length > 0 ? 'text-white active:bg-white/15' : 'text-white/30',
           )}
         >
-          <Check className="h-4 w-4 mr-1" />
-          OK ({captures.length})
-        </Button>
+          <Check className={cn('h-6 w-6', GLYPH_SHADOW)} />
+          {captures.length > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-semibold tabular-nums text-black">
+              {captures.length}
+            </span>
+          )}
+        </button>
       </div>
     </div>
   );

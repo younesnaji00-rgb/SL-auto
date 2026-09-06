@@ -13,6 +13,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { EmptyState } from '@/components/ui/empty-state';
+// Mobile pass 2026-09-06: the drawer's dossier rows use the phone record-row
+// anatomy below md (64 px targets, full-bleed hairlines) instead of 52 px
+// hover buttons; ≥ md the original rows are unchanged.
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { RecordList, RecordRow } from '@/components/ui/record-row';
 
 import { STEP_LABELS, type DossierForStep, type StepKey } from './funnel';
 
@@ -84,6 +89,7 @@ export function DossierDrawer({
 }) {
   const router = useRouter();
   const t = useT();
+  const isPhone = useIsPhone();
 
   const navigate = (id: string) => {
     onOpenChange(false);
@@ -132,6 +138,24 @@ export function DossierDrawer({
               title={t('Aucun dossier')}
               description={emptyDescription}
             />
+          ) : isPhone ? (
+            <RecordList ariaLabel={title}>
+              {rows.map(({ dossier, doneAt, author }) => (
+                <RecordRow
+                  key={dossier.id}
+                  recordId={dossier.id}
+                  id={dossierIdentifier(dossier)}
+                  figure={
+                    !isNonRealise && doneAt
+                      ? <span className="tabular-nums">{format(doneAt, 'dd/MM/yyyy', { locale: dateFnsLocale() })}</span>
+                      : null
+                  }
+                  primary={!isNonRealise ? `${t('par')} ${resolveUserName(author, userLookup)}` : undefined}
+                  onClick={() => navigate(dossier.id)}
+                  ariaLabel={dossierIdentifier(dossier)}
+                />
+              ))}
+            </RecordList>
           ) : (
             rows.map(({ dossier, doneAt, author }) => (
               <button

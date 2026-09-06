@@ -24,6 +24,95 @@ import { auditText } from '@/lib/audit-i18n';
 import { dateFnsLocale, useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
+// ── Shared data + routing (imported by the phone hub, E1) ───────────────────
+// The phone lands on a HUB that shows the same four blocks this column shows
+// (docs/research/mobile-record-pages.md E1: "reuse the context panel's todo
+// data"). Both surfaces read through the helpers below so there is exactly one
+// query set and one todo router in the app.
+
+export interface DossierContextData {
+  /** 3 latest observations, newest first. */
+  observations: any[];
+  /** 4 latest historique entries, newest first. */
+  historique: any[];
+  /** The current user's still-open rappels on this dossier. */
+  openRappels: any[];
+}
+
+/**
+ * The three live reads behind the context blocks. Limits match the column's
+ * (3 observations / 4 history rows) because the phone hub prints the same
+ * counts — a second, wider query would double the listener cost for nothing.
+ */
+export function useDossierContextData(dossierId: string): DossierContextData {
+  const db = useFirestore();
+  const { profile } = useCurrentUser();
+
+  const obsQuery = useMemo(
+    () => (db && dossierId ? query(collection(db, 'dossiers', dossierId, 'observations'), orderBy('createdAt', 'desc'), limit(3)) : null),
+    [db, dossierId],
+  );
+  const histQuery = useMemo(
+    () => (db && dossierId ? query(collection(db, 'dossiers', dossierId, 'historique'), orderBy('date', 'desc'), limit(4)) : null),
+    [db, dossierId],
+  );
+  const rappelQuery = useMemo(
+    () =>
+      db && dossierId && profile?.uid
+        ? query(collection(db, 'rappels'), where('recipientUid', '==', profile.uid), where('dossierId', '==', dossierId))
+        : null,
+    [db, dossierId, profile?.uid],
+  );
+
+  const { data: observations } = useCollection<any>(obsQuery as any);
+  const { data: historique } = useCollection<any>(histQuery as any);
+  const { data: rappels } = useCollection<any>(rappelQuery as any);
+
+  return useMemo(
+    () => ({
+      observations: observations ?? [],
+      historique: historique ?? [],
+      openRappels: (rappels ?? []).filter((r: any) => !r.resolvedAt),
+    }),
+    [observations, historique, rappels],
+  );
+}
+
+export interface TodoHandlers {
+  readOnly?: boolean;
+  onGoToStep: (stepId: number, tab?: string) => void;
+  onPlanifier?: (type: VisitType) => void;
+  onChiffrage?: () => void;
+}
+
+/**
+ * Where an « À faire » row leads. Read-only readers can look but not act:
+ * every row degrades to a plain jump into the step that owns the work.
+ */
+export function runDossierTodo(todo: DossierTodo, { readOnly, onGoToStep, onPlanifier, onChiffrage }: TodoHandlers): void {
+  const a = todo.action;
+  if (a.kind === 'planifier' && !readOnly && onPlanifier) return onPlanifier(a.type);
+  if (a.kind === 'chiffrage' && !readOnly && onChiffrage) return onChiffrage();
+  onGoToStep(a.stepId, a.kind === 'goto' ? a.tab : a.kind === 'planifier' ? 'planification' : 'documents');
+}
+
+/**
+ * `getDossierTodos` composes its own display strings via the module-level
+ * translator (they are never persisted), so the memo must also depend on the
+ * translator identity — otherwise switching language leaves stale rows. Both
+ * the column and the phone hub go through this hook so the dependency list is
+ * written once.
+ */
+export function useDossierTodos(dossier: any, steps: StepState[] | undefined, requiredDocs: RequiredDocsStatus | null | undefined): DossierTodo[] {
+  const t = useT();
+  return useMemo(
+    () => (dossier && steps ? getDossierTodos(dossier, steps, requiredDocs ?? null) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is not called
+    // here, but its identity changes with the locale and the rows carry text.
+    [dossier, steps, requiredDocs, t],
+  );
+}
+
 /**
  * Flat context block (DESIGN.md §10): no card — the title sits in a neutral
  * PILL with the light contour (owner ruling 2026-09-02: « À faire »,
@@ -103,47 +192,11 @@ export function DossierContextPanel({
   className?: string;
 }) {
   const t = useT();
-  const db = useFirestore();
-  const { profile } = useCurrentUser();
 
-  // `getDossierTodos` composes its own display strings via the module-level
-  // translator (they are never persisted), so the memo must also depend on the
-  // translator identity — otherwise switching language leaves stale rows.
-  const todos = useMemo(
-    () => (dossier && steps ? getDossierTodos(dossier, steps, requiredDocs ?? null) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is not called
-    // here, but its identity changes with the locale and the rows carry text.
-    [dossier, steps, requiredDocs, t],
-  );
-  const runTodo = (todo: DossierTodo) => {
-    const a = todo.action;
-    // Read-only readers can look but not act: every row becomes a plain jump.
-    if (a.kind === 'planifier' && !readOnly && onPlanifier) return onPlanifier(a.type);
-    if (a.kind === 'chiffrage' && !readOnly && onChiffrage) return onChiffrage();
-    onGoToStep(a.stepId, a.kind === 'goto' ? a.tab : a.kind === 'planifier' ? 'planification' : 'documents');
-  };
+  const todos = useDossierTodos(dossier, steps, requiredDocs);
+  const runTodo = (todo: DossierTodo) => runDossierTodo(todo, { readOnly, onGoToStep, onPlanifier, onChiffrage });
 
-  const obsQuery = useMemo(
-    () => (db && dossierId ? query(collection(db, 'dossiers', dossierId, 'observations'), orderBy('createdAt', 'desc'), limit(3)) : null),
-    [db, dossierId],
-  );
-  const histQuery = useMemo(
-    () => (db && dossierId ? query(collection(db, 'dossiers', dossierId, 'historique'), orderBy('date', 'desc'), limit(4)) : null),
-    [db, dossierId],
-  );
-  const rappelQuery = useMemo(
-    () =>
-      db && dossierId && profile?.uid
-        ? query(collection(db, 'rappels'), where('recipientUid', '==', profile.uid), where('dossierId', '==', dossierId))
-        : null,
-    [db, dossierId, profile?.uid],
-  );
-
-  const { data: observations } = useCollection<any>(obsQuery as any);
-  const { data: historique } = useCollection<any>(histQuery as any);
-  const { data: rappels } = useCollection<any>(rappelQuery as any);
-
-  const openRappels = (rappels || []).filter((r: any) => !r.resolvedAt);
+  const { observations, historique, openRappels } = useDossierContextData(dossierId);
 
   return (
     <aside className={cn('flex flex-col gap-5 px-2', className)} aria-label={t('Contexte du dossier')}>
@@ -183,7 +236,7 @@ export function DossierContextPanel({
           </Button>
         }
       >
-        {!observations || observations.length === 0 ? (
+        {observations.length === 0 ? (
           <Empty>{t('Aucune observation.')}</Empty>
         ) : (
           <ul className="divide-y divide-hairline">
@@ -231,7 +284,7 @@ export function DossierContextPanel({
           </Button>
         }
       >
-        {!historique || historique.length === 0 ? (
+        {historique.length === 0 ? (
           <Empty>{t('Aucune entrée.')}</Empty>
         ) : (
           <ul className="divide-y divide-hairline">

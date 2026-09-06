@@ -34,6 +34,8 @@ export interface VisibleNav {
   /** Every visible item, flat, in sidebar order. */
   items: NavItem[];
   isVisible: (href: string) => boolean;
+  /** The role the gate was evaluated for (phone bar ordering). */
+  role: string | undefined;
 }
 
 export function useVisibleNav(): VisibleNav {
@@ -51,6 +53,6 @@ export function useVisibleNav(): VisibleNav {
     const footerItems = groups.filter((g) => g.placement === 'footer').flatMap((g) => g.items);
     const items = groups.flatMap((g) => g.items);
     const set = new Set(items.map((i) => i.href));
-    return { navGroups, footerItems, items, isVisible: (href: string) => set.has(href) };
+    return { navGroups, footerItems, items, isVisible: (href: string) => set.has(href), role };
   }, [role, denied, granted]);
 }

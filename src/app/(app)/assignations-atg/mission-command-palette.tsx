@@ -15,6 +15,7 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
+  CommandHeaderSlot,
   CommandInput,
   CommandItem,
   CommandList,
@@ -120,8 +121,12 @@ export default function MissionCommandPalette({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {/* Below md: FullScreenDialog with the search input pinned in the
+          56 px header, 52 px rows, no keyboard hints (D §9). */}
       <DialogContent
-        className="top-[12%] translate-y-0 overflow-hidden p-0 sm:max-w-xl"
+        fullScreen
+        bodyClassName="gap-0 overflow-hidden p-0"
+        className="overflow-hidden p-0 md:top-[12%] md:max-w-xl md:translate-y-0 md:p-0"
         aria-describedby={undefined}
         onOpenAutoFocus={(e) => {
           e.preventDefault();
@@ -135,8 +140,10 @@ export default function MissionCommandPalette({
           loop
           className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-normal [&_[cmdk-group-heading]]:normal-case [&_[cmdk-group-heading]]:tracking-normal [&_[cmdk-group-heading]]:text-ink-3 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item]]:text-ink [&_[cmdk-item]_svg]:text-ink-2"
         >
-          <CommandInput ref={inputRef} placeholder={t('Rechercher une mission ou une action…')} />
-          <CommandList className="max-h-[calc(60vh/var(--app-zoom))]">
+          <CommandHeaderSlot>
+            <CommandInput ref={inputRef} placeholder={t('Rechercher une mission ou une action…')} enterKeyHint="search" />
+          </CommandHeaderSlot>
+          <CommandList className="max-md:max-h-none max-md:flex-1 md:max-h-[calc(60vh/var(--app-zoom))]">
             <CommandEmpty>{t('Aucun résultat')}</CommandEmpty>
 
             {actions.length > 0 && (
@@ -185,7 +192,8 @@ export default function MissionCommandPalette({
               </CommandGroup>
             )}
           </CommandList>
-          <div className="t-caption flex items-center justify-between gap-3 border-t border-hairline px-3 py-2">
+          {/* Keyboard hints are a pointer affordance (do-not list 11). */}
+          <div className="t-caption hidden items-center justify-between gap-3 border-t border-hairline px-3 py-2 md:flex">
             <span className="flex items-center gap-1.5">
               <Kbd>↑</Kbd>
               <Kbd>↓</Kbd> {t('naviguer')}

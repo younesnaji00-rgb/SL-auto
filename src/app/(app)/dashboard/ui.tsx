@@ -134,7 +134,7 @@ export function Block({ title, count, countDanger, caption, moreHref, moreLabel,
   const t = useT();
   return (
     <Card className={cn('min-w-0 overflow-hidden', className)} data-tour={dataTour}>
-      <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3">
+      <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3 sm:px-5 sm:pt-5">
         <div className="min-w-0">
           <h2 className="t-heading flex items-center gap-2">
             <span className="truncate">{title}</span>
@@ -166,7 +166,7 @@ export function Block({ title, count, countDanger, caption, moreHref, moreLabel,
 /** Band header inside a worklist: « Dépassées (3) » — the band carries the urgency once. */
 export function BandHeader({ label, count, danger, time }: { label: string; count: number; danger?: boolean; time?: boolean }) {
   return (
-    <div className="flex items-center gap-2 px-5 pb-1 pt-3 first:pt-0">
+    <div className="flex items-center gap-2 px-4 pb-1 pt-3 first:pt-0 sm:px-5">
       <span className="t-label">{label}</span>
       <span
         className={cn(
@@ -206,8 +206,10 @@ export function WorkRow({ href, id, who, label, time, timeTone = 'neutral', badg
       href={href}
       data-tour={dataTour}
       className={cn(
-        'group flex items-center gap-3 border-t border-hairline px-5 text-sm transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:bg-surface-2',
-        tall ? 'min-h-[56px] py-2' : 'min-h-[44px] py-1.5',
+        'group flex items-center gap-3 border-t border-hairline px-4 text-sm transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:bg-surface-2 sm:px-5',
+        // Touch rows are 48 px (64 tall) — a finger pad is ~9 mm; 44 is the
+        // pointer size (density §3).
+        tall ? 'min-h-[64px] py-2 sm:min-h-[56px]' : 'min-h-[48px] py-1.5 sm:min-h-[44px]',
       )}
     >
       <span className="t-mono shrink-0 font-semibold">{id}</span>
@@ -235,7 +237,7 @@ export function WorkRow({ href, id, who, label, time, timeTone = 'neutral', badg
 /** Calm completion state (Intuit / B4): one line, the card keeps its height. */
 export function DoneLine({ title, detail }: { title: string; detail?: React.ReactNode }) {
   return (
-    <div className="border-t border-hairline px-5 py-5">
+    <div className="border-t border-hairline px-4 py-4 sm:px-5 sm:py-5">
       <p className="t-body font-medium text-ink">{title}</p>
       {detail && <p className="t-caption mt-1">{detail}</p>}
     </div>

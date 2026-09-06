@@ -1134,7 +1134,9 @@ export default function AssignationsATGPage() {
                 aria-label={`${t('Sélectionner')} ${p.dossierNom || p.dossierId}`}
                 className={cn(
                   'transition-opacity',
-                  selectedKeys.size > 0 || selected ? 'opacity-100' : 'opacity-0 focus-visible:opacity-100 group-hover:opacity-100',
+                  selectedKeys.size > 0 || selected
+                    ? 'opacity-100'
+                    : 'focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100',
                 )}
               />
             )}

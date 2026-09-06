@@ -16,7 +16,19 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
+      // Phones: bottom of the screen, inside the thumb zone, ABOVE the 60 px
+      // bottom bar and never over it (M3 snackbar: "placed at the bottom…
+      // avoid placing snackbars in front of navigation components"; a top
+      // toast on a phone sits under the notch and out of thumb reach).
+      // `--bottom-bar` is published by the nav / bottom action bar.
+      "fixed z-[100] flex max-h-screen flex-col gap-2 left-4 right-4 top-auto w-auto",
+      // `--bottom-bar` ALREADY includes the safe-area inset (the app layout
+      // publishes the bar's full height), so the inset must not be added
+      // again here or a toast floats a thumb's width too high on a notched
+      // phone. The 60 px fallback is for pages outside the app shell.
+      "bottom-[calc(var(--bottom-bar,60px)+12px)]",
+      // md and up: the familiar bottom-right stack.
+      "md:bottom-0 md:left-auto md:right-0 md:w-full md:max-w-[420px] md:gap-0 md:p-4",
       className
     )}
     {...props}
@@ -31,7 +43,13 @@ const toastVariants = cva(
   // Ambient element: enter 300ms on plain `ease` (Sonner's deliberate
   // exception to the sub-300 rule — a toast doesn't block anything and the
   // softer curve reads more refined); exit 200ms accelerate (motion-spec §6).
-  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden glass-strong rounded-[10px] p-4 pr-8 transition-[transform,opacity] data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full data-[state=open]:duration-300 data-[state=open]:ease-soft data-[state=closed]:duration-200 data-[state=closed]:ease-exit motion-reduce:animate-none",
+  // Swipe axis follows the position (Sonner: "swipe based on position"), so
+  // the translate vars are split by breakpoint — a phone toast lives at the
+  // bottom and is swiped DOWN (`swipeDirection` is set in toaster.tsx), a
+  // desktop toast is still swiped right.
+  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden glass-strong rounded-[10px] p-4 pr-8 transition-[transform,opacity] data-[swipe=cancel]:translate-x-0 data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=open]:slide-in-from-bottom-full data-[state=open]:duration-300 data-[state=open]:ease-soft data-[state=closed]:duration-200 data-[state=closed]:ease-exit motion-reduce:animate-none " +
+    "max-md:data-[swipe=end]:translate-y-[var(--radix-toast-swipe-end-y)] max-md:data-[swipe=move]:translate-y-[var(--radix-toast-swipe-move-y)] max-md:data-[state=closed]:slide-out-to-bottom-full " +
+    "md:data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] md:data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] md:data-[state=closed]:slide-out-to-right-full",
   {
     variants: {
       variant: {
@@ -71,7 +89,9 @@ const ToastAction = React.forwardRef<
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      "inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-card px-3 text-[13px] font-medium text-ink shadow-rim ring-offset-background transition-colors hover:bg-surface-2 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:text-status-danger-fg group-[.destructive]:hover:bg-status-danger-fg group-[.destructive]:hover:text-status-danger-bg group-[.destructive]:focus:ring-status-danger-fg",
+      // 44 px tall on a phone (D §5: the action is the whole point of an undo
+      // toast and it has ~8 s to be hit with a thumb).
+      "inline-flex h-8 max-md:h-11 max-md:px-4 max-md:text-[15px] shrink-0 items-center justify-center rounded-md bg-card px-3 text-[13px] font-medium text-ink shadow-rim ring-offset-background transition-colors hover:bg-surface-2 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:text-status-danger-fg group-[.destructive]:hover:bg-status-danger-fg group-[.destructive]:hover:text-status-danger-bg group-[.destructive]:focus:ring-status-danger-fg",
       className
     )}
     {...props}
@@ -88,7 +108,7 @@ const ToastClose = React.forwardRef<
     className={cn(
       // Always visible (Carbon notification: toasts auto-dismiss AND carry a
       // close button — a hover-only close is invisible on touch; §14).
-      "absolute right-2 top-2 rounded-md p-1 text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus:outline-none focus:ring-2 focus:ring-ring group-[.destructive]:text-current group-[.destructive]:hover:text-current group-[.destructive]:focus:ring-status-danger-fg",
+      "absolute right-2 top-2 rounded-md p-1 max-md:right-1 max-md:top-1 max-md:p-2.5 text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus:outline-none focus:ring-2 focus:ring-ring group-[.destructive]:text-current group-[.destructive]:hover:text-current group-[.destructive]:focus:ring-status-danger-fg",
       className
     )}
     toast-close=""

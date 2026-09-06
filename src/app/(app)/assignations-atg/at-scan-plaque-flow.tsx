@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Calendar, Camera, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Camera, Loader2, Upload } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
@@ -67,7 +67,7 @@ export default function AtScanPlaqueFlow({
   /** Dossier for which the planning modal is open. */
   const [planifTarget, setPlanifTarget] = useState<any | null>(null);
 
-  const { trigger, scanning, error, inputNode } = usePlateScan(setPendingPlate);
+  const { trigger, triggerImport, scanning, error, inputNode } = usePlateScan(setPendingPlate);
 
   // Dossier fetch is kicked off by the first camera click, in parallel with
   // the shot + AI read; matching waits for both (see the pendingPlate effect).
@@ -198,7 +198,7 @@ export default function AtScanPlaqueFlow({
         onClick={handleScanClick}
         disabled={scanning}
         loading={scanning}
-        className={cn('gap-2', buttonClassName)}
+        className={cn('h-12 gap-2 md:h-10', buttonClassName)}
       >
         {!scanning && <Camera />}
         {t('Scanner la plaque')}
@@ -269,7 +269,7 @@ export default function AtScanPlaqueFlow({
               {/* Buttons (§8: ONE `default` per stage — the camera-first action;
                   the alternative is `outline`; back / retry are `ghost`). */}
               <div className="grid grid-cols-1 gap-2">
-                <Button type="button" onClick={() => handlePhotos(chosen)} className="w-full gap-2">
+                <Button type="button" onClick={() => handlePhotos(chosen)} className="h-12 w-full gap-2 md:h-10">
                   <Camera />
                   {t('Ajouter photos / documents')}
                 </Button>
@@ -277,7 +277,7 @@ export default function AtScanPlaqueFlow({
                   type="button"
                   variant="outline"
                   onClick={() => handlePlanifier(chosen)}
-                  className="w-full gap-2"
+                  className="h-12 w-full gap-2 md:h-10"
                 >
                   <Calendar />
                   {t('Planifier la mission')}
@@ -291,7 +291,7 @@ export default function AtScanPlaqueFlow({
                     variant="ghost"
                     size="sm"
                     onClick={() => setChosen(null)}
-                    className="gap-1.5"
+                    className="h-11 gap-1.5 md:h-9"
                   >
                     <ArrowLeft />
                     {t('Autres résultats')}
@@ -304,7 +304,7 @@ export default function AtScanPlaqueFlow({
                   variant="ghost"
                   size="sm"
                   onClick={trigger}
-                  className="gap-1.5"
+                  className="h-11 gap-1.5 md:h-9"
                 >
                   <Camera />
                   {t('Reprendre la photo')}
@@ -358,16 +358,25 @@ export default function AtScanPlaqueFlow({
 
               {/* Retry is `ghost` (§8) — no filled button at this stage: the
                   agent is choosing, not committing. */}
-              <Button type="button" variant="ghost" onClick={trigger} className="w-full gap-2">
-                <Camera />
-                {t('Reprendre la photo')}
-              </Button>
+              {/* Camera-first, but the gallery stays reachable as its own
+                  affordance (mobile-forms-inputs §2.8) — the demo and any
+                  agent who already photographed the plate need it. */}
+              <div className="grid gap-2">
+                <Button type="button" variant="ghost" onClick={trigger} className="h-12 w-full gap-2 md:h-10">
+                  <Camera />
+                  {t('Reprendre la photo')}
+                </Button>
+                <Button type="button" variant="ghost" onClick={triggerImport} className="h-12 w-full gap-2 md:h-10">
+                  <Upload />
+                  {t('Importer une photo')}
+                </Button>
+              </div>
             </>
           )}
 
           {/* Footer (§13): a single dismissive `outline` action nearest the edge. */}
           <DialogFooter>
-            <Button variant="outline" onClick={closeAll}>
+            <Button variant="outline" onClick={closeAll} className="h-12 md:h-10">
               {t('Fermer')}
             </Button>
           </DialogFooter>

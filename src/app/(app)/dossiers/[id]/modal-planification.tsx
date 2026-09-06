@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Clock } from 'lucide-react';
+import { AlertCircle, Loader2, Clock } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, Timestamp, getDocs, query, where, limit } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +42,9 @@ import { formatDurationFr } from '@/lib/atg-feasibility';
 import { MapPin } from 'lucide-react';
 import { apiFetch } from '@/lib/api-fetch';
 import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
+import { cn } from '@/lib/utils';
+import { INPUT_ADDRESS } from '@/lib/input-attrs';
+import { FormErrorSummary, useFormErrors, type FieldRule } from '@/components/ui/form';
 import { BRAND } from '@/lib/brand';
 import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 
@@ -173,6 +176,58 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     agentLocationManuel: '',
   });
 
+  // Unsaved-work guard (§2.5): « × » / Escape / scrim / Android back on a
+  // touched form ask « Abandonner les modifications ? ». The baseline is
+  // whatever the form held when the dialog last opened (a fresh dialog, or the
+  // planification being edited).
+  const [baseline, setBaseline] = useState('');
+  const isDirty = baseline !== '' && JSON.stringify(formData) !== baseline;
+  useEffect(() => {
+    if (!open) return;
+    // One frame after the hydrate effects have run.
+    const id = window.setTimeout(() => setBaseline(JSON.stringify(formData)), 0);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialData]);
+
+  // « Ma position » on the address field: read the device GPS on demand and
+  // reverse-geocode it into the field (§2.4 / Apple HIG "Get information from
+  // the system whenever possible"). Never on open — the prompt belongs to an
+  // explicit tap.
+  const [addressLocating, setAddressLocating] = useState(false);
+  const fillAddressFromPosition = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      toast({ variant: 'destructive', title: t('Localisation indisponible sur cet appareil') });
+      return;
+    }
+    setAddressLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const fallback = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+        setFormData((prev) => ({ ...prev, adresse: fallback }));
+        try {
+          const res = await apiFetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.formatted) {
+              setFormData((prev) => (prev.adresse === fallback ? { ...prev, adresse: data.formatted } : prev));
+            }
+          }
+        } catch {
+          /* keep the lat,lng — it is still a usable destination */
+        } finally {
+          setAddressLocating(false);
+        }
+      },
+      () => {
+        setAddressLocating(false);
+        toast({ variant: 'destructive', title: t('Position refusée ou indisponible') });
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
+    );
+  };
+
   // Agent workload scoped to the RDV date currently selected, so each agent's
   // count reflects only that day's active planifications. Falls back to the
   // all-days total when no date has been picked yet.
@@ -283,8 +338,37 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     agentLiveLocation: effectiveLocation,
   });
 
+  // Validation timing (§2.6): required-empty errors ONLY on submit, then per
+  // keystroke on the fields that failed; a summary at the top of the body with
+  // links that move focus (GOV.UK error summary); the primary is never
+  // disabled (Smashing: "Keep buttons enabled. Validate on submission.").
+  const rules = React.useMemo<FieldRule<typeof formData>[]>(() => {
+    const list: FieldRule<typeof formData>[] = [];
+    if (!defaultTypeMission) {
+      list.push({ id: 'plan-type', label: t('Type de RDV'), validate: (v) => (v.typeMission ? null : t('Choisissez un type de RDV.')) });
+    }
+    if (!isCurrentUserAT) {
+      list.push({ id: 'plan-agent-select', label: t('Agent de Terrain'), validate: (v) => (v.agentTerrain ? null : t('Choisissez un agent de terrain.')) });
+    }
+    list.push({ id: 'plan-date-field', label: t('Date RDV'), validate: (v) => (v.dateRDV ? null : t('Choisissez la date du rendez-vous.')) });
+    list.push({ id: 'plan-heure', label: t('Heure RDV'), validate: (v) => (v.timeRDV ? null : t("Renseignez l'heure du rendez-vous.")) });
+    list.push({ id: 'plan-adresse', label: t('Adresse complète'), validate: (v) => (v.adresse.trim() ? null : t("Renseignez l'adresse du rendez-vous.")) });
+    return list;
+  }, [defaultTypeMission, isCurrentUserAT, t]);
+  const formErrors = useFormErrors(formData, rules);
+
+  /** Inline message under a field — icon + 13 px danger text (§2.6). */
+  const fieldError = (id: string) =>
+    formErrors.errors[id] ? (
+      <p id={`${id}-error`} className="flex items-start gap-1.5 text-[13px] font-medium leading-snug text-status-danger-fg">
+        <AlertCircle aria-hidden className="mt-px h-4 w-4 shrink-0" />
+        <span className="min-w-0">{formErrors.errors[id]}</span>
+      </p>
+    ) : null;
+
   const handleSave = async () => {
     if (!db) return;
+    if (!formErrors.validateAll()) return;
     setLoading(true);
     const userEmail = auth?.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'Admin';
@@ -445,6 +529,15 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        // > 3 controls, three Selects and a textarea → the full-screen phone
+        // form (D §2 / research §2.4), never a 92 dvh sheet with popovers.
+        fullScreen
+        primary={{
+          label: loading ? t('Enregistrement…') : t('Enregistrer'),
+          onClick: handleSave,
+          loading,
+        }}
+        dirty={isDirty}
         className="sm:max-w-[550px] max-h-[88vh] overflow-y-auto"
         data-tour="plan-dialog"
         {...tourDialogGuard()}
@@ -453,51 +546,62 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           <DialogTitle>{initialData ? t('Modifier la Planification') : t('Nouvelle Planification')}</DialogTitle>
           <DialogDescription>{t('Remplissez les informations pour programmer la mission de terrain.')}</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-6 py-4">
-          <div className={(defaultTypeMission || isCurrentUserAT) ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
+        {/* Phone: ONE column in the researched order — Type → Agent →
+            Date | Heure → Adresse (+ « Ma position ») → Zone → Observation
+            (§2.4). The desktop grid is untouched: the blocks that move are
+            `max-md:contents` wrappers, so only the flex order changes. */}
+        <div className="grid gap-6 py-4 max-md:flex max-md:flex-col">
+          <FormErrorSummary errors={formErrors.summary} className="max-md:order-none" />
+          <div className={cn((defaultTypeMission || isCurrentUserAT) ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4", "max-md:contents")}>
             {!isCurrentUserAT && (
-            <div className="space-y-2">
+            <div className="space-y-2 max-md:contents">
+              {/* Zone: a pre-filter on a desk; on touch the agent list is a
+                  searchable sheet, so the filter drops below the address. */}
+              <div className="space-y-2 max-md:order-6">
+                <Label htmlFor="plan-zone">{t('Zone')}</Label>
+                <Select
+                  value={agentZoneFilter === '' ? '__all__' : agentZoneFilter}
+                  onValueChange={(v) => {
+                    const next = v === '__all__' ? '' : v;
+                    setAgentZoneFilter(next);
+                    const stillVisible =
+                      next === ''
+                        ? true
+                        : agents.some(
+                            (a) =>
+                              a.label === formData.agentTerrain &&
+                              (a.zone?.trim() || '') === next,
+                          );
+                    if (!stillVisible && formData.agentTerrain) {
+                      setFormData((prev) => ({ ...prev, agentTerrain: '' }));
+                    }
+                  }}
+                >
+                  <SelectTrigger id="plan-zone" className="h-8 max-md:h-12 text-xs max-md:text-base text-muted-foreground max-md:text-ink" aria-label={t('Zone')}>
+                    <SelectValue placeholder={t('Filtrer par zone')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">{t('Toutes les zones')}</SelectItem>
+                    {availableAgentZones.length === 0 && (
+                      <div className="px-2 py-1.5 text-[11px] italic text-muted-foreground">
+                        {t('Aucune zone définie. Renseignez la zone via Agents de terrain.')}
+                      </div>
+                    )}
+                    {availableAgentZones.map((zone) => (
+                      <SelectItem key={zone} value={zone}>
+                        {zone}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 max-md:order-2">
               <div className="flex items-center justify-between">
                 <Label>{t('Agent de Terrain')}</Label>
                 <OptionsManagerModal collectionName="options_agents" title={t('Agents de terrain')} />
               </div>
-              <Select
-                value={agentZoneFilter === '' ? '__all__' : agentZoneFilter}
-                onValueChange={(v) => {
-                  const next = v === '__all__' ? '' : v;
-                  setAgentZoneFilter(next);
-                  const stillVisible =
-                    next === ''
-                      ? true
-                      : agents.some(
-                          (a) =>
-                            a.label === formData.agentTerrain &&
-                            (a.zone?.trim() || '') === next,
-                        );
-                  if (!stillVisible && formData.agentTerrain) {
-                    setFormData((prev) => ({ ...prev, agentTerrain: '' }));
-                  }
-                }}
-              >
-                <SelectTrigger className="h-8 text-xs text-muted-foreground">
-                  <SelectValue placeholder={t('Filtrer par zone')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">{t('Toutes les zones')}</SelectItem>
-                  {availableAgentZones.length === 0 && (
-                    <div className="px-2 py-1.5 text-[11px] italic text-muted-foreground">
-                      {t('Aucune zone définie. Renseignez la zone via Agents de terrain.')}
-                    </div>
-                  )}
-                  {availableAgentZones.map((zone) => (
-                    <SelectItem key={zone} value={zone}>
-                      {zone}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <Select value={formData.agentTerrain} onValueChange={(v) => setFormData({...formData, agentTerrain: v})}>
-                <SelectTrigger data-tour="plan-agent"><SelectValue placeholder={t('Choisir un agent')} /></SelectTrigger>
+                <SelectTrigger id="plan-agent-select" data-tour="plan-agent" aria-label={t('Agent de Terrain')} {...formErrors.fieldProps('plan-agent-select')}><SelectValue placeholder={t('Choisir un agent')} /></SelectTrigger>
                 <SelectContent>
                   {filteredAgents.map(agent => {
                     const rawCount = agentWorkload[agent.label] || 0;
@@ -536,56 +640,82 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                   })}
                 </SelectContent>
               </Select>
+              {fieldError('plan-agent-select')}
+              </div>
             </div>
             )}
             {!defaultTypeMission && (
-              <div className="space-y-2">
+              <div className="space-y-2 max-md:order-1">
                 <div className="flex items-center justify-between">
                   <Label>{t('Type de RDV')}</Label>
                   <OptionsManagerModal collectionName="options_types_rdv" title={t('Types de RDV')} />
                 </div>
+                {/* 3 types → a segmented control on touch (Select's own tier
+                    rule): every option visible, zero taps to see them. */}
                 <Select value={formData.typeMission} onValueChange={(v) => setFormData({...formData, typeMission: v})}>
-                  <SelectTrigger><SelectValue placeholder={t('Choisir un type')} /></SelectTrigger>
+                  <SelectTrigger id="plan-type" aria-label={t('Type de RDV')} {...formErrors.fieldProps('plan-type')}><SelectValue placeholder={t('Choisir un type')} /></SelectTrigger>
                   <SelectContent>
                     {rdvTypes.map(type => (
                       <SelectItem key={type.id} value={type.label}>{t(type.label)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {fieldError('plan-type')}
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Date | Heure share a row at every width: one entity, and §2.1
+              allows exactly this pair. */}
+          <div className="grid grid-cols-2 gap-4 max-md:order-3">
             <div className="space-y-2" data-tour="plan-date">
               <Label>{t('Date RDV')}</Label>
+              {/* A RDV is always within days — the near horizon: sheet
+                  calendar with « Aujourd'hui · Demain · Lundi prochain ». */}
               <DatePicker
+                horizon="near"
+                id="plan-date-field"
+                label={t('Date RDV')}
                 value={formData.dateRDV}
                 onChange={(d) => setFormData({...formData, dateRDV: d})}
                 disabledDates={(date) => date < startOfToday()}
+                triggerProps={formErrors.fieldProps('plan-date-field')}
               />
+              {fieldError('plan-date-field')}
             </div>
             <div className="space-y-2" data-tour="plan-time">
-              <Label>{t('Heure RDV')}</Label>
+              <Label htmlFor="plan-heure">{t('Heure RDV')}</Label>
               <div className="relative">
-                <Clock className="absolute left-3 top-3 h-4 w-4 text-primary" />
-                <Input 
-                  type="time" 
-                  className="pl-10 h-10" 
-                  value={formData.timeRDV} 
-                  onChange={(e) => setFormData({...formData, timeRDV: e.target.value})} 
+                <Clock className="absolute left-3 top-3 h-4 w-4 text-primary max-md:top-4" />
+                <Input
+                  id="plan-heure"
+                  type="time"
+                  // Native time input, quarter-hour steps (Apple HIG pickers:
+                  // "quarter-hour intervals"); the OS wheel/keypad is the one
+                  // touch time control nobody has to learn.
+                  step={900}
+                  className="pl-10 h-10 max-md:h-12"
+                  value={formData.timeRDV}
+                  onChange={(e) => setFormData({...formData, timeRDV: e.target.value})}
+                  {...formErrors.fieldProps('plan-heure')}
                 />
               </div>
+              {fieldError('plan-heure')}
             </div>
           </div>
 
-          <div className="space-y-2" data-tour="plan-adresse">
-            <Label>{t('Adresse complète')}</Label>
+          <div className="space-y-2 max-md:order-4" data-tour="plan-adresse">
+            <Label htmlFor="plan-adresse">{t('Adresse complète')}</Label>
+            <div className="relative">
             <Input
+              id="plan-adresse"
+              {...INPUT_ADDRESS}
+              enterKeyHint="next"
               placeholder={t('Adresse du rendez-vous...')}
-              className="h-10"
+              className="h-10 max-md:h-12 pr-12"
               value={formData.adresse}
               onChange={(e) => setFormData({...formData, adresse: e.target.value})}
+              {...formErrors.fieldProps('plan-adresse')}
               onPaste={async (e) => {
                 const pasted = e.clipboardData.getData('text');
                 const coords = parseMapsCoords(pasted);
@@ -604,9 +734,25 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 }
               }}
             />
+            {/* « Ma position » (§2.4 + Smashing "leverage device features"):
+                44 px trailing button that reads the device GPS and reverse-
+                geocodes it into the field. The permission prompt only fires
+                on this explicit tap. */}
+            <button
+              type="button"
+              onClick={fillAddressFromPosition}
+              disabled={addressLocating}
+              aria-label={t('Utiliser ma position')}
+              title={t('Utiliser ma position')}
+              className="absolute right-0 top-0 flex h-full w-11 items-center justify-center rounded-r-md text-ink-3 transition-colors hover:text-ink disabled:opacity-50"
+            >
+              {addressLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+            </button>
+            </div>
+            {fieldError('plan-adresse')}
           </div>
 
-          <div className="space-y-2" data-tour="plan-observation">
+          <div className="space-y-2 max-md:order-7" data-tour="plan-observation">
             <Label>{t('Observation')}</Label>
             <div className="flex items-center gap-2">
               <Select
@@ -651,7 +797,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           {/* Redundant for the demo: picking « Autre » already reveals a
               free-text field right above. */}
           {BRAND.id !== 'demo' && (
-            <div className="space-y-2">
+            <div className="space-y-2 max-md:order-8">
               <Label>{t('Observation personnalisée')}</Label>
               <Textarea
                 placeholder={t('Ajouter une observation personnalisée (facultatif)…')}
@@ -662,7 +808,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           )}
 
           {feasibilityPastRdv && (
-            <Alert variant="warning">
+            <Alert variant="warning" className="max-md:order-9">
               <AlertTitle>{t('RDV déjà passé')}</AlertTitle>
               <AlertDescription>
                 {t("L'heure de RDV")} ({formData.timeRDV}) {t("est déjà dépassée. L'agent ne pourra pas s'y rendre à temps.")}
@@ -671,7 +817,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           )}
 
           {(isCurrentUserAT || formData.agentTerrain) && effectiveIsFresh && effectiveLocation && (
-            <Alert variant="info" data-tour="plan-agent-loc">
+            <Alert variant="info" data-tour="plan-agent-loc" className="max-md:order-9">
               <AlertTitle>{isCurrentUserAT ? t('Votre position actuelle') : t("Position actuelle de l'agent")}</AlertTitle>
               <AlertDescription>
                 {agentAddress ? (
@@ -705,7 +851,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           )}
 
           {!isCurrentUserAT && isAgentLocationUnavailable && (
-            <Alert variant="info" data-tour="plan-agent-loc">
+            <Alert variant="info" data-tour="plan-agent-loc" className="max-md:order-9">
               <AlertTitle>{t("Position de l'agent non disponible")}</AlertTitle>
               <AlertDescription>
                 <p className="mb-2">
@@ -756,7 +902,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           )}
 
           {!isCurrentUserAT && isAgentLocationUnavailable && (
-            <div className="space-y-2">
+            <div className="space-y-2 max-md:order-9">
               <Label htmlFor="agent-location-manuel">
                 {t("Localisation de l'agent (manuelle)")}
               </Label>
@@ -773,7 +919,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           )}
 
           {feasibilityUnavailable && (
-            <Alert variant="warning">
+            <Alert variant="warning" className="max-md:order-9">
               <AlertTitle>{t("Vérification d'itinéraire indisponible")}</AlertTitle>
               <AlertDescription>
                 {t("Impossible de vérifier la faisabilité du planning de l'agent pour cette journée. La sauvegarde reste possible.")}
@@ -782,7 +928,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           )}
 
           {feasibilityConflicts.length > 0 && (
-            <Alert variant="warning">
+            <Alert variant="warning" className="max-md:order-9">
               <AlertTitle>{t('Conflit de planning détecté')}</AlertTitle>
               <AlertDescription>
                 <p className="mb-2">
@@ -815,11 +961,15 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </Alert>
           )}
         </div>
+        {/* Phones keep a 48 px full-width primary at the END of the body as
+            well as the one in the 56 px header (the reader who scrolled);
+            « Annuler » is the header « × » there, not a second 170 px target
+            next to the primary (§2.5). */}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading} className="max-md:hidden">
             {t('Annuler')}
           </Button>
-          <Button onClick={handleSave} disabled={loading} data-tour="plan-save">
+          <Button onClick={handleSave} disabled={loading} data-tour="plan-save" className="max-md:h-12 max-md:text-[15px] max-md:font-semibold">
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : t('Enregistrer')}
           </Button>
         </DialogFooter>

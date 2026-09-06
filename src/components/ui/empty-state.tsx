@@ -4,8 +4,15 @@ import { cn } from "@/lib/utils"
 
 export interface EmptyStateProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
   icon?: React.ReactNode
+  /** What the state IS (« Aucun dossier pour ces filtres »). */
   title: React.ReactNode
+  /**
+   * The REASON line — why the list is empty and what would change it. NN/g
+   * empty states: state + reason + a direct pathway; every filtered-empty in
+   * the app names the filters and offers « Réinitialiser les filtres ».
+   */
   description?: React.ReactNode
+  /** ONE action — the pathway out of the state (Polaris: a single primary). */
   action?: React.ReactNode
   /**
    * Dashed hairline frame — reserved for DROP TARGETS (element-specs §12 / §21:
@@ -27,7 +34,8 @@ const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(
       <div
         ref={ref}
         className={cn(
-          "flex flex-col items-center justify-center gap-3 rounded-xl px-6 py-10 text-center",
+          // 16 px side padding on phones (density §7 page margin).
+          "flex flex-col items-center justify-center gap-3 rounded-xl px-6 py-10 text-center max-md:px-4",
           dashed ? "border border-dashed border-hairline-strong" : "bg-surface-2",
           className
         )}
@@ -51,7 +59,8 @@ const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(
             <p className="t-caption">{description}</p>
           ) : null}
         </div>
-        {action ? <div className="mt-1">{action}</div> : null}
+        {/* The pathway is a 48 px target on a phone (density §7). */}
+        {action ? <div className="mt-1 max-md:[&_a]:h-12 max-md:[&_button]:h-12">{action}</div> : null}
       </div>
     )
   }

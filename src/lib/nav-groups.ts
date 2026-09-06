@@ -32,10 +32,16 @@ export type NavItem = {
   subtitle?: string;
   roles: string[] | null;
   /**
-   * Lower = earlier in the mobile bottom bar (Phase 3). Items without a rank
-   * never appear in the bottom bar (they stay reachable from Profil / ⌘K).
+   * Explicit per-role position in the phone bottom bar (mobile pass
+   * 2026-09-06, docs/research/mobile-synthesis.md §2 — the table there is the
+   * truth). Lower = earlier. A role that is not listed here for an item
+   * still sees it: it lands in the « Plus » sheet (roles with ≥ 5
+   * destinations) or after the ordered items in the bar (roles with ≤ 4).
+   * `mobileBarFor()` applies the combo rule.
    */
-  mobileRank?: number;
+  mobileOrder?: Partial<Record<string, number>>;
+  /** Shorter label for the bottom bar when `label` reads wrong there (« Terrain » → « Missions »). */
+  mobileLabel?: string;
   /** Global `g`-chord that navigates here (see hooks/use-hotkeys.ts). */
   hotkey?: string;
 };
@@ -51,19 +57,19 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Opérations',
     items: [
-      { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur', 'Agent de Terrain'], mobileRank: 3, hotkey: 'g t' },
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Chiffreur', 'Agent de Terrain'], mobileOrder: { Admin: 1, "Responsable d'équipe": 1, Gestionnaire: 3, Chiffreur: 2, 'Agent de Terrain': 2 }, hotkey: 'g t' },
       { href: '/monitoring', icon: Gauge, label: "Suivi d'équipe", subtitle: 'Funnel des étapes — combien de dossiers ont franchi chaque étape.', roles: ['Admin', "Responsable d'équipe"], hotkey: 'g s' },
-      { href: '/dossiers', icon: FolderOpen, label: 'Dossiers', subtitle: 'Gérer et suivre tous les dossiers de sinistres', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'], mobileRank: 1, hotkey: 'g d' },
-      { href: '/mes-rappels', icon: Bell, label: 'Rappels', title: 'Mes rappels', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'], mobileRank: 2, hotkey: 'g r' },
-      { href: '/consultation', icon: BookOpen, label: 'Consultation', subtitle: 'Consulter tous les dossiers de sinistres (lecture seule)', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Directeur', 'Directeur des opérations', 'Directeur technique'], mobileRank: 1 },
+      { href: '/dossiers', icon: FolderOpen, label: 'Dossiers', subtitle: 'Gérer et suivre tous les dossiers de sinistres', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'], mobileOrder: { Admin: 2, "Responsable d'équipe": 2, Gestionnaire: 1 }, hotkey: 'g d' },
+      { href: '/mes-rappels', icon: Bell, label: 'Rappels', title: 'Mes rappels', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire'], mobileOrder: { Admin: 3, "Responsable d'équipe": 3, Gestionnaire: 2 }, hotkey: 'g r' },
+      { href: '/consultation', icon: BookOpen, label: 'Consultation', subtitle: 'Consulter tous les dossiers de sinistres (lecture seule)', roles: ['Admin', "Responsable d'équipe", 'Gestionnaire', 'Directeur', 'Directeur des opérations', 'Directeur technique'], mobileOrder: { Gestionnaire: 4, Directeur: 1, 'Directeur des opérations': 1, 'Directeur technique': 1 } },
       { href: '/compagnies', icon: Building2, label: 'Compagnies', subtitle: 'Sélectionnez une compagnie partenaire pour consulter ses indicateurs et dossiers.', roles: ['Admin', "Responsable d'équipe"] },
     ],
   },
   {
     label: 'Assignations',
     items: [
-      { href: '/assignations-chiffrage', icon: Calculator, label: 'Chiffrage', title: 'Assignations au chiffrage', roles: ['Admin', "Responsable d'équipe", 'Chiffreur'], mobileRank: 1, hotkey: 'g c' },
-      { href: '/assignations-atg', icon: UserCheck, label: 'Terrain', title: 'Missions terrain', roles: ['Admin', "Responsable d'équipe", 'Agent de Terrain'], mobileRank: 1, hotkey: 'g m' },
+      { href: '/assignations-chiffrage', icon: Calculator, label: 'Chiffrage', title: 'Assignations au chiffrage', roles: ['Admin', "Responsable d'équipe", 'Chiffreur'], mobileOrder: { Admin: 4, "Responsable d'équipe": 4, Chiffreur: 1 }, hotkey: 'g c' },
+      { href: '/assignations-atg', icon: UserCheck, label: 'Terrain', title: 'Missions terrain', roles: ['Admin', "Responsable d'équipe", 'Agent de Terrain'], mobileOrder: { 'Agent de Terrain': 1 }, mobileLabel: 'Missions', hotkey: 'g m' },
     ],
   },
   {
@@ -71,7 +77,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/utilisateurs', icon: Users, label: 'Utilisateurs', subtitle: 'Ajouter, gérer et assigner des rôles aux utilisateurs.', roles: ['Admin'], hotkey: 'g u' },
       { href: '/tampons', icon: Stamp, label: 'Tampons', subtitle: 'Gérez les tampons utilisés pour signer les devis et documents générés.', roles: ['Admin'] },
-      { href: '/jours-feries', icon: CalendarDays, label: 'Jours fériés', subtitle: 'Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai).', roles: ['Admin', 'Directeur', 'Directeur des opérations', 'Directeur technique'] },
+      { href: '/jours-feries', icon: CalendarDays, label: 'Jours fériés', subtitle: 'Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai).', roles: ['Admin', 'Directeur', 'Directeur des opérations', 'Directeur technique'], mobileOrder: { Directeur: 2, 'Directeur des opérations': 2, 'Directeur technique': 2 } },
     ],
   },
   {
@@ -92,6 +98,45 @@ export const EXTRA_ROUTES: Record<string, { label: string; parent?: string }> = 
 
 /** Flat list of every nav item, in sidebar order. */
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
+
+/** The bottom bar's own tab besides destinations. */
+export const PROFIL_HREF = '/profil';
+
+/** Most destinations a phone bottom bar holds before Profil / « Plus ». */
+export const MOBILE_BAR_MAX = 4;
+
+export interface MobileBar {
+  /** Destinations painted as tabs, in order (≤ 4). */
+  bar: NavItem[];
+  /** Destinations that only live in the « Plus » sheet (empty when `hasPlus` is false). */
+  overflow: NavItem[];
+  /** True → the fifth tab is « Plus » (Profil lives inside it); false → the last tab is Profil. */
+  hasPlus: boolean;
+}
+
+/**
+ * Combo rule for the phone bottom bar (mobile-synthesis §2, A1): a role that
+ * sees ≤ 4 destinations gets them all + Profil (nothing hidden); a role that
+ * sees ≥ 5 gets its top 4 by `mobileOrder` + « Plus ». `items` is the
+ * role-and-grant-filtered list from `useVisibleNav()` (sidebar order), so a
+ * per-user grant lands in the bar of a small role and in « Plus » of a large
+ * one. « Signaler un bug » is a footer item, never a tab.
+ */
+export function mobileBarFor(items: NavItem[], role: string | undefined): MobileBar {
+  const destinations = items.filter((i) => i.href !== '/signaler-bug');
+  const orderOf = (i: NavItem) => (role ? i.mobileOrder?.[role] : undefined) ?? Number.POSITIVE_INFINITY;
+  const ranked = destinations
+    .map((item, idx) => ({ item, idx }))
+    .sort((a, b) => orderOf(a.item) - orderOf(b.item) || a.idx - b.idx)
+    .map((x) => x.item);
+  if (ranked.length <= MOBILE_BAR_MAX) return { bar: ranked, overflow: [], hasPlus: false };
+  return { bar: ranked.slice(0, MOBILE_BAR_MAX), overflow: ranked.slice(MOBILE_BAR_MAX), hasPlus: true };
+}
+
+/** Label painted under a bottom-bar icon (falls back to the short `label`). */
+export function mobileLabelFor(item: NavItem): string {
+  return item.mobileLabel ?? item.label;
+}
 
 /**
  * Returns true iff this nav item is visible to the given role. A null `roles`

@@ -1,0 +1,157 @@
+/* ── Mobile pass (2026-09-06) — phone type scale, spacing, targets, glass ──
+   Source: docs/research/mobile-density-readability.md + mobile-synthesis.md §7.
+   Loaded AFTER globals.css from app/layout.tsx, so these rules win on phones
+   without touching the desktop system.
+
+   The phone gate is width OR height, in rem:
+
+     @media (max-width: 47.9375rem), (max-height: 30rem)
+
+   47.9375rem = 767 px at the default 16 px root (below Tailwind `md`); the
+   30 rem height arm keeps an 844 × 390 landscape phone on the phone rhythm
+   instead of handing it the tablet layout (Material would call 844 px wide
+   "medium"). rem so a user who scales their font gets the phone layout too. */
+
+/* Never let a mobile browser inflate text on its own (MDN text-size-adjust);
+   the scale below is deliberate and must not be second-guessed by the engine.
+   User zoom is untouched — `maximumScale: 5` stays in the viewport export. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* iOS zooms the page when a focused control's text is under 16 px. The app is
+   a form tool; every control below `lg` (not `md` — tablets type too) is 16 px. */
+@media (max-width: 63.9375rem) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 47.9375rem), (max-height: 30rem) {
+  /* ── Type roles ──────────────────────────────────────────────────────
+     Apple Dynamic Type / M3 type scale mapped onto the app's roles: the
+     30 px display is a desktop size (a phone page title lives in the 48 px
+     bar at 17/600); body goes to 15 (Apple's list Subhead, Butterick's lower
+     bound) because this is an operational tool, not prose. Floor: 12 px for
+     words, 11 px only for digit-only pills. */
+  .t-display {
+    font-size: 24px;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  .t-title {
+    font-size: 20px;
+    line-height: 1.25;
+  }
+  .t-heading {
+    font-size: 16px;
+    line-height: 1.3;
+  }
+  .t-body {
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .t-body-sm {
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .t-caption,
+  .t-label {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .t-mono {
+    font-size: 14px;
+  }
+
+  /* ── Spacing ─────────────────────────────────────────────────────────
+     Page margin 16 (M1 compact keyline; 12 would touch the card radius, 24
+     costs 5 % of a 390 px screen per side). Cards drop from 24 to 16 — the
+     tile padding the design system already uses. Sections 24, fields 12. */
+  /* `.paper` (the dossier step sections) carries its own px-5/py-4; the Card
+     parts carry `p-6` and are handled in the component with `max-md:p-4`, so
+     only the paper surfaces are corrected here. */
+  .paper {
+    padding: 1rem;
+  }
+  main .space-y-8 > * + * {
+    margin-top: 1.5rem;
+  }
+
+  /* ── Chips ───────────────────────────────────────────────────────────
+     A word chip is read, so it is 12/500 in a 22–24 px pill. A chip that
+     would need « … » wraps to its own line instead: a `title` tooltip is
+     dead on touch (and fails WCAG 1.4.12's reveal requirement). */
+  [data-status-chip] {
+    font-size: 12px;
+    line-height: 1rem;
+    padding-block: 2px;
+    padding-inline: 8px;
+    white-space: normal;
+  }
+  /* The remove × inside an applied-filter chip is a real target. */
+  [data-filter-chip] button {
+    min-width: 24px;
+    min-height: 24px;
+  }
+
+  /* ── Glass ───────────────────────────────────────────────────────────
+     Apple: materials belong to navigation, not the content layer — and a
+     phone scrim is 100 % of the viewport, the case Chrome composites worst
+     (an S24 Ultra "chugs hard", HN). So the blur survives on the two bars
+     only; sheets, menus and the drawer go solid, the scrim is colour-only,
+     and the grain layer (invisible at 3 % on a 6-inch screen, but a
+     full-screen compositing layer) is off. These rules ARE the reduced-
+     transparency fallback: `prefers-reduced-transparency` never fires on
+     iOS or Android. */
+  .glass-strong {
+    background: hsl(var(--popover));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-sidebar {
+    background: hsl(var(--sidebar-background));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  body::after {
+    display: none;
+  }
+
+  /* ── Landscape / compact height ──────────────────────────────────────
+     Same type, tighter rhythm: a 390 px-tall viewport cannot afford 24 px
+     between sections. */
+  @media (max-height: 30rem) {
+    .paper {
+      padding: 0.75rem;
+    }
+    main .space-y-8 > * + * {
+      margin-top: 1rem;
+    }
+  }
+
+  /* ── Dark mode ───────────────────────────────────────────────────────
+     Apple asks for ~7:1 on small text in dark mode; ink-3 at 12 px lands
+     near 5.7:1 on card. Captions and labels step up one rung on phones. */
+  .dark .t-caption,
+  .dark .t-label {
+    color: hsl(var(--ink-2));
+  }
+}
+
+/* ── Print ──────────────────────────────────────────────────────────────
+   The phone rules must never leak into a printed report. */
+@media print {
+  .t-display,
+  .t-title,
+  .t-heading,
+  .t-body,
+  .t-caption,
+  .t-label {
+    font-size: revert;
+    line-height: revert;
+  }
+}

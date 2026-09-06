@@ -62,7 +62,13 @@ export function RapportTypeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        // Four descriptive radio cards: more than a 60 dvh sheet can hold
+        // without the last option landing under the fold (D §2).
+        fullScreen
+        primary={{ label: t('Générer'), onClick: handleConfirm, loading: isGenerating }}
+        className="sm:max-w-md"
+      >
         <DialogHeader>
           <DialogTitle>{t('Générer le rapport')}</DialogTitle>
           <DialogDescription>
@@ -79,7 +85,7 @@ export function RapportTypeDialog({
             <label
               key={opt.value}
               htmlFor={`rapport-type-${opt.value}`}
-              className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 hover:bg-muted/40"
+              className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-border p-3 hover:bg-muted/40 max-md:min-h-14 max-md:p-4"
             >
               <RadioGroupItem
                 value={opt.value}
@@ -104,10 +110,11 @@ export function RapportTypeDialog({
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isGenerating}
+            className="max-md:hidden"
           >
             {t('Annuler')}
           </Button>
-          <Button onClick={handleConfirm} disabled={isGenerating} className="gap-2">
+          <Button onClick={handleConfirm} disabled={isGenerating} className="gap-2 max-md:h-12 max-md:text-[15px] max-md:font-semibold">
             {isGenerating ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (

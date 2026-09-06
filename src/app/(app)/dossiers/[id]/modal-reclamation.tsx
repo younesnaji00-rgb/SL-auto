@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
@@ -161,7 +162,20 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[calc(80vh/var(--app-zoom))] overflow-y-auto">
+      <DialogContent
+        // A textarea + a history list → full-screen on phones (D §2: any
+        // dialog with a textarea opts in; a 60 dvh sheet under the keyboard
+        // leaves two lines of the field visible).
+        fullScreen
+        primary={{
+          label: t('Soumettre'),
+          onClick: handleSubmit,
+          disabled: !reclamationText.trim(),
+          loading: isSubmitting,
+        }}
+        dirty={!!reclamationText.trim()}
+        className="sm:max-w-[600px] max-h-[calc(80vh/var(--app-zoom))] overflow-y-auto"
+      >
         <DialogHeader>
           <DialogTitle>{t('Soumettre une Réclamation')}</DialogTitle>
           <DialogDescription>
@@ -170,12 +184,18 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="space-y-2">
+            <Label htmlFor="reclamation-text">{t('Réclamation')}</Label>
             <Textarea
+              id="reclamation-text"
               placeholder={t('Sujet de la réclamation...')}
               value={reclamationText}
               onChange={(e) => setReclamationText(e.target.value)}
               disabled={isSubmitting}
-              className="min-h-[120px] resize-none"
+              // Auto-grows 2 → 6 rows; on a desk it keeps its 120 px floor.
+              minRows={3}
+              autoCapitalize="sentences"
+              enterKeyHint="enter"
+              className="md:min-h-[120px]"
             />
           </div>
         </div>
@@ -184,6 +204,7 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
+            className="max-md:hidden"
           >
             {t('Annuler')}
           </Button>
@@ -191,6 +212,7 @@ export default function ModalReclamation({ open, onOpenChange, dossierId }: Moda
             variant="destructive"
             onClick={handleSubmit}
             disabled={isSubmitting || !reclamationText.trim()}
+            className="max-md:h-12 max-md:text-[15px] max-md:font-semibold"
           >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {t('Soumettre')}

@@ -63,7 +63,18 @@ export { REQUIRED_SOURCE_SLOTS, GARAGE_DOC_SLOTS } from '@/lib/required-docs';
 // same responsive socket grid as `FamilyRow` (no horizontal scrolling).
 const SECTION_CLASS = 'space-y-3 border-t border-hairline pt-5 first:border-t-0 first:pt-0';
 const SECTION_HEADING_CLASS = 't-label';
-const SECTION_GRID_CLASS = 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4';
+// Sockets are TWO columns on a phone (docs/research/mobile-record-pages.md
+// §E6: one column means ~3 300 px of scroll; `sm:` was never a phone rule).
+// 12 px gutter = `gap-3`. From `xl` up the desktop board is unchanged.
+const SECTION_GRID_CLASS = 'grid grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-4';
+/**
+ * `FamilyRow` (not part of this pass's ownership) hard-codes the OLD
+ * `grid-cols-1 … sm:grid-cols-2` socket grid. This descendant rule, scoped to
+ * the board's own root, lifts those rows to two columns below md without
+ * editing that file — same ruling, one place, removable in one line once
+ * family-row adopts `SECTION_GRID_CLASS`.
+ */
+const BOARD_ROOT_CLASS = 'max-md:[&_.grid-cols-1]:grid-cols-2';
 
 interface TypedDocumentsGridProps {
   dossierId: string;
@@ -678,6 +689,23 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     }
   };
 
+  /**
+   * Section title + « 4/6 reçues » caption to its right (E6). It is the
+   * cheapest progress signal on a phone, where the whole section rarely fits
+   * on one screen and counting filled tiles by eye means scrolling.
+   */
+  const sectionTitle = (label: string, slots: string[]) => {
+    const received = slots.filter((s) => (docsByType[s] || []).some((d: TypedDoc) => !!d.url && !d.pendingUpload)).length;
+    return (
+      <div className="flex items-baseline justify-between gap-3">
+        <h4 className={SECTION_HEADING_CLASS}>{t(label)}</h4>
+        <span className="t-caption shrink-0 tabular-nums">
+          {received}/{slots.length} {t('reçues')}
+        </span>
+      </div>
+    );
+  };
+
   const renderSlotCard = (slot: string) => (
     <SlotCard
       key={slot}
@@ -730,7 +758,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   const factureFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Facture Garage');
 
   return (
-    <div>
+    <div className={BOARD_ROOT_CLASS}>
       {loading ? (
         <div className="flex items-center justify-center h-32">
           <Loader2 className="h-5 w-5 animate-spin text-ink-3" />
@@ -751,7 +779,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               upload affordance is the first thing the gestionnaire sees. */}
           {showBaseGarageSlots && (
             <section className={SECTION_CLASS}>
-              <h4 className={SECTION_HEADING_CLASS}>{t('Devis et Facture')}</h4>
+              {sectionTitle('Devis et Facture', ['Devis Garage', 'Facture Garage'])}
               <div className={SECTION_GRID_CLASS}>
                 {(['Devis Garage', 'Facture Garage'] as const).map((slot) => (
                   <SlotCard
@@ -839,7 +867,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               preserve the legacy render order on other timeline steps. */}
           {showAllNonAccordSlots && cardinalFilter !== '2-plus' && !showOnlyAccordSlots && rapportSlots.length > 0 && (
             <section className={SECTION_CLASS}>
-              <h4 className={SECTION_HEADING_CLASS}>{t('Rapport')}</h4>
+              {sectionTitle('Rapport', rapportSlots)}
               <div className={SECTION_GRID_CLASS}>
                 {rapportSlots.map((slot) => renderSlotCard(slot))}
               </div>
@@ -852,7 +880,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           {!hideReformeSlots && cardinalFilter !== '2-plus' && reformeSlots.length > 0 &&
             (showReformeSlots || ((showAllNonAccordSlots || !hideAccordSlots) && !showOnlyAccordSlots)) && (
             <section className={SECTION_CLASS}>
-              <h4 className={SECTION_HEADING_CLASS}>{t('Réforme')}</h4>
+              {sectionTitle('Réforme', reformeSlots)}
               <div className={SECTION_GRID_CLASS}>
                 {reformeSlots.map((slot) => renderSlotCard(slot))}
               </div>
@@ -862,7 +890,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
           {/* Autres documents — PV, Carte grise, Attestation, etc. */}
           {(showAllNonAccordSlots || !hideOtherSlots) && !showOnlyAccordSlots && otherSlots.length > 0 && (
             <section className={SECTION_CLASS} data-tour="dosd-other-docs">
-              <h4 className={SECTION_HEADING_CLASS}>{t('Autres documents')}</h4>
+              {sectionTitle('Autres documents', otherSlots)}
               <div className={SECTION_GRID_CLASS}>
                 {otherSlots.map((slot) => renderSlotCard(slot))}
               </div>
@@ -871,13 +899,33 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
         </div>
       )}
 
-      {/* Lightbox preview — shared component */}
+      {/* Lightbox preview — shared component. `actions` is the PHONE-only
+          « ⋯ » sheet in its header: on touch a socket has no hover cluster, so
+          Supprimer lives here (E6 → E8). Desktop is unaffected (the prop is
+          ignored from md up). */}
       <DocumentPreviewLightbox
         doc={preview?.doc ?? null}
         pages={preview?.pages}
         onPageChange={(d) => setPreview((p) => (p ? { ...p, doc: d } : p))}
         onClose={() => setPreview(null)}
         onDownload={(d) => downloadFileFromUrl(d.url, d.nom)}
+        actions={(() => {
+          const current = preview
+            ? ((allDocs as TypedDoc[] | undefined) ?? []).find((d) => d.url === preview.doc.url)
+            : null;
+          if (!current || !canDeleteDoc(current)) return undefined;
+          return [
+            {
+              key: 'delete',
+              label: t('Supprimer'),
+              destructive: true,
+              onSelect: () => {
+                setPreview(null);
+                void handleDelete(current);
+              },
+            },
+          ];
+        })()}
       />
     </div>
   );

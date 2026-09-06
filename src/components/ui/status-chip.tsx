@@ -69,9 +69,19 @@ export function StatusChip({ status, icon, fallback = 'Nouveau', className, ...p
   const label = (status || '').trim() || fallback;
   const display = t(label);
   return (
-    <Badge variant={statusTone(label)} className={cn('max-w-full', className)} title={display} {...props}>
+    // Mobile pass 2026-09-06: on a phone the label must never be cut to « … »
+    // with the full text hidden in a `title` — a title tooltip does not exist
+    // on touch, and WCAG 1.4.12 only allows truncation when the text can be
+    // revealed. Below `md` the chip wraps instead (the row gives it the line).
+    <Badge
+      data-status-chip
+      variant={statusTone(label)}
+      className={cn('max-w-full max-md:whitespace-normal', className)}
+      title={display}
+      {...props}
+    >
       {icon}
-      <span className="truncate">{display}</span>
+      <span className="truncate max-md:whitespace-normal">{display}</span>
     </Badge>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { BRAND } from '@/lib/brand';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { TutorialLauncher } from '@/components/tutorial/tutorial-launcher';
@@ -22,6 +22,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageLoader } from '@/components/ui/page-loader';
 import { AlertCircle, Check, Eye, EyeOff } from 'lucide-react';
 import Logo from '@/components/logo';
+import { INPUT_NEW_PASSWORD, INPUT_PASSWORD, INPUT_USERNAME } from '@/lib/input-attrs';
 import { useToast } from '@/hooks/use-toast';
 
 /** Generate a deterministic email from the user's full name */
@@ -79,6 +80,17 @@ function readTabSessionId(): string | null {
 // Flat cream canvas (blueprint §3: no ambient gradient/mesh behind the page).
 const PAGE_BACKGROUND = 'bg-background text-ink';
 
+/**
+ * Below `md` the card IS the page (docs/research/mobile-forms-inputs.md §2.10;
+ * GOV.UK "the screen is solely about that task"): no border, no shadow, no
+ * 400 px cap — 24 px of side padding, the logo, the title and the fields, with
+ * safe-area room under the button. From `md` up the ≤ 400 px glass card
+ * returns unchanged.
+ */
+const LOGIN_CARD =
+  'w-full max-w-[400px] p-6 sm:p-8 max-md:max-w-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none max-md:backdrop-blur-none';
+const LOGIN_PAGE = 'max-md:items-start max-md:px-6 max-md:pt-12 max-md:pb-[max(24px,env(safe-area-inset-bottom))]';
+
 /** Field label: 12 px sentence case, quiet (blueprint §2 `t-label`). Plain
  *  <label> rather than the shadcn Label so its 14 px utility doesn't win. */
 function FieldLabel({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
@@ -120,6 +132,19 @@ export default function LoginPage() {
   const isDemo = BRAND.id === 'demo';
   const [showClassicForm, setShowClassicForm] = useState(!isDemo);
   const [showPassword, setShowPassword] = useState(false);
+  /**
+   * Focus the first field on a MOUSE, never on touch (§2.10 do-not list:
+   * "No `autoFocus` on touch" — iOS ignores the attribute and Android opens
+   * the keyboard over the logo before the user has read the screen). A
+   * callback ref rather than the `autoFocus` prop, because the pointer class
+   * is only knowable on the client and `autoFocus` fires at mount, before an
+   * effect could veto it.
+   */
+  const focusIfFinePointer = useCallback((node: HTMLInputElement | null) => {
+    if (!node || typeof window === 'undefined') return;
+    if (window.matchMedia?.('(hover: none) and (pointer: coarse)').matches) return;
+    node.focus();
+  }, []);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   // Success morph state — true from sign-in success until navigation.
@@ -510,9 +535,9 @@ export default function LoginPage() {
   // ===== FIRST-TIME SETUP =====
   if (needsSetup) {
     return (
-      <div className={`flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
+      <div className={`flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND} ${LOGIN_PAGE}`}>
         {/* Login card — element-specs §20 (GOV.UK create accounts: "solely about that task"; NN/g: single column, labels above, one submit): one glass card ≤ 400 px, 24–32 px padding. */}
-        <Card className="w-full max-w-[400px] p-6 sm:p-8">
+        <Card className={LOGIN_CARD}>
           <div className="flex flex-col items-center gap-4 text-center">
             <Logo />
             <div className="space-y-1">
@@ -530,17 +555,18 @@ export default function LoginPage() {
               <FieldLabel htmlFor="setup-name">{t("Nom complet de l'administrateur")}</FieldLabel>
               <Input
                 id="setup-name"
+                {...INPUT_USERNAME}
                 value={setupName}
                 onChange={e => setSetupName(e.target.value)}
                 required
-                autoFocus
+                ref={focusIfFinePointer}
               />
             </div>
             <div className="space-y-1">
               <FieldLabel htmlFor="setup-password">{t('Mot de passe')}</FieldLabel>
               <Input
                 id="setup-password"
-                type="password"
+                {...INPUT_NEW_PASSWORD}
                 placeholder={t('Minimum 6 caractères')}
                 value={setupPassword}
                 onChange={e => setSetupPassword(e.target.value)}
@@ -552,7 +578,8 @@ export default function LoginPage() {
               <FieldLabel htmlFor="setup-confirm">{t('Confirmez le mot de passe')}</FieldLabel>
               <Input
                 id="setup-confirm"
-                type="password"
+                {...INPUT_NEW_PASSWORD}
+                enterKeyHint="go"
                 value={setupConfirm}
                 onChange={e => setSetupConfirm(e.target.value)}
                 required
@@ -567,7 +594,7 @@ export default function LoginPage() {
               </Alert>
             )}
 
-            <Button type="submit" className="w-full" loading={setupLoading}>
+            <Button type="submit" className="w-full max-md:h-12 max-md:text-[15px] max-md:font-semibold" loading={setupLoading}>
               {setupLoading ? t('Création…') : t('Créer le compte Admin')}
             </Button>
           </form>
@@ -580,7 +607,7 @@ export default function LoginPage() {
   const demoEntry = isDemo && !showClassicForm;
 
   return (
-    <div className={`relative flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND}`}>
+    <div className={`relative flex min-h-screen items-center justify-center p-4 ${PAGE_BACKGROUND} ${LOGIN_PAGE}`}>
       {/* Theme + language controls (white-label: the switcher only renders for
           brands that allow more than one locale). Tour anchor: login-lang. */}
       <div className="absolute right-4 top-4 flex items-center gap-1" data-tour="login-lang">
@@ -589,8 +616,9 @@ export default function LoginPage() {
       </div>
       <TutorialLauncher />
       {/* Login card — element-specs §20 (GOV.UK create accounts: "solely about that task"; NN/g: single column, labels above, one submit): one glass card ≤ 400 px, 24–32 px padding. */}
-      <Card className="w-full max-w-[400px] p-6 sm:p-8">
-        <div className="flex flex-col items-center gap-4 text-center">
+      <Card className={LOGIN_CARD}>
+        {/* Phones read left-aligned: logo top-left, then the title (§2.10). */}
+        <div className="flex flex-col items-center gap-4 text-center max-md:items-start max-md:text-left">
           <Logo />
           <div className="space-y-1">
             <h1 className="t-title">{demoEntry ? t('Explorer la démo') : t('Connexion')}</h1>
@@ -659,10 +687,17 @@ export default function LoginPage() {
             <FieldLabel htmlFor="nom">{t('Nom complet')}</FieldLabel>
             <Input
               id="nom"
+              // web.dev sign-in form: `autocomplete="username"` is what makes
+              // a password manager offer the right credential. Capitalise
+              // words (French full names), never autocorrect a name.
+              {...INPUT_USERNAME}
               value={nom}
               onChange={e => setNom(e.target.value)}
               required
-              autoFocus
+              // NO autoFocus on touch (§2.10): iOS ignores it and Android
+              // opens the keyboard over the logo before the user has read the
+              // screen.
+              ref={focusIfFinePointer}
             />
           </div>
           <div className="space-y-1" data-tour="login-password">
@@ -670,20 +705,21 @@ export default function LoginPage() {
             <div className="relative">
               <Input
                 id="password"
+                {...INPUT_PASSWORD}
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="pr-10"
+                className="pr-12"
               />
               {/* Show/hide toggle — element-specs §20 + NN/g password masking ("offer a
                   show-password toggle"): a `ghost` icon Button with aria-pressed, flat
-                  inside the field (no rim on an inline affordance). */}
+                  inside the field (no rim on an inline affordance). 44 px on touch. */}
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-ink-3 shadow-none hover:text-ink"
+                className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-ink-3 shadow-none hover:text-ink max-md:h-11 max-md:w-11"
                 onClick={() => setShowPassword(v => !v)}
                 aria-label={showPassword ? t('Masquer le mot de passe') : t('Afficher le mot de passe')}
                 aria-pressed={showPassword}
@@ -701,7 +737,8 @@ export default function LoginPage() {
             </Alert>
           )}
 
-          <Button type="submit" className="w-full" loading={loading && !loginSuccess} disabled={loading || loginSuccess}>
+          {/* One full-width primary, 48 px on a phone (density §7). */}
+          <Button type="submit" className="w-full max-md:h-12 max-md:text-[15px] max-md:font-semibold" loading={loading && !loginSuccess} disabled={loading || loginSuccess}>
             {loginSuccess ? (
               <>
                 <Check className="h-4 w-4" aria-hidden />

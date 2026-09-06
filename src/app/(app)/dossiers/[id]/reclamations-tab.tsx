@@ -123,7 +123,7 @@ export default function ReclamationsTab({ dossierId }: { dossierId: string }) {
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-7 w-7 text-ink-3 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 group-focus-within:opacity-100"
+                                            className="h-7 w-7 text-ink-3 transition-opacity hover:text-destructive max-md:h-11 max-md:w-11 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100"
                                             onClick={() => setDeleteId(r.id)}
                                         >
                                             <Trash2 className="h-4 w-4" />

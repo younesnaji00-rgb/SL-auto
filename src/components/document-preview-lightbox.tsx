@@ -8,8 +8,16 @@
  *   2. Set it from their `onOpenDocument` handler (instead of `window.open`).
  *   3. Render `<DocumentPreviewLightbox doc={state} onClose={...} onDownload={...} />`.
  *
- * Images are rendered with `<img>`, everything else with `<iframe>` so the
- * browser's native PDF viewer takes over. No external dependencies.
+ * On md and up: images are rendered with `<img>`, everything else with an
+ * `<iframe>` so the browser's native PDF viewer takes over.
+ *
+ * BELOW md the component is a different thing entirely — a full-screen VIEW
+ * (`PhoneLightbox` below, docs/research/mobile-record-pages.md §E8): black
+ * ground, 44 px top row (✕ · « 3 / 12 » · ⋯), pinch + double-tap zoom, swipe
+ * paging, platform back to close, and pdf.js pages instead of the `<iframe>`
+ * (mobile Safari renders an embedded PDF as an image of its first page only).
+ * Hosts opt into the phone « ⋯ » sheet with the `actions` prop; everything
+ * else about their call site is unchanged.
  *
  * The window WRAPS the media exactly (owner ruling 2026-09-02): its width is
  * min(viewport cap, the width the full viewport height implies at the media's
@@ -20,13 +28,18 @@
  */
 
 import * as React from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Download, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, ExternalLink, MoreHorizontal, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { TransformWrapper, TransformComponent, useControls, useTransformEffect } from 'react-zoom-pan-pinch';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
+import { ActionSheet, type ActionItem } from '@/components/ui/action-sheet';
+import { PdfPagesViewer } from '@/components/common/pdf-pages-viewer';
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { useOverlayHistory } from '@/hooks/use-overlay-history';
 
 /**
  * Zoom toolbar rendered inside the TransformWrapper (hooks need its context):
@@ -81,6 +94,15 @@ interface DocumentPreviewLightboxProps {
   onPageChange?: (doc: DocumentPreviewLightboxDoc, index: number) => void;
   /** Optional tour anchor stamped on the dialog (guided walkthroughs). */
   dataTour?: string;
+  /**
+   * PHONE ONLY (mobile-synthesis §6 E8). Extra rows of the « ⋯ » action sheet
+   * in the full-screen header — this is where the socket's hover-revealed
+   * actions move on touch (Aperçu / Remplacer / anything the host owns).
+   * `Télécharger`, `Supprimer` and, for PDFs, `Ouvrir` are appended
+   * automatically from `onDownload` / `onDelete` / the file type, so a host
+   * that only needs those passes nothing. Ignored from `md` up.
+   */
+  actions?: ActionItem[];
 }
 
 function isImageName(name: string): boolean {
@@ -90,8 +112,183 @@ function isImageName(name: string): boolean {
 /** A4 portrait width/height — default for PDFs and unknown documents. */
 const A4_RATIO = 210 / 297;
 
-export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pages, onPageChange, dataTour }: DocumentPreviewLightboxProps) {
+function isPdfName(name: string): boolean {
+  return /\.pdf$/i.test(name || '');
+}
+
+/** Reports the live zoom scale out of the TransformWrapper context. */
+function ScaleProbe({ onScale }: { onScale: (s: number) => void }) {
+  const ref = React.useRef(onScale);
+  ref.current = onScale;
+  useTransformEffect(({ state }) => {
+    ref.current(state.scale);
+  });
+  return null;
+}
+
+/**
+ * PHONE lightbox (mobile-synthesis §6 E8) — a VIEW, not a window: 100 dvh on a
+ * black ground, a 44 px top row (✕ left · « 3 / 12 » centre · ⋯ right), pinch
+ * and double-tap zoom, horizontal swipe for prev/next, no zoom toolbar (the
+ * pinch IS the control), and the platform back button closes it
+ * (`useOverlayHistory`). PDFs never reach an `<iframe>` here — they go through
+ * `PdfPagesViewer` (pdf.js, visible page ± 1) with « Ouvrir » left as the
+ * secondary escape hatch in the ⋯ sheet.
+ */
+function PhoneLightbox({
+  doc,
+  onClose,
+  onDownload,
+  onDelete,
+  pages,
+  onPageChange,
+  dataTour,
+  actions,
+}: DocumentPreviewLightboxProps & { doc: DocumentPreviewLightboxDoc }) {
   const t = useT();
+  const isImage = isImageName(doc.nom);
+  const isPdf = isPdfName(doc.nom);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [pdfPage, setPdfPage] = React.useState<{ page: number; total: number } | null>(null);
+
+  useOverlayHistory(true, onClose);
+
+  const pageList = pages && pages.length > 1 ? pages : null;
+  const pageIndex = pageList ? Math.max(0, pageList.findIndex((p) => p.url === doc.url)) : 0;
+  const goTo = React.useCallback(
+    (i: number) => {
+      if (!pageList || !onPageChange) return;
+      const next = (i + pageList.length) % pageList.length;
+      onPageChange(pageList[next], next);
+    },
+    [pageList, onPageChange],
+  );
+
+  // Swipe = prev/next, but only at scale 1 (above it the gesture is a pan).
+  const scaleRef = React.useRef(1);
+  const touchRef = React.useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (!pageList || e.touches.length !== 1 || scaleRef.current > 1.05) { touchRef.current = null; return; }
+    touchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touchRef.current;
+    touchRef.current = null;
+    if (!start || !pageList) return;
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+    goTo(dx < 0 ? pageIndex + 1 : pageIndex - 1);
+  };
+
+  // ⋯ rows: the host's own first, then the built-ins the props imply.
+  const sheetItems: ActionItem[] = [
+    ...(actions ?? []),
+    ...(isPdf ? [{ key: 'open', label: t('Ouvrir'), icon: <ExternalLink />, href: doc.url, external: true }] : []),
+    ...(onDownload ? [{ key: 'download', label: t('Télécharger'), icon: <Download />, onSelect: () => onDownload(doc) }] : []),
+    ...(onDelete ? [{ key: 'delete', label: t('Supprimer'), icon: <Trash2 />, destructive: true, onSelect: () => onDelete(doc) }] : []),
+  ];
+
+  const counter = isPdf && pdfPage && pdfPage.total > 1
+    ? `${pdfPage.page} / ${pdfPage.total}`
+    : pageList
+      ? `${pageIndex + 1} / ${pageList.length}`
+      : null;
+
+  return (
+    <DialogPrimitive.Root open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogPrimitive.Portal>
+        {/* No scrim: the view IS the screen. */}
+        <DialogPrimitive.Content
+          data-tour={dataTour}
+          {...tourDialogGuard()}
+          aria-describedby={undefined}
+          className="fixed inset-0 z-50 flex h-[100dvh] w-screen flex-col bg-black text-white outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
+        >
+          <DialogPrimitive.Title className="sr-only">{doc.nom}</DialogPrimitive.Title>
+
+          {/* 44 px top row — ✕ left, counter centre, ⋯ right. */}
+          <div className="flex h-11 shrink-0 items-center justify-between pt-[env(safe-area-inset-top)]">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={t('Fermer')}
+              className="inline-flex h-11 w-11 items-center justify-center text-white"
+            >
+              <X className="h-6 w-6 drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]" />
+            </button>
+            <span className="min-w-0 flex-1 truncate px-2 text-center text-[13px] tabular-nums text-white/80" aria-live="polite">
+              {counter ?? doc.nom}
+            </span>
+            {sheetItems.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setSheetOpen(true)}
+                aria-label={t('Actions')}
+                className="inline-flex h-11 w-11 items-center justify-center text-white"
+              >
+                <MoreHorizontal className="h-6 w-6 drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]" />
+              </button>
+            ) : (
+              <span className="h-11 w-11" aria-hidden />
+            )}
+          </div>
+
+          {/* Media */}
+          <div
+            className="relative min-h-0 flex-1 overflow-hidden"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+          >
+            {isImage ? (
+              <TransformWrapper
+                key={doc.url}
+                minScale={1}
+                maxScale={8}
+                doubleClick={{ mode: 'toggle', step: 1.5, animationTime: 200 }}
+                smooth={false}
+                wheel={{ step: 0.3 }}
+                pinch={{ step: 5 }}
+                centerZoomedOut
+              >
+                <ScaleProbe onScale={(s) => { scaleRef.current = s; }} />
+                <TransformComponent
+                  wrapperClass="!w-full !h-full"
+                  contentClass="!w-full !h-full flex items-center justify-center"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={doc.url} alt={doc.nom} draggable={false} className="max-h-full max-w-full select-none object-contain" />
+                </TransformComponent>
+              </TransformWrapper>
+            ) : isPdf ? (
+              <PdfPagesViewer url={doc.url} onPageChange={(page, total) => setPdfPage({ page, total })} />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center">
+                <p className="text-[15px] text-white/80">{t('Aperçu indisponible pour ce type de fichier.')}</p>
+                <a
+                  href={doc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-11 items-center rounded-md bg-white/10 px-4 text-[15px] font-semibold text-white"
+                >
+                  {t('Ouvrir')}
+                </a>
+              </div>
+            )}
+          </div>
+
+          <ActionSheet open={sheetOpen} onOpenChange={setSheetOpen} title={doc.nom} items={sheetItems} />
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
+  );
+}
+
+export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pages, onPageChange, dataTour, actions }: DocumentPreviewLightboxProps) {
+  const t = useT();
+  const isPhone = useIsPhone();
   const isImage = doc ? isImageName(doc.nom) : false;
   // width / height of the media. Owner ruling 2026-09-02: the window must
   // open AT its final size — no zoom-past-and-snap-back. So the ratio is
@@ -168,6 +365,24 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
   }, [isImage, doc?.url]);
 
   if (!doc) return null;
+
+  // Below md the lightbox is a full-screen VIEW, not a window (E8). Nothing
+  // above this line paints, so the desktop window is untouched.
+  if (isPhone) {
+    return (
+      <PhoneLightbox
+        doc={doc}
+        onClose={onClose}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        pages={pages}
+        onPageChange={onPageChange}
+        dataTour={dataTour}
+        actions={actions}
+      />
+    );
+  }
+
   // First open: wait for the measurement so the window mounts at its final
   // size. Once open, stay mounted through page turns (ratio updates in place).
   if (!measured && !wasOpenRef.current) return null;

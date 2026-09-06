@@ -12,8 +12,11 @@ const Switch = React.forwardRef<
   <SwitchPrimitives.Root
     className={cn(
       // Track on the surface ladder with the light rim; accent when on. The
-      // thumb slides horizontally only (no scale).
-      "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent shadow-rim transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:shadow-rim-filled data-[state=unchecked]:bg-surface-4",
+      // thumb slides horizontally only (no scale). On touch a transparent
+      // ::before lifts the 24 px track to a 44 px hit area (density §7);
+      // Apple: a switch belongs in a list row, so the row is the real target
+      // and this only guarantees the control itself is never under-sized.
+      "peer relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent shadow-rim transition-colors max-md:before:absolute max-md:before:-inset-y-2.5 max-md:before:-inset-x-1 max-md:before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:shadow-rim-filled data-[state=unchecked]:bg-surface-4",
       className
     )}
     {...props}

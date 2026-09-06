@@ -468,7 +468,7 @@ export default function Step1Import({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-7 gap-1 px-2 text-xs text-ink-3 hover:text-ink"
+                className="h-7 gap-1 px-2 text-xs text-ink-3 hover:text-ink max-md:h-11 max-md:px-3 max-md:text-[14px]"
                 onClick={() => setPreviewDoc({ url: url as string, nom: name })}
               >
                 <Eye className="h-3.5 w-3.5" /> {t('Aperçu')}
@@ -479,7 +479,7 @@ export default function Step1Import({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-7 gap-1 px-2 text-xs text-ink-3 hover:text-destructive"
+                className="h-7 gap-1 px-2 text-xs text-ink-3 hover:text-destructive max-md:h-11 max-md:px-3 max-md:text-[14px]"
                 onClick={handleDeleteImportDoc}
                 disabled={isDeletingImport || busy}
                 title={t('Supprimer pour nouveau scan')}
@@ -599,8 +599,9 @@ export default function Step1Import({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 shrink-0 text-ink-3 hover:text-ink"
+                        className="h-7 w-7 shrink-0 text-ink-3 hover:text-ink max-md:h-11 max-md:w-11"
                         data-tour="dosd-import-eye"
+                        aria-label={t('Aperçu')}
                         onClick={() => setPreviewDoc({ url: url as string, nom: name })}
                         title={t('Aperçu')}
                       >
@@ -612,7 +613,8 @@ export default function Step1Import({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                        className="h-7 w-7 shrink-0 text-destructive hover:text-destructive max-md:h-11 max-md:w-11"
+                        aria-label={t('Supprimer pour nouveau scan')}
                         onClick={handleDeleteImportDoc}
                         disabled={isDeletingImport}
                         title={t('Supprimer pour nouveau scan')}

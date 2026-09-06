@@ -59,6 +59,9 @@ export default function MissionsTab({ dossierId }: { dossierId: string }) {
                 <Button variant="outline" size="sm" onClick={handleAdd}><Plus className="mr-2 h-4 w-4" /> {t('Nouvelle mission')}</Button>
             </CardHeader>
             <CardContent>
+                {/* Phone: a 5-column record table survives only as a scroll
+                    region (mobile-synthesis §4) — the PAGE never pans. */}
+                <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:overflow-visible md:px-0">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -125,6 +128,7 @@ export default function MissionsTab({ dossierId }: { dossierId: string }) {
                         )}
                     </TableBody>
                 </Table>
+                </div>
             </CardContent>
 
             <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>

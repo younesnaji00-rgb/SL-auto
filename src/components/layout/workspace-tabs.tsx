@@ -227,7 +227,11 @@ function KindStrip({ api, active }: { api: KindTabsApi; active: boolean }) {
                   // revealed on hover/focus of inactive tabs.
                   className={cn(
                     'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-                    !isActive && 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+                    // The strip is tablet-and-up, but a tablet is still a touch
+                    // device: a close button that only appears on hover cannot
+                    // be reached there (mobile pass 2026-09-06).
+                    !isActive &&
+                      '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100',
                   )}
                 >
                   <X className="h-3 w-3" />
@@ -321,7 +325,12 @@ function WorkspaceTabsInner() {
   if (kinds.length === 0) return null;
 
   return (
-    <div className="flex h-10 w-full min-w-0 items-center gap-2 border-b border-hairline bg-surface-2" data-workspace-tabs data-tour="shell-tabs">
+    // Phones (< md) never show a tab strip: no phone browser does, the drag /
+    // middle-click / double-click affordances are pointer-only, and the row
+    // costs 40 px of a 844 px screen. The <WorkspaceSwitcher> chip in the
+    // phone top bar opens the same list as a sheet instead (mobile-synthesis
+    // §2, research A5).
+    <div className="hidden h-10 w-full min-w-0 items-center gap-2 border-b border-hairline bg-surface-2 md:flex" data-workspace-tabs data-tour="shell-tabs">
       {kinds.map((api, i) => (
         <React.Fragment key={api.kind}>
           {i > 0 && <div className="my-1.5 w-px shrink-0 bg-hairline-strong" aria-hidden />}

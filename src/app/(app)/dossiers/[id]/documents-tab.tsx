@@ -128,7 +128,10 @@ const acceptBrowserFile = (f: File) =>
   f.type.startsWith('image/') || /\.(pdf|docx?|xlsx?)$/i.test(f.name);
 
 const SECTION_LABEL_CLASS = 't-label';
-const SOCKET_GRID_CLASS = 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4';
+// TWO columns on a phone (docs/research/mobile-record-pages.md §E6 — one
+// column is ~3 300 px of scroll; `sm:` was never a phone rule), 12 px gutter.
+// Desktop from `xl` up is unchanged.
+const SOCKET_GRID_CLASS = 'grid grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-4';
 
 const noop = () => {};
 
@@ -688,6 +691,23 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
 
   // ── Rendering ──────────────────────────────────────────────────────────────
 
+  /**
+   * Section title + « 4/6 reçues » caption to its right (E6): on a phone the
+   * section rarely fits on one screen, and counting filled tiles by eye means
+   * scrolling back up.
+   */
+  const sectionTitle = (label: string, entries: { docs: TypedDoc[] }[]) => {
+    const received = entries.filter((x) => x.docs.some((d) => !!d.url && !d.pendingUpload)).length;
+    return (
+      <div className="flex items-baseline justify-between gap-3">
+        <h4 className={SECTION_LABEL_CLASS}>{t(label)}</h4>
+        <span className="t-caption shrink-0 tabular-nums">
+          {received}/{entries.length} {t('reçues')}
+        </span>
+      </div>
+    );
+  };
+
   const renderSocket = (spec: SocketSpec, docs: TypedDoc[]) => (
     <SlotCard
       key={spec.type}
@@ -852,7 +872,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
         <div className="space-y-6">
           {/* Pièces requises — always shown, sockets carry the state. */}
           <section className="space-y-3" aria-label={t('Pièces requises')}>
-            <h4 className={SECTION_LABEL_CLASS}>{t('Pièces requises')}</h4>
+            {sectionTitle('Pièces requises', visRequired)}
             <div className={SOCKET_GRID_CLASS}>
               {visRequired.map((x) => renderSocket(x.spec, x.docs))}
             </div>
@@ -861,7 +881,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
           {/* Autres documents — types holding files + the "Autre type…" socket. */}
           {showOthersGroup && (
             <section className="space-y-3 border-t border-hairline pt-5" aria-label={t('Autres documents')}>
-              <h4 className={SECTION_LABEL_CLASS}>{t('Autres documents')}</h4>
+              {sectionTitle('Autres documents', visOthers)}
               <div className={SOCKET_GRID_CLASS}>
                 {visOthers.map((x) => renderSocket(x.spec, x.docs))}
                 {canEdit && !isSearching && (
@@ -1008,13 +1028,31 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
         </DialogContent>
       </Dialog>
 
-      {/* Lightbox preview — shared component */}
+      {/* Lightbox preview — shared component. `actions` is the PHONE-only
+          « ⋯ » sheet of its header: a socket has no hover cluster on touch, so
+          Supprimer lives there (E6 → E8). Ignored from md up. */}
       <DocumentPreviewLightbox
         doc={preview?.doc ?? null}
         pages={preview?.pages}
         onPageChange={(d) => setPreview((p) => (p ? { ...p, doc: d } : p))}
         onClose={() => setPreview(null)}
         onDownload={(d) => downloadFileFromUrl(d.url, d.nom)}
+        actions={(() => {
+          if (!canEdit || !preview) return undefined;
+          const current = sortedDocs.find((d: TypedDoc) => d.url === preview.doc.url);
+          if (!current) return undefined;
+          return [
+            {
+              key: 'delete',
+              label: t('Supprimer'),
+              destructive: true,
+              onSelect: () => {
+                setPreview(null);
+                setDeleteTarget(current);
+              },
+            },
+          ];
+        })()}
       />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && !isDeleting && setDeleteTarget(null)}>

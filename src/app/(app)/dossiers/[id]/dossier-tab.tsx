@@ -19,6 +19,8 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useT } from '@/i18n';
+import { BRAND } from '@/lib/brand';
+import { INPUT_ADDRESS, INPUT_EMAIL, INPUT_ID, INPUT_NAME, INPUT_PLATE, INPUT_TEL, INPUT_TEXT } from '@/lib/input-attrs';
 
 export default function DossierTab({ dossierId }: { dossierId: string }) {
   const db = useFirestore();
@@ -211,34 +213,34 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
               <div className="space-y-4 pt-4 border-t border-dashed">
                 <div className="flex items-center gap-2 text-primary">
                   <User className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-bold uppercase">{t('Informations Assuré')}</span>
+                  <span className="t-heading">{t('Informations Assuré')}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>{t('Assuré')}</Label>
                     <Input 
-                      value={formValues.assure.nom} 
+                      {...INPUT_NAME} value={formValues.assure.nom} 
                       onChange={(e) => setFormValues({...formValues, assure: {...formValues.assure, nom: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('Tel Assuré')}</Label>
                     <Input 
-                      value={formValues.assure.telephone} 
+                      {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} value={formValues.assure.telephone} 
                       onChange={(e) => setFormValues({...formValues, assure: {...formValues.assure, telephone: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('Tel Whatsapp')}</Label>
                     <Input 
-                      value={formValues.assure.whatsapp} 
+                      {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} value={formValues.assure.whatsapp} 
                       onChange={(e) => setFormValues({...formValues, assure: {...formValues.assure, whatsapp: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('Autre Tel')}</Label>
                     <Input 
-                      value={formValues.assure.telephone2} 
+                      {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} value={formValues.assure.telephone2} 
                       onChange={(e) => setFormValues({...formValues, assure: {...formValues.assure, telephone2: e.target.value}})} 
                     />
                   </div>
@@ -261,41 +263,41 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-primary">
                   <Car className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-bold uppercase">{t('Véhicule')}</span>
+                  <span className="t-heading">{t('Véhicule')}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>{t('Marque')}</Label>
                     <Input 
-                      value={formValues.vehicule.marque} 
+                      {...INPUT_TEXT} autoCapitalize="words" value={formValues.vehicule.marque} 
                       onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, marque: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('Modèle')}</Label>
                     <Input 
-                      value={formValues.vehicule.modele} 
+                      {...INPUT_TEXT} autoCapitalize="words" value={formValues.vehicule.modele} 
                       onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, modele: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('Immatriculation')}</Label>
                     <Input
-                      value={formValues.vehicule.immatriculation}
+                      {...INPUT_PLATE} className="t-mono" value={formValues.vehicule.immatriculation}
                       onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, immatriculation: e.target.value}})}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('Immatriculation antérieure')}</Label>
                     <Input
-                      value={formValues.vehicule.immatriculationAnterieur}
+                      {...INPUT_PLATE} className="t-mono" value={formValues.vehicule.immatriculationAnterieur}
                       onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, immatriculationAnterieur: e.target.value}})}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('Immatriculation W')}</Label>
                     <Input 
-                      value={formValues.vehicule.registrationW} 
+                      {...INPUT_PLATE} className="t-mono" value={formValues.vehicule.registrationW} 
                       onChange={(e) => setFormValues({...formValues, vehicule: {...formValues.vehicule, registrationW: e.target.value}})} 
                     />
                   </div>
@@ -319,20 +321,20 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
               <div className="space-y-4 pt-4 border-t border-dashed">
                 <div className="flex items-center gap-2 text-primary">
                   <Info className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-bold uppercase">{t('Administration & Garage')}</span>
+                  <span className="t-heading">{t('Administration & Garage')}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>{t('Intermédiaire')}</Label>
                     <Input 
-                      value={formValues.intermediaire.nom} 
+                      {...INPUT_NAME} value={formValues.intermediaire.nom} 
                       onChange={(e) => setFormValues({...formValues, intermediaire: {...formValues.intermediaire, nom: e.target.value}})} 
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('E-mail Intermédiaire')}</Label>
                     <Input 
-                      type="email"
+                      {...INPUT_EMAIL}
                       value={formValues.intermediaire.email} 
                       onChange={(e) => setFormValues({...formValues, intermediaire: {...formValues.intermediaire, email: e.target.value}})} 
                     />
@@ -340,14 +342,14 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                   <div className="space-y-2">
                     <Label>{t('Ref Compagnie')}</Label>
                     <Input 
-                      value={formValues.referenceCompagnie} 
+                      {...INPUT_ID} value={formValues.referenceCompagnie} 
                       onChange={(e) => setFormValues({...formValues, referenceCompagnie: e.target.value})} 
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('N° de Police')}</Label>
                     <Input 
-                      value={formValues.policeNumber} 
+                      {...INPUT_ID} value={formValues.policeNumber} 
                       onChange={(e) => setFormValues({...formValues, policeNumber: e.target.value})} 
                     />
                   </div>
@@ -366,7 +368,7 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                   <div className="space-y-2">
                     <Label>{t('Nom Garage')}</Label>
                     <Input 
-                      value={formValues.garageName} 
+                      {...INPUT_NAME} value={formValues.garageName} 
                       onChange={(e) => setFormValues({...formValues, garageName: e.target.value})} 
                     />
                   </div>

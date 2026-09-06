@@ -170,20 +170,26 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
 
   const gatedButton = (label: string, tour?: string) => {
     const node = (
-      <Button size="sm" onClick={handleSendToChiffrage} disabled={assignerDisabled} className="gap-1.5" data-tour={tour}>
+      <Button size="sm" onClick={handleSendToChiffrage} disabled={assignerDisabled} className="h-11 gap-1.5 md:h-9" data-tour={tour}>
         <Send className="h-3.5 w-3.5" /> {t(label)}
       </Button>
     );
     if (!assignerDisabled) return node;
+    // A tooltip is dead on touch (mobile-synthesis §3), so the reason the
+    // button is closed is PRINTED under it on coarse pointers and stays a
+    // tooltip where there is a mouse.
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span tabIndex={0}>{node}</span>
-          </TooltipTrigger>
-          <TooltipContent>{gateReason}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <div className="flex min-w-0 flex-col items-end gap-1">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0}>{node}</span>
+            </TooltipTrigger>
+            <TooltipContent className="hidden [@media(hover:hover)]:block">{gateReason}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <p className="t-caption max-w-full text-right [@media(hover:hover)]:hidden">{gateReason}</p>
+      </div>
     );
   };
 
@@ -247,7 +253,8 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
       {!hidePhotos && (
         <Collapsible open={photosOpen} onOpenChange={setPhotosOpen}>
           <CollapsibleTrigger asChild>
-            <button type="button" className="flex items-center gap-2 mb-3 w-full">
+            {/* 48 px disclosure row on a phone (density spec §Targets). */}
+            <button type="button" className="mb-3 flex min-h-[48px] w-full items-center gap-2 md:min-h-0">
               <Camera className="h-4 w-4 text-muted-foreground" />
               <h3 className="text-base font-semibold">{t('Photos')}</h3>
               <ChevronDown className={cn('h-4 w-4 ml-auto transition-transform', !photosOpen && '-rotate-90')} />

@@ -89,7 +89,7 @@ export function GestionnaireDashboard({ dossiers, chiffrages = [], sla, rappelsR
   return (
     <div className="space-y-6">
       {/* Row 1 — headline tiles (one chunk): WIP · exception · inbox · throughput vs own previous week. */}
-      <div data-tour="dash-tiles" className={cn('grid gap-4 sm:grid-cols-2', viewAs ? 'lg:grid-cols-3' : 'lg:grid-cols-4')}>
+      <div data-tour="dash-tiles" className={cn('grid grid-cols-2 gap-3 sm:gap-4', viewAs ? 'lg:grid-cols-3' : 'lg:grid-cols-4')}>
         <StatTile
           label={t('En cours')}
           value={tiles.enCours}

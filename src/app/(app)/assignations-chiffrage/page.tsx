@@ -1,7 +1,7 @@
 'use client';
 
 import { PageHeader } from '@/components/layout/page-header';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { collection, onSnapshot, query, orderBy, doc } from 'firebase/firestore';
@@ -40,6 +40,15 @@ import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import ObservationHistorySheet from '@/app/(app)/dossiers/observation-history-sheet';
 import { QueuePeekSheet, type QueuePeekData } from '@/components/chiffrage/queue-peek-sheet';
 import { useChiffrageTabs } from '@/hooks/use-chiffrage-tabs';
+// Mobile pass 2026-09-06 (mobile-synthesis §4): below md the 9-column queue
+// becomes a `RecordList` grouped by the SAME urgency bands, with 40 px sticky
+// band headers; the toolbar's selects move into the « Filtres » sheet and the
+// Délai header sort into a « Trier » sheet.
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
+import { SearchRow, type SearchRowHandle } from '@/components/ui/search-row';
+import { FilterSheet, FilterSection, FilterSelect, AppliedChips, type AppliedChip } from '@/components/ui/filter-sheet';
+import { SortSheet } from '@/components/ui/sort-sheet';
 
 interface ChiffrageItem {
   id: string;
@@ -230,10 +239,12 @@ export default function AssignationsChiffragePage() {
     return `${assure.nom || ''} ${assure.prenom || ''}`.trim() || null;
   };
 
-  const filteredChiffrages = useMemo(() => {
-    let results = [...chiffrages];
+  // Pure in the filter object so the phone « Filtres » sheet can price a
+  // PENDING state (« Afficher 12 chiffrages ») without applying it.
+  const applyQueueFilters = useCallback((list: ChiffrageItem[], f: typeof filterDefaults) => {
+    let results = [...list];
     // A6 — search from the 2nd character across réf · assuré · plaque · chiffreur.
-    const qNorm = normalize(q.trim());
+    const qNorm = normalize(f.q.trim());
     if (qNorm.length >= 2) {
       results = results.filter(c => {
         const hay = [
@@ -245,25 +256,25 @@ export default function AssignationsChiffragePage() {
         return hay.some(h => h && normalize(h).includes(qNorm));
       });
     }
-    if (compagnieFilter !== 'Toutes') {
-      results = results.filter(c => (dossierCompagnies[c.dossierId] || '') === compagnieFilter);
+    if (f.compagnieFilter !== 'Toutes') {
+      results = results.filter(c => (dossierCompagnies[c.dossierId] || '') === f.compagnieFilter);
     }
-    if (chiffreurFilter !== 'Tous') {
-      results = results.filter(c => c.assignedChiffreurNom?.trim() === chiffreurFilter);
+    if (f.chiffreurFilter !== 'Tous') {
+      results = results.filter(c => c.assignedChiffreurNom?.trim() === f.chiffreurFilter);
     }
-    if (typeReformeFilter !== 'Tous') {
-      results = results.filter(c => normalizeReformeType(dossierReformeTypes[c.dossierId]) === typeReformeFilter);
+    if (f.typeReformeFilter !== 'Tous') {
+      results = results.filter(c => normalizeReformeType(dossierReformeTypes[c.dossierId]) === f.typeReformeFilter);
     }
-    if (dateFrom) {
-      const from = new Date(dateFrom);
+    if (f.dateFrom) {
+      const from = new Date(f.dateFrom);
       results = results.filter(c => {
         if (!c.createdAt) return false;
         const date = c.createdAt.toDate ? c.createdAt.toDate() : new Date(c.createdAt);
         return date >= from;
       });
     }
-    if (dateTo) {
-      const to = new Date(dateTo);
+    if (f.dateTo) {
+      const to = new Date(f.dateTo);
       to.setHours(23, 59, 59, 999);
       results = results.filter(c => {
         if (!c.createdAt) return false;
@@ -271,6 +282,12 @@ export default function AssignationsChiffragePage() {
         return date <= to;
       });
     }
+    return results;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dossierCompagnies, dossierReformeTypes, dossierAssure, dossierMatricule]);
+
+  const filteredChiffrages = useMemo(() => {
+    const results = applyQueueFilters(chiffrages, filters);
     if (deadlineSort) {
       // Sort by deadline end time (createdAt + 24h). Ascending = most urgent first.
       const DEADLINE_MS = DEADLINE_HOURS * 3600 * 1000;
@@ -293,7 +310,8 @@ export default function AssignationsChiffragePage() {
       });
     }
     return results;
-  }, [chiffrages, q, compagnieFilter, chiffreurFilter, typeReformeFilter, dossierCompagnies, dossierReformeTypes, dossierAssure, dossierMatricule, dateFrom, dateTo, deadlineSort]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyQueueFilters, chiffrages, q, compagnieFilter, chiffreurFilter, typeReformeFilter, dateFrom, dateTo, deadlineSort]);
 
   // « À traiter / Tous » scope. « À traiter » = still needing the chiffreur's
   // action, i.e. no completedAt — the exact signal that otherwise sends an
@@ -483,6 +501,56 @@ export default function AssignationsChiffragePage() {
     clearFilter('dateTo');
   };
 
+  /* ------------------------------------------------------------------ */
+  /* Phone queue — mobile-synthesis §4                                   */
+  /* ------------------------------------------------------------------ */
+  const isPhone = useIsPhone();
+  const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
+  const [phoneSortOpen, setPhoneSortOpen] = useState(false);
+  const searchRowRef = useRef<SearchRowHandle>(null);
+
+  const appliedFilterCount =
+    (compagnieFilter !== 'Toutes' ? 1 : 0) +
+    (chiffreurFilter !== 'Tous' ? 1 : 0) +
+    (typeReformeFilter !== 'Tous' ? 1 : 0) +
+    (dateFrom || dateTo ? 1 : 0);
+
+  const appliedChips: AppliedChip[] = [];
+  if (compagnieFilter !== 'Toutes') appliedChips.push({ key: 'compagnie', label: `${t('Compagnie :')} ${compagnieFilter}`, onRemove: () => clearFilter('compagnieFilter') });
+  if (chiffreurFilter !== 'Tous') appliedChips.push({ key: 'chiffreur', label: `${t('Chiffreur :')} ${chiffreurFilter}`, onRemove: () => clearFilter('chiffreurFilter') });
+  if (typeReformeFilter !== 'Tous') appliedChips.push({ key: 'reforme', label: `${t('Réforme :')} ${t(typeReformeFilter)}`, onRemove: () => clearFilter('typeReformeFilter') });
+  if (dateFrom) appliedChips.push({ key: 'from', label: `${t('Du :')} ${dateFrom}`, onRemove: () => clearFilter('dateFrom') });
+  if (dateTo) appliedChips.push({ key: 'to', label: `${t('Au :')} ${dateTo}`, onRemove: () => clearFilter('dateTo') });
+
+  // The bands ARE the sort; the only real choice left is the direction of the
+  // deadline order (research §5: the queue's fixed order is the sort).
+  const phoneSort: 'proche' | 'lointain' = deadlineSort === 'desc' ? 'lointain' : 'proche';
+
+  // The flat render list regrouped so each band can carry its own sticky
+  // header inside its own group wrapper (research §9).
+  const bandGroups = useMemo(() => {
+    const groups: { band: BandName | null; count: number; entries: QueueEntry[] }[] = [];
+    for (const row of renderRows) {
+      if (row.kind === 'band') groups.push({ band: row.band, count: row.count, entries: [] });
+      else {
+        if (groups.length === 0) groups.push({ band: null, count: 0, entries: [] });
+        groups[groups.length - 1].entries.push(row.entry);
+      }
+    }
+    return groups;
+  }, [renderRows]);
+
+  /** The compact form of the Délai cell — the row's trailing decision figure. */
+  const renderDelaiChip = (entry: QueueEntry) => {
+    if (entry.completed) return <Badge variant="success">{t('Chiffré')}</Badge>;
+    if (entry.overdue) {
+      const late = formatBusinessLateness(entry.elapsedHours - DEADLINE_HOURS);
+      return <Badge variant="danger">{late ? `${t('En retard')} ${late}` : t('En retard')}</Badge>;
+    }
+    if (entry.remainingHours <= WARNING_HOURS) return <Badge variant="warning">{formatRemaining(entry.remainingHours)}</Badge>;
+    return <span className="tabular-nums">{formatRemaining(entry.remainingHours)}</span>;
+  };
+
   // A8 — peek content from data ALREADY in the page's state maps.
   const peekData: QueuePeekData | null = useMemo(() => {
     if (!focusedEntry) return null;
@@ -514,6 +582,7 @@ export default function AssignationsChiffragePage() {
       <PageHeader
         title={titleForRoute('/assignations-chiffrage') ?? t('Assignations au chiffrage')}
         count={scopedChiffrages.length}
+        onSearchFocus={() => searchRowRef.current?.focus()}
         meta={
           // A5 — quiet load summary (attention R5: periphery informs without
           // overburdening); danger-fg only when > 0; zero-state omitted.
@@ -532,7 +601,7 @@ export default function AssignationsChiffragePage() {
           // placeholder, ≤ 3 promoted filters + clear-all; NN/g filter
           // categories ✓ general → specific). Labels are `t-label` sentence
           // case; the sort lives in the column header, not here.
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+          <div className="flex flex-wrap items-end gap-x-4 gap-y-3 max-md:hidden">
             {/* « À traiter / Tous » scope — a value picker over the SAME list,
                 so segmented control + SlidingThumb (element-specs §7; tabs are
                 reserved for view switchers). Sits first: it names the working
@@ -641,10 +710,133 @@ export default function AssignationsChiffragePage() {
         }
       />
 
+      {/* PHONE — sticky search row (+ the scope segments in its `below` slot),
+          then the queue as a row list grouped by the SAME urgency bands. */}
+      {isPhone && (
+        <div className="md:hidden">
+          <SearchRow
+            ref={searchRowRef}
+            value={q}
+            onChange={(v) => setFilters({ q: v })}
+            placeholder={t('Réf., assuré, plaque…')}
+            ariaLabel={t('Rechercher dans la file')}
+            filterCount={appliedFilterCount}
+            onFilters={() => setPhoneFiltersOpen(true)}
+            sortLabel={phoneSort === 'lointain' ? t('Délai le plus lointain') : t('Délai le plus proche')}
+            onSort={() => setPhoneSortOpen(true)}
+            dataTour="ach-search"
+            below={
+              <div
+                role="group"
+                aria-label={t('Portée de la file')}
+                data-tour="ach-scope"
+                className="relative isolate flex h-10 w-full items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
+              >
+                <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[queueScope, nbATraiter, filteredChiffrages.length]} />
+                {([['a-traiter', 'À traiter', nbATraiter], ['tous', 'Tous', filteredChiffrages.length]] as const).map(([key, label, count]) => (
+                  <Button
+                    key={key}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-seg-active={queueScope === key}
+                    aria-pressed={queueScope === key}
+                    onClick={() => setQueueScope(key)}
+                    className={cn(
+                      'relative z-[1] h-9 flex-1 gap-1.5 px-2 shadow-none',
+                      queueScope === key && 'text-accent-foreground hover:bg-transparent hover:text-accent-foreground',
+                    )}
+                  >
+                    {t(label)}
+                    <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+                      {count}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            }
+          />
+          <AppliedChips chips={appliedChips} onClearAll={resetFilters} className="mt-2" />
+
+          {loading ? (
+            <RecordListSkeleton count={6} lines={3} ariaLabel={t('Chargement de la file')} />
+          ) : bandGroups.length === 0 ? (
+            <EmptyState
+              icon={<Calculator />}
+              title={hasActiveFilter ? t('Aucun chiffrage pour ces filtres') : t('Aucun chiffrage assigné')}
+              description={hasActiveFilter
+                ? t('Élargissez la période ou réinitialisez les filtres pour revoir la file.')
+                : t('Les nouvelles assignations de chiffrage apparaîtront ici.')}
+              action={hasActiveFilter ? (
+                <Button variant="tonal" onClick={resetFilters}>{t('Réinitialiser les filtres')}</Button>
+              ) : undefined}
+              className="mt-3 bg-transparent"
+            />
+          ) : (
+            bandGroups.map((group, gi) => (
+              <section key={group.band ?? `flat-${gi}`}>
+                {group.band && (
+                  // 40 px band header: t-label + count pill, SOLID surface-2
+                  // (never glass — GPU cost), sticky inside its own group.
+                  <h2
+                    data-tour="ach-band"
+                    className="sticky top-0 z-10 -mx-4 flex h-10 items-center gap-2 border-y border-hairline bg-surface-2 px-4"
+                  >
+                    <span className="t-label">{t(group.band)}</span>
+                    <span
+                      className={cn(
+                        'inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[11px] font-medium tabular-nums',
+                        group.band === 'En retard' ? 'bg-status-danger-bg text-status-danger-fg' : 'bg-surface-3 text-ink-2',
+                      )}
+                    >
+                      {group.count}
+                    </span>
+                  </h2>
+                )}
+                <RecordList ariaLabel={group.band ? t(group.band) : t('Assignations au chiffrage')} className="border-t-0">
+                  {group.entries.map((entry) => {
+                    const c = entry.item;
+                    const obs = dossierObs[c.dossierId];
+                    const obsCount = obs?.count ?? 0;
+                    return (
+                      <RecordRow
+                        key={c.id}
+                        recordId={c.id}
+                        dataTour="ach-row"
+                        id={c.dossierNom || t('Sans réf.')}
+                        figure={renderDelaiChip(entry)}
+                        primary={renderAssure(dossierAssure[c.dossierId]) ?? t('Assuré non renseigné')}
+                        secondary={dossierMatricule[c.dossierId] || undefined}
+                        line3={
+                          <>
+                            <StatusChip status={dossierStatuts[c.dossierId] || 'Nouveau'} />
+                            {obsCount > 0 && (
+                              <Badge variant="neutral" aria-label={`${obsCount} ${obsCount > 1 ? t('observations') : t('observation')}`}>
+                                <MessageSquare aria-hidden />
+                                <span className="tabular-nums">{obsCount}</span>
+                              </Badge>
+                            )}
+                          </>
+                        }
+                        href={`/assignations-chiffrage/${c.id}`}
+                        ariaLabel={`${c.dossierNom || t('Sans réf.')} — ${t(group.band ?? '')}`.trim()}
+                        onClick={() => openTab(c.id, c.dossierNom || `${t('Chiffrage')} ${c.id.slice(0, 6)}`)}
+                      />
+                    );
+                  })}
+                </RecordList>
+              </section>
+            ))
+          )}
+        </div>
+      )}
+
       {/* Data table (element-specs §3 + A4 column order: identifier → deadline
           → status, decision columns adjacent and left-of-centre; « Assigné
-          par » lives in the peek). The Card is the table's only frame. */}
-      <Card className="overflow-hidden" data-tour="ach-table">
+          par » lives in the peek). The Card is the table's only frame.
+          Desktop / tablet only — the phone renders the band list above. */}
+      {!isPhone && (
+      <Card className="overflow-hidden max-md:hidden" data-tour="ach-table">
         <Table regionLabel={t('Assignations au chiffrage')}>
           <TableHeader>
             <TableRow>
@@ -801,6 +993,104 @@ export default function AssignationsChiffragePage() {
           </TableBody>
         </Table>
       </Card>
+      )}
+
+      {/* PHONE — the toolbar's selects and the period, in one sheet. */}
+      {isPhone && (
+        <FilterSheet<typeof filterDefaults>
+          open={phoneFiltersOpen}
+          onOpenChange={setPhoneFiltersOpen}
+          value={filters}
+          defaults={{ ...filters, compagnieFilter: 'Toutes', chiffreurFilter: 'Tous', typeReformeFilter: 'Tous', dateFrom: '', dateTo: '' }}
+          onApply={(next) => setFilters(() => next)}
+          countFor={(pending) => {
+            const rows = applyQueueFilters(chiffrages, pending);
+            return queueScope === 'a-traiter' ? rows.filter((c) => !c.completedAt).length : rows.length;
+          }}
+          noun={t('chiffrage')}
+          nounPlural={t('chiffrages')}
+          isSet={(p) =>
+            p.compagnieFilter !== 'Toutes' || p.chiffreurFilter !== 'Tous' ||
+            p.typeReformeFilter !== 'Tous' || !!p.dateFrom || !!p.dateTo
+          }
+        >
+          {(pending, set) => (
+            <>
+              <FilterSection label={t('Compagnie')} set={pending.compagnieFilter !== 'Toutes'}>
+                <FilterSelect
+                  ariaLabel={t('Compagnie')}
+                  value={pending.compagnieFilter}
+                  onChange={(v) => set({ compagnieFilter: v })}
+                  options={[
+                    { value: 'Toutes', label: t('Toutes les compagnies') },
+                    ...compagnieOptions.map(([name, count]) => ({ value: name, label: name, count })),
+                  ]}
+                />
+              </FilterSection>
+              {canSeeNameFilter && (
+                <FilterSection label={t('Chiffreur')} set={pending.chiffreurFilter !== 'Tous'}>
+                  <FilterSelect
+                    ariaLabel={t('Chiffreur')}
+                    value={pending.chiffreurFilter}
+                    onChange={(v) => set({ chiffreurFilter: v })}
+                    options={[
+                      { value: 'Tous', label: t('Tous les chiffreurs') },
+                      ...chiffreurOptions.map(([name, count]) => ({ value: name, label: name, count })),
+                    ]}
+                  />
+                </FilterSection>
+              )}
+              <FilterSection label={t('Type de réforme')} set={pending.typeReformeFilter !== 'Tous'}>
+                <FilterSelect
+                  ariaLabel={t('Type de réforme')}
+                  value={pending.typeReformeFilter}
+                  onChange={(v) => set({ typeReformeFilter: v })}
+                  options={[
+                    { value: 'Tous', label: t('Tous les types') },
+                    ...REFORME_TYPES.map((rt) => ({ value: rt, label: t(rt) })),
+                  ]}
+                />
+              </FilterSection>
+              <FilterSection label={t('Période')} set={!!pending.dateFrom || !!pending.dateTo}>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="t-label">{t('Du')}</span>
+                    <input
+                      type="date"
+                      value={pending.dateFrom}
+                      onChange={(e) => set({ dateFrom: e.target.value })}
+                      className="h-12 w-full rounded-md border border-input bg-card px-3 text-[16px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="t-label">{t('Au')}</span>
+                    <input
+                      type="date"
+                      value={pending.dateTo}
+                      onChange={(e) => set({ dateTo: e.target.value })}
+                      className="h-12 w-full rounded-md border border-input bg-card px-3 text-[16px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </label>
+                </div>
+              </FilterSection>
+            </>
+          )}
+        </FilterSheet>
+      )}
+
+      {isPhone && (
+        <SortSheet
+          open={phoneSortOpen}
+          onOpenChange={setPhoneSortOpen}
+          value={phoneSort}
+          options={[
+            { value: 'proche', label: t('Délai le plus proche'), hint: t('Groupé par urgence') },
+            { value: 'lointain', label: t('Délai le plus lointain') },
+          ]}
+          onChange={(v) => setDeadlineSort(v === 'lointain' ? 'desc' : 'asc')}
+        />
+      )}
+
       {/* A8 — peek: read-mostly, never mints a workspace tab; Entrée / footer
           button does. */}
       <QueuePeekSheet

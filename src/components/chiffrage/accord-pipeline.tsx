@@ -18,6 +18,14 @@
  *   alone. Source cells carry no chip.
  * - Below `lg` the aligned grid falls back to a per-family stacked flow
  *   (the pipeline needs width — workspace S5 "160+ characters").
+ * - Below `md` (phone, mobile pass 2026-09-06 — research
+ *   mobile-record-pages.md E11) the x-axis becomes the y-axis: one flat block
+ *   per family, versions as 56 px ROWS in lineage order. This is the ONE place
+ *   the "sockets, never a list" ruling bends, and deliberately: a version's
+ *   identity is its stage label (« 2ème accord »), not a document type, so a
+ *   row reads it faster than a tile and eight tiles do not fit a 390 px screen.
+ *   Editing a devis is desktop-only (owner call E-Q3): the next legal stage is
+ *   a dashed ghost row printing « Édition sur ordinateur ».
  */
 
 import React, { useMemo } from 'react';
@@ -32,7 +40,7 @@ import {
 import type { DocFamily } from '@/lib/doc-family';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
 import { toOrdinalFeminineFr, toOrdinalFr } from '@/lib/devis-schema';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useViewportClass } from '@/hooks/use-viewport-class';
 import { useEdgeScroll } from '@/hooks/use-edge-scroll';
 import { EdgeArrow } from '@/components/ui/edge-arrow';
 import { useT } from '@/i18n';
@@ -237,7 +245,11 @@ export function AccordPipeline({
   onEditSlot,
 }: AccordPipelineProps) {
   const t = useT();
-  const stacked = useIsMobile(); // < 1024 px — the aligned pipeline needs width
+  // < 1024 px — the aligned pipeline needs width.  now means
+  // < 768 (mobile pass 2026-09-06), so this keys on the viewport class.
+  const viewport = useViewportClass();
+  const stacked = viewport !== 'desktop';
+  const isPhone = viewport === 'phone';
 
   const pipelines = useMemo(
     () => families.map((g) => buildFamilyPipeline(g, docsByType)),
@@ -405,7 +417,86 @@ export function AccordPipeline({
     </>
   );
 
-  // ── Stacked fallback (< lg): family header band + sm:grid-cols-2 flow ─────
+  // ── Phone (< md): the lineage becomes rows (E11) ─────────────────────────
+  if (isPhone) {
+    return (
+      <div className="-mx-4">
+        {pipelines.map((p) => {
+          const stages = columns.filter(
+            (c) => p.cells.has(stageKey(c)) || (p.ghost && stageKey(c) === stageKey(p.ghost)) || c.kind === 'source',
+          );
+          return (
+            <section key={p.group.parent} aria-label={p.group.parent} className="mb-5 last:mb-0">
+              {/* Family identity: the pill title + « Actuel » chip (B2). */}
+              <header className="flex flex-wrap items-center gap-2 px-4 pb-2">
+                <span className="inline-flex h-7 min-w-0 items-center gap-1.5 rounded-full bg-card px-3 shadow-rim">
+                  <h3 className="t-label min-w-0 truncate leading-none text-ink-2" title={p.group.parent}>
+                    {p.group.parent}
+                  </h3>
+                </span>
+                {p.group.parentOrdinal >= 2 && (
+                  <span
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-tertiary-bg text-[11px] font-semibold tabular-nums text-tertiary-deep"
+                    aria-label={`${t('Garage numéro')} ${p.group.parentOrdinal}`}
+                  >
+                    {p.group.parentOrdinal}
+                  </span>
+                )}
+                <span className="t-caption tabular-nums">
+                  {p.receivedCount}/{p.totalSlots} {t(p.receivedCount > 1 ? 'reçus' : 'reçu')}
+                </span>
+              </header>
+
+              <ul className="divide-y divide-hairline border-y border-hairline">
+                {stages.map((stage) => {
+                  const key = stageKey(stage);
+                  const cell = p.cells.get(key);
+                  const label = t(stageLabel(stage, maxProp));
+                  const docs = cell ? docsByType[cell.slot] || [] : [];
+                  const file = docs.find((d) => !!d.url && !d.pendingUpload);
+                  if (cell?.state === 'filled' && file) {
+                    return (
+                      <li key={key}>
+                        <button
+                          type="button"
+                          onClick={() => onPreview(file, docs)}
+                          className="flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-surface-2 focus:outline-none focus-visible:bg-surface-2"
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="t-body-sm block truncate font-semibold text-ink">{label}</span>
+                            <span className="t-caption block truncate">{file.nom || file.fileName || cell.slot}</span>
+                          </span>
+                          {chipFor(p, stage)}
+                          <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+                        </button>
+                      </li>
+                    );
+                  }
+                  // Next legal stage (or a gestionnaire placeholder): a dashed
+                  // ghost row. Devis editing is desktop-only (E-Q3), so the row
+                  // states the fact instead of offering a broken affordance.
+                  const ghostLabel = cell?.state === 'awaiting' ? label : stage.kind === 'accord' ? t(`${toOrdinalFr(stage.ordinal)} accord`) : label;
+                  return (
+                    <li key={key} className="flex min-h-[56px] items-center gap-3 px-4 py-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="t-body-sm block truncate font-medium text-ink-2">{ghostLabel}</span>
+                        <span className="t-caption block truncate">
+                          {stage.kind === 'source' && !cell ? t('Aucun document') : t('Édition sur ordinateur')}
+                        </span>
+                      </span>
+                      <span aria-hidden className="h-6 w-16 shrink-0 rounded-md border border-dashed border-hairline-strong" />
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ── Stacked fallback (tablet): family header band + sm:grid-cols-2 flow ───
   if (stacked) {
     return (
       <div className="space-y-4">

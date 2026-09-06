@@ -126,7 +126,7 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
       <Button
         variant="ghost"
         size="icon"
-        className="text-ink-3 hover:text-ink"
+        className="text-ink-3 hover:text-ink [@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
         onClick={startRecording}
         disabled={disabled}
         title={t('Message vocal')}
@@ -148,7 +148,7 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
         <Button
           variant="ghost"
           size="icon"
-          className="text-status-danger-fg hover:bg-status-danger-bg hover:text-status-danger-fg"
+          className="text-status-danger-fg hover:bg-status-danger-bg hover:text-status-danger-fg [@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
           onClick={stopRecording}
           title={t('Arrêter')}
           type="button"
@@ -173,7 +173,7 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-ink"
+        className="h-8 w-8 text-ink [@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
         onClick={togglePlayback}
         type="button"
         aria-label={isPlaying ? 'Pause' : 'Écouter'}
@@ -184,7 +184,7 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-status-danger-fg hover:bg-status-danger-bg hover:text-status-danger-fg"
+        className="h-8 w-8 text-status-danger-fg hover:bg-status-danger-bg hover:text-status-danger-fg [@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
         onClick={handleDiscard}
         title={t('Supprimer')}
         type="button"
@@ -195,6 +195,7 @@ export default function VoiceRecorder({ onRecorded, maxDuration = 120, disabled 
         size="sm"
         onClick={handleSend}
         type="button"
+        className="[@media(hover:none)]:h-11"
       >
         {t('Envoyer')}
       </Button>

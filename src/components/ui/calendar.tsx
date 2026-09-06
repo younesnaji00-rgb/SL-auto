@@ -28,6 +28,13 @@ export interface CalendarProps {
   initialFocus?: boolean
   className?: string
   disabled?: (date: Date) => boolean
+  /**
+   * `touch` = the sheet calendar of a phone (docs/research/
+   * mobile-forms-inputs.md §2.3): 7 × 44 px cells in a 320–360 px grid, so a
+   * thumb hits the right day. `default` keeps the 280 px / 40 px popover grid
+   * a mouse aims at.
+   */
+  size?: "default" | "touch"
 }
 
 function Calendar({
@@ -35,7 +42,9 @@ function Calendar({
   onSelect,
   className,
   disabled,
+  size = "default",
 }: CalendarProps) {
+  const touch = size === "touch"
   const { locale } = useLocale()
   const t = useT()
   const weekdays = React.useMemo(() => {
@@ -66,7 +75,7 @@ function Calendar({
   return (
     // 7 × 40 px cells (element-specs §17 / Material 3 date picker: 40–48 dp
     // day cells; NN/g date input: show today, spell the month out).
-    <div className={cn("w-[280px] p-4", className)}>
+    <div className={cn(touch ? "w-full max-w-[360px] p-3" : "w-[280px] p-4", className)}>
       {/* Header: month spelled out (t-heading) at the left, ‹ › ghost icon
           buttons at the right end. */}
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -78,17 +87,17 @@ function Calendar({
             type="button"
             onClick={handlePrevMonth}
             aria-label={t("Mois précédent")}
-            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
+            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), touch ? "h-11 w-11" : "h-8 w-8")}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className={touch ? "h-5 w-5" : "h-4 w-4"} />
           </button>
           <button
             type="button"
             onClick={handleNextMonth}
             aria-label={t("Mois suivant")}
-            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
+            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), touch ? "h-11 w-11" : "h-8 w-8")}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className={touch ? "h-5 w-5" : "h-4 w-4"} />
           </button>
         </div>
       </div>
@@ -123,7 +132,9 @@ function Calendar({
                 // ring; selected = accent pair (the one accent use);
                 // weekends ink-3, other-month days ink-4; hover on the
                 // surface ladder. No palette colours, no terracotta.
-                "h-10 w-full rounded-md text-[13px] font-normal tabular-nums transition-colors",
+                touch
+                  ? "h-11 w-full rounded-md text-[15px] font-normal tabular-nums transition-colors"
+                  : "h-10 w-full rounded-md text-[13px] font-normal tabular-nums transition-colors",
                 "hover:bg-surface-3 hover:text-ink",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 !isCurrentMonth && "text-ink-4",

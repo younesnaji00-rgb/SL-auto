@@ -291,3 +291,41 @@ realistically on an emulator).
 Background location requires a Play **declaration form** + a justification video.
 Since you distribute the APK directly via Firebase Storage, this does not apply
 today — but note it if you move to the Play Store later.
+
+---
+
+## Mobile pass follow-ups (2026-09-06) — deferred, need an APK rebuild
+
+The phone redesign (`docs/research/mobile-synthesis.md`) is pure web: it ships
+through the normal deploy and the Android app picks it up on next launch,
+because the app is a WebView pointed at `PRODUCTION_URL`. Three native-side
+items were deliberately NOT done in that pass, because each needs a Capacitor
+change and a new APK. Do them together when the app is next rebuilt.
+
+**1. Edge-to-edge safe areas (Android 15+).** Android 16 removes the
+edge-to-edge opt-out, and WebView builds before 140 report wrong values for
+`env(safe-area-inset-*)`. The app's phone chrome already pads with
+`env(safe-area-inset-top/bottom)`, so on an affected device the bottom bar can
+sit under the gesture pill. Fix: upgrade Capacitor 6 → 8.3.2+ (it injects
+`--safe-area-inset-*` CSS variables itself) or add
+`@capacitor-community/safe-area`, then switch the chrome to the defensive
+pattern `var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))`.
+
+**2. Keyboard resize mode.** `@capacitor/keyboard` is not installed. Without
+it the WebView keeps Chrome's default `resizes-visual` behaviour, so a fixed
+bottom bar can float above the keyboard. The web side already hides both
+bottom bars while the keyboard is open (`useKeyboardOpen`, a `visualViewport`
+watcher), which covers the visible symptom; installing the plugin with
+`resize: 'native'` makes `svh`/`dvh` follow the keyboard properly as well.
+
+**3. Hardware back.** No `App.addListener('backButton')` is registered, and
+none is needed now: every overlay (bottom sheet, full-screen dialog, action
+sheet, lightbox, filter sheet) pushes a real history entry via
+`useOverlayHistory`, so the WebView's default back closes the top overlay
+before leaving the page. If a listener is ever added, it must call
+`window.history.back()` itself — registering one disables the default
+behaviour — and must never intercept back for business logic (Android's
+predictive-back guidance).
+
+Nothing here blocks shipping the web redesign; without them the app is
+correct on current devices and slightly imperfect on Android 15+ edge-to-edge.

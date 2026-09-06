@@ -35,6 +35,15 @@ import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
 import { isClosedStatus } from '@/lib/status-machine';
 import { cn } from '@/lib/utils';
 import { CreateDossierDialog } from '@/components/dossiers/create-dossier-dialog';
+// Mobile pass 2026-09-06 (mobile-synthesis §4): the compagnie CARDS stay (they
+// are heterogeneous browsing tiles — NN/g) but go 1-up with 16 px padding; the
+// « Portefeuille dossiers » table is a RECORD QUEUE, so below md it becomes a
+// `RecordList` (research §2 must-not: a frozen table is for FIGURE comparison,
+// "never for record queues").
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
+import { LoadMore, useRenderCap } from '@/components/ui/load-more';
+import { usePhoneChrome } from '@/components/layout/page-chrome';
 
 // ── Status chip (element-specs §11: Carbon tag / dataviz — status colours
 //    reserved, always with a label; one helper per domain). Local stand-in for
@@ -224,6 +233,29 @@ export default function CompagniesClientPage() {
     };
   }, [dossiers]);
 
+  /* ------------------------------------------------------------------ */
+  /* Phone (hooks before the early returns below)                        */
+  /* ------------------------------------------------------------------ */
+  const isPhone = useIsPhone();
+  const cap = useRenderCap(dossiers, 25, { signature: `${selectedId ?? ''}|${dateFrom}|${dateTo}` });
+  // On a compagnie's dashboard the phone top bar needs its own up-link (the
+  // route is `/compagnies?selected=…`, so the crumb parent cannot infer it)
+  // and the page primary (« Nouveau dossier » lives in `actions`, ≥ md only).
+  usePhoneChrome(
+    React.useMemo(
+      () =>
+        selectedCompagnie
+          ? {
+              upHref: '/compagnies',
+              upLabel: 'Compagnies',
+              primaryAction: { label: t('Nouveau dossier'), icon: <Plus className="h-5 w-5" />, onClick: () => setCreateOpen(true), dataTour: 'cie-new' },
+            }
+          : null,
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [selectedCompagnie?.id],
+    ),
+  );
+
   const nav = NAV_ITEMS.find((i) => i.href === '/compagnies');
   const pageTitle = t(titleForRoute('/compagnies') ?? 'Compagnies');
   const pageSubtitle = nav?.subtitle ? t(nav.subtitle) : undefined;
@@ -267,7 +299,9 @@ export default function CompagniesClientPage() {
           // left edge in the company's own colour (per-company DATA, not a
           // design hue), faded watermark, logo tile + chevron row, name as the
           // card title, one-line description, "Gérer les sinistres" affordance.
-          <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3" aria-label={t('Compagnies partenaires')} data-tour="cie-grid">
+          // 1-up with a 16 px gutter on phones (density §7); the card's own
+          // padding drops from 24 to 16 below md.
+          <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3" aria-label={t('Compagnies partenaires')} data-tour="cie-grid">
             {compagnies.map((c) => (
               <li key={c.id} className="min-w-0">
                 <Card
@@ -288,7 +322,7 @@ export default function CompagniesClientPage() {
                   <div className="pointer-events-none absolute right-0 top-0 p-4 text-ink-4 opacity-20 transition-opacity group-hover:opacity-40 motion-reduce:transition-none" aria-hidden>
                     <Building2 className="h-20 w-20" />
                   </div>
-                  <CardHeader className="gap-4 space-y-0 pb-4">
+                  <CardHeader className="gap-4 space-y-0 pb-4 max-md:p-4 max-md:pb-3">
                     <div className="flex items-center justify-between">
                       <LogoTile
                         compagnie={c}
@@ -304,7 +338,7 @@ export default function CompagniesClientPage() {
                       <CardDescription className="t-caption mt-1">{t("Visualiser l'activité globale")}</CardDescription>
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="max-md:px-4 max-md:pb-4">
                     {/* Affordance pill (§11 count-pill surface + the light rim
                         on a raised pill): the card itself is the link. */}
                     <span className="t-caption inline-flex w-fit items-center gap-2 rounded-full bg-surface-3 px-3 py-1.5 font-medium text-ink-2 shadow-rim">
@@ -341,16 +375,23 @@ export default function CompagniesClientPage() {
           breadcrumb/back to the parent, title, one filled primary at the right
           end of `actions`, the other action `outline`). The 6×1 colour bar is
           the company's own colour (data, not a design hue). */}
-      <div className="flex items-start gap-4 border-b border-hairline pb-6">
+      <div className="flex items-start gap-4 border-b border-hairline pb-6 max-md:items-center max-md:gap-3 max-md:pb-4">
         <LogoTile
           compagnie={selectedCompagnie}
           failed={logoErrors.has(selectedCompagnie.id)}
           onFail={() => markLogoFailed(selectedCompagnie.id)}
           onUpload={(file) => handleLogoUpload(selectedCompagnie.id, file)}
           size="lg"
+          className="max-md:h-16 max-md:w-16"
         />
+        {/* Below md the PageHeader paints nothing (the bar has the name), so
+            the identity line lives here. */}
+        <div className="min-w-0 flex-1 md:hidden">
+          <p className="t-title truncate">{selectedCompagnie.nom}</p>
+          <p className="t-caption truncate">{t('Tableau de bord opérationnel')}</p>
+        </div>
         <PageHeader
-          className="min-w-0 flex-1"
+          className="min-w-0 flex-1 max-md:hidden"
           size="compact"
           backHref="/compagnies"
           backLabel={pageTitle}
@@ -375,7 +416,7 @@ export default function CompagniesClientPage() {
           case, value in the UI sans semibold with proportional digits, caption
           with the real range; Carbon tile — padding 16, no decorative shadow;
           NN/g dashboards — at-a-glance). 36 px headline tier, Inter, never Outfit. */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-tour="cie-stats">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4" data-tour="cie-stats">
         {statTiles.map((stat) => (
           <Card key={stat.label} className="min-w-0 p-4">
             <p className="t-label">{t(stat.label)}</p>
@@ -391,8 +432,13 @@ export default function CompagniesClientPage() {
           the card header, outside the collection; one frame around the table,
           no second frame). Hairline header row: t-heading + caption + the
           date-range filter; the table below follows §3. */}
-      <Card role="region" aria-label={t('Portefeuille dossiers')} className="overflow-hidden" data-tour="cie-table">
-        <header className="flex min-h-[48px] flex-wrap items-center justify-between gap-4 border-b border-hairline px-6 py-4">
+      <Card
+        role="region"
+        aria-label={t('Portefeuille dossiers')}
+        className="overflow-hidden max-md:border-0 max-md:bg-transparent max-md:shadow-none"
+        data-tour="cie-table"
+      >
+        <header className="flex min-h-[48px] flex-wrap items-center justify-between gap-4 border-b border-hairline px-6 py-4 max-md:gap-3 max-md:border-0 max-md:px-0 max-md:py-0">
           {/* Section anchor (neutral since the time ruling; addendum 2026-09-02 §1b: ONE small IconChip beside
               the section title that anchors the page — terracotta as the
               second voice; never on actions or status). Decorative. */}
@@ -403,12 +449,75 @@ export default function CompagniesClientPage() {
               <p className="t-caption truncate">{t('Extraction en temps réel des missions')} {selectedCompagnie.nom}.</p>
             </div>
           </div>
+          {/* `DateRangeFilter` renders its own native two-field form below md
+              (a popover calendar is a fine-pointer control). */}
           <DateRangeFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={v => setFilters({ dateFrom: v })} onDateToChange={v => setFilters({ dateTo: v })} />
         </header>
+
+        {/* PHONE — the portfolio is a record queue, so it becomes a row list
+            (research §2: a frozen table is for figure comparison, never for a
+            record queue): réf + date · assuré · matricule · statut. */}
+        {isPhone && (
+          <div className="mt-4 md:hidden">
+            {loadingDossiers ? (
+              <RecordListSkeleton count={6} lines={3} ariaLabel={t('Chargement des dossiers')} />
+            ) : dossiers.length === 0 ? (
+              <EmptyState
+                icon={<Inbox />}
+                title={dateFrom || dateTo ? t('Aucun dossier sur cette période') : `${t('Aucun dossier pour')} ${selectedCompagnie.nom}`}
+                description={
+                  dateFrom || dateTo
+                    ? `${t('Aucun dossier')} ${selectedCompagnie.nom} ${rangeCaption}.`
+                    : t("Aucun dossier n'est encore associé à cette compagnie.")
+                }
+                action={
+                  dateFrom || dateTo ? (
+                    <Button variant="tonal" onClick={() => setFilters({ dateFrom: '', dateTo: '' })}>{t('Effacer la période')}</Button>
+                  ) : (
+                    <Button variant="tonal" onClick={() => setCreateOpen(true)}>{t('Créer un dossier')}</Button>
+                  )
+                }
+                className="bg-transparent"
+              />
+            ) : (
+              <>
+                <RecordList ariaLabel={`${t('Dossiers')} ${selectedCompagnie.nom}`}>
+                  {cap.rows.map((d: any) => {
+                    const assure = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim();
+                    const requete = d.dateRequete ? (d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete)) : null;
+                    return (
+                      <RecordRow
+                        key={d.id}
+                        recordId={d.id}
+                        id={d.refExpert || <span className="font-sans font-normal text-ink-4">{t('Sans réf.')}</span>}
+                        figure={requete && !Number.isNaN(requete.getTime()) ? <span className="tabular-nums">{format(requete, 'dd/MM/yyyy')}</span> : null}
+                        primary={assure || t('Assuré non renseigné')}
+                        secondary={d.matricule || undefined}
+                        line3={<Badge variant={statusVariant(d.statut || 'Nouveau')}>{t(d.statut || 'Nouveau')}</Badge>}
+                        href={`/dossiers/${d.id}`}
+                        ariaLabel={`${t('Ouvrir le dossier')} ${d.refExpert || ''}`.trim()}
+                      />
+                    );
+                  })}
+                </RecordList>
+                <LoadMore
+                  shown={cap.rows.length}
+                  total={cap.total}
+                  step={25}
+                  hasMore={cap.hasMore}
+                  onMore={cap.showMore}
+                  noun={t('dossier')}
+                  nounPlural={t('dossiers')}
+                />
+              </>
+            )}
+          </div>
+        )}
         {/* Data table (§3: Polaris — text left, headers aligned with their
             data, first column fixed when the table overflows; Carbon — 44 px
             rows, skeleton rows; NN/g — row is the link, chevron at the row
             end, sticky header, hover tint). Refs and plates in t-mono. */}
+        {!isPhone && (
         <Table regionLabel={`${t('Dossiers')} ${selectedCompagnie.nom}`}>
           <TableHeader>
             <TableRow>
@@ -487,6 +596,7 @@ export default function CompagniesClientPage() {
             )}
           </TableBody>
         </Table>
+        )}
       </Card>
 
       <CreateDossierDialog

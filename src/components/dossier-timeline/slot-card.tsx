@@ -166,10 +166,24 @@ const ITEM_TILE_CLASS =
   'group relative flex min-h-[120px] flex-col overflow-hidden rounded-[10px] bg-card shadow-card dark:ring-1 dark:ring-hairline ' +
   'transition-[transform,box-shadow] duration-150 hover:scale-[1.02] hover:shadow-raised motion-reduce:transform-none motion-reduce:hover:scale-100';
 
-// Numbered page pill (multi-page pager).
+// Numbered page pill (multi-page pager). Below md the pill grows to the phone
+// chip size (32 px visible, ≥ 8 px apart — density spec §Targets).
 const PAGE_PILL_CLASS =
-  'inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2 ' +
+  'inline-flex h-8 min-w-8 md:h-5 md:min-w-5 items-center justify-center rounded-full bg-surface-3 px-1.5 text-[13px] md:text-[11px] font-medium tabular-nums text-ink-2 ' +
   'transition-colors duration-150 hover:bg-surface-4 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+/**
+ * PHONE socket anatomy (docs/research/mobile-record-pages.md §E6): the
+ * thumbnail band is 72 px, the document name is 13 px clamped to two lines
+ * (never an ellipsis + `title`, which is dead on touch), and the meta stays a
+ * caption. From `md` up the desktop tile is untouched.
+ */
+const THUMB_BAND_CLASS = 'h-[72px] md:h-20';
+// `truncate` stays the base; below md exactly three declarations are swapped
+// (white-space, display, box-orient + clamp) so the two never fight over
+// `overflow` — a plain `line-clamp-2 md:truncate` pair is order-dependent.
+const SLOT_NAME_CLASS =
+  'truncate max-md:whitespace-normal max-md:[display:-webkit-box] max-md:[-webkit-box-orient:vertical] max-md:[-webkit-line-clamp:2]';
 
 const DRAG_OVER_CLASS = 'bg-accent/40 ring-2 ring-primary/50';
 
@@ -506,7 +520,7 @@ export function SlotCard({
         {/* Page strip — the first two pages 2-up, "+n" on the second when more.
             Draggable: carries every page of this document. */}
         <div
-          className={cn('relative mx-2.5 mt-1 h-20 shrink-0 overflow-hidden rounded-md bg-hairline', draggable && 'cursor-grab active:cursor-grabbing')}
+          className={cn('relative mx-2.5 mt-1 shrink-0 overflow-hidden rounded-md bg-hairline', THUMB_BAND_CLASS, draggable && 'cursor-grab active:cursor-grabbing')}
           {...dragSourceProps}
         >
           <button
@@ -528,7 +542,7 @@ export function SlotCard({
             </span>
           </button>
           {selectionOverlay(anySelectable)}
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink-solid/60 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
+          <div className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-ink-solid/60 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 [@media(hover:hover)]:flex [@media(hover:hover)]:group-hover:opacity-100">
             <span className="inline-flex h-7 items-center gap-1.5 rounded-md bg-card px-2 text-xs font-medium text-ink">
               <Eye className="h-3.5 w-3.5" aria-hidden />
               {t('Aperçu')}
@@ -538,7 +552,7 @@ export function SlotCard({
 
         {/* Document title + pages meta */}
         <div className="min-w-0 px-2.5 pb-1 pt-1.5">
-          <p className="t-body-sm truncate font-medium" title={t(slot)}>{t(slot)}</p>
+          <p className={cn('t-body-sm font-medium', SLOT_NAME_CLASS)} title={t(slot)}>{t(slot)}</p>
           {meta && <p className="t-caption truncate tabular-nums">{meta}</p>}
           {chiffreurName && (
             <p className="t-caption truncate" title={`${t('Chiffré par')} ${chiffreurName}`}>
@@ -548,7 +562,7 @@ export function SlotCard({
         </div>
 
         {/* Pager — numbered pills with per-page actions */}
-        <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2" aria-label={t('Pages')}>
+        <div className="flex flex-wrap items-center gap-2 px-2.5 pb-2 md:gap-1" aria-label={t('Pages')}>
           {pages.map((p, i) => {
             const name = docDisplayName(p);
             const clickable = !!p.url && !p.pendingUpload;
@@ -618,7 +632,7 @@ export function SlotCard({
 
         {/* Slot label + optional version chip + controls */}
         <div className="flex items-center gap-1 px-2.5 pb-1 pt-2">
-          <span className="t-caption min-w-0 flex-1 truncate font-medium" title={t(slot)}>{t(slot)}</span>
+          <span className={cn('t-caption min-w-0 flex-1 font-medium', SLOT_NAME_CLASS)} title={t(slot)}>{t(slot)}</span>
           {versionChip}
           {controls}
         </div>
@@ -626,12 +640,22 @@ export function SlotCard({
         {/* Item visual — image cover, first PDF page, or large glyph; overlay
             actions. Draggable to another socket to reclassify. */}
         <div
-          className={cn('relative mx-2.5 h-20 shrink-0 overflow-hidden rounded-md bg-surface-2', draggable && 'cursor-grab active:cursor-grabbing')}
+          className={cn('relative mx-2.5 shrink-0 overflow-hidden rounded-md bg-surface-2', THUMB_BAND_CLASS, draggable && 'cursor-grab active:cursor-grabbing')}
           {...dragSourceProps}
         >
           <PageThumb doc={primary} />
           {selectionOverlay(primaryClickable)}
-          <div className="absolute inset-0 flex items-center justify-center gap-1 bg-ink-solid/60 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
+          {/* Touch: the whole visual is the tap target and the lightbox header
+              carries Aperçu / Télécharger / Supprimer (E6 + E8). The hover
+              cluster below never appears on a coarse pointer. */}
+          <button
+            type="button"
+            onClick={() => primaryClickable && onPreview(primary, pages)}
+            disabled={!primaryClickable}
+            aria-label={`${t('Aperçu')} — ${primaryName}`}
+            className="absolute inset-0 z-10 [@media(hover:hover)]:hidden"
+          />
+          <div className="absolute inset-0 hidden items-center justify-center gap-1 bg-ink-solid/60 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 [@media(hover:hover)]:flex [@media(hover:hover)]:group-hover:opacity-100">
             <Button
               type="button"
               variant="secondary"
@@ -681,7 +705,7 @@ export function SlotCard({
             className="flex w-full min-w-0 items-center gap-1.5 text-left focus-visible:outline-none"
             title={primaryName}
           >
-            <span className="t-body-sm min-w-0 truncate font-medium">{primaryName}</span>
+            <span className={cn('t-body-sm min-w-0 font-medium', SLOT_NAME_CLASS)}>{primaryName}</span>
             <ChangeBadge status={primaryReplay} className="shrink-0" />
           </button>
           {primary.pendingUpload && (
@@ -731,13 +755,28 @@ export function SlotCard({
             <Upload className="h-5 w-5 text-ink-3 transition-colors duration-150 group-hover/socket:text-ink" aria-hidden />
           )}
           <span
-            className="t-body-sm w-full truncate font-medium text-ink-2 transition-colors duration-150 group-hover/socket:text-ink"
+            className={cn('t-body-sm w-full font-medium text-ink-2 transition-colors duration-150 group-hover/socket:text-ink', SLOT_NAME_CLASS)}
             title={t(slot)}
           >
             {t(slot)}
           </span>
-          <span className="t-caption">{isUploading ? t('Envoi…') : t(emptyCaption)}</span>
-          {hint && !isUploading && <span className="t-caption w-full truncate text-ink-4" title={t(hint)}>{t(hint)}</span>}
+          <span className="t-caption">
+            {isUploading ? (
+              t('Envoi…')
+            ) : (
+              <>
+                {/* « Déposer » is drag-and-drop copy — meaningless (and a lie)
+                    on touch, where the tile opens the native file sheet. */}
+                <span className="hidden [@media(hover:hover)]:inline">{t(emptyCaption)}</span>
+                <span className="[@media(hover:hover)]:hidden">
+                  {emptyCaption === 'Déposer' ? t('Ajouter') : t(emptyCaption)}
+                </span>
+              </>
+            )}
+          </span>
+          {hint && !isUploading && (
+            <span className={cn('t-caption w-full text-ink-4', SLOT_NAME_CLASS)} title={t(hint)}>{t(hint)}</span>
+          )}
         </button>
         {controls && (
           <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-0.5">{controls}</div>
@@ -761,9 +800,11 @@ export function SlotCard({
           fill + faint SOLID edge + lock. Dashed stays reserved for "drop here". */}
       <div className={cn(SOCKET_BASE_CLASS, 'border border-hairline bg-card/60')}>
         <Lock className="h-5 w-5 text-ink-4" aria-hidden />
-        <span className="t-body-sm w-full truncate font-medium text-ink-3" title={t(slot)}>{t(slot)}</span>
-        <span className="t-caption text-ink-4">{lockText}</span>
-        {hint && <span className="t-caption w-full truncate text-ink-4" title={t(hint)}>{t(hint)}</span>}
+        <span className={cn('t-body-sm w-full font-medium text-ink-3', SLOT_NAME_CLASS)} title={t(slot)}>{t(slot)}</span>
+        {/* The lock REASON is line 2 of the tile — never a tooltip: there is
+            no hover on a phone (E6). */}
+        <span className="t-caption text-balance text-ink-4">{lockText}</span>
+        {hint && <span className={cn('t-caption w-full text-ink-4', SLOT_NAME_CLASS)} title={t(hint)}>{t(hint)}</span>}
         {/* Round 9 item 004 — per-slot Éditer button on pending
             accord/proposition slots (chiffreur side). */}
         {onEdit && !!parsedAccord && (

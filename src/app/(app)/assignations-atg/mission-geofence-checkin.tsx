@@ -185,7 +185,7 @@ export function GeofenceCheckinBanner({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0 text-ink-3"
+          className="h-11 w-11 shrink-0 text-ink-3 md:h-8 md:w-8"
           onClick={dismiss}
           aria-label={t('Ignorer la suggestion')}
           title={t('Ignorer la suggestion')}

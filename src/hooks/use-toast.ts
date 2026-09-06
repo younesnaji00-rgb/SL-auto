@@ -8,8 +8,21 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
+// One at a time (M3 snackbar: "Only one snackbar may be displayed at a time";
+// "showing a new snackbar will dismiss any previous ones first").
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
+
+/**
+ * A toast that carries an action (« Annuler ») lives longer than a passive
+ * confirmation: M3 says an actioned snackbar "should remain on the screen
+ * until the user takes an action", Sonner ships 4 s, and Mia Salazar's
+ * accessibility write-up notes users "often cannot tab into it before it
+ * vanishes". Resolved at 8 s (research §5 / §11) — long enough to reach with
+ * a thumb, short enough that it never squats over the phone's bottom bar.
+ * Passive toasts keep the provider's 5 s (Carbon).
+ */
+export const TOAST_DURATION_WITH_ACTION_MS = 8000
 
 type ToasterToast = ToastProps & {
   id: string
@@ -156,6 +169,9 @@ function toast({ ...props }: Toast) {
     type: "ADD_TOAST",
     toast: {
       ...props,
+      // An explicit `duration` always wins; otherwise an actioned toast gets
+      // the longer undo window and a passive one inherits the provider's 5 s.
+      duration: props.duration ?? (props.action ? TOAST_DURATION_WITH_ACTION_MS : undefined),
       id,
       open: true,
       onOpenChange: (open) => {

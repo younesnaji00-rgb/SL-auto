@@ -15,7 +15,12 @@ const Checkbox = React.forwardRef<
     className={cn(
       // Control with the light rim (blueprint §3); accent fill when checked;
       // colour transitions only — no scale motion.
-      "peer h-4 w-4 shrink-0 rounded-sm border border-hairline-strong bg-card shadow-rim ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:shadow-rim-filled data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground",
+      // 16 px painted, but on touch the tappable area is expanded to 44 px
+      // through a transparent ::before (density §7: >= 44 px targets, 8 px
+      // apart) - growing the box itself would break every dense row.
+      "peer relative h-4 w-4 max-md:h-5 max-md:w-5 shrink-0 rounded-sm",
+      "max-md:before:absolute max-md:before:-inset-3 max-md:before:content-['']",
+      "border border-hairline-strong bg-card shadow-rim ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:shadow-rim-filled data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground",
       className
     )}
     {...props}

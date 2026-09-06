@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { buildAccordEmailTemplate } from '@/lib/chiffrage-email';
 import { useT } from '@/i18n';
+import { INPUT_EMAIL } from '@/lib/input-attrs';
 
 /**
  * Task #36 — Dialog for sending an accord document by email.
@@ -91,7 +92,13 @@ export function EnvoyerParMailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent
+        // A picker, two fields and a textarea -> full screen on a phone (D 2).
+        fullScreen
+        primary={{ label: sending ? t('Envoi...') : t('Envoyer'), onClick: handleSend, disabled: !canSend, loading: sending }}
+        dirty={recipient.trim().length > 0}
+        className="max-w-2xl"
+      >
         <DialogHeader>
           <DialogTitle>{t('Envoyer par mail')}</DialogTitle>
         </DialogHeader>
@@ -99,7 +106,7 @@ export function EnvoyerParMailDialog({
           <div className="space-y-1.5">
             <label className="text-sm font-medium">{t('Document')}</label>
             <Select value={documentId} onValueChange={setDocumentId}>
-              <SelectTrigger>
+              <SelectTrigger aria-label={t('Document')}>
                 <SelectValue placeholder={t('Choisir un document')} />
               </SelectTrigger>
               <SelectContent>
@@ -119,7 +126,8 @@ export function EnvoyerParMailDialog({
           <div className="space-y-1.5">
             <label className="text-sm font-medium">{t('Destinataire')}</label>
             <Input
-              type="email"
+              {...INPUT_EMAIL}
+              aria-label={t('Destinataire')}
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder={t('nom@compagnie.com')}
@@ -134,7 +142,11 @@ export function EnvoyerParMailDialog({
             <Textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              rows={8}
+              aria-label={t('Message')}
+              minRows={4}
+              maxRows={10}
+              autoCapitalize="sentences"
+              className="md:min-h-[10rem]"
             />
           </div>
         </div>
@@ -143,10 +155,11 @@ export function EnvoyerParMailDialog({
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={sending}
+            className="max-md:hidden"
           >
             {t('Annuler')}
           </Button>
-          <Button onClick={handleSend} disabled={!canSend}>
+          <Button onClick={handleSend} disabled={!canSend} className="max-md:h-12 max-md:text-[15px] max-md:font-semibold">
             {sending ? t('Envoi...') : t('Envoyer')}
           </Button>
         </DialogFooter>

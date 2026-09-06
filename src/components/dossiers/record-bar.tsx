@@ -7,12 +7,27 @@
  *
  * Also registers the record title for the breadcrumb / document.title and
  * keeps the workspace tab label in sync.
+ *
+ * PHONE (mobile pass 2026-09-06 — research mobile-record-pages.md E3): the
+ * shell top bar and this bar MERGE. Two stacked 48–56 px sticky rows are 13 %
+ * of an 844 px screen before anything is read (NN/g content-to-chrome), and
+ * Apple's rule for a pushed hierarchical screen is back + title + ONE trailing
+ * group. So below `md` this component paints nothing and instead PUBLISHES its
+ * anatomy into the chrome registry — `‹ Dossiers`, the mono ref as the title,
+ * the assuré as the subtitle, and every overflow row as the top bar's « ⋯ »
+ * action sheet. Its side effects (title registration, workspace-tab label,
+ * dirty dot) keep running: they are the same on both shells. The rappel
+ * session's amber « Sauvegarder » moves to the bottom action bar (E4), and the
+ * primary action to the bottom bar as well — never hidden inside « ⋯ ».
  */
 
 import React, { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Bell, Calculator, CalendarPlus, ChevronDown, ChevronUp, History, Mail, MoreHorizontal, Save, Trash2, Undo2 } from 'lucide-react';
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { usePhoneChrome } from '@/components/layout/page-chrome';
+import type { ActionItem } from '@/components/ui/action-sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -53,6 +68,16 @@ export interface RecordBarProps {
   onChiffrage: () => void;
   onGoToStep: (stepId: number) => void;
   onDelete?: () => void;
+  /** Phone up-link target (E3). Defaults to the dossier list. */
+  upHref?: string;
+  upLabel?: string;
+  /**
+   * Phone screen title. The hub shows the record's ref; a step screen shows
+   * « 2 · Visite avant », the historique screen « Historique ». Published from
+   * here — one registrar per route, so leaving a sub-screen cannot blank the
+   * top bar. Ignored on desktop (the bar prints its own identity row).
+   */
+  phoneTitle?: string | null;
 }
 
 export const RECORD_BAR_HEIGHT = 48;
@@ -70,10 +95,16 @@ export function RecordBar({
   onChiffrage,
   onGoToStep,
   onDelete,
+  upHref = '/dossiers',
+  upLabel = 'Dossiers',
+  phoneTitle,
 }: RecordBarProps) {
   const t = useT();
+  const isPhone = useIsPhone();
   const label = dossierLabel(dossier);
-  useRegisterPageTitle(label);
+  // Phone: the title line is the mono ref alone (the assuré becomes the
+  // subtitle), so `REF · Assuré` would print the name twice.
+  useRegisterPageTitle(isPhone ? phoneTitle || dossier?.refExpert || t('Sans réf.') : label);
   const router = useRouter();
 
   // Arrival moment for a JUST-CREATED dossier (motion-spec §1.2 F3 + §8
@@ -130,6 +161,58 @@ export function RecordBar({
   };
 
   const showPrimary = !readOnly && !!action.kind;
+
+  // ── Phone: publish this bar INTO the shell top bar (E3) ──────────────────
+  // Every desktop overflow row becomes an « ⋯ » action-sheet item, in the same
+  // order; Précédent / Suivant join it because a 44 px pair of chevrons has no
+  // room next to a two-line title (they are `hidden sm:flex` on desktop too).
+  const secondaryActions = useMemo<ActionItem[]>(() => {
+    const items: ActionItem[] = [];
+    if (listNav) {
+      items.push({
+        key: 'prev',
+        label: t('Dossier précédent'),
+        icon: <ChevronUp />,
+        hint: `${listNav.position}/${listNav.total} ${t('de la liste')}`,
+        disabled: !listNav.prevId,
+        onSelect: () => listNav.prevId && router.push(`/dossiers/${listNav.prevId}`),
+      });
+      items.push({
+        key: 'next',
+        label: t('Dossier suivant'),
+        icon: <ChevronDown />,
+        hint: `${listNav.position}/${listNav.total} ${t('de la liste')}`,
+        disabled: !listNav.nextId,
+        onSelect: () => listNav.nextId && router.push(`/dossiers/${listNav.nextId}`),
+      });
+    }
+    items.push({ key: 'planifier', label: t('Nouvelle planification'), icon: <CalendarPlus />, hidden: readOnly, onSelect: () => onPlanifier() });
+    items.push({ key: 'chiffrage', label: t('Envoyer au chiffrage'), icon: <Calculator />, hidden: readOnly, onSelect: onChiffrage });
+    items.push({ key: 'email', label: t('Envoyer un email'), icon: <Mail />, hidden: readOnly, onSelect: onEmail });
+    items.push({ key: 'historique', label: t('Historique'), icon: <History />, onSelect: onHistorique });
+    if (onDelete) items.push({ key: 'delete', label: t('Supprimer le dossier'), icon: <Trash2 />, destructive: true, onSelect: onDelete });
+    return items;
+  }, [listNav, readOnly, onDelete, onPlanifier, onChiffrage, onEmail, onHistorique, router, t]);
+
+  const assure = assureName(dossier?.assure);
+  const phoneChrome = useMemo(
+    () =>
+      isPhone
+        ? {
+            upHref,
+            upLabel,
+            subtitle: [assure, dossier?.matricule].filter(Boolean).join(' · ') || null,
+            secondaryActions,
+            // The primary lives in the bottom action bar (E4), never in « ⋯ ».
+            primaryAction: null,
+          }
+        : null,
+    [isPhone, upHref, upLabel, assure, dossier?.matricule, secondaryActions],
+  );
+  usePhoneChrome(phoneChrome);
+
+  // The bar itself is desktop-only; the phone reads it from the top bar above.
+  if (isPhone) return null;
 
   return (
     // Tour anchors (merge 2026-09-04): the dossier-detail tutorial anchored

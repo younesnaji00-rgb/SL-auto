@@ -133,10 +133,15 @@ export function TerrainDashboard({ missions, dossiers, holidays, now, person, lo
                   </a>
                 </Button>
               ) : (
-                <Button variant="outline" className="h-12 w-full" disabled title={t('Aucune adresse sur la mission')}>
-                  <MapPin className="mr-2 h-4 w-4" aria-hidden />
-                  {t('Itinéraire')}
-                </Button>
+                <div className="flex flex-col gap-1">
+                  <Button variant="outline" className="h-12 w-full" disabled>
+                    <MapPin className="mr-2 h-4 w-4" aria-hidden />
+                    {t('Itinéraire')}
+                  </Button>
+                  {/* A disabled control has to say why in TEXT: a 
+                      tooltip never fires on touch (mobile pass 2026-09-06). */}
+                  <p className="t-caption">{t('Aucune adresse sur la mission')}</p>
+                </div>
               )}
               {phoneOf(next) ? (
                 <Button asChild variant="outline" className="h-12 w-full">
@@ -146,10 +151,13 @@ export function TerrainDashboard({ missions, dossiers, holidays, now, person, lo
                   </a>
                 </Button>
               ) : (
-                <Button variant="outline" className="h-12 w-full" disabled title={t('Aucun numéro sur le dossier')}>
-                  <Phone className="mr-2 h-4 w-4" aria-hidden />
-                  {t('Appeler')}
-                </Button>
+                <div className="flex flex-col gap-1">
+                  <Button variant="outline" className="h-12 w-full" disabled>
+                    <Phone className="mr-2 h-4 w-4" aria-hidden />
+                    {t('Appeler')}
+                  </Button>
+                  <p className="t-caption">{t('Aucun numéro sur le dossier')}</p>
+                </div>
               )}
             </div>
           </div>

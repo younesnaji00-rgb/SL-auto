@@ -31,6 +31,8 @@ import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
 import { useT } from '@/i18n';
 import { BRAND } from '@/lib/brand';
+import { Segmented } from '@/components/ui/segmented';
+import { INPUT_EMAIL, INPUT_ID, INPUT_NAME, INPUT_PLATE, INPUT_TEL, INPUT_TEXT } from '@/lib/input-attrs';
 
 interface DossierEditModalProps {
   isOpen: boolean;
@@ -46,17 +48,25 @@ interface DossierEditModalProps {
  * inline definition remounted the input — and dropped focus — on every
  * keystroke). NEVER move it back inside the component.
  */
-const InputField = ({ label, value, onChange, type = 'text', className = '', placeholder }: {
+/**
+ * One labelled field. `attrs` carries the keyboard / autofill preset from
+ * `@/lib/input-attrs` (research §2.7): a téléphone opens the phone pad, a
+ * plate the capitals keyboard with autocorrect off, an identifier neither.
+ * Defaults to plain text so an un-migrated call site still behaves.
+ */
+const InputField = ({ label, value, onChange, type, attrs = INPUT_TEXT, className = '', placeholder, mono }: {
   label: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   type?: string;
+  attrs?: React.InputHTMLAttributes<HTMLInputElement>;
   className?: string;
   placeholder?: string;
+  mono?: boolean;
 }) => (
   <div className={cn('min-w-0', className)}>
     <Label className="t-label">{label}</Label>
-    <Input type={type} className="mt-1" value={value} onChange={onChange} placeholder={placeholder} />
+    <Input {...attrs} type={type ?? attrs.type} className={cn('mt-1', mono && 't-mono')} value={value} onChange={onChange} placeholder={placeholder} />
   </div>
 );
 
@@ -194,7 +204,13 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
           closest to the edge, dismissive `outline` to its left, two actions
           max; bottom sheet below `lg` via the Dialog primitive). Body padding
           24, sections separated by hairlines with `t-heading` titles. */}
-      <DialogContent className="max-h-[calc(95vh/var(--app-zoom))] overflow-y-auto p-0 lg:max-w-4xl">
+      <DialogContent
+        // ~20 controls across four sections: the full-screen phone form
+        // (D §2). The desktop 4xl two-column dialog is untouched.
+        fullScreen
+        primary={{ label: t('Enregistrer'), onClick: handleUpdate, disabled: loading, loading: saving }}
+        className="max-h-[calc(95vh/var(--app-zoom))] overflow-y-auto p-0 lg:max-w-4xl"
+      >
         <DialogHeader className="border-b border-hairline px-6 py-4">
           <DialogTitle className="t-title">{t('Modifier le dossier')}</DialogTitle>
         </DialogHeader>
@@ -215,11 +231,23 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                   <h3 className="t-heading">{t('Dossier')}</h3>
                 </div>
                 <div>
-                  <Label className="t-label">{t('Expert')}</Label>
+                  <Label className="t-label" id="dem-expert-label">{t('Expert')}</Label>
+                  {/* Three exclusive short options → segmented on a phone. */}
+                  <Segmented
+                    className="mt-2 md:hidden"
+                    aria-labelledby="dem-expert-label"
+                    value={formData.expertRank}
+                    onValueChange={(v) => setFormData({ ...formData, expertRank: v })}
+                    options={['1er expert', '2eme expert', 'Arbitre'].map((rank) => ({
+                      value: rank,
+                      label: t(rank),
+                      labelText: t(rank),
+                    }))}
+                  />
                   <RadioGroup
                     value={formData.expertRank}
                     onValueChange={(v) => setFormData({ ...formData, expertRank: v })}
-                    className="mt-2 flex flex-wrap gap-6"
+                    className="mt-2 hidden flex-wrap gap-6 md:flex"
                   >
                     {['1er expert', '2eme expert', 'Arbitre'].map((rank) => (
                       <div key={rank} className="flex items-center space-x-2">
@@ -237,7 +265,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                       <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
                     </div>
                     <Select value={formData.compagnie} onValueChange={(v) => setFormData({ ...formData, compagnie: v })}>
-                      <SelectTrigger className="mt-1 h-10"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
+                      <SelectTrigger className="mt-1 h-10 max-md:h-12"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                       <SelectContent>{compagnies.map(c => <SelectItem key={c.id} value={c.label}>{t(c.label)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -247,7 +275,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                       <OptionsManagerModal collectionName="options_types_dossier" title="Types de dossier" />
                     </div>
                     <Select value={formData.typeDossier} onValueChange={(v) => setFormData({ ...formData, typeDossier: v })}>
-                      <SelectTrigger className="mt-1 h-10"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
+                      <SelectTrigger className="mt-1 h-10 max-md:h-12"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                       <SelectContent>{dossierTypes.map(dt => <SelectItem key={dt.id} value={dt.label}>{t(dt.label)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -257,7 +285,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                       <OptionsManagerModal collectionName="options_natures" title="Natures" />
                     </div>
                     <Select value={formData.nature} onValueChange={(v) => setFormData({ ...formData, nature: v })}>
-                      <SelectTrigger className="mt-1 h-10"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
+                      <SelectTrigger className="mt-1 h-10 max-md:h-12"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                       <SelectContent className="max-h-[300px]">{natures.map(n => <SelectItem key={n.id} value={n.label}>{t(n.label)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -267,10 +295,10 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
               <section className="space-y-4 border-t border-hairline pt-6" aria-label={t('Assuré')}>
                 <h3 className="t-heading">{t('Assuré')}</h3>
                 <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                  <InputField label={t('Assuré')} value={formData.assure.nom} onChange={(e) => setFormData({ ...formData, assure: { ...formData.assure, nom: e.target.value } })} />
-                  <InputField label={t('Téléphone assuré')} type="tel" placeholder={BRAND.phonePlaceholder} value={formData.assure.telephone} onChange={(e) => setFormData({ ...formData, assure: { ...formData.assure, telephone: e.target.value } })} />
-                  <InputField label={t('WhatsApp')} type="tel" placeholder={BRAND.phonePlaceholder} value={formData.assure.whatsapp} onChange={(e) => setFormData({ ...formData, assure: { ...formData.assure, whatsapp: e.target.value } })} />
-                  <InputField label={t('Autre téléphone')} type="tel" placeholder={BRAND.phonePlaceholder} value={formData.assure.telephone2} onChange={(e) => setFormData({ ...formData, assure: { ...formData.assure, telephone2: e.target.value } })} />
+                  <InputField label={t('Assuré')} attrs={INPUT_NAME} value={formData.assure.nom} onChange={(e) => setFormData({ ...formData, assure: { ...formData.assure, nom: e.target.value } })} />
+                  <InputField label={t('Téléphone assuré')} attrs={INPUT_TEL} placeholder={BRAND.phonePlaceholder} value={formData.assure.telephone} onChange={(e) => setFormData({ ...formData, assure: { ...formData.assure, telephone: e.target.value } })} />
+                  <InputField label={t('WhatsApp')} attrs={INPUT_TEL} placeholder={BRAND.phonePlaceholder} value={formData.assure.whatsapp} onChange={(e) => setFormData({ ...formData, assure: { ...formData.assure, whatsapp: e.target.value } })} />
+                  <InputField label={t('Autre téléphone')} attrs={INPUT_TEL} placeholder={BRAND.phonePlaceholder} value={formData.assure.telephone2} onChange={(e) => setFormData({ ...formData, assure: { ...formData.assure, telephone2: e.target.value } })} />
                   <div className="min-w-0">
                     <Label className="t-label">{t('Date de requête')}</Label>
                     <div className="mt-1">
@@ -285,11 +313,11 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
               <section className="space-y-4" aria-label={t('Véhicule')}>
                 <h3 className="t-heading">{t('Véhicule')}</h3>
                 <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                  <InputField label={t('Marque')} value={formData.vehicule.marque} onChange={(e) => setFormData({ ...formData, vehicule: { ...formData.vehicule, marque: e.target.value } })} />
-                  <InputField label={t('Modèle')} value={formData.vehicule.modele} onChange={(e) => setFormData({ ...formData, vehicule: { ...formData.vehicule, modele: e.target.value } })} />
-                  <InputField label={t('Immatriculation')} value={formData.vehicule.immatriculation} onChange={(e) => setFormData({ ...formData, vehicule: { ...formData.vehicule, immatriculation: e.target.value } })} />
-                  <InputField label={t('Immatriculation antérieure')} value={formData.vehicule.immatriculationAnterieur} onChange={(e) => setFormData({ ...formData, vehicule: { ...formData.vehicule, immatriculationAnterieur: e.target.value } })} />
-                  <InputField label={t('Immatriculation W')} value={formData.vehicule.registrationW} onChange={(e) => setFormData({ ...formData, vehicule: { ...formData.vehicule, registrationW: e.target.value } })} />
+                  <InputField label={t('Marque')} attrs={INPUT_NAME} value={formData.vehicule.marque} onChange={(e) => setFormData({ ...formData, vehicule: { ...formData.vehicule, marque: e.target.value } })} />
+                  <InputField label={t('Modèle')} attrs={INPUT_NAME} value={formData.vehicule.modele} onChange={(e) => setFormData({ ...formData, vehicule: { ...formData.vehicule, modele: e.target.value } })} />
+                  <InputField label={t('Immatriculation')} attrs={INPUT_PLATE} mono value={formData.vehicule.immatriculation} onChange={(e) => setFormData({ ...formData, vehicule: { ...formData.vehicule, immatriculation: e.target.value } })} />
+                  <InputField label={t('Immatriculation antérieure')} attrs={INPUT_PLATE} mono value={formData.vehicule.immatriculationAnterieur} onChange={(e) => setFormData({ ...formData, vehicule: { ...formData.vehicule, immatriculationAnterieur: e.target.value } })} />
+                  <InputField label={t('Immatriculation W')} attrs={INPUT_PLATE} mono value={formData.vehicule.registrationW} onChange={(e) => setFormData({ ...formData, vehicule: { ...formData.vehicule, registrationW: e.target.value } })} />
                   <div className="min-w-0">
                     <Label className="t-label">{t('Date du sinistre')}</Label>
                     <div className="mt-1">
@@ -308,22 +336,22 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
               <section className="space-y-4 border-t border-hairline pt-6" aria-label={t('Intermédiaire et garage')}>
                 <h3 className="t-heading">{t('Intermédiaire et garage')}</h3>
                 <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                  <InputField label={t('Intermédiaire')} value={formData.intermediaireNom} onChange={(e) => setFormData({ ...formData, intermediaireNom: e.target.value })} />
-                  <InputField label={t('E-mail intermédiaire')} type="email" value={formData.intermediaireEmail} onChange={(e) => setFormData({ ...formData, intermediaireEmail: e.target.value })} />
-                  <InputField label={t('Réf. compagnie')} value={formData.referenceCompagnie} onChange={(e) => setFormData({ ...formData, referenceCompagnie: e.target.value })} />
-                  <InputField label={t('N° de police')} value={formData.policeNumber} onChange={(e) => setFormData({ ...formData, policeNumber: e.target.value })} />
+                  <InputField label={t('Intermédiaire')} attrs={INPUT_NAME} value={formData.intermediaireNom} onChange={(e) => setFormData({ ...formData, intermediaireNom: e.target.value })} />
+                  <InputField label={t('E-mail intermédiaire')} attrs={INPUT_EMAIL} value={formData.intermediaireEmail} onChange={(e) => setFormData({ ...formData, intermediaireEmail: e.target.value })} />
+                  <InputField label={t('Réf. compagnie')} attrs={INPUT_ID} value={formData.referenceCompagnie} onChange={(e) => setFormData({ ...formData, referenceCompagnie: e.target.value })} />
+                  <InputField label={t('N° de police')} attrs={INPUT_ID} value={formData.policeNumber} onChange={(e) => setFormData({ ...formData, policeNumber: e.target.value })} />
 
                   <div className="min-w-0">
                     <Label className="t-label">{t('Réparateur')}</Label>
                     <Select value={formData.repairerType} onValueChange={(v) => setFormData({ ...formData, repairerType: v })}>
-                      <SelectTrigger className="mt-1 h-10"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
+                      <SelectTrigger className="mt-1 h-10 max-md:h-12"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Agréé">{t('Agréé')}</SelectItem>
                         <SelectItem value="Normal">{t('Normal')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <InputField label={t('Nom du garage')} value={formData.garageName} onChange={(e) => setFormData({ ...formData, garageName: e.target.value })} />
+                  <InputField label={t('Nom du garage')} attrs={INPUT_NAME} value={formData.garageName} onChange={(e) => setFormData({ ...formData, garageName: e.target.value })} />
                 </div>
               </section>
             </div>
@@ -331,11 +359,11 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
         )}
 
         {/* Footer §13: [Annuler outline] [Enregistrer default], right-aligned. */}
-        <DialogFooter className="flex flex-row items-center justify-end gap-3 border-t border-hairline px-6 py-4 sm:justify-end">
-          <Button variant="outline" onClick={onClose} disabled={saving}>
+        <DialogFooter className="flex flex-row items-center justify-end gap-3 border-t border-hairline px-6 py-4 sm:justify-end max-md:flex-col max-md:border-t-0 max-md:px-4">
+          <Button variant="outline" onClick={onClose} disabled={saving} className="max-md:hidden">
             {t('Annuler')}
           </Button>
-          <Button onClick={handleUpdate} loading={saving} disabled={loading}>
+          <Button onClick={handleUpdate} loading={saving} disabled={loading} className="max-md:h-12 max-md:text-[15px] max-md:font-semibold">
             {t('Enregistrer')}
           </Button>
         </DialogFooter>

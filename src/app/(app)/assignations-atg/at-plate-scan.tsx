@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { apiFetch } from '@/lib/api-fetch';
 import { t } from '@/i18n';
@@ -20,12 +21,24 @@ export interface PlateScanResult {
  */
 export function usePlateScan(onPlate: (result: PlateScanResult) => void) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const trigger = useCallback(() => {
     setError(null);
     inputRef.current?.click();
+  }, []);
+
+  /**
+   * Second, explicit affordance (mobile-forms-inputs §2.8): the SAME analysis
+   * fed from a photo the agent already has. `capture` is deliberately absent —
+   * with it Android replaces the picker by the camera, which is exactly what
+   * `trigger()` above is for. One input can never be both.
+   */
+  const triggerImport = useCallback(() => {
+    setError(null);
+    importRef.current?.click();
   }, []);
 
   const handleFile = async (file: File | undefined) => {
@@ -68,21 +81,22 @@ export function usePlateScan(onPlate: (result: PlateScanResult) => void) {
     }
   };
 
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset so re-taking / re-picking the same photo re-triggers onChange.
+    e.target.value = '';
+    void handleFile(file);
+  };
+
   const inputNode: ReactNode = (
-    <input
-      ref={inputRef}
-      type="file"
-      accept="image/*"
-      capture="environment"
-      className="hidden"
-      onChange={(e) => {
-        const file = e.target.files?.[0];
-        // Reset so re-taking the same photo re-triggers onChange.
-        e.target.value = '';
-        void handleFile(file);
-      }}
-    />
+    <>
+      {/* Camera IS the intent here → `capture="environment"` (MDN: the capture
+          device is used INSTEAD of the file picker). */}
+      <input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPick} />
+      {/* Gallery / files — no `capture`, so the OS sheet keeps both. */}
+      <input ref={importRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
+    </>
   );
 
-  return { trigger, scanning, error, inputNode };
+  return { trigger, triggerImport, scanning, error, inputNode };
 }

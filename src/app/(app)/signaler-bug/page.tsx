@@ -548,14 +548,14 @@ function ChatThread({
         )}
 
         {voiceBlob ? (
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
             <div className="flex items-center gap-2 text-sm text-ink-2">
               <span>{t('Message vocal prêt')} ({voiceBlob.duration}s)</span>
               <Button variant="ghost" size="sm" onClick={() => setVoiceBlob(null)}>
                 {t('Annuler')}
               </Button>
             </div>
-            <Button onClick={handleSend} loading={isSending}>
+            <Button onClick={handleSend} loading={isSending} className="max-md:h-12 max-md:w-full max-md:text-[15px] max-md:font-semibold">
               {isSending ? t('Envoi…') : t('Envoyer')}
             </Button>
           </div>
@@ -563,19 +563,29 @@ function ChatThread({
           <>
             <Textarea
               placeholder={t('Décrivez le problème…')}
-              className="min-h-[80px] resize-none"
+              // Grows 3 → 8 rows with the report instead of a fixed 80 px box
+              // the user has to scroll inside (§2.7).
+              minRows={3}
+              maxRows={8}
+              autoCapitalize="sentences"
+              enterKeyHint="send"
+              className="md:min-h-[80px]"
               value={text}
               onChange={(e) => setText(e.target.value)}
               disabled={isSending}
               aria-label={t('Votre message')}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                // Enter sends on a physical keyboard only: on a phone Enter is
+                // a newline (the keyboard has no Shift+Enter).
+                if (e.key === 'Enter' && !e.shiftKey && !window.matchMedia?.('(pointer: coarse)').matches) {
                   e.preventDefault();
                   handleSend();
                 }
               }}
             />
-            <div className="flex items-center justify-between gap-3">
+            {/* Phones: the tools row, then ONE full-width 48 px primary at the
+                end (§2.5 / density §7). A desk keeps them on one line. */}
+            <div className="flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
               <div className="flex items-center gap-1" data-tour="bug-tools">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -599,7 +609,7 @@ function ChatThread({
                   disabled={isSending}
                 />
               </div>
-              <Button onClick={handleSend} loading={isSending}>
+              <Button onClick={handleSend} loading={isSending} className="max-md:h-12 max-md:w-full max-md:text-[15px] max-md:font-semibold">
                 {isSending ? t('Envoi…') : t('Envoyer')}
               </Button>
             </div>

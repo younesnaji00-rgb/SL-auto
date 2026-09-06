@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { Search, Trash2, AlertCircle, Eye, History, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check, Columns3 } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Search, Trash2, AlertCircle, Eye, History, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check, Columns3, Plus, BellRing } from 'lucide-react';
 import { format, formatDistanceToNowStrict, differenceInCalendarDays, isToday, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import { Input } from '@/components/ui/input';
@@ -73,6 +73,29 @@ import {
 } from '@/components/ui/alert-dialog';
 import { addDoc, collection, doc, updateDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+// Mobile pass 2026-09-06 (docs/research/mobile-synthesis.md §4): below md the
+// 14-column table becomes a `RecordList` of 3-line rows under a sticky search
+// row; every desktop filter (toolbar + per-column popovers + saved views)
+// moves into ONE « Filtres » sheet, the pager becomes « Afficher 25 de plus »,
+// and « Rappeler » drives the contextual selection bar + bottom action bar.
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
+import { SearchRow, type SearchRowHandle } from '@/components/ui/search-row';
+import {
+  FilterSheet,
+  FilterSection,
+  FilterSelect,
+  FilterToggle,
+  FilterChoiceChips,
+  AppliedChips,
+  type AppliedChip,
+} from '@/components/ui/filter-sheet';
+import { SortSheet } from '@/components/ui/sort-sheet';
+import { LoadMore, useRenderCap } from '@/components/ui/load-more';
+import { useListScrollRestore, listScrollKey } from '@/lib/list-scroll-restore';
+import { BottomActionBar } from '@/components/layout/bottom-action-bar';
+import { usePhoneChrome } from '@/components/layout/page-chrome';
+import { useSavedViews } from '@/components/ui/saved-views';
 
 // Column order = five logical chunks on the hierarchical scan path (research
 // 2026-09-03, docs/research/dossiers-attention-efficiency.md): identity →
@@ -292,7 +315,11 @@ export default function DossiersClientPage() {
   // Armed default view (owner-approved 2026-09-03): the page opens on
   // « À traiter » — the zero-interaction answer to the day's actual question
   // (default bias / Split-Inbox research). « Tous » is one tab away.
-  const filterDefaults = { search: '', scope: 'a-traiter' as 'a-traiter' | 'tous', lateOnly: false, nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', creator: 'Tous', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc', datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null, hiddenCols: [] as string[], density: 'normale' as 'compacte' | 'normale' | 'confortable' };
+  // `lateFirst` is the phone-only « En retard d'abord » order (mobile
+  // synthesis §4 sort): it re-partitions the creation sort so late rows lead.
+  // Nothing on the desktop sets it, so the desktop order is unchanged.
+  const filterDefaults = { search: '', scope: 'a-traiter' as 'a-traiter' | 'tous', lateOnly: false, nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', creator: 'Tous', dateFrom: '', dateTo: '', rowsPerPage: 25, sortByCreation: 'desc' as 'desc' | 'asc', lateFirst: false, datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null, hiddenCols: [] as string[], density: 'normale' as 'compacte' | 'normale' | 'confortable' };
+  type DossierFilters = typeof filterDefaults;
   const [filters, setFilters, clearFilter] = usePersistedFilters('dossiers', filterDefaults);
   const rowsPerPage = filters.rowsPerPage;
   const [page, setPage] = useState(1);
@@ -329,7 +356,11 @@ export default function DossiersClientPage() {
   // getFacetedUniqueValues, ecosystem research 2026-09-03): each column's
   // counts come from the list filtered by every OTHER filter, so a popover
   // shows exactly what choosing an option would yield.
-  const filteredExcept = useCallback((except: string | null) => {
+  // Split in two (mobile pass): `filterRows` is pure in the filter object so
+  // the phone « Filtres » sheet can price a PENDING state (« Afficher 42
+  // dossiers ») without touching the applied one; `filteredExcept` is the
+  // same pass on the applied filters.
+  const filterRows = useCallback((filters: DossierFilters, except: string | null) => {
     let results = [...allDossiers];
     if (except !== 'scope' && filters.scope !== 'tous') results = results.filter(d => isActionNeeded(d.statut));
     if (except !== 'scope' && filters.lateOnly) {
@@ -394,7 +425,12 @@ export default function DossiersClientPage() {
     }
     return results;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allDossiers, filters, filterObservations, userNameByUid]);
+  }, [allDossiers, filterObservations, userNameByUid]);
+
+  const filteredExcept = useCallback(
+    (except: string | null) => filterRows(filters, except),
+    [filterRows, filters],
+  );
 
   const dossierList = useMemo(() => {
     const results = filteredExcept(null);
@@ -410,8 +446,18 @@ export default function DossiersClientPage() {
     };
     const dir = filters.sortByCreation === 'asc' ? 1 : -1;
     results.sort((a, b) => (toMillis((a as any).createdAt) - toMillis((b as any).createdAt)) * dir);
+    // « En retard d'abord » (phone sort sheet): a STABLE second pass keeps the
+    // creation order inside each partition.
+    if (filters.lateFirst) {
+      const rank = (d: any) => {
+        const age = ageDays(d?.createdAt);
+        return isActionNeeded(d?.statut) && age !== null && age >= LATE_AFTER_DAYS ? 0 : 1;
+      };
+      results.sort((a, b) => rank(a) - rank(b));
+    }
     return results;
-  }, [filteredExcept, filters.sortByCreation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredExcept, filters.sortByCreation, filters.lateFirst]);
 
   // Faceted option counts for the per-column filter popovers.
   const facetCounts = useMemo(() => {
@@ -634,6 +680,73 @@ export default function DossiersClientPage() {
     setIsCreateOpen(true);
   };
 
+  /* ------------------------------------------------------------------ */
+  /* Phone list — mobile-synthesis §4                                    */
+  /* ------------------------------------------------------------------ */
+  const isPhone = useIsPhone();
+  const pathname = usePathname() || '/dossiers';
+  const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
+  const [phoneSortOpen, setPhoneSortOpen] = useState(false);
+  const searchRowRef = React.useRef<SearchRowHandle>(null);
+  const savedViews = useSavedViews<DossierFilters>('dossiers', filters);
+
+  // Count badge on « Filtres » = applied ATTRIBUTE filters (the date range
+  // counts once, the scope segments are visible on their own).
+  const appliedFilterCount = useMemo(() => {
+    let n = 0;
+    if (filters.lateOnly) n++;
+    if (filters.nature !== 'Toutes') n++;
+    if (filters.status !== 'Tous') n++;
+    if (filters.compagnie !== 'Toutes') n++;
+    if (filters.observation !== 'Toutes') n++;
+    if (filters.creator !== 'Tous') n++;
+    if (filters.dateFrom || filters.dateTo) n++;
+    return n;
+  }, [filters]);
+
+  const phoneSort: 'recent' | 'ancien' | 'retard' = filters.lateFirst
+    ? 'retard'
+    : filters.sortByCreation === 'asc'
+      ? 'ancien'
+      : 'recent';
+  const phoneSortLabel =
+    phoneSort === 'retard' ? t("En retard d'abord") : phoneSort === 'ancien' ? t('Plus anciens') : t('Plus récents');
+
+  // The cap resets whenever the visible set changes (filters / sort / search).
+  const capSignature = useMemo(
+    () =>
+      JSON.stringify([
+        filters.scope, filters.lateOnly, filters.nature, filters.status, filters.compagnie,
+        filters.observation, filters.creator, filters.dateFrom, filters.dateTo, filters.search,
+        filters.sortByCreation, filters.lateFirst,
+      ]),
+    [filters],
+  );
+  const cap = useRenderCap(dossierList, 25, { signature: capSignature });
+  const { onRowTap, returnedId } = useListScrollRestore({
+    key: listScrollKey(pathname, capSignature),
+    enabled: isPhone,
+    ready: isPhone && !loading && cap.rows.length > 0,
+    cap: cap.cap,
+    setCap: cap.setCap,
+  });
+
+  // « Rappeler » → the contextual top bar (× · « 3 sélectionnés » · Tout
+  // sélectionner) replaces the phone top bar while the mode is on.
+  const phoneSelection = useMemo(
+    () =>
+      isPhone && exportMode
+        ? {
+            count: selectedRows.size,
+            onExit: handleCancelExport,
+            onSelectAll: () => (allVisibleSelected ? setSelectedRows(new Set()) : handleSelectAll()),
+            allSelected: allVisibleSelected,
+          }
+        : null,
+    [isPhone, exportMode, selectedRows.size, handleCancelExport, allVisibleSelected, handleSelectAll],
+  );
+  usePhoneChrome(useMemo(() => ({ selection: phoneSelection }), [phoneSelection]));
+
   const handleDeleteDossier = (dossierId: string) => {
     // Optimistic UI: close the dialog and clear the spinner immediately. The
     // forced long-polling transport (mandatory for Firefox, see
@@ -833,39 +946,123 @@ export default function DossiersClientPage() {
     filters.observation !== 'Toutes' || filters.creator !== 'Tous' || !!filters.dateFrom || !!filters.dateTo ||
     filters.lateOnly;
 
-  const applyPreset = (preset: 'jour' | 'semaine' | 'mois') => {
+  // The preset → range maths, pure, so the phone filter sheet can write the
+  // same dateFrom/dateTo strings into its PENDING state.
+  const presetRange = (preset: 'jour' | 'semaine' | 'mois') => {
     const now = new Date();
     const from = preset === 'jour' ? startOfDay(now) : preset === 'semaine' ? startOfWeek(now, { locale: dateFnsLocale() }) : startOfMonth(now);
-    setFilters({ dateFrom: format(from, 'yyyy-MM-dd'), dateTo: format(endOfDay(now), 'yyyy-MM-dd'), datePreset: preset });
+    return { dateFrom: format(from, 'yyyy-MM-dd'), dateTo: format(endOfDay(now), 'yyyy-MM-dd'), datePreset: preset };
+  };
+
+  const applyPreset = (preset: 'jour' | 'semaine' | 'mois') => {
+    setFilters(presetRange(preset));
     setPage(1);
   };
 
+  const resetAttributeFilters = () => {
+    setFilters({
+      search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes',
+      observation: 'Toutes', creator: 'Tous', lateOnly: false,
+      dateFrom: '', dateTo: '', datePreset: null,
+    });
+    setPage(1);
+  };
+
+  // Applied-filter chips under the phone search row: every filter that is NOT
+  // visible as a control (the scope segments carry themselves), including the
+  // ones the KPI tiles set (lateOnly, the date preset).
+  const appliedChips: AppliedChip[] = [];
+  if (filters.lateOnly) {
+    appliedChips.push({ key: 'lateOnly', label: `${t('En retard (≥')} ${LATE_AFTER_DAYS} ${t('j)')}`, onRemove: () => clearFilter('lateOnly') });
+  }
+  if (filters.nature !== 'Toutes') {
+    appliedChips.push({ key: 'nature', label: `${t('Nature :')} ${t(filters.nature)}`, onRemove: () => clearFilter('nature'), dataTour: 'dos-filter-chip-nature' });
+  }
+  if (filters.status !== 'Tous') {
+    appliedChips.push({ key: 'status', label: `${t('Statut :')} ${t(filters.status)}`, onRemove: () => clearFilter('status') });
+  }
+  if (filters.compagnie !== 'Toutes') {
+    appliedChips.push({ key: 'compagnie', label: `${t('Compagnie :')} ${filters.compagnie}`, onRemove: () => clearFilter('compagnie') });
+  }
+  if (filters.observation !== 'Toutes') {
+    appliedChips.push({ key: 'observation', label: `${t('Observation :')} ${t(filters.observation)}`, onRemove: () => clearFilter('observation') });
+  }
+  if (filters.creator !== 'Tous') {
+    appliedChips.push({ key: 'creator', label: `${t('Créé par :')} ${filters.creator}`, onRemove: () => clearFilter('creator') });
+  }
+  if (filters.datePreset && filters.datePreset !== 'personnalise') {
+    appliedChips.push({
+      key: 'preset',
+      label: `${t('Période :')} ${t(filters.datePreset === 'jour' ? 'Jour' : filters.datePreset === 'semaine' ? 'Semaine' : 'Mois')}`,
+      onRemove: () => setFilters({ dateFrom: '', dateTo: '', datePreset: null }),
+    });
+  } else {
+    if (filters.dateFrom) {
+      appliedChips.push({
+        key: 'from',
+        label: `${t('Du :')} ${filters.dateFrom}`,
+        onRemove: () => setFilters({ dateFrom: '', datePreset: filters.dateTo ? 'personnalise' : null }),
+      });
+    }
+    if (filters.dateTo) {
+      appliedChips.push({
+        key: 'to',
+        label: `${t('Au :')} ${filters.dateTo}`,
+        onRemove: () => setFilters({ dateTo: '', datePreset: filters.dateFrom ? 'personnalise' : null }),
+      });
+    }
+  }
+
+  // View scope — a real view switcher, so it draws the browser-tab anatomy
+  // (owner ruling §4: "every tab switch"; the Tabs primitive carries
+  // .tab-slope). « À traiter » is the armed default view. On phones it rides
+  // in the sticky search row's `below` slot instead of PageHeader.tabs, so
+  // only ONE row is pinned under the 48 px bar (research §9 sticky budget).
+  const scopeTabs = (
+    <Tabs value={filters.scope} onValueChange={(v) => { setFilters({ scope: v as 'a-traiter' | 'tous' }); setPage(1); }}>
+      <TabsList aria-label={t('Portée de la liste')} data-tour="dos-scope-tabs" className="max-md:w-full">
+        <TabsTrigger value="a-traiter" className="max-md:flex-1">
+          {t('À traiter')}
+          <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+            {loading ? '…' : kpi.aTraiter}
+          </span>
+        </TabsTrigger>
+        <TabsTrigger value="tous" className="max-md:flex-1">
+          {t('Tous')}
+          <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+            {loading ? '…' : kpi.total}
+          </span>
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-md:space-y-4">
       <PageHeader
         title={pageTitle}
         subtitle={pageSubtitle}
         count={loading ? undefined : dossierList.length}
-        tabs={
-          // View scope — a real view switcher, so it draws the browser-tab
-          // anatomy (owner ruling §4: "every tab switch"; the Tabs primitive
-          // carries .tab-slope). « À traiter » is the armed default view.
-          <Tabs value={filters.scope} onValueChange={(v) => { setFilters({ scope: v as 'a-traiter' | 'tous' }); setPage(1); }}>
-            <TabsList aria-label={t('Portée de la liste')} data-tour="dos-scope-tabs">
-              <TabsTrigger value="a-traiter">
-                {t('À traiter')}
-                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
-                  {loading ? '…' : kpi.aTraiter}
-                </span>
-              </TabsTrigger>
-              <TabsTrigger value="tous">
-                {t('Tous')}
-                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
-                  {loading ? '…' : kpi.total}
-                </span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+        tabs={isPhone ? undefined : scopeTabs}
+        onSearchFocus={() => searchRowRef.current?.focus()}
+        primaryAction={
+          exportMode || !canEditDossiers
+            ? null
+            : { label: t('Nouveau dossier'), icon: <Plus className="h-5 w-5" />, onClick: handleOpenCreate, dataTour: 'dos-create' }
+        }
+        secondaryActions={
+          exportMode
+            ? []
+            : [
+                { key: 'rappeler', label: t('Rappeler'), icon: <BellRing />, onSelect: () => setExportMode(true) },
+                {
+                  key: 'reset',
+                  label: t('Réinitialiser les filtres'),
+                  icon: <RotateCcw />,
+                  hidden: appliedFilterCount === 0 && !filters.search,
+                  onSelect: resetAttributeFilters,
+                },
+              ]
         }
         actions={
           // One solid primary at the right end of the title row; the
@@ -937,13 +1134,50 @@ export default function DossiersClientPage() {
         ]}
       />
 
+      {/* PHONE — 48 px sticky search row (input + « Filtres » + « Trier »)
+          carrying the scope segments in its `below` slot, then the applied
+          chips. Everything the desktop toolbar and the column-header popovers
+          do lives in the « Filtres » sheet at the end of this file. */}
+      {/* Both are DIRECT children of the page block: a `position: sticky`
+          element only travels inside its own containing block, so wrapping the
+          search row in a short div would unpin it after ~90 px of scroll. */}
+      {isPhone && (
+        <>
+          <SearchRow
+            ref={searchRowRef}
+            value={filters.search}
+            onChange={(v) => { setFilters({ search: v }); setPage(1); }}
+            placeholder={t('Réf., assuré, plaque…')}
+            ariaLabel={t('Rechercher un dossier')}
+            filterCount={appliedFilterCount}
+            onFilters={() => setPhoneFiltersOpen(true)}
+            sortLabel={phoneSortLabel}
+            onSort={() => setPhoneSortOpen(true)}
+            dataTour="dos-search"
+            below={scopeTabs}
+            className="md:hidden"
+          />
+          <AppliedChips
+            chips={appliedChips}
+            onClearAll={() =>
+              setFilters({
+                nature: 'Toutes', status: 'Tous', compagnie: 'Toutes',
+                observation: 'Toutes', creator: 'Tous', lateOnly: false,
+                dateFrom: '', dateTo: '', datePreset: null,
+              })
+            }
+            className="md:hidden"
+          />
+        </>
+      )}
+
       {/* Filter toolbar — ONE quiet row (NN/g data tables: search first and
           widest, then scoped controls); wraps below lg. Spacing grammar
           (research 2026-09-03, polish §7): 8 px inside a cluster, 24 px
           between clusters — the gaps are the syntax. The per-attribute
           filters (nature, statut, compagnie, observation, créé par) live in
-          their column headers below. */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3" role="search">
+          their column headers below. Desktop/tablet only. */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 max-md:hidden" role="search">
         <div className="flex min-w-[240px] flex-1 basis-72 items-center gap-2 lg:max-w-xl">
           <div className="relative flex-1" data-tour="dos-search">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
@@ -1102,9 +1336,10 @@ export default function DossiersClientPage() {
         </div>
       </div>
 
-      {/* Active filters — removable chips (surface-3 / ink-2, ghost ×). */}
+      {/* Active filters — removable chips (surface-3 / ink-2, ghost ×).
+          The phone renders `AppliedChips` under the search row instead. */}
       {hasAttributeFilters && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 max-md:hidden">
           <span className="t-label">{t('Filtres actifs')}</span>
           {filters.lateOnly && (
             <FilterChip label={`${t('En retard (≥')} ${LATE_AFTER_DAYS} ${t('j)')}`} onRemove={() => clearFilter('lateOnly')} ariaLabel={t('Retirer le filtre en retard')} />
@@ -1163,7 +1398,7 @@ export default function DossiersClientPage() {
         // solid primary (the header actions are hidden in this mode). Enters
         // with the standard 200ms fade + small rise (owner 2026-09-02:
         // everything that appears after « Rappeler » animates).
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface-2 px-4 py-2 animate-in fade-in-0 slide-in-from-top-2 duration-300 ease-enter motion-reduce:animate-none" data-tour="dos-export-bar">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface-2 px-4 py-2 animate-in fade-in-0 slide-in-from-top-2 duration-300 ease-enter motion-reduce:animate-none max-md:hidden" data-tour="dos-export-bar">
           <span className="text-sm font-semibold tabular-nums text-ink">
             {selectedRows.size} / {dossierList.length} {t('dossier(s) sélectionné(s)')}
           </span>
@@ -1181,9 +1416,119 @@ export default function DossiersClientPage() {
         </div>
       ) : null}
 
+      {/* PHONE — the 14-column table becomes a `<ul>` of 3-line rows
+          (research §1): réf + ancienneté · assuré · compagnie · statut +
+          observation. `md:hidden` keeps the pre-hydration paint right; the
+          `isPhone` gate keeps the table out of the phone's DOM. */}
+      {isPhone && (
+        <div className="md:hidden">
+          {loading ? (
+            <RecordListSkeleton count={6} lines={3} ariaLabel={t('Chargement des dossiers')} />
+          ) : dossierList.length === 0 ? (
+            <EmptyState
+              icon={<FolderOpen />}
+              title={appliedFilterCount > 0 || filters.search ? t('Aucun dossier pour ces filtres') : t('Aucun dossier trouvé')}
+              description={
+                appliedFilterCount > 0 || filters.search
+                  ? t('Aucun dossier ne correspond à la recherche et aux filtres appliqués.')
+                  : t('Créez votre premier dossier pour commencer.')
+              }
+              action={
+                appliedFilterCount > 0 || filters.search ? (
+                  <Button variant="outline" onClick={resetAttributeFilters}>{t('Réinitialiser les filtres')}</Button>
+                ) : canEditDossiers ? (
+                  <Button className="font-semibold" onClick={handleOpenCreate}>{t('Nouveau dossier')}</Button>
+                ) : null
+              }
+              className="bg-transparent"
+            />
+          ) : (
+            <>
+              <RecordList ariaLabel={t('Liste des dossiers')}>
+                {cap.rows.map((d: any) => {
+                  const age = ageDays(d.createdAt);
+                  const late = age !== null && isActionNeeded(d.statut) && age >= LATE_AFTER_DAYS;
+                  const created = d.createdAt?.toDate ? d.createdAt.toDate() : d.createdAt ? new Date(d.createdAt) : null;
+                  const isNew = created && !Number.isNaN(created.getTime()) && isToday(created);
+                  const figure = isNew ? (
+                    // Terracotta owns TIME only (element-specs §11).
+                    <Badge variant="time">{t("Aujourd'hui")}</Badge>
+                  ) : age === null ? null : late ? (
+                    <Badge variant="danger" className="tabular-nums">{age} {t('j')}</Badge>
+                  ) : (
+                    <span className="tabular-nums">{age} {t('j')}</span>
+                  );
+                  return (
+                    <RecordRow
+                      key={d.id}
+                      recordId={d.id}
+                      dataTour="dos-row"
+                      id={d.refExpert || <span className="font-sans font-normal text-ink-4">{t('Sans réf.')}</span>}
+                      figure={figure}
+                      primary={renderAssure(d.assure) || t('Assuré non renseigné')}
+                      secondary={d.compagnie || undefined}
+                      // Line 3 is ALWAYS present (owner call B-Q2) so the list
+                      // keeps an 84 px rhythm: the status chip alone when the
+                      // dossier has no open observation.
+                      line3={
+                        <>
+                          <StatusChip status={d.statut} data-tour="dos-statut-pill" />
+                          {d.lastObservation?.text && (
+                            <Badge variant="warning" className="min-w-0">
+                              <span className="truncate">{d.lastObservation.text}</span>
+                            </Badge>
+                          )}
+                        </>
+                      }
+                      leading={
+                        exportMode ? (
+                          <Checkbox
+                            className="pointer-events-none animate-in fade-in-0 zoom-in-75 duration-300 ease-enter motion-reduce:animate-none"
+                            checked={selectedRows.has(d.id)}
+                            tabIndex={-1}
+                            aria-hidden
+                          />
+                        ) : undefined
+                      }
+                      selected={exportMode ? selectedRows.has(d.id) : undefined}
+                      returned={returnedId === d.id}
+                      href={exportMode ? undefined : `/dossiers/${d.id}`}
+                      ariaLabel={`${d.refExpert || t('Sans réf.')} — ${renderAssure(d.assure)}`}
+                      onClick={(e) => {
+                        if (exportMode) {
+                          e.preventDefault();
+                          handleToggleRow(d.id);
+                          return;
+                        }
+                        onRowTap(d.id);
+                        writeDossierListOrder(dossierListRef.current.map((row) => row.id));
+                        openTab(d.id, dossierLabel(d), { preview: true });
+                      }}
+                    />
+                  );
+                })}
+              </RecordList>
+              <LoadMore
+                shown={cap.rows.length}
+                total={cap.total}
+                step={25}
+                hasMore={cap.hasMore}
+                onMore={cap.showMore}
+                noun={t('dossier')}
+                nounPlural={t('dossiers')}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* DESKTOP / TABLET — the 14-column table. Not mounted on a phone (the
+          `max-md:hidden` keeps the pre-hydration paint right meanwhile). */}
+      {!isPhone && (
+      <>
       {/* relative wrapper so the tutorial can spotlight just the horizontal
           scrollbar strip at the card's bottom edge (dos-hscroll) */}
-      <div className="relative">
+      <div className="relative max-md:hidden">
       {/* Table paper: glass edge only, hairline rows, sticky header on card. */}
       <Card
         data-table-density={filters.density}
@@ -1651,7 +1996,9 @@ export default function DossiersClientPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-ink-3 opacity-60 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                              // Hover-revealed only where hover exists; a
+                              // coarse pointer (tablet) keeps it permanent.
+                              className="h-8 w-8 text-ink-3 [@media(hover:hover)]:opacity-60 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
                               aria-label={`${t('Actions pour')} ${d.refExpert || t('ce dossier')}`}
                               loading={deletingId === d.id}
                             >
@@ -1707,8 +2054,9 @@ export default function DossiersClientPage() {
       />
       </div>
 
-      {/* Pagination footer: caption count · rows-per-page · prev/next (NN/g data tables). */}
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2" data-tour="dos-pagination">
+      {/* Pagination footer: caption count · rows-per-page · prev/next (NN/g
+          data tables). Phones get « Afficher 25 de plus » instead (research §7). */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2 max-md:hidden" data-tour="dos-pagination">
         <div className="flex items-center gap-3">
           <label htmlFor="dossiers-rows-per-page" className="t-caption">{t('Lignes par page')}</label>
           <Select value={String(rowsPerPage)} onValueChange={v => { setFilters({ rowsPerPage: Number(v) }); setPage(1); }}>
@@ -1751,6 +2099,207 @@ export default function DossiersClientPage() {
           </Button>
         </div>
       </div>
+      </>
+      )}
+
+      {/* PHONE — selection mode primary, in the thumb zone; it replaces the
+          navigation bar while « Rappeler » is on (research §6). */}
+      {isPhone && exportMode && (
+        <BottomActionBar
+          primary={{
+            label: `${t('Envoyer à')} (${selectedRows.size})`,
+            onClick: () => setIsSendToOpen(true),
+            disabled: selectedRows.size === 0,
+          }}
+        />
+      )}
+
+      {/* PHONE — every desktop filter in ONE sheet: the toolbar's date
+          presets/range, the five column-header popovers (statut, compagnie,
+          nature, observation, créé par), the « En retard » KPI filter and the
+          saved views. Batch apply; × discards (research §4). */}
+      {isPhone && (
+        <FilterSheet<DossierFilters>
+          open={phoneFiltersOpen}
+          onOpenChange={setPhoneFiltersOpen}
+          value={filters}
+          // « Réinitialiser » clears the FILTERS only — the search text, the
+          // scope segments, the sort and the desktop workspace settings
+          // (columns, density, page size) are not filters.
+          defaults={{
+            ...filters,
+            lateOnly: false, nature: 'Toutes', status: 'Tous', compagnie: 'Toutes',
+            observation: 'Toutes', creator: 'Tous', dateFrom: '', dateTo: '', datePreset: null,
+          }}
+          onApply={(next) => { setFilters(() => next); setPage(1); }}
+          countFor={(pending) => filterRows(pending, null).length}
+          noun={t('dossier')}
+          nounPlural={t('dossiers')}
+          isSet={(p) =>
+            p.lateOnly || p.nature !== 'Toutes' || p.status !== 'Tous' || p.compagnie !== 'Toutes' ||
+            p.observation !== 'Toutes' || p.creator !== 'Tous' || !!p.dateFrom || !!p.dateTo
+          }
+          full
+        >
+          {(pending, set) => (
+            <>
+              <FilterSection label={t('Retard')} set={pending.lateOnly}>
+                <FilterToggle
+                  label={t('En retard uniquement')}
+                  hint={`${t('à traiter depuis ≥')} ${LATE_AFTER_DAYS} ${t('j')}`}
+                  checked={pending.lateOnly}
+                  onChange={(v) => set({ lateOnly: v })}
+                />
+              </FilterSection>
+
+              <FilterSection label={t('Statut')} set={pending.status !== 'Tous'}>
+                <FilterSelect
+                  ariaLabel={t('Statut')}
+                  value={pending.status}
+                  onChange={(v) => set({ status: v })}
+                  options={[
+                    { value: 'Tous', label: t('Tous les statuts') },
+                    ...filterStatuses.map((s) => ({ value: s.label, label: t(s.label), count: facetCounts.status.get(s.label) ?? 0 })),
+                  ]}
+                />
+              </FilterSection>
+
+              <FilterSection label={t('Compagnie')} set={pending.compagnie !== 'Toutes'}>
+                <FilterSelect
+                  ariaLabel={t('Compagnie')}
+                  value={pending.compagnie}
+                  onChange={(v) => set({ compagnie: v })}
+                  options={[
+                    { value: 'Toutes', label: t('Toutes les compagnies') },
+                    ...filterCompagnies.map((c) => ({ value: c.label, label: c.label, count: facetCounts.compagnie.get(c.label) ?? 0 })),
+                  ]}
+                />
+              </FilterSection>
+
+              <FilterSection label={t('Nature du dossier')} set={pending.nature !== 'Toutes'}>
+                <FilterSelect
+                  ariaLabel={t('Nature du dossier')}
+                  value={pending.nature}
+                  onChange={(v) => set({ nature: v })}
+                  options={[
+                    { value: 'Toutes', label: t('Toutes les natures') },
+                    ...filterNatures.map((n) => ({ value: n.label, label: t(n.label), count: facetCounts.nature.get(n.label) ?? 0 })),
+                  ]}
+                />
+              </FilterSection>
+
+              <FilterSection label={t('Observation')} set={pending.observation !== 'Toutes'}>
+                <FilterSelect
+                  ariaLabel={t('Observation')}
+                  value={pending.observation}
+                  onChange={(v) => set({ observation: v })}
+                  options={[
+                    { value: 'Toutes', label: t('Toutes les observations') },
+                    ...filterObservations.map((o) => ({ value: o.label, label: t(o.label), count: facetCounts.observation.get(o.label) ?? 0 })),
+                    ...customObservationTexts.map((txt) => ({ value: txt, label: txt, count: facetCounts.observation.get(txt) ?? 0 })),
+                  ]}
+                />
+              </FilterSection>
+
+              <FilterSection label={t('Créé par')} set={pending.creator !== 'Tous'}>
+                <FilterSelect
+                  ariaLabel={t('Créé par')}
+                  value={pending.creator}
+                  onChange={(v) => set({ creator: v })}
+                  options={[
+                    { value: 'Tous', label: t('Tous les créateurs') },
+                    ...filterCreators.map((name) => ({ value: name, label: name, count: facetCounts.creator.get(name) ?? 0 })),
+                  ]}
+                />
+              </FilterSection>
+
+              <FilterSection label={t('Période de création')} set={!!pending.dateFrom || !!pending.dateTo}>
+                <FilterChoiceChips
+                  ariaLabel={t('Période de création')}
+                  value={pending.datePreset === 'personnalise' ? null : pending.datePreset}
+                  onChange={(v) =>
+                    set(v ? presetRange(v as 'jour' | 'semaine' | 'mois') : { dateFrom: '', dateTo: '', datePreset: null })
+                  }
+                  options={[
+                    { value: 'jour', label: t('Jour') },
+                    { value: 'semaine', label: t('Semaine') },
+                    { value: 'mois', label: t('Mois') },
+                  ]}
+                />
+                {/* Native date inputs — never a nested picker inside a sheet. */}
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="t-label">{t('Du')}</span>
+                    <input
+                      type="date"
+                      value={pending.dateFrom}
+                      onChange={(e) => set({ dateFrom: e.target.value, datePreset: e.target.value ? 'personnalise' : null })}
+                      className="h-12 w-full rounded-md border border-input bg-card px-3 text-[16px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="t-label">{t('Au')}</span>
+                    <input
+                      type="date"
+                      value={pending.dateTo}
+                      onChange={(e) => set({ dateTo: e.target.value, datePreset: e.target.value ? 'personnalise' : null })}
+                      className="h-12 w-full rounded-md border border-input bg-card px-3 text-[16px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </label>
+                </div>
+              </FilterSection>
+
+              <FilterSection
+                label={t('Vues enregistrées')}
+                trailing={
+                  <Button variant="ghost" size="sm" className="h-8 text-ink-3" onClick={() => savedViews.save(pending)}>
+                    {t('Enregistrer')}
+                  </Button>
+                }
+              >
+                {savedViews.views.length === 0 ? (
+                  <p className="t-caption">{t('Aucune vue. Enregistrez vos filtres actuels pour les retrouver en un clic.')}</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {savedViews.views.map((v) => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => set(() => ({ ...filterDefaults, ...v.filters }))}
+                        className={cn(
+                          'inline-flex h-9 max-w-full items-center gap-1.5 truncate rounded-full px-3.5 text-[14px] shadow-rim transition-colors',
+                          savedViews.active?.id === v.id ? 'bg-accent text-accent-foreground' : 'bg-card text-ink',
+                        )}
+                      >
+                        <Check className={cn('h-3.5 w-3.5 shrink-0', savedViews.active?.id === v.id ? 'opacity-100' : 'opacity-0')} />
+                        <span className="truncate">{v.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </FilterSection>
+            </>
+          )}
+        </FilterSheet>
+      )}
+
+      {isPhone && (
+        <SortSheet
+          open={phoneSortOpen}
+          onOpenChange={setPhoneSortOpen}
+          value={phoneSort}
+          options={[
+            { value: 'recent', label: t('Plus récents') },
+            { value: 'ancien', label: t('Plus anciens') },
+            { value: 'retard', label: t("En retard d'abord"), hint: `${t('à traiter depuis ≥')} ${LATE_AFTER_DAYS} ${t('j')}` },
+          ]}
+          onChange={(v) => {
+            if (v === 'retard') setFilters({ lateFirst: true, sortByCreation: 'asc' });
+            else setFilters({ lateFirst: false, sortByCreation: v === 'ancien' ? 'asc' : 'desc' });
+            setPage(1);
+          }}
+        />
+      )}
 
       <WorkflowStatusSheet
         open={!!workflowDossier}

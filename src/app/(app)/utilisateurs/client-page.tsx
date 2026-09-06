@@ -73,6 +73,14 @@ import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { useT, t as translate } from '@/i18n';
+// Mobile pass 2026-09-06 (mobile-synthesis §4): below md the 6-column user
+// table becomes a `RecordList` (nom + rôle · zone/compagnies · statut) under a
+// sticky search row, and the « Ajouter un utilisateur » form moves BELOW the
+// list (a phone opens this page to look someone up, not to create).
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
+import { SearchRow, type SearchRowHandle } from '@/components/ui/search-row';
+import { FilterSheet, FilterSection, FilterSelect, AppliedChips, type AppliedChip } from '@/components/ui/filter-sheet';
 
 // Built lazily (at validation time) so zod error messages follow the active
 // locale — never call t() at module top level.
@@ -356,6 +364,26 @@ export default function UtilisateursClientPage() {
     setFilters({ search: '' });
   };
 
+  /* ------------------------------------------------------------------ */
+  /* Phone list — mobile-synthesis §4                                    */
+  /* ------------------------------------------------------------------ */
+  const isPhone = useIsPhone();
+  const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
+  const searchRowRef = React.useRef<SearchRowHandle>(null);
+  const appliedChips: AppliedChip[] = [];
+  if (filters.role !== 'Tous') {
+    appliedChips.push({ key: 'role', label: `${t('Rôle :')} ${t(filters.role)}`, onRemove: () => clearFilter('role') });
+  }
+  const countUsersFor = (f: typeof filterDefaults) =>
+    (userList ?? []).filter((user: any) => {
+      const s = f.search.toLowerCase();
+      const nameMatch =
+        (user.nom || '').toLowerCase().includes(s) ||
+        (user.prenom || '').toLowerCase().includes(s) ||
+        (user.email || '').toLowerCase().includes(s);
+      return nameMatch && (f.role === 'Tous' || user.role === f.role);
+    }).length;
+
   // Empty cell = « — » in ink-4 (element-specs §10: empty = "—", never a fake value).
   const emptyCell = <EmptyCell />;
 
@@ -368,12 +396,14 @@ export default function UtilisateursClientPage() {
         title={t('Utilisateurs')}
         subtitle={t('Ajouter, gérer et assigner des rôles aux utilisateurs.')}
         count={loading ? undefined : filteredUsers.length}
+        onSearchFocus={() => searchRowRef.current?.focus()}
       />
 
       {/* Original two-column layout (3d5629a): inline creation form left,
-          « Gérer » card right. */}
+          « Gérer » card right. On a phone the two stack and the ORDER flips —
+          the list first (lookup is the phone job), the creation form after. */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div className="md:col-span-1">
+        <div className="max-md:order-2 md:col-span-1">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
               {/* Content card — element-specs §5 (Material 3 cards: container +
@@ -617,9 +647,9 @@ export default function UtilisateursClientPage() {
           </Form>
         </div>
 
-        <div className="md:col-span-2">
-          <Card className="overflow-hidden">
-            <CardHeader>
+        <div className="max-md:order-1 md:col-span-2">
+          <Card className="overflow-hidden max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+            <CardHeader className="max-md:hidden">
               <CardTitle className="t-heading flex items-center gap-2">
                 {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip beside the
                     section that anchors the page. */}
@@ -627,11 +657,32 @@ export default function UtilisateursClientPage() {
                 {t('Gérer les utilisateurs')}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 max-md:p-0">
+              {/* PHONE — 48 px sticky search row; the rôle filter moves into
+                  the « Filtres » sheet. */}
+              {/* Direct children of the card body — a `position: sticky` row
+                  only travels inside its own containing block. */}
+              {isPhone && (
+                <>
+                  <SearchRow
+                    ref={searchRowRef}
+                    value={filters.search}
+                    onChange={(v) => setFilters({ search: v })}
+                    placeholder={t('Nom, prénom ou email')}
+                    ariaLabel={t('Rechercher un utilisateur')}
+                    filterCount={filters.role !== 'Tous' ? 1 : 0}
+                    onFilters={() => setPhoneFiltersOpen(true)}
+                    dataTour="usr-search"
+                    className="md:hidden"
+                  />
+                  <AppliedChips chips={appliedChips} onClearAll={() => clearFilter('role')} className="md:hidden" />
+                </>
+              )}
+
               {/* Filter toolbar — element-specs §2 (Polaris filters: labelled
                   search first, ≤ 3 promoted filters, applied filters as chips
                   + clear-all; NN/g: general → specific). No filled button. */}
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 max-md:hidden">
                 <div className="relative min-w-0 flex-1 basis-56" data-tour="usr-search">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
                   <Input
@@ -653,7 +704,7 @@ export default function UtilisateursClientPage() {
                 </Select>
               </div>
               {hasActiveFilters && (
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 max-md:hidden">
                   {filters.role !== 'Tous' && (
                     <Badge variant="neutral" className="h-6 gap-1 pr-1">
                       {t('Rôle :')} {t(filters.role)}
@@ -692,7 +743,58 @@ export default function UtilisateursClientPage() {
                   skeleton instead of spinner). No numeric columns here. The
                   table sits in the card WITHOUT a second frame (§5): it bleeds
                   to the card edges under a hairline. */}
-              <div className="-mx-6 -mb-6 border-t border-hairline" data-tour="usr-table">
+              {/* PHONE — the same rows as a `<ul>`: nom + rôle chip, then
+                  zone · compagnies, then statut + email. */}
+              {isPhone && (
+                <div className="md:hidden">
+                  {loading ? (
+                    <RecordListSkeleton count={6} lines={3} ariaLabel={t('Chargement des utilisateurs')} />
+                  ) : filteredUsers.length === 0 ? (
+                    <EmptyState
+                      icon={<UserIcon />}
+                      title={hasActiveFilters ? t('Aucun utilisateur pour ces filtres') : t('Aucun utilisateur')}
+                      description={hasActiveFilters ? t('Effacez la recherche ou le filtre de rôle.') : t('Le formulaire « Ajouter un utilisateur » crée le compte et son identifiant.')}
+                      action={hasActiveFilters ? (
+                        <Button variant="tonal" onClick={clearAllFilters}>{t('Réinitialiser les filtres')}</Button>
+                      ) : undefined}
+                      className="bg-transparent"
+                    />
+                  ) : (
+                    <RecordList ariaLabel={t('Utilisateurs')}>
+                      {filteredUsers.map((user: any) => {
+                        const displayName = `${user.prenom || ''} ${user.nom || ''}`.trim() || t('Sans nom');
+                        const statut = user.statut || 'Actif';
+                        const compagnies: string[] = user.compagnies || [];
+                        const compagniesLabel = compagnies.length === 0
+                          ? t('Toutes les compagnies')
+                          : compagnies.length <= 2
+                            ? compagnies.map((c) => t(c)).join(', ')
+                            : `${compagnies.length} ${t('compagnies')}`;
+                        return (
+                          <RecordRow
+                            key={user.id}
+                            recordId={user.id}
+                            id={displayName}
+                            figure={user.role ? <Badge variant="neutral">{t(user.role)}</Badge> : null}
+                            primary={user.role === 'Agent de Terrain' && user.zone ? user.zone : compagniesLabel}
+                            secondary={user.role === 'Agent de Terrain' && user.zone ? compagniesLabel : undefined}
+                            line3={
+                              <>
+                                <Badge variant={statutVariant(statut)}>{t(statut)}</Badge>
+                                {user.email && <span className="truncate font-mono text-[12px] text-ink-3">{user.email}</span>}
+                              </>
+                            }
+                            href={`/utilisateurs/${user.id}`}
+                            ariaLabel={`${displayName} — ${t(user.role || '')}`.trim()}
+                          />
+                        );
+                      })}
+                    </RecordList>
+                  )}
+                </div>
+              )}
+
+              <div className="-mx-6 -mb-6 border-t border-hairline max-md:hidden" data-tour="usr-table">
                 <Table regionLabel={t('Utilisateurs')}>
                   <TableHeader>
                     <TableRow>
@@ -832,6 +934,35 @@ export default function UtilisateursClientPage() {
           </Card>
         </div>
       </div>
+
+      {/* PHONE — the rôle filter in a sheet (research §4). */}
+      {isPhone && (
+        <FilterSheet<typeof filterDefaults>
+          open={phoneFiltersOpen}
+          onOpenChange={setPhoneFiltersOpen}
+          value={filters}
+          defaults={{ ...filters, role: 'Tous' }}
+          onApply={(next) => setFilters(() => next)}
+          countFor={countUsersFor}
+          noun={t('utilisateur')}
+          nounPlural={t('utilisateurs')}
+          isSet={(p) => p.role !== 'Tous'}
+        >
+          {(pending, set) => (
+            <FilterSection label={t('Rôle')} set={pending.role !== 'Tous'}>
+              <FilterSelect
+                ariaLabel={t('Filtrer par rôle')}
+                value={pending.role}
+                onChange={(v) => set({ role: v })}
+                options={[
+                  { value: 'Tous', label: t('Tous les rôles') },
+                  ...roles.map((r) => ({ value: r.label, label: t(r.label) })),
+                ]}
+              />
+            </FilterSection>
+          )}
+        </FilterSheet>
+      )}
 
       {/* Confirmation dialog — element-specs §13 (Material 3 dialogs: headline
           names the object, ≤ 2 actions, confirm closest to the edge). */}

@@ -11,11 +11,14 @@
 
 import { useState } from 'react';
 import { doc, updateDoc, serverTimestamp, collection, query, where, limit, getDocs } from 'firebase/firestore';
-import { MessageCircle, Navigation, Phone, UserCog, MapPin, Car } from 'lucide-react';
+import { MessageCircle, MoreHorizontal, Navigation, Phone, UserCog, MapPin, Car } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ActionSheet, type ActionItem } from '@/components/ui/action-sheet';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { ToastAction } from '@/components/ui/toast';
 import { useToast } from '@/hooks/use-toast';
+import { useIsCoarsePointer } from '@/hooks/use-viewport-class';
 import { useFirestore, useAuth } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOptions } from '@/hooks/use-options';
@@ -85,10 +88,15 @@ export function ReassignPopover({
   targets,
   children,
   onDone,
+  open: openProp,
+  onOpenChange,
 }: {
   targets: ReassignTarget[];
-  children: React.ReactNode;
+  /** Trigger. Omit it when driving the picker through `open` (touch « ⋯ »). */
+  children?: React.ReactNode;
   onDone?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const db = useFirestore();
   const auth = useAuth();
@@ -96,7 +104,13 @@ export function ReassignPopover({
   const { toast } = useToast();
   const { options: agents } = useOptions('options_agents');
   const t = useT();
-  const [open, setOpen] = useState(false);
+  const coarse = useIsCoarsePointer();
+  const [uncontrolled, setUncontrolled] = useState(false);
+  const open = openProp ?? uncontrolled;
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setUncontrolled(next);
+    onOpenChange?.(next);
+  };
   const [saving, setSaving] = useState(false);
 
   const applyAgent = async (
@@ -168,6 +182,66 @@ export function ReassignPopover({
 
   const currentAgent = targets.length === 1 ? targets[0].agentTerrain : null;
 
+  const heading =
+    targets.length > 1
+      ? `${t('Réassigner')} ${targets.length} ${t('missions à')}`
+      : t('Réassigner à');
+
+  const rows = (rowClass: string) => (
+    <>
+      {agents.length === 0 && (
+        <p className="px-2 py-2 text-sm text-ink-3">{t('Aucun agent disponible')}</p>
+      )}
+      {agents.map((a) => {
+        const isCurrent = a.label === currentAgent;
+        return (
+          <button
+            key={a.id ?? a.label}
+            type="button"
+            disabled={saving || isCurrent}
+            onClick={() => reassignTo(a.label, a.zone?.trim() || '')}
+            className={cn(
+              rowClass,
+              isCurrent ? 'cursor-default bg-surface-2 text-ink-3' : 'hover:bg-surface-2',
+            )}
+          >
+            <span className="truncate font-medium">{a.label}</span>
+            <span className="shrink-0 text-xs text-ink-3">
+              {isCurrent ? t('actuel') : a.zone?.trim() || ''}
+            </span>
+          </button>
+        );
+      })}
+    </>
+  );
+
+  // Touch: the agent list is a `BottomSheet tall` with 52 px rows, never a
+  // 64-px-wide popover under a fingertip (D §3).
+  if (coarse) {
+    return (
+      <>
+        {children ? (
+          // `display: contents` keeps the caller's own trigger markup and
+          // layout intact; the click just opens the sheet instead of a popover.
+          <span
+            className="contents"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(true);
+            }}
+          >
+            {children}
+          </span>
+        ) : null}
+        <BottomSheet open={open} onOpenChange={setOpen} title={heading} detent="tall" flush>
+          <div className="divide-y divide-hairline">
+            {rows('flex min-h-[52px] w-full items-center justify-between gap-2 px-4 text-left text-[15px] text-ink transition-colors')}
+          </div>
+        </BottomSheet>
+      </>
+    );
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>{children}</PopoverTrigger>
@@ -176,35 +250,9 @@ export function ReassignPopover({
         className="w-64 p-2"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="t-label px-2 pb-1">
-          {targets.length > 1
-            ? `${t('Réassigner')} ${targets.length} ${t('missions à')}`
-            : t('Réassigner à')}
-        </p>
+        <p className="t-label px-2 pb-1">{heading}</p>
         <div className="max-h-64 space-y-0.5 overflow-y-auto">
-          {agents.length === 0 && (
-            <p className="px-2 py-2 text-sm text-ink-3">{t('Aucun agent disponible')}</p>
-          )}
-          {agents.map((a) => {
-            const isCurrent = a.label === currentAgent;
-            return (
-              <button
-                key={a.id ?? a.label}
-                type="button"
-                disabled={saving || isCurrent}
-                onClick={() => reassignTo(a.label, a.zone?.trim() || '')}
-                className={cn(
-                  'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm text-ink transition-colors',
-                  isCurrent ? 'cursor-default bg-surface-2 text-ink-3' : 'hover:bg-surface-2',
-                )}
-              >
-                <span className="truncate font-medium">{a.label}</span>
-                <span className="shrink-0 text-xs text-ink-3">
-                  {isCurrent ? t('actuel') : a.zone?.trim() || ''}
-                </span>
-              </button>
-            );
-          })}
+          {rows('flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm text-ink transition-colors')}
         </div>
       </PopoverContent>
     </Popover>
@@ -212,9 +260,17 @@ export function ReassignPopover({
 }
 
 /**
- * Desktop row cluster — ghost 32 px icon buttons, revealed on row hover /
- * focus (never the only path: the peek panel repeats everything). Icons sit
- * at ink-3 (Hobday: dim icons paired with text… here paired with the row).
+ * Row cluster. On a POINTER device it is the four ghost 32 px icon buttons,
+ * revealed on row hover / focus (never the only path: the peek panel repeats
+ * everything). Icons sit at ink-3 (Hobday: dim icons paired with text… here
+ * paired with the row).
+ *
+ * On a TOUCH device `group-hover` never fires, so the cluster would be
+ * literally invisible — the exact failure D §3 was written about (NN/g: "the
+ * actions available through the gesture should also be present in the visible
+ * UI"). There the cluster is gated behind `@media (hover: hover)` and a
+ * PERMANENT 44 × 44 « ⋯ » takes its place, opening an `ActionSheet` with the
+ * same four rows (tel: / wa.me / maps as real links, réassigner last).
  */
 export function MissionRowActions({
   telephone,
@@ -231,33 +287,85 @@ export function MissionRowActions({
   const tel = telHref(telephone);
   const wa = waHref(telephone);
   const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [reassignOpen, setReassignOpen] = useState(false);
+  // Overlays stay unmounted until the row is actually touched: a queue can
+  // hold 100 rows and each one would otherwise mint a Radix root.
+  const [touched, setTouched] = useState(false);
+
+  const items: ActionItem[] = [
+    { key: 'tel', label: t("Appeler l'assuré"), icon: <Phone />, href: tel ?? undefined, external: true, hidden: !tel },
+    { key: 'wa', label: t('Écrire sur WhatsApp'), icon: <MessageCircle />, href: wa ?? undefined, external: true, hidden: !wa },
+    {
+      key: 'maps',
+      label: t('Itinéraire Google Maps'),
+      icon: <Navigation />,
+      href: adresse?.trim() ? mapsSearchUrl(adresse) : undefined,
+      external: true,
+      hidden: !adresse?.trim(),
+    },
+    {
+      key: 'reassign',
+      label: t('Réassigner la mission'),
+      icon: <UserCog />,
+      onSelect: () => setReassignOpen(true),
+      hidden: !canReassign,
+    },
+  ];
+
   return (
-    <span className="inline-flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-      {tel && (
-        <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t("Appeler l'assuré")}>
-          <a href={tel} onClick={stop} aria-label={t("Appeler l'assuré")}><Phone className="h-4 w-4" /></a>
-        </Button>
-      )}
-      {wa && (
-        <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t('Écrire sur WhatsApp')}>
-          <a href={wa} target="_blank" rel="noopener noreferrer" onClick={stop} aria-label={t('Écrire sur WhatsApp')}>
-            <MessageCircle className="h-4 w-4" />
-          </a>
-        </Button>
-      )}
-      {adresse?.trim() && (
-        <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t('Itinéraire Google Maps')}>
-          <a href={mapsSearchUrl(adresse)} target="_blank" rel="noopener noreferrer" onClick={stop} aria-label={t('Itinéraire Google Maps')}>
-            <Navigation className="h-4 w-4" />
-          </a>
-        </Button>
-      )}
-      {canReassign && (
-        <ReassignPopover targets={[reassignTarget]}>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t('Réassigner la mission')} aria-label={t('Réassigner la mission')}>
-            <UserCog className="h-4 w-4" />
+    <span className="inline-flex items-center gap-0.5">
+      <span className="hidden items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:inline-flex">
+        {tel && (
+          <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t("Appeler l'assuré")}>
+            <a href={tel} onClick={stop} aria-label={t("Appeler l'assuré")}><Phone className="h-4 w-4" /></a>
           </Button>
-        </ReassignPopover>
+        )}
+        {wa && (
+          <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t('Écrire sur WhatsApp')}>
+            <a href={wa} target="_blank" rel="noopener noreferrer" onClick={stop} aria-label={t('Écrire sur WhatsApp')}>
+              <MessageCircle className="h-4 w-4" />
+            </a>
+          </Button>
+        )}
+        {adresse?.trim() && (
+          <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t('Itinéraire Google Maps')}>
+            <a href={mapsSearchUrl(adresse)} target="_blank" rel="noopener noreferrer" onClick={stop} aria-label={t('Itinéraire Google Maps')}>
+              <Navigation className="h-4 w-4" />
+            </a>
+          </Button>
+        )}
+        {canReassign && (
+          <ReassignPopover targets={[reassignTarget]}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-ink-3" title={t('Réassigner la mission')} aria-label={t('Réassigner la mission')}>
+              <UserCog className="h-4 w-4" />
+            </Button>
+          </ReassignPopover>
+        )}
+      </span>
+
+      {/* Touch: one permanent affordance, 44 × 44, at the trailing edge. */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-11 w-11 text-ink-3 [@media(hover:hover)]:hidden"
+        aria-label={t('Actions de la mission')}
+        onClick={(e) => {
+          e.stopPropagation();
+          setTouched(true);
+          setSheetOpen(true);
+        }}
+      >
+        <MoreHorizontal className="h-5 w-5" />
+      </Button>
+
+      {touched && (
+        <>
+          <ActionSheet open={sheetOpen} onOpenChange={setSheetOpen} title={t('Mission')} items={items} />
+          {canReassign && (
+            <ReassignPopover targets={[reassignTarget]} open={reassignOpen} onOpenChange={setReassignOpen} />
+          )}
+        </>
       )}
     </span>
   );

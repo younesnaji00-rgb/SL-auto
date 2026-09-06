@@ -37,6 +37,26 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { dossierLabel } from '@/lib/dossier-label';
+// Mobile pass 2026-09-06 (mobile-synthesis §4): below md the 9-column lookup
+// table becomes a 3-line record list under a sticky search row; the five
+// selects + the date cluster move into the « Filtres » sheet, the sort into a
+// « Trier » sheet, and « Afficher plus » replaces the desktop footer button.
+import { usePathname } from 'next/navigation';
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
+import { SearchRow, type SearchRowHandle } from '@/components/ui/search-row';
+import {
+  FilterSheet,
+  FilterSection,
+  FilterSelect,
+  FilterChoiceChips,
+  AppliedChips,
+  type AppliedChip,
+} from '@/components/ui/filter-sheet';
+import { SortSheet } from '@/components/ui/sort-sheet';
+import { LoadMore, useRenderCap } from '@/components/ui/load-more';
+import { useListScrollRestore, listScrollKey } from '@/lib/list-scroll-restore';
+import { usePhoneChrome } from '@/components/layout/page-chrome';
 
 // ── Status chip (element-specs §11): the shared app-wide mapping — the local
 //    stand-in was retired 2026-09-02 (it coloured « Proposition d'accord »
@@ -196,17 +216,21 @@ export default function ConsultationClientPage() {
     hiddenCols: [] as string[],
     datePreset: null as 'jour' | 'semaine' | 'mois' | 'personnalise' | null,
   };
+  type ConsultationFilters = typeof filterDefaults;
   const [filters, setFilters, clearFilter] = usePersistedFilters('consultation', filterDefaults);
 
   // Date presets — same Jour / Semaine / Mois cluster as /dossiers and
   // « Suivi d'équipe »; they write the SAME dateFrom/dateTo strings the
   // pipeline consumes, and the sliding tonal thumb carries the selection
   // (motion-spec addendum quater: segmented filters join the morph family).
-  const applyPreset = (preset: 'jour' | 'semaine' | 'mois') => {
+  // `presetRange` is the pure form so the phone filter sheet can write the
+  // same strings into its PENDING state.
+  const presetRange = (preset: 'jour' | 'semaine' | 'mois') => {
     const now = new Date();
     const from = preset === 'jour' ? startOfDay(now) : preset === 'semaine' ? startOfWeek(now, { locale: dateFnsLocale() }) : startOfMonth(now);
-    setFilters({ dateFrom: format(from, 'yyyy-MM-dd'), dateTo: format(endOfDay(now), 'yyyy-MM-dd'), datePreset: preset });
+    return { dateFrom: format(from, 'yyyy-MM-dd'), dateTo: format(endOfDay(now), 'yyyy-MM-dd'), datePreset: preset };
   };
+  const applyPreset = (preset: 'jour' | 'semaine' | 'mois') => setFilters(presetRange(preset));
   const setDates = (patch: { dateFrom?: string; dateTo?: string }) => {
     setFilters((prev) => {
       const next = { ...prev, ...patch };
@@ -269,23 +293,25 @@ export default function ConsultationClientPage() {
   }, [searchActive, searchQuery]);
 
   // Every filter EXCEPT statut — the stats strip counts by statut over this
-  // base so its tiles never zero out when one of them is selected.
-  const baseList = useMemo(() => {
-    let results = [...allDossiers];
-    if (filters.nature !== 'Toutes') results = results.filter(d => d.nature === filters.nature);
-    if (filters.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === filters.compagnie);
-    if (filters.typeDossier !== 'Tous') results = results.filter(d => d.typeDossier === filters.typeDossier);
+  // base so its tiles never zero out when one of them is selected. Pure in
+  // the filter object so the phone « Filtres » sheet can price a PENDING
+  // state (« Afficher 42 dossiers ») without applying it.
+  const filterExceptStatus = useCallback((list: any[], f: ConsultationFilters) => {
+    let results = [...list];
+    if (f.nature !== 'Toutes') results = results.filter(d => d.nature === f.nature);
+    if (f.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === f.compagnie);
+    if (f.typeDossier !== 'Tous') results = results.filter(d => d.typeDossier === f.typeDossier);
     if (searchActive) results = results.filter(matchesSearch);
-    if (filters.dateFrom) {
-      const from = new Date(filters.dateFrom);
+    if (f.dateFrom) {
+      const from = new Date(f.dateFrom);
       results = results.filter(d => {
         if (!d.dateRequete) return false;
         const date = d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete);
         return date >= from;
       });
     }
-    if (filters.dateTo) {
-      const to = new Date(filters.dateTo);
+    if (f.dateTo) {
+      const to = new Date(f.dateTo);
       to.setHours(23, 59, 59, 999);
       results = results.filter(d => {
         if (!d.dateRequete) return false;
@@ -294,7 +320,21 @@ export default function ConsultationClientPage() {
       });
     }
     return results;
-  }, [allDossiers, filters.nature, filters.compagnie, filters.typeDossier, filters.dateFrom, filters.dateTo, searchActive, matchesSearch]);
+  }, [searchActive, matchesSearch]);
+
+  const baseList = useMemo(
+    () => filterExceptStatus(allDossiers, filters),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filterExceptStatus, allDossiers, filters.nature, filters.compagnie, filters.typeDossier, filters.dateFrom, filters.dateTo],
+  );
+
+  const countFor = useCallback(
+    (f: ConsultationFilters) => {
+      const base = filterExceptStatus(allDossiers, f);
+      return f.status === 'Tous' ? base.length : base.filter((d: any) => d.statut === f.status).length;
+    },
+    [filterExceptStatus, allDossiers],
+  );
 
   const dossierList = useMemo(
     () => (filters.status === 'Tous' ? baseList : baseList.filter(d => d.statut === filters.status)),
@@ -435,6 +475,53 @@ export default function ConsultationClientPage() {
     ? ` · ${t('du')} ${filters.dateFrom ? fmtIsoDay(filters.dateFrom) : '—'} ${t('au')} ${filters.dateTo ? fmtIsoDay(filters.dateTo) : '—'}`
     : '';
 
+  /* ------------------------------------------------------------------ */
+  /* Phone list — mobile-synthesis §4                                    */
+  /* ------------------------------------------------------------------ */
+  const isPhone = useIsPhone();
+  const pathname = usePathname() || '/consultation';
+  const [phoneFiltersOpen, setPhoneFiltersOpen] = React.useState(false);
+  const [phoneSortOpen, setPhoneSortOpen] = React.useState(false);
+  const searchRowRef = React.useRef<SearchRowHandle>(null);
+
+  const appliedFilterCount =
+    (filters.nature !== 'Toutes' ? 1 : 0) +
+    (filters.status !== 'Tous' ? 1 : 0) +
+    (filters.compagnie !== 'Toutes' ? 1 : 0) +
+    (filters.typeDossier !== 'Tous' ? 1 : 0) +
+    (filters.dateFrom || filters.dateTo ? 1 : 0);
+
+  const phoneSort: 'recent' | 'ancien' = filters.sortKey === 'dateRequete' && filters.sortDir === 'asc' ? 'ancien' : 'recent';
+
+  const capSignature = React.useMemo(
+    () => JSON.stringify([filters.search, filters.nature, filters.status, filters.compagnie, filters.typeDossier, filters.dateFrom, filters.dateTo, filters.sortKey, filters.sortDir]),
+    [filters],
+  );
+  const cap = useRenderCap(sortedList, 25, { signature: capSignature });
+  const { onRowTap, returnedId } = useListScrollRestore({
+    key: listScrollKey(pathname, capSignature),
+    enabled: isPhone,
+    ready: isPhone && !loading && cap.rows.length > 0,
+    cap: cap.cap,
+    setCap: cap.setCap,
+  });
+
+  const appliedChips: AppliedChip[] = [];
+  if (filters.nature !== 'Toutes') appliedChips.push({ key: 'nature', label: `${t('Nature :')} ${t(filters.nature)}`, onRemove: () => clearFilter('nature') });
+  if (filters.status !== 'Tous') appliedChips.push({ key: 'status', label: `${t('Statut :')} ${t(filters.status)}`, onRemove: () => clearFilter('status') });
+  if (filters.compagnie !== 'Toutes') appliedChips.push({ key: 'compagnie', label: `${t('Compagnie :')} ${t(filters.compagnie)}`, onRemove: () => clearFilter('compagnie') });
+  if (filters.typeDossier !== 'Tous') appliedChips.push({ key: 'type', label: `${t('Type :')} ${t(filters.typeDossier)}`, onRemove: () => clearFilter('typeDossier') });
+  if (filters.datePreset && filters.datePreset !== 'personnalise') {
+    appliedChips.push({
+      key: 'preset',
+      label: `${t('Période :')} ${t(filters.datePreset === 'jour' ? 'Jour' : filters.datePreset === 'semaine' ? 'Semaine' : 'Mois')}`,
+      onRemove: () => setFilters({ dateFrom: '', dateTo: '', datePreset: null }),
+    });
+  } else {
+    if (filters.dateFrom) appliedChips.push({ key: 'from', label: `${t('Du :')} ${fmtIsoDay(filters.dateFrom)}`, onRemove: () => setDates({ dateFrom: '' }) });
+    if (filters.dateTo) appliedChips.push({ key: 'to', label: `${t('Au :')} ${fmtIsoDay(filters.dateTo)}`, onRemove: () => setDates({ dateTo: '' }) });
+  }
+
   // Success morph on the button itself (motion-spec §5 I1 idiom + §10:
   // feedback near the element beats a corner toast) — export is this page's
   // one occasional completing action (F3-adjacent). Reverts after ~1.5 s.
@@ -448,6 +535,24 @@ export default function ConsultationClientPage() {
     setExported(true);
     window.setTimeout(() => setExported(false), 1500);
   };
+
+  // The page header lives in page.tsx, so the phone top bar's search icon, the
+  // count pill and the « ⋯ » sheet (Exporter — the desktop toolbar's quiet
+  // tools are `max-md:hidden`) are registered from here.
+  usePhoneChrome(
+    React.useMemo(
+      () => ({
+        onSearchFocus: () => searchRowRef.current?.focus(),
+        count: loading ? null : sortedList.length,
+        secondaryActions:
+          sortedList.length > 0
+            ? [{ key: 'export', label: t('Exporter'), icon: <Download />, onSelect: handleExport }]
+            : [],
+      }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [loading, sortedList.length],
+    ),
+  );
 
   return (
     // Sections 32 px apart (addendum §4); inside a section, related rows stay
@@ -471,12 +576,13 @@ export default function ConsultationClientPage() {
           ring. No count-up (motion-spec §8), no chart. Hidden until three
           statuses exist so the grid always ends on a full row. */}
       {(loading || topStatuses.length === 3) && (
-        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        // Phones: 2-up, 12 px gutter, 36 px figure (mobile-synthesis §7).
+        <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
           {loading
             ? Array.from({ length: 4 }).map((_, i) => (
                 <Card key={`kpi-sk-${i}`} className="p-4">
                   <Skeleton className="h-3 w-20" />
-                  <Skeleton className="mt-2 h-7 w-14" />
+                  <Skeleton className="mt-2 h-9 w-16 md:h-7 md:w-14" />
                 </Card>
               ))
             : (
@@ -489,7 +595,7 @@ export default function ConsultationClientPage() {
                     aria-pressed={filters.status === 'Tous' || undefined}
                   >
                     <span className="t-label block">{t('Total')}</span>
-                    <span className="mt-0.5 block text-2xl font-semibold leading-tight text-ink">{baseList.length}</span>
+                    <span className="mt-0.5 block text-[36px] font-semibold leading-none tabular-nums text-ink md:text-2xl md:leading-tight">{baseList.length}</span>
                     <span className="t-caption mt-0.5 block">{t('tous statuts')}</span>
                   </button>
                 </Card>
@@ -508,7 +614,7 @@ export default function ConsultationClientPage() {
                           <span className={cn('h-2 w-2 shrink-0 rounded-full', DOT_BY_TONE[statusTone(label)])} aria-hidden />
                           <span className="truncate">{t(label)}</span>
                         </span>
-                        <span className="mt-0.5 block text-2xl font-semibold leading-tight text-ink">{count}</span>
+                        <span className="mt-0.5 block text-[36px] font-semibold leading-none tabular-nums text-ink md:text-2xl md:leading-tight">{count}</span>
                       </button>
                     </Card>
                   );
@@ -525,7 +631,30 @@ export default function ConsultationClientPage() {
           Toolbar and its applied-filter chips form ONE group (12 px apart).
           « Colonnes » and « Exporter » are quiet workspace tools at the right
           end (same idiom as /dossiers) — never a filled button here (§2). */}
-      <div className="space-y-3">
+      {/* PHONE — 48 px sticky search row; the five selects and the date
+          cluster live in the « Filtres » sheet, the sort in « Trier ». */}
+      {/* Direct children of the page block — a `position: sticky` row only
+          travels inside its own containing block. */}
+      {isPhone && (
+        <>
+          <SearchRow
+            ref={searchRowRef}
+            value={filters.search}
+            onChange={(v) => setFilters({ search: v })}
+            placeholder={t('Réf., assuré, matricule…')}
+            ariaLabel={t('Rechercher un dossier par référence, assuré ou matricule')}
+            filterCount={appliedFilterCount}
+            onFilters={() => setPhoneFiltersOpen(true)}
+            sortLabel={phoneSort === 'ancien' ? t('Plus anciens') : t('Plus récents')}
+            onSort={() => setPhoneSortOpen(true)}
+            dataTour="consult-search"
+            className="md:hidden"
+          />
+          <AppliedChips chips={appliedChips} onClearAll={clearChipFilters} className="md:hidden" />
+        </>
+      )}
+
+      <div className="space-y-3 max-md:hidden">
       <div className="flex flex-wrap items-center gap-2" data-tour="consult-filters">
         <div className="relative max-w-sm flex-grow max-sm:w-full" data-tour="consult-search">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
@@ -725,7 +854,85 @@ export default function ConsultationClientPage() {
           Emphasis budget: 2 cells (réf + statut); Assuré lost its 500 weight
           (ter A: the identifier is the row's ONLY bold cell).
           Table and its footer caption form ONE group (12 px apart). */}
-      <div className="space-y-3">
+      {/* PHONE — the 9-column lookup table becomes a 3-line record list:
+          réf + date de requête · assuré · compagnie · statut (research §1). */}
+      {isPhone && (
+        <div className="md:hidden">
+          {loading ? (
+            <RecordListSkeleton count={6} lines={3} ariaLabel={t('Chargement des dossiers')} />
+          ) : sortedList.length === 0 ? (
+            <EmptyState
+              icon={<FolderOpen />}
+              title={hasActiveFilters ? t('Aucun dossier pour ces filtres') : t('Aucun dossier')}
+              description={
+                searchOnlyCount > 0
+                  ? `« ${filters.search} » ${t('existe dans')} ${searchOnlyCount} ${searchOnlyCount > 1 ? t('dossiers hors de ces filtres.') : t('dossier hors de ces filtres.')}`
+                  : hasActiveFilters
+                    ? `${t('Aucun résultat pour')} ${activeFilterNames.join(', ')}.`
+                    : t('Aucun dossier n’a encore été créé.')
+              }
+              action={
+                searchOnlyCount > 0 ? (
+                  <Button variant="tonal" onClick={clearChipFilters}>{t('Rechercher partout')}</Button>
+                ) : hasActiveFilters ? (
+                  <Button variant="tonal" onClick={clearAll}>{t('Réinitialiser les filtres')}</Button>
+                ) : undefined
+              }
+              className="bg-transparent"
+            />
+          ) : (
+            <>
+              <RecordList ariaLabel={t('Dossiers en consultation')}>
+                {cap.rows.map((d: any) => {
+                  const assureName = renderAssure(d.assure);
+                  const requete = d.dateRequete ? (d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete)) : null;
+                  return (
+                    <RecordRow
+                      key={d.id}
+                      recordId={d.id}
+                      id={d.refExpert ? <Highlight text={d.refExpert} query={filters.search} /> : <span className="font-sans font-normal text-ink-4">{t('Sans réf.')}</span>}
+                      figure={
+                        requete && !Number.isNaN(requete.getTime())
+                          ? isToday(requete)
+                            ? <Badge variant="time">{t('Aujourd’hui')}</Badge>
+                            : <span className="tabular-nums">{format(requete, 'dd/MM/yyyy')}</span>
+                          : null
+                      }
+                      primary={assureName ? <Highlight text={assureName} query={filters.search} /> : t('Assuré non renseigné')}
+                      secondary={d.compagnie ? t(d.compagnie) : undefined}
+                      line3={
+                        <span className={cn('inline-flex max-w-full rounded-md', flashIds.has(d.id) && 'animate-value-flash')}>
+                          <StatusChip status={d.statut} />
+                        </span>
+                      }
+                      returned={returnedId === d.id}
+                      href={`/dossiers/${d.id}`}
+                      ariaLabel={`${t('Ouvrir le dossier')} ${d.refExpert || ''}`.trim()}
+                      onClick={() => {
+                        onRowTap(d.id);
+                        openTab(d.id, dossierLabel(d), { preview: true });
+                      }}
+                    />
+                  );
+                })}
+              </RecordList>
+              <LoadMore
+                shown={cap.rows.length}
+                total={cap.total}
+                step={25}
+                hasMore={cap.hasMore}
+                onMore={cap.showMore}
+                noun={t('dossier')}
+                nounPlural={t('dossiers')}
+                suffix={rangeCaption}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {!isPhone && (
+      <div className="space-y-3 max-md:hidden">
       <Card className="overflow-hidden" data-tour="consult-table">
         <Table regionLabel={t('Dossiers en consultation')}>
           <TableHeader>
@@ -931,6 +1138,127 @@ export default function ConsultationClientPage() {
         </span>
       </div>
       </div>
+      )}
+
+      {/* PHONE — every desktop filter in one sheet (research §4). */}
+      {isPhone && (
+        <FilterSheet<ConsultationFilters>
+          open={phoneFiltersOpen}
+          onOpenChange={setPhoneFiltersOpen}
+          value={filters}
+          // « Réinitialiser » clears the FILTERS only — search, sort and the
+          // column picker are the reader's workspace, not filters.
+          defaults={{
+            ...filters,
+            nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', typeDossier: 'Tous',
+            dateFrom: '', dateTo: '', datePreset: null,
+          }}
+          onApply={(next) => setFilters(() => next)}
+          countFor={countFor}
+          noun={t('dossier')}
+          nounPlural={t('dossiers')}
+          isSet={(p) =>
+            p.nature !== 'Toutes' || p.status !== 'Tous' || p.compagnie !== 'Toutes' ||
+            p.typeDossier !== 'Tous' || !!p.dateFrom || !!p.dateTo
+          }
+        >
+          {(pending, set) => (
+            <>
+              <FilterSection label={t('Statut')} set={pending.status !== 'Tous'}>
+                <FilterSelect
+                  ariaLabel={t('Statut')}
+                  value={pending.status}
+                  onChange={(v) => set({ status: v })}
+                  options={[
+                    { value: 'Tous', label: t('Tous les statuts') },
+                    ...filterStatuses.map((s) => ({ value: s.label, label: t(s.label) })),
+                  ]}
+                />
+              </FilterSection>
+              <FilterSection label={t('Compagnie')} set={pending.compagnie !== 'Toutes'}>
+                <FilterSelect
+                  ariaLabel={t('Compagnie')}
+                  value={pending.compagnie}
+                  onChange={(v) => set({ compagnie: v })}
+                  options={[
+                    { value: 'Toutes', label: t('Toutes les compagnies') },
+                    ...filterCompagnies.map((c) => ({ value: c.label, label: t(c.label) })),
+                  ]}
+                />
+              </FilterSection>
+              <FilterSection label={t('Nature du dossier')} set={pending.nature !== 'Toutes'}>
+                <FilterSelect
+                  ariaLabel={t('Nature du dossier')}
+                  value={pending.nature}
+                  onChange={(v) => set({ nature: v })}
+                  options={[
+                    { value: 'Toutes', label: t('Toutes les natures') },
+                    ...filterNatures.map((n) => ({ value: n.label, label: t(n.label) })),
+                  ]}
+                />
+              </FilterSection>
+              <FilterSection label={t('Type de dossier')} set={pending.typeDossier !== 'Tous'}>
+                <FilterSelect
+                  ariaLabel={t('Type de dossier')}
+                  value={pending.typeDossier}
+                  onChange={(v) => set({ typeDossier: v })}
+                  options={[
+                    { value: 'Tous', label: t('Tous les types') },
+                    ...filterTypesDossier.map((td) => ({ value: td.label, label: t(td.label) })),
+                  ]}
+                />
+              </FilterSection>
+              <FilterSection label={t('Période de requête')} set={!!pending.dateFrom || !!pending.dateTo}>
+                <FilterChoiceChips
+                  ariaLabel={t('Période de requête')}
+                  value={pending.datePreset === 'personnalise' ? null : pending.datePreset}
+                  onChange={(v) =>
+                    set(v ? presetRange(v as 'jour' | 'semaine' | 'mois') : { dateFrom: '', dateTo: '', datePreset: null })
+                  }
+                  options={[
+                    { value: 'jour', label: t('Jour') },
+                    { value: 'semaine', label: t('Semaine') },
+                    { value: 'mois', label: t('Mois') },
+                  ]}
+                />
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="t-label">{t('Du')}</span>
+                    <input
+                      type="date"
+                      value={pending.dateFrom}
+                      onChange={(e) => set({ dateFrom: e.target.value, datePreset: e.target.value || pending.dateTo ? 'personnalise' : null })}
+                      className="h-12 w-full rounded-md border border-input bg-card px-3 text-[16px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="t-label">{t('Au')}</span>
+                    <input
+                      type="date"
+                      value={pending.dateTo}
+                      onChange={(e) => set({ dateTo: e.target.value, datePreset: e.target.value || pending.dateFrom ? 'personnalise' : null })}
+                      className="h-12 w-full rounded-md border border-input bg-card px-3 text-[16px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </label>
+                </div>
+              </FilterSection>
+            </>
+          )}
+        </FilterSheet>
+      )}
+
+      {isPhone && (
+        <SortSheet
+          open={phoneSortOpen}
+          onOpenChange={setPhoneSortOpen}
+          value={phoneSort}
+          options={[
+            { value: 'recent', label: t('Plus récents'), hint: t('Date de requête') },
+            { value: 'ancien', label: t('Plus anciens'), hint: t('Date de requête') },
+          ]}
+          onChange={(v) => setFilters({ sortKey: 'dateRequete', sortDir: v === 'ancien' ? 'asc' : 'desc' })}
+        />
+      )}
     </div>
   );
 }

@@ -35,6 +35,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useT, dateFnsLocale } from '@/i18n';
 import { JoursFeriesSkeleton } from './loading';
+import { useIsPhone } from '@/hooks/use-viewport-class';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -169,6 +170,21 @@ export default function JoursFeriesSettingsPage() {
     const next = parsed.find((p) => p.date && !p.past)?.id ?? null;
     return { items: parsed, nextId: next };
   }, [sorted]);
+
+  // Mobile pass 2026-09-06 (mobile-synthesis §4): below md the pill GRID
+  // becomes ONE grouped list — a sticky 40 px year header per group
+  // (research §9), full-bleed rows, hairlines only.
+  const isPhone = useIsPhone();
+  const yearGroups = useMemo(() => {
+    const groups: { year: string; rows: typeof items }[] = [];
+    for (const it of items) {
+      const year = it.date ? String(it.date.getFullYear()) : '—';
+      const last = groups[groups.length - 1];
+      if (last && last.year === year) last.rows.push(it);
+      else groups.push({ year, rows: [it] });
+    }
+    return groups;
+  }, [items]);
 
   const router = useRouter();
   React.useEffect(() => {
@@ -438,7 +454,7 @@ export default function JoursFeriesSettingsPage() {
 
       {/* Card 1 — element-specs §5; inline add row is the original layout. */}
       <Card data-tour="jf-add">
-        <CardHeader>
+        <CardHeader className="max-md:p-4 max-md:pb-2">
           <CardTitle className="t-heading">{t('Ajouter une date')}</CardTitle>
         </CardHeader>
         {/* Form — element-specs §9 (GOV.UK text input: visible label above;
@@ -447,7 +463,7 @@ export default function JoursFeriesSettingsPage() {
             its button sit side by side as in the original. */}
         {/* Typed input + month grid side by side (§17: a typed date Input
             accompanies any picker; clicking a free day prefills the field). */}
-        <CardContent className="flex flex-wrap items-start gap-x-12 gap-y-6">
+        <CardContent className="flex flex-wrap items-start gap-x-12 gap-y-6 max-md:p-4 max-md:pt-0">
           <div className="min-w-0 flex-1 basis-64">
             <div className="flex flex-wrap items-end gap-4">
               <div className="min-w-0 space-y-1">
@@ -489,13 +505,13 @@ export default function JoursFeriesSettingsPage() {
 
       {/* Card 2 — image import (title without the sparkle icon: owner rule 7). */}
       <Card data-tour="jf-ai">
-        <CardHeader>
+        <CardHeader className="max-md:p-4 max-md:pb-2">
           <CardTitle className="t-heading">{t('Importer depuis une image')}</CardTitle>
         </CardHeader>
         {/* File picker — element-specs §21 (ONE plain button, no banner, no
             dashed panel, no copy beyond a t-caption format hint). `outline`:
             not the page primary (§8). */}
-        <CardContent className="flex flex-wrap items-center gap-4">
+        <CardContent className="flex flex-wrap items-center gap-4 max-md:p-4 max-md:pt-0">
           <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isScanning} loading={isScanning}>
             {!isScanning && <ImageIcon className="h-4 w-4" aria-hidden />}
             {isScanning ? t('Analyse en cours…') : t('Choisir une image')}
@@ -506,10 +522,10 @@ export default function JoursFeriesSettingsPage() {
 
       {/* Card 3 — list import. */}
       <Card data-tour="jf-bulk">
-        <CardHeader>
+        <CardHeader className="max-md:p-4 max-md:pb-2">
           <CardTitle className="t-heading">{t('Importer des dates')}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 max-md:p-4 max-md:pt-0">
           {/* Form — §9: label above, hint between label and field (GOV.UK:
               "a single short sentence, without full stops"), placeholder as
               a format cue only. */}
@@ -554,7 +570,7 @@ export default function JoursFeriesSettingsPage() {
 
       {/* Card 4 — the current list as a pill grid (original layout). */}
       <Card data-tour="jf-list">
-        <CardHeader>
+        <CardHeader className="max-md:p-4 max-md:pb-2">
           <CardTitle className="t-heading flex items-center gap-2">
             {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: one IconChip beside the section
                 that anchors the page (the calendar list). */}
@@ -566,7 +582,7 @@ export default function JoursFeriesSettingsPage() {
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="max-md:p-4 max-md:pt-0">
           {loading ? (
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -597,14 +613,16 @@ export default function JoursFeriesSettingsPage() {
             // tertiary tint + rim on every pill; the NEXT holiday alone stays
             // solid tertiary), the full French date, delete `ghost`. Day number in
             // Inter 600 (numbers never in Outfit), weekday ≥ 11 px.
-            <ul className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3" aria-label={t('Jours fériés')}>
-              {items.map((o) => {
+            (() => {
+              const renderRow = (o: (typeof items)[number], flat: boolean) => {
                 const upcoming = o.id === nextId;
                 return (
                   <li
                     key={o.id}
                     className={cn(
-                      'flex min-h-[56px] items-center gap-3 rounded-lg bg-card px-3 py-2 shadow-rim',
+                      flat
+                        ? 'flex min-h-[64px] items-center gap-3 px-4 py-2'
+                        : 'flex min-h-[56px] items-center gap-3 rounded-lg bg-card px-3 py-2 shadow-rim',
                       o.past && 'text-ink-3',
                     )}
                   >
@@ -640,7 +658,7 @@ export default function JoursFeriesSettingsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 shrink-0 text-ink-3 hover:text-destructive"
+                            className="h-8 w-8 shrink-0 text-ink-3 hover:text-destructive max-md:h-11 max-md:w-11"
                             disabled={deletingId === o.id}
                             onClick={() => handleDelete(o.id)}
                             aria-label={`${t('Supprimer')} ${o.label}`}
@@ -653,8 +671,36 @@ export default function JoursFeriesSettingsPage() {
                     )}
                   </li>
                 );
-              })}
-            </ul>
+              };
+
+              // PHONE — one grouped list: a sticky 40 px year header per group
+              // (bg-surface-2 SOLID, never glass), full-bleed hairline rows.
+              if (isPhone) {
+                return (
+                  <div className="-mx-4">
+                    {yearGroups.map((g) => (
+                      <section key={g.year}>
+                        <h3 className="sticky top-0 z-10 flex h-10 items-center gap-2 border-y border-hairline bg-surface-2 px-4">
+                          <span className="t-label">{g.year}</span>
+                          <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+                            {g.rows.length}
+                          </span>
+                        </h3>
+                        <ul className="divide-y divide-hairline" aria-label={`${t('Jours fériés')} ${g.year}`}>
+                          {g.rows.map((o) => renderRow(o, true))}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+                );
+              }
+
+              return (
+                <ul className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3" aria-label={t('Jours fériés')}>
+                  {items.map((o) => renderRow(o, false))}
+                </ul>
+              );
+            })()
           )}
         </CardContent>
       </Card>

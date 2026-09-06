@@ -28,9 +28,16 @@ export interface TimelineSectionProps {
   active?: boolean;
   /** Last step — no connecting rail below its medallion. */
   last?: boolean;
+  /**
+   * Every paper BELOW the first skips layout/paint until it approaches the
+   * viewport (mobile-synthesis §7: `content-visibility: auto` with a
+   * `contain-intrinsic-size` placeholder so the scrollbar stays honest). The
+   * first section is always painted — it is above the fold.
+   */
+  deferPaint?: boolean;
 }
 
-function TimelineSection({ step, position, children, collapsed, onToggle, active = false, last = false }: TimelineSectionProps) {
+function TimelineSection({ step, position, children, collapsed, onToggle, active = false, last = false, deferPaint = false }: TimelineSectionProps) {
   const t = useT();
   const headingId = `step-${step.id}-heading`;
   const blocked = step.status === 'blocked';
@@ -69,7 +76,13 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
         {!last && <span className={cn('mt-1.5 w-0.5 flex-1 rounded-full', done ? 'bg-status-success-fg/40' : 'bg-hairline-strong')} />}
       </div>
 
-      <div className="paper px-5 py-4">
+      <div
+        className="paper px-5 py-4"
+        // `auto` (not `hidden`): find-in-page, anchor scrolling and
+        // `scrollIntoView` still reach a skipped section, which the step
+        // navigation depends on.
+        style={deferPaint ? { contentVisibility: 'auto', containIntrinsicSize: 'auto 480px' } : undefined}
+      >
         <div className={cn('flex items-center gap-3 transition-[margin] duration-250 ease-standard motion-reduce:transition-none', collapsed ? 'mb-0' : 'mb-4')}>
           <button
             type="button"
@@ -259,7 +272,7 @@ export function Timeline({ dossierId, steps, sections, activeStep, onActiveStepC
 
         <div className="min-w-0 py-4">
           {steps.map((step, idx) => (
-            <TimelineSection key={step.id} step={step} position={idx + 1} collapsed={isCollapsed(step.id)} onToggle={() => toggle(step.id)} active={step.id === activeStep} last={idx === steps.length - 1}>
+            <TimelineSection key={step.id} step={step} position={idx + 1} collapsed={isCollapsed(step.id)} onToggle={() => toggle(step.id)} active={step.id === activeStep} last={idx === steps.length - 1} deferPaint={idx > 0}>
               {sections[step.id] ?? null}
             </TimelineSection>
           ))}

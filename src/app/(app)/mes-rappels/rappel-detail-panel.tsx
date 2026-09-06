@@ -23,6 +23,8 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { Rappel } from '@/hooks/use-rappels';
+import { BottomActionBar } from '@/components/layout/bottom-action-bar';
+import { usePhoneChrome, useRegisterPageTitle } from '@/components/layout/page-chrome';
 
 function tsMillis(ts: any): number {
   if (!ts) return 0;
@@ -308,7 +310,9 @@ export function RappelDetailContent({ rappel: r, active, onOpenDossier, onMarkTr
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="tonal" className="gap-1.5" onClick={() => onOpenDossier(r)}>
+        {/* Below md this pair's primary lives in the bottom action bar (thumb
+            zone, mobile-synthesis §4 master-detail) — never two primaries. */}
+        <Button variant="tonal" className="gap-1.5 max-md:hidden" onClick={() => onOpenDossier(r)}>
           <FolderOpen className="h-4 w-4" />
           {t('Ouvrir le dossier')}
         </Button>
@@ -334,6 +338,53 @@ export function RappelDetailContent({ rappel: r, active, onOpenDossier, onMarkTr
           <SessionTimeline dossierId={r.dossierId} sessionId={r.sessionId} active={active} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * PHONE full-screen detail (mobile-synthesis §4 master-detail; research §8:
+ * "a bottom sheet for the detail" is the anti-pattern — the phone gets a real
+ * page-to-page flow). The shell's top bar carries « ‹ Rappels » + the dossier
+ * ref (published through the chrome registry), the body is the SAME
+ * `RappelDetailContent` at reading size, and the two actions sit in a 56 px
+ * bottom action bar that replaces the navigation bar.
+ */
+export function PhoneRappelDetailScreen({ rappel: r, onOpenDossier, onMarkTreated, onShowReplay }: Omit<RappelDetailProps, 'active'>) {
+  const t = useT();
+  useRegisterPageTitle(r.dossierRef || r.dossierId);
+  usePhoneChrome(
+    React.useMemo(
+      () => ({
+        upHref: '/mes-rappels',
+        upLabel: 'Rappels',
+        subtitle: assureName(r) || null,
+        count: null,
+        primaryAction: null,
+        secondaryActions: [],
+        onSearchFocus: null,
+      }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [r.id],
+    ),
+  );
+  return (
+    <div className="pb-4">
+      <RappelDetailContent
+        rappel={r}
+        active
+        onOpenDossier={onOpenDossier}
+        onMarkTreated={onMarkTreated}
+        onShowReplay={onShowReplay}
+      />
+      <BottomActionBar
+        secondary={
+          r.resolvedAt
+            ? []
+            : [{ label: t('Marquer traité'), icon: <CheckCircle2 />, onClick: () => onMarkTreated(r) }]
+        }
+        primary={{ label: t('Ouvrir le dossier'), icon: <FolderOpen className="h-4 w-4" />, onClick: () => onOpenDossier(r) }}
+      />
     </div>
   );
 }

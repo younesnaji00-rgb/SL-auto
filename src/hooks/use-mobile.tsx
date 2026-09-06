@@ -1,22 +1,15 @@
-import * as React from "react"
+'use client';
 
-const MOBILE_BREAKPOINT = 1024
+/**
+ * @deprecated — mobile pass 2026-09-06. "Mobile" used to mean < 1024 px, which
+ * gave tablets the phone chrome. The app now has three shells (see
+ * hooks/use-viewport-class.ts); this alias returns the PHONE class (< 768) so
+ * the remaining call sites keep their meaning of "the phone layout". New code
+ * imports `useViewportClass` / `useIsPhone` / `useIsCoarsePointer` directly.
+ */
 
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState(false)
+import { useIsPhone } from './use-viewport-class';
 
-  React.useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    }
-
-    handleResize()
-    window.addEventListener("resize", handleResize)
-
-    return () => {
-      window.removeEventListener("resize", handleResize)
-    }
-  }, [])
-
-  return isMobile
+export function useIsMobile(): boolean {
+  return useIsPhone();
 }

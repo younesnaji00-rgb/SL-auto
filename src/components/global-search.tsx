@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { Bell, Calculator, FolderOpen, Keyboard, MessageSquare, Moon, Plus, Sun, ArrowRight, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandGroup, CommandHeaderSlot, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command';
 import { Badge } from '@/components/ui/badge';
 import { Kbd } from '@/components/ui/kbd';
 import { useVisibleNav } from '@/hooks/use-visible-nav';
@@ -197,14 +197,24 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-tour="shell-palette" className="top-[12%] translate-y-0 overflow-hidden p-0 sm:max-w-xl" onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}>
+      {/* Below md the palette is a FullScreenDialog with the input pinned in
+          the 56 px header (D §9); from md it is the centred box it always was. */}
+      <DialogContent
+        fullScreen
+        data-tour="shell-palette"
+        bodyClassName="gap-0 overflow-hidden p-0"
+        className="overflow-hidden p-0 md:top-[12%] md:max-w-xl md:translate-y-0 md:p-0"
+        onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}
+      >
         <DialogTitle className="sr-only">{t('Rechercher et naviguer')}</DialogTitle>
         {/* Group headings = t-label (spelled out: `.t-*` are component classes,
             so they can't be applied through an arbitrary variant) — 12 px,
             sentence case, ink-3, never uppercase. Rows = t-body-sm. */}
         <Command shouldFilter={false} loop className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-normal [&_[cmdk-group-heading]]:normal-case [&_[cmdk-group-heading]]:tracking-normal [&_[cmdk-group-heading]]:text-ink-3 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item]]:text-ink [&_[cmdk-item]_svg]:text-ink-2">
-          <CommandInput ref={inputRef} placeholder={t('Réf., plaque, assuré, page ou action…')} value={query} onValueChange={setQuery} />
-          <CommandList className="max-h-[calc(60vh/var(--app-zoom))]">
+          <CommandHeaderSlot>
+            <CommandInput ref={inputRef} placeholder={t('Réf., plaque, assuré, page ou action…')} value={query} onValueChange={setQuery} enterKeyHint="search" />
+          </CommandHeaderSlot>
+          <CommandList className="max-md:max-h-none max-md:flex-1 md:max-h-[calc(60vh/var(--app-zoom))]">
             {nothing && q.length < 2 && <CommandEmpty>{t('Aucun résultat.')}</CommandEmpty>}
 
             {showRecents && (openTabs.length > 0 || recentEntries.length > 0) && (
@@ -238,7 +248,7 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
                       <Icon className="h-4 w-4 text-ink-3" />
                       <span className="min-w-0 flex-1 truncate">{i.title ?? i.label}</span>
                       {i.hotkey && (
-                        <span className="flex items-center gap-1">
+                        <span className="hidden items-center gap-1 md:flex">
                           {formatKeys(i.hotkey).map((k, idx) => (
                             <Kbd key={idx}>{k}</Kbd>
                           ))}
@@ -259,7 +269,7 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
                       <Icon className="h-4 w-4 text-ink-3" />
                       <span className="min-w-0 flex-1 truncate">{a.label}</span>
                       {a.keys && (
-                        <span className="flex items-center gap-1">
+                        <span className="hidden items-center gap-1 md:flex">
                           {formatKeys(a.keys).map((k, idx) => (
                             <Kbd key={idx}>{k}</Kbd>
                           ))}
@@ -288,7 +298,8 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
               </>
             )}
           </CommandList>
-          <div className="t-caption flex items-center justify-between gap-3 border-t border-hairline px-3 py-2">
+          {/* Keyboard hints are a pointer affordance: hidden below md (do-not list 11). */}
+          <div className="t-caption hidden items-center justify-between gap-3 border-t border-hairline px-3 py-2 md:flex">
             <span className="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> {t('naviguer')}</span>
             <span className="flex items-center gap-1.5"><Kbd>↵</Kbd> {t('ouvrir')}</span>
             <span className="flex items-center gap-1.5"><Kbd>Échap</Kbd> {t('fermer')}</span>

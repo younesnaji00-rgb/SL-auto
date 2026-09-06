@@ -185,6 +185,64 @@ export function nextStep(states: StepState[]): StepState | null {
   return states.find((s) => s.status === 'in_progress') ?? states.find((s) => s.status === 'todo') ?? null;
 }
 
+/**
+ * 1-based position of a step in the business order (« Étape 2/8 », the
+ * medallion number). Returns 0 for an unknown id.
+ */
+export function stepPosition(stepId: number): number {
+  return DOSSIER_STEP_DEFS.findIndex((d) => d.id === stepId) + 1;
+}
+
+/** Total number of workflow steps (« 2/8 »). */
+export const STEP_COUNT = DOSSIER_STEP_DEFS.length;
+
+/**
+ * Phone screen title: « 2 · Visite avant » — position + SHORT label, so it
+ * fits the 15-character budget of a phone top bar (Apple HIG Toolbars).
+ * `label` is a translation key: translate at the render site.
+ */
+export function stepScreenTitle(step: Pick<StepDef, 'id' | 'label'>): { position: number; label: string } {
+  return { position: stepPosition(step.id), label: step.label };
+}
+
+/** The step with this id, or null. */
+export function findStep(states: StepState[], stepId: number | null | undefined): StepState | null {
+  if (stepId == null) return null;
+  return states.find((s) => s.id === stepId) ?? null;
+}
+
+/**
+ * The visit phase a step plans, or null. Shared by the record bar's primary
+ * action, the todos and the phone bottom action bar so the three never
+ * disagree on which « Planifier » a step means.
+ */
+export function visitTypeForStep(stepId: number): 'Avant' | 'En cours' | 'Après' | null {
+  switch (stepId) {
+    case 4:
+      return 'Avant';
+    case 9:
+      return 'En cours';
+    case 10:
+      return 'Après';
+    default:
+      return null;
+  }
+}
+
+/** Photo category (`photos` subcollection) of a visit step, or null. */
+export function photoCategoryForStep(stepId: number): 'avant' | 'en_cours' | 'apres' | null {
+  switch (stepId) {
+    case 4:
+      return 'avant';
+    case 9:
+      return 'en_cours';
+    case 10:
+      return 'apres';
+    default:
+      return null;
+  }
+}
+
 /** Suggested primary action label for the record bar, per current step. */
 export function primaryActionForStep(stepId: number): { label: string; kind: 'planifier' | 'chiffrage' | 'rapport' | 'honoraires' | null } {
   switch (stepId) {

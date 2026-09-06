@@ -31,7 +31,13 @@ import { titleForRoute } from '@/lib/nav-groups';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import SessionReplayDialog from './session-replay-dialog';
-import { RappelDetailContent, RappelDetailPlaceholder, relativeAge } from './rappel-detail-panel';
+import { RappelDetailContent, RappelDetailPlaceholder, PhoneRappelDetailScreen, relativeAge } from './rappel-detail-panel';
+// Mobile pass 2026-09-06 (mobile-synthesis §4): below md the master-detail
+// collapses to a SINGLE pane — the Reçus queue is a `RecordList`, a row tap
+// pushes `?rappel=<id>` and the detail takes the whole screen with its own
+// top bar and bottom action bar. No sheet for the detail on a phone.
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
 
 const SESSION_KEY = (dossierId: string) => `rappel-active-session-${dossierId}`;
 
@@ -290,12 +296,36 @@ export default function MesRappelsPage() {
     }
   }, [loading, selectedId, aTraiter, traites]);
 
-  const writeSelectedUrl = (id: string | null) => {
+  // Below md the detail is a real screen, so opening it must PUSH a history
+  // entry: the platform Back closes the detail and returns to the list at the
+  // same scroll (research §8 — "a detail without its own back" is the
+  // anti-pattern). ≥ md the selection stays a replace (no history noise).
+  const isPhone = useIsPhone();
+  const writeSelectedUrl = (id: string | null, push = false) => {
     const url = new URL(window.location.href);
     if (id) url.searchParams.set('rappel', id);
     else url.searchParams.delete('rappel');
-    window.history.replaceState(window.history.state, '', url);
+    if (push) window.history.pushState({ ...window.history.state }, '', url);
+    else window.history.replaceState(window.history.state, '', url);
   };
+
+  // Phone: the URL is the source of truth for the open detail — Back (popstate)
+  // and the top bar's « ‹ Rappels » link (a Next navigation, which re-renders
+  // this component) both land here.
+  useEffect(() => {
+    if (!isPhone) return;
+    const sync = () => {
+      const id = new URLSearchParams(window.location.search).get('rappel');
+      setSelectedId((prev) => (prev === id ? prev : id));
+    };
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
+  }, [isPhone]);
+  useEffect(() => {
+    if (!isPhone) return;
+    const id = new URLSearchParams(window.location.search).get('rappel');
+    setSelectedId((prev) => (prev === id ? prev : id));
+  });
 
   const markRead = (r: Rappel) => {
     if (!db || r.read) return;
@@ -306,8 +336,8 @@ export default function MesRappelsPage() {
   };
 
   const selectRappel = (r: Rappel) => {
+    writeSelectedUrl(r.id, isPhone);
     setSelectedId(r.id);
-    writeSelectedUrl(r.id);
     markRead(r);
   };
 
@@ -397,7 +427,10 @@ export default function MesRappelsPage() {
           try { window.localStorage.removeItem(SESSION_KEY(r.dossierId)); } catch {}
         }
         if (selectedId === r.id) {
-          if (next && segment === 'a-traiter') selectRappel(next);
+          // Phone: the detail IS the screen, so « traité » pops back to the
+          // list (research §8) instead of auto-advancing to the next rappel.
+          if (isPhone) window.history.back();
+          else if (next && segment === 'a-traiter') selectRappel(next);
           else clearSelection();
         }
         // Reversible → undo in the toast, never a confirm (addendum ter E).
@@ -460,6 +493,25 @@ export default function MesRappelsPage() {
       </span>
     ) : null;
 
+  // PHONE — the detail replaces the list (single pane, M3 list-detail).
+  if (isPhone && activeVue === 'recus' && selected) {
+    return (
+      <>
+        <PhoneRappelDetailScreen
+          rappel={selected}
+          onOpenDossier={openRappel}
+          onMarkTreated={markTreated}
+          onShowReplay={(r) => setReplayRappel(r)}
+        />
+        <SessionReplayDialog
+          rappel={replayRappel}
+          open={!!replayRappel}
+          onOpenChange={(open) => { if (!open) setReplayRappel(null); }}
+        />
+      </>
+    );
+  }
+
   return (
     // Layout as at 3d5629a: header → tabs → content per tab. The Tabs root
     // wraps the header so the tab strip can sit in the PageHeader `tabs` slot
@@ -494,7 +546,11 @@ export default function MesRappelsPage() {
       {recusVisible && (
         <TabsContent value="recus" className="mt-0">
           {loading ? (
-            <Card className="overflow-hidden"><TableSkeleton heads={6} /></Card>
+            isPhone ? (
+              <RecordListSkeleton count={6} lines={3} ariaLabel={t('Chargement des rappels')} />
+            ) : (
+              <Card className="overflow-hidden"><TableSkeleton heads={6} /></Card>
+            )
           ) : rappels.length === 0 ? (
             // Empty state (§12: NN/g — state + reason; Polaris — one line).
             // No action: a rappel can only be sent to you from a dossier.
@@ -519,7 +575,7 @@ export default function MesRappelsPage() {
                 <div
                   role="group"
                   aria-label={t('État des rappels')}
-                  className="relative isolate flex h-9 w-fit items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
+                  className="relative isolate flex h-9 items-center gap-0.5 rounded-md bg-surface-2 p-0.5 max-md:h-10 max-md:w-full md:w-fit"
                 >
                   <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[segment, aTraiter.length]} />
                   <Button
@@ -529,7 +585,7 @@ export default function MesRappelsPage() {
                     data-seg-active={segment === 'a-traiter'}
                     aria-pressed={segment === 'a-traiter'}
                     onClick={() => changeSegment('a-traiter')}
-                    className="relative z-[1] h-8 gap-1.5 px-3 shadow-none"
+                    className="relative z-[1] h-8 gap-1.5 px-3 shadow-none max-md:h-9 max-md:flex-1"
                   >
                     {t('À traiter')}
                     {tabCount(aTraiter.length)}
@@ -541,7 +597,7 @@ export default function MesRappelsPage() {
                     data-seg-active={segment === 'traites'}
                     aria-pressed={segment === 'traites'}
                     onClick={() => changeSegment('traites')}
-                    className="relative z-[1] h-8 px-3 shadow-none"
+                    className="relative z-[1] h-8 px-3 shadow-none max-md:h-9 max-md:flex-1"
                   >
                     {t('Traités')}
                   </Button>
@@ -565,6 +621,43 @@ export default function MesRappelsPage() {
                       dashed={false}
                     />
                   )
+                ) : isPhone ? (
+                  // PHONE — the same FIFO queue as a row list: réf + date /
+                  // « Aujourd'hui », the observation as the second line (500
+                  // weight while unread), state chip + sender on the third.
+                  // The teal unread bar rides the row primitive.
+                  <RecordList ariaLabel={t('Rappels reçus')}>
+                    {queue.map((r) => {
+                      const state = rappelState(r);
+                      return (
+                        <RecordRow
+                          key={r.id}
+                          recordId={r.id}
+                          dataTour="rap-row-ref"
+                          id={r.dossierRef || r.dossierId}
+                          figure={
+                            isToday(r.createdAt)
+                              ? <Badge variant="time">{t("Aujourd'hui")}</Badge>
+                              : <span className="tabular-nums">{formatDateShort(r.createdAt)}</span>
+                          }
+                          primary={
+                            <span className={state === 'nouveau' ? 'font-medium text-ink' : 'text-ink-2'}>
+                              {r.observation || '—'}
+                            </span>
+                          }
+                          line3={
+                            <>
+                              <StateChip rappel={r} />
+                              {r.senderNom && <span className="truncate text-[12px] text-ink-3">{t('Envoyé par')} {r.senderNom}</span>}
+                            </>
+                          }
+                          unread={state === 'nouveau'}
+                          onClick={() => selectRappel(r)}
+                          ariaLabel={`${r.dossierRef || r.dossierId} — ${r.observation || ''}`.trim()}
+                        />
+                      );
+                    })}
+                  </RecordList>
                 ) : (
                   // Queue table (§3 + addendum bis §B): 6 columns, one-line
                   // grid, FIFO. Unread = teal left bar + full-ink ladder; the
@@ -690,8 +783,9 @@ export default function MesRappelsPage() {
             </div>
           )}
 
-          {/* Below xl the same detail opens as a sheet. */}
-          <Sheet open={!isXl && !!selected} onOpenChange={(o) => { if (!o) clearSelection(); }}>
+          {/* Tablets (768–1279) keep the sheet; phones get the full screen
+              above (research §8: never a sheet for the detail on a phone). */}
+          <Sheet open={!isXl && !isPhone && !!selected} onOpenChange={(o) => { if (!o) clearSelection(); }}>
             <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
               <SheetHeader className="sr-only">
                 <SheetTitle>{t('Détail du rappel')}</SheetTitle>

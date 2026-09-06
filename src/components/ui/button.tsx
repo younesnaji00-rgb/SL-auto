@@ -29,10 +29,14 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
+        // Touch targets (mobile pass 2026-09-06): a finger pad is ~9 mm, so
+        // nothing tappable is under 44 px on a phone (Apple 44 pt, WCAG 2.5.5,
+        // web.dev 48 dp). Desktop sizes are unchanged — only the phone floor
+        // is raised, via `max-md:`.
+        default: "h-10 px-4 py-2 max-md:min-h-11",
+        sm: "h-9 rounded-md px-3 max-md:min-h-11",
         lg: "h-11 rounded-md px-8",
-        icon: "h-10 w-10",
+        icon: "h-10 w-10 max-md:h-11 max-md:w-11",
       },
     },
     defaultVariants: {

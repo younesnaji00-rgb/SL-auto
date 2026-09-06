@@ -47,7 +47,11 @@ import {
 } from '@/lib/queue-session';
 import { apiFetch } from '@/lib/api-fetch';
 import Loading from './loading';
-import { useT } from '@/i18n';
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { usePhoneChrome, useRegisterPageTitle } from '@/components/layout/page-chrome';
+import { BottomActionBar, type BottomActionBarSecondary } from '@/components/layout/bottom-action-bar';
+import type { ActionItem } from '@/components/ui/action-sheet';
+import { intlLocale, useT } from '@/i18n';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -422,6 +426,46 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     }
   };
 
+  // ── Phone (E11) ───────────────────────────────────────────────────────────
+  // The page header, the queue spine and the « Mode traitement » glass bar are
+  // three rows of chrome on a 390 px screen. Below `md` they collapse into the
+  // shell's top bar (back to the queue · ref · assuré · « ⋯ »), one 40 px
+  // caption row, and a bottom action bar carrying the queue spine + the single
+  // primary — actions at the bottom edge (Hoober), never a second header.
+  const isPhone = useIsPhone();
+  const assurePhone = assureName(dossier?.assure);
+  useRegisterPageTitle(chiffrage?.dossierNom || null);
+  const phoneSecondary = useMemo<ActionItem[]>(() => {
+    const items: ActionItem[] = [];
+    if (canEdit && chiffrage?.dossierId) items.push({ key: 'reforme', label: t('Réforme'), icon: <Scale />, onSelect: () => setReformeOpen(true) });
+    items.push({
+      key: 'observations',
+      label: t('Observations'),
+      icon: <FileText />,
+      onSelect: () => document.querySelector('[data-tour="chd-observations"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    });
+    if (traitement?.active) {
+      items.push({ key: 'skip', label: t('Passer'), icon: <ChevronRight />, disabled: !queueCtx?.nextId, onSelect: handleSkip });
+      items.push({ key: 'quit', label: t('Quitter le mode'), icon: <ChevronLeft />, onSelect: handleQuitTraitement });
+    }
+    return items;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canEdit, chiffrage?.dossierId, traitement?.active, queueCtx?.nextId, t]);
+  const phoneChrome = useMemo(
+    () =>
+      isPhone
+        ? {
+            upHref: '/assignations-chiffrage',
+            upLabel: 'Chiffrage',
+            subtitle: assurePhone || null,
+            secondaryActions: phoneSecondary,
+            primaryAction: null,
+          }
+        : null,
+    [isPhone, assurePhone, phoneSecondary],
+  );
+  usePhoneChrome(phoneChrome);
+
   if (loading || !chiffrage) {
     // Loading (element-specs §15): the route skeleton mirrors this exact layout.
     return <Loading />;
@@ -434,6 +478,11 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const chiffrageDone = chiffrage.status === 'done' || !!chiffrage.completedAt;
   const traitementActif = !!traitement?.active;
   const showCompletionBanner = traitementActif && chiffrageDone && !banniereRestee;
+  // « Reçu le … » — the assignation's own creation stamp (send-to-chiffrage).
+  const receivedRaw = (chiffrage as any).createdAt;
+  const receivedAt = receivedRaw
+    ? (receivedRaw.toDate ? receivedRaw.toDate() : new Date(receivedRaw)).toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : null;
 
   return (
     // max-w-7xl (owner 2026-09-04: the document grid was ringed by dead
@@ -450,7 +499,25 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           (success once done, info while open).
           The tour anchor `chd-header` lives on a plain wrapper because
           PageHeader does not forward arbitrary DOM props. */}
-      <div data-tour="chd-header">
+      {/* Phone: the identity lives in the top bar; only the two facts it has
+          no room for stay here as ONE 40 px caption row (E11). */}
+      <div className="flex min-h-10 flex-wrap items-center gap-x-2 gap-y-1 px-4 md:hidden">
+        <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossierStatut))}>
+          {t(dossierStatut)}
+        </Badge>
+        <span className="t-caption truncate">
+          {t('Correcteur :')} {chiffrage.assignedChiffreurNom || '—'}
+          {receivedAt && <> · {t('Reçu le')} {receivedAt}</>}
+        </span>
+        {traitementActif && queueCtx && (
+          <span className="t-caption w-full tabular-nums">
+            {t('Mode traitement')} · {queueCtx.index + 1}/{queueCtx.total}
+            {chiffrageDone && <> — {queueCtx.nextId ? t('Chiffrage terminé') : t('File terminée')}</>}
+          </span>
+        )}
+      </div>
+
+      <div data-tour="chd-header" className="max-md:hidden">
         <PageHeader
           size="compact"
           backHref="/assignations-chiffrage"
@@ -533,7 +600,9 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           strip swaps to the completion banner — auto-advance is offered,
           never forced (« Rester » reverts to the normal strip). */}
       {traitementActif && (
-        <div data-tour="chd-mode-traitement" className="glass-bar flex h-11 items-center gap-3 rounded-lg px-4 animate-in fade-in-0 duration-250 ease-enter motion-reduce:animate-none">
+        // Phone: the mode's state is already the caption row above, and its
+        // controls are in « ⋯ » — a second glass bar is chrome, not content.
+        <div data-tour="chd-mode-traitement" className="glass-bar flex h-11 items-center gap-3 rounded-lg px-4 animate-in fade-in-0 duration-250 ease-enter motion-reduce:animate-none max-md:hidden">
           {showCompletionBanner ? (
             queueCtx?.nextId ? (
               <>
@@ -661,6 +730,32 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         onClose={() => setPreviewDoc(null)}
         onDownload={(d) => window.open(d.url, '_blank', 'noopener,noreferrer')}
       />
+
+      {/* Bottom action bar (E4/E11): the queue spine moves out of the header
+          to the thumb zone, flanking the page's ONE primary. Disabled with a
+          caption rather than silently — « disabled buttons without
+          explanation » is the do-not. Phone only: the bar publishes
+          `hideBottomNav`, which would reserve 56 px on a desktop page. */}
+      {isPhone && (
+      <BottomActionBar
+        secondary={[
+          queueCtx && { label: t('Chiffrage précédent'), icon: <ChevronLeft />, disabled: !queueCtx.prevId, onClick: () => queueCtx.prevId && goToChiffrage(queueCtx.prevId) },
+          queueCtx && { label: t('Chiffrage suivant'), icon: <ChevronRight />, disabled: !queueCtx.nextId, onClick: () => queueCtx.nextId && goToChiffrage(queueCtx.nextId) },
+        ].filter(Boolean) as BottomActionBarSecondary[]}
+        primary={
+          showMailPrimary
+            ? {
+                label: t('Envoyer par mail'),
+                icon: <Mail />,
+                onClick: () => setMailDialogOpen(true),
+                disabled: accordDocs.length === 0,
+                dataTour: 'chd-mail-phone',
+              }
+            : null
+        }
+        caption={showMailPrimary && accordDocs.length === 0 ? t('Aucun accord à envoyer') : undefined}
+      />
+      )}
     </div>
   );
 }

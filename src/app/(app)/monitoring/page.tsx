@@ -60,6 +60,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { roles } from '@/lib/dossiers-data';
+// Mobile pass 2026-09-06 (mobile-synthesis §4 / research §2): the two wide
+// stat tables are FIGURE COMPARISON, so they keep a real `<table>` — frozen
+// identifier column, a viewport-wide scroll region with a `ScrollFade` cue,
+// and a phone column set of « identifier + ≤ 3 figures » with the rest behind
+// a « Colonnes » bottom sheet. The KPI tiles go 2-up; the volume bar list
+// stacks its label above a full-width bar (density §7 BarList).
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { ScrollFade } from '@/components/ui/scroll-fade';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Columns3 } from 'lucide-react';
 
 import {
   STEP_KEYS,
@@ -127,6 +138,87 @@ const formatPeriodLabel = (from: Date | null, to: Date | null): string => {
 const STICKY_HEAD = 'sticky left-0 z-[2] min-w-[12rem] border-r border-hairline bg-card';
 const STICKY_CELL =
   'sticky left-0 z-[1] border-r border-hairline bg-card font-medium [tr:hover_&]:bg-surface-2';
+
+/**
+ * « Colonnes » sheet for a phone-narrowed figure table (research §2: "the rest
+ * behind a « Colonnes » bottom sheet … hiding must be easy"). The trigger is a
+ * 44 px outline button beside the card title; the sheet is a check list of the
+ * hideable columns in table order, plus a « Tout afficher » / « Réinitialiser »
+ * pair. The identifier column is never in the list — it is the row's anchor.
+ */
+function PhoneColumnsControl({
+  columns,
+  visible,
+  onChange,
+  defaults,
+}: {
+  columns: { key: string; label: string }[];
+  visible: string[];
+  onChange: (next: string[]) => void;
+  defaults: string[];
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-11 shrink-0 gap-1.5 md:hidden"
+        onClick={() => setOpen(true)}
+      >
+        <Columns3 className="h-4 w-4" aria-hidden />
+        {t('Colonnes')}
+        <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
+          {visible.length}
+        </span>
+      </Button>
+      <BottomSheet
+        open={open}
+        onOpenChange={setOpen}
+        title={t('Colonnes')}
+        detent="tall"
+        flush
+      >
+        <ul className="divide-y divide-hairline">
+          {columns.map((c) => {
+            const checked = visible.includes(c.key);
+            return (
+              <li key={c.key}>
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  onClick={() =>
+                    onChange(
+                      checked
+                        ? visible.filter((k) => k !== c.key)
+                        : columns.filter((col) => col.key === c.key || visible.includes(col.key)).map((col) => col.key),
+                    )
+                  }
+                  className="flex min-h-[48px] w-full items-center gap-3 px-4 text-left transition-colors hover:bg-surface-2 focus:outline-none focus-visible:bg-surface-2"
+                >
+                  <Checkbox checked={checked} className="pointer-events-none shrink-0" tabIndex={-1} aria-hidden />
+                  <span className="min-w-0 flex-1 truncate text-[15px] text-ink">{t(c.label)}</span>
+                </button>
+              </li>
+            );
+          })}
+          <li>
+            <button
+              type="button"
+              onClick={() => onChange(defaults)}
+              className="flex min-h-[48px] w-full items-center px-4 text-left text-[15px] text-ink-2 transition-colors hover:bg-surface-2 focus:outline-none focus-visible:bg-surface-2"
+            >
+              {t('Réinitialiser les colonnes')}
+            </button>
+          </li>
+        </ul>
+      </BottomSheet>
+    </>
+  );
+}
 
 const emptyStepCounts = (): Record<StepKey, number> =>
   STEP_KEYS.reduce((acc, k) => {
@@ -522,7 +614,7 @@ export default function MonitoringPage() {
           {/* Sliding thumb carries the selection (motion-spec addendum ter);
               the buttons stay ghost and only recolour. « Tout » = the all-time
               default (owner 2026-09-02). */}
-          <div className="relative isolate flex h-10 items-center gap-1 self-end rounded-md bg-surface-2 p-0.5" role="group" aria-label={t('Période')}>
+          <div className="relative isolate flex h-10 w-full items-center gap-1 self-end overflow-x-auto rounded-md bg-surface-2 p-0.5 [scrollbar-width:none] md:w-auto [&::-webkit-scrollbar]:hidden" role="group" aria-label={t('Période')}>
             <SlidingThumb className="rounded-md bg-primary shadow-rim-filled" deps={[activePreset]} />
             {(
               [
@@ -553,15 +645,37 @@ export default function MonitoringPage() {
               );
             })}
           </div>
-          <div className="flex flex-col gap-1">
+          {/* The popover calendar is a fine-pointer control; phones get two
+              native date fields side by side (family C). */}
+          <div className="flex flex-col gap-1 max-md:hidden">
             <label className="t-label">{t('Du')}</label>
             <DatePicker value={dateFrom} onChange={setDateFrom} placeholder={t('Date de début')} className="w-44" />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 max-md:hidden">
             <label className="t-label">{t('Au')}</label>
             <DatePicker value={dateTo} onChange={setDateTo} placeholder={t('Date de fin')} className="w-44" />
           </div>
-          <Button variant="outline" size="sm" onClick={resetRange} className="h-10">
+          <div className="grid w-full grid-cols-2 gap-3 md:hidden">
+            <label className="flex flex-col gap-1">
+              <span className="t-label">{t('Du')}</span>
+              <input
+                type="date"
+                value={dateFrom ? format(dateFrom, 'yyyy-MM-dd') : ''}
+                onChange={(e) => setDateFrom(e.target.value ? startOfDay(new Date(e.target.value)) : null)}
+                className="h-12 w-full rounded-md border border-input bg-card px-3 text-[16px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="t-label">{t('Au')}</span>
+              <input
+                type="date"
+                value={dateTo ? format(dateTo, 'yyyy-MM-dd') : ''}
+                onChange={(e) => setDateTo(e.target.value ? endOfDay(new Date(e.target.value)) : null)}
+                className="h-12 w-full rounded-md border border-input bg-card px-3 text-[16px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </label>
+          </div>
+          <Button variant="outline" size="sm" onClick={resetRange} className="h-10 max-md:h-12 max-md:w-full">
             <RotateCcw className="mr-2 h-4 w-4" />
             {t('Réinitialiser')}
           </Button>
@@ -573,7 +687,7 @@ export default function MonitoringPage() {
           numbers stay in view while a breakdown is compared against them
           (NN/g tabs: never make the reader switch tabs to compare). */}
       {loading ? (
-        <div aria-busy="true" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div aria-busy="true" className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="paper space-y-3 p-4">
               <Skeleton className="h-3 w-28" />
@@ -589,17 +703,19 @@ export default function MonitoringPage() {
       )}
 
       <Tabs value={vue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-6">
-        <TabsList data-tour="mon-tabs">
-          <TabsTrigger value="global" data-tour="mon-tab-global" className="gap-2">
-            <Gauge className="h-4 w-4" />
+        {/* Phones: three full-width cells, icons dropped (the French labels
+            already exceed the 390 px budget with them). */}
+        <TabsList data-tour="mon-tabs" className="max-md:w-full">
+          <TabsTrigger value="global" data-tour="mon-tab-global" className="gap-2 max-md:flex-1 max-md:px-2">
+            <Gauge className="h-4 w-4 max-md:hidden" />
             {t('Global')}
           </TabsTrigger>
-          <TabsTrigger value="compagnie" data-tour="mon-tab-compagnie" className="gap-2">
-            <Building2 className="h-4 w-4" />
+          <TabsTrigger value="compagnie" data-tour="mon-tab-compagnie" className="gap-2 max-md:flex-1 max-md:px-2">
+            <Building2 className="h-4 w-4 max-md:hidden" />
             {t('Par compagnie')}
           </TabsTrigger>
-          <TabsTrigger value="user" data-tour="mon-tab-user" className="gap-2">
-            <Users className="h-4 w-4" />
+          <TabsTrigger value="user" data-tour="mon-tab-user" className="gap-2 max-md:flex-1 max-md:px-2">
+            <Users className="h-4 w-4 max-md:hidden" />
             {t('Par utilisateur')}
           </TabsTrigger>
         </TabsList>
@@ -607,7 +723,7 @@ export default function MonitoringPage() {
         <TabsContent value="global" className="space-y-6">
           {loading ? (
             <div aria-busy="true" className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4 xl:grid-cols-5">
                 {Array.from({ length: STEP_KEYS.length }).map((_, i) => (
                   <div key={i} className="paper space-y-3 p-4">
                     <Skeleton className="h-3 w-24" />
@@ -739,7 +855,7 @@ function GlobalView({
           Material cards) — the card edge is the separation (user ruling: a clear
           separation on each card). Never the featured surface for a row of tiles.
           Ten steps → 5 × 2 from xl so the grid ends on a full row. */}
-      <div data-tour="mon-kpis" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+      <div data-tour="mon-kpis" className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4 xl:grid-cols-5">
         {STEP_KEYS.map((key, idx) => {
           const realiseEnDelai = counts[key];
           const horsDelai = horsDelaiCounts[key] ?? 0;
@@ -797,13 +913,16 @@ function GlobalView({
                     type="button"
                     onClick={() => onSelectStep(key, 'realise')}
                     title={`${t(STEP_LABELS[key])} : ${value} ${t('en délai — voir les dossiers')}`}
-                    className="flex w-full items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    // Phones: the label sits ABOVE a full-width bar (density §7
+                    // BarList) — a 144 px label column would leave ~180 px of
+                    // bar on a 390 px screen.
+                    className="flex w-full items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:min-h-[48px] max-md:flex-col max-md:items-stretch max-md:gap-0.5 max-md:py-2"
                   >
                     {/* Half-width card: the label column tightens (full name in the title). */}
-                    <span className="w-36 shrink-0 truncate text-xs text-ink-2 xl:w-44">
+                    <span className="w-36 shrink-0 truncate text-xs text-ink-2 max-md:w-full xl:w-44">
                       {t(STEP_LABELS[key])}
                     </span>
-                    <span className="relative block h-6 min-w-0 flex-1">
+                    <span className="relative block h-6 min-w-0 flex-1 max-md:w-full max-md:flex-none">
                       {/* 2.25rem right reserve keeps the tip label inside the card at 100 %. */}
                       <span
                         className="absolute inset-y-[7px] left-0 right-9 rounded-full bg-surface-3/70"
@@ -857,7 +976,7 @@ function HeadlineRow({
 }) {
   const t = useT();
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
       <HeadlineTile label={t('Dossiers traités')} value={headline.traites} caption={`${t('rapport déposé')} · ${periodLabel}`} />
       <HeadlineTile
         label={t('Respect des délais')}
@@ -1117,6 +1236,21 @@ function CompagnieView({
   periodLabel: string;
 }) {
   const t = useT();
+  const isPhone = useIsPhone();
+  // Phone column set: identifier + the two decision figures + the first step
+  // (research §2: identifier + ≤ 3 figures by default, rest in the sheet).
+  const allCols = useMemo(
+    () => [
+      { key: 'respect', label: 'Respect' },
+      { key: 'enAttente', label: 'En attente' },
+      ...STEP_KEYS.map((k) => ({ key: k as string, label: STEP_LABELS_SHORT[k] })),
+    ],
+    [],
+  );
+  const phoneDefaults = useMemo(() => allCols.slice(0, 3).map((c) => c.key), [allCols]);
+  const [phoneCols, setPhoneCols] = useState<string[]>(phoneDefaults);
+  const shown = (key: string) => !isPhone || phoneCols.includes(key);
+
   if (loading) return <TablePaperSkeleton />;
   if (rows.length === 0) {
     return (
@@ -1130,26 +1264,36 @@ function CompagnieView({
 
   return (
     <Card data-tour="mon-compagnie-table">
-      <CardHeader>
-        <CardTitle>{t('Répartition par compagnie')}</CardTitle>
-        <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
+      <CardHeader className="max-md:flex-row max-md:items-start max-md:justify-between max-md:gap-3 max-md:space-y-0 max-md:p-4">
+        <div className="min-w-0">
+          <CardTitle>{t('Répartition par compagnie')}</CardTitle>
+          <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
+        </div>
+        <PhoneColumnsControl columns={allCols} visible={phoneCols} onChange={setPhoneCols} defaults={phoneDefaults} />
       </CardHeader>
-      <CardContent className="overflow-x-auto p-0">
+      <CardContent className="p-0">
+        {/* 24 px right-edge fade that disappears at the scroll end; the region
+            still cuts the last column mid-word (the honest overflow signal). */}
+        <ScrollFade>
         <Table regionLabel={t('Répartition par compagnie')}>
           <TableHeader>
             <TableRow>
-              <TableHead className={STICKY_HEAD}>{t('Compagnie')}</TableHead>
-              {STEP_KEYS.map((key) => (
+              <TableHead className={cn(STICKY_HEAD, 'max-md:min-w-[8rem]')}>{t('Compagnie')}</TableHead>
+              {STEP_KEYS.filter((key) => shown(key)).map((key) => (
                 <TableHead key={key} className="text-right">
                   {t(STEP_LABELS_SHORT[key])}
                 </TableHead>
               ))}
-              <TableHead className="text-right" title={`${t('Part des assignations à temps')} · ${periodLabel}`}>
-                {t('Respect')}
-              </TableHead>
-              <TableHead className="text-right" title={t('Dossiers sans rapport déposé · à ce jour')}>
-                {t('En attente')}
-              </TableHead>
+              {shown('respect') && (
+                <TableHead className="text-right" title={`${t('Part des assignations à temps')} · ${periodLabel}`}>
+                  {t('Respect')}
+                </TableHead>
+              )}
+              {shown('enAttente') && (
+                <TableHead className="text-right" title={t('Dossiers sans rapport déposé · à ce jour')}>
+                  {t('En attente')}
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1158,20 +1302,25 @@ function CompagnieView({
                 {/* Real insurer names pass through t() unchanged (unknown key
                     → itself); this only localizes the « — non précisé — »
                     bucket label. */}
-                <TableCell className={STICKY_CELL}>{t(r.group)}</TableCell>
-                {STEP_KEYS.map((key) => (
+                <TableCell className={cn(STICKY_CELL, 'max-md:min-w-[8rem]')}>{t(r.group)}</TableCell>
+                {STEP_KEYS.filter((key) => shown(key)).map((key) => (
                   <StepCell key={key} value={r.enDelai[key]} late={r.horsDelai[key]} emphasis />
                 ))}
-                <TableCell className="text-right font-semibold" style={tabular}>
-                  {r.respectPct == null ? <span className="font-normal text-ink-4">—</span> : `${r.respectPct} %`}
-                </TableCell>
-                <TableCell className="text-right" style={tabular}>
-                  {r.enAttente || <span className="text-ink-4">—</span>}
-                </TableCell>
+                {shown('respect') && (
+                  <TableCell className="text-right font-semibold" style={tabular}>
+                    {r.respectPct == null ? <span className="font-normal text-ink-4">—</span> : `${r.respectPct} %`}
+                  </TableCell>
+                )}
+                {shown('enAttente') && (
+                  <TableCell className="text-right" style={tabular}>
+                    {r.enAttente || <span className="text-ink-4">—</span>}
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
         </Table>
+        </ScrollFade>
       </CardContent>
     </Card>
   );
@@ -1189,6 +1338,20 @@ function UserView({
   periodLabel: string;
 }) {
   const t = useT();
+  const isPhone = useIsPhone();
+  const allCols = useMemo(
+    () => [
+      { key: 'total', label: 'Total' },
+      { key: 'respect', label: 'Respect' },
+      { key: 'ouverts', label: 'Ouverts (touchés)' },
+      ...STEP_KEYS.map((k) => ({ key: k as string, label: STEP_LABELS_SHORT[k] })),
+    ],
+    [],
+  );
+  const phoneDefaults = useMemo(() => allCols.slice(0, 3).map((c) => c.key), [allCols]);
+  const [phoneCols, setPhoneCols] = useState<string[]>(phoneDefaults);
+  const shown = (key: string) => !isPhone || phoneCols.includes(key);
+
   if (loading) return <TablePaperSkeleton />;
   if (rows.length === 0) {
     return (
@@ -1202,30 +1365,38 @@ function UserView({
 
   return (
     <Card data-tour="mon-user-table">
-      <CardHeader>
-        <CardTitle>{t('Activité par utilisateur')}</CardTitle>
-        <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
+      <CardHeader className="max-md:flex-row max-md:items-start max-md:justify-between max-md:gap-3 max-md:space-y-0 max-md:p-4">
+        <div className="min-w-0">
+          <CardTitle>{t('Activité par utilisateur')}</CardTitle>
+          <p className="t-caption">Étapes franchies en délai · {periodLabel}</p>
+        </div>
+        <PhoneColumnsControl columns={allCols} visible={phoneCols} onChange={setPhoneCols} defaults={phoneDefaults} />
       </CardHeader>
-      <CardContent className="overflow-x-auto p-0">
+      <CardContent className="p-0">
+        <ScrollFade>
         <Table regionLabel={t('Activité par utilisateur')}>
           <TableHeader>
             <TableRow>
-              <TableHead className={cn(STICKY_HEAD, 'min-w-[14rem]')}>{t('Utilisateur')}</TableHead>
-              {STEP_KEYS.map((key) => (
+              <TableHead className={cn(STICKY_HEAD, 'min-w-[14rem] max-md:min-w-[8rem]')}>{t('Utilisateur')}</TableHead>
+              {STEP_KEYS.filter((key) => shown(key)).map((key) => (
                 <TableHead key={key} className="text-right">
                   {t(STEP_LABELS_SHORT[key])}
                 </TableHead>
               ))}
-              <TableHead className="text-right">{t('Total')}</TableHead>
-              <TableHead className="text-right" title={`${t('Part des assignations à temps')} · ${periodLabel}`}>
-                {t('Respect')}
-              </TableHead>
-              <TableHead
-                className="text-right"
-                title={t("Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape")}
-              >
-                {t('Ouverts (touchés)')}
-              </TableHead>
+              {shown('total') && <TableHead className="text-right">{t('Total')}</TableHead>}
+              {shown('respect') && (
+                <TableHead className="text-right" title={`${t('Part des assignations à temps')} · ${periodLabel}`}>
+                  {t('Respect')}
+                </TableHead>
+              )}
+              {shown('ouverts') && (
+                <TableHead
+                  className="text-right"
+                  title={t("Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape")}
+                >
+                  {t('Ouverts (touchés)')}
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1233,28 +1404,35 @@ function UserView({
               const displayName = resolveUserName(r.user, userLookup);
               return (
                 <TableRow key={r.user}>
-                  <TableCell className={STICKY_CELL}>{displayName}</TableCell>
-                  {STEP_KEYS.map((key) => (
+                  <TableCell className={cn(STICKY_CELL, 'max-md:min-w-[8rem]')}>{displayName}</TableCell>
+                  {STEP_KEYS.filter((key) => shown(key)).map((key) => (
                     <StepCell key={key} value={r.enDelai[key]} late={r.horsDelai[key]} />
                   ))}
-                  <TableCell className="text-right font-semibold" style={tabular}>
-                    {r.totalEnDelai}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold" style={tabular}>
-                    {r.respectPct == null ? <span className="font-normal text-ink-4">—</span> : `${r.respectPct} %`}
-                  </TableCell>
-                  <TableCell
-                    className="text-right"
-                    style={tabular}
-                    title={t("Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape")}
-                  >
-                    {r.ouverts || <span className="text-ink-4">—</span>}
-                  </TableCell>
+                  {shown('total') && (
+                    <TableCell className="text-right font-semibold" style={tabular}>
+                      {r.totalEnDelai}
+                    </TableCell>
+                  )}
+                  {shown('respect') && (
+                    <TableCell className="text-right font-semibold" style={tabular}>
+                      {r.respectPct == null ? <span className="font-normal text-ink-4">—</span> : `${r.respectPct} %`}
+                    </TableCell>
+                  )}
+                  {shown('ouverts') && (
+                    <TableCell
+                      className="text-right"
+                      style={tabular}
+                      title={t("Dossiers ouverts sur lesquels l'utilisateur a réalisé au moins une étape")}
+                    >
+                      {r.ouverts || <span className="text-ink-4">—</span>}
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
+        </ScrollFade>
       </CardContent>
     </Card>
   );

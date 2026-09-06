@@ -321,7 +321,10 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
               className="text-ink-3 hover:text-ink"
               onClick={() => attachmentInputRef.current?.click()}
               disabled={isSubmitting}
+              // A `title` is a hover tooltip and does not exist on touch — the
+              // accessible name has to be on the control itself (mobile pass).
               title={t('Attacher un fichier')}
+              aria-label={t('Attacher un fichier')}
             >
               <Paperclip className="h-5 w-5" />
             </Button>
@@ -380,13 +383,14 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                  <div className="flex items-center gap-1 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100">
                     {(comment.auteur === currentUserEmail || comment.authorName === currentUserEmail) && editingId !== comment.id && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-ink-3 hover:text-ink"
+                        className="h-8 w-8 text-ink-3 hover:text-ink max-md:h-11 max-md:w-11"
                         onClick={() => handleStartEdit(comment)}
+                        aria-label={t('Modifier le commentaire')}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -395,9 +399,10 @@ export default function CommentairesTab({ dossierId }: CommentairesTabProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-ink-3 hover:text-destructive"
+                        className="h-8 w-8 text-ink-3 hover:text-destructive max-md:h-11 max-md:w-11"
                         onClick={() => handleDeleteComment(comment.id, comment.pieceJointe?.storagePath || comment.attachments?.[0]?.storagePath)}
                         disabled={deletingId === comment.id}
+                        aria-label={t('Supprimer le commentaire')}
                       >
                         {deletingId === comment.id ? (
                           <Loader2 className="h-3 w-3 animate-spin" />

@@ -131,7 +131,9 @@ export function CellNumberInput({
         inputMode="decimal"
         className={cn(
           // Solid field inside a glass/paper table cell (blueprint §3: inputs are never translucent).
-          "w-full h-7 px-1.5 text-xs bg-card text-ink tabular-nums outline-none rounded border border-transparent",
+          // 28 px is a mouse target inside a dense devis table; on a phone the
+          // density spec floor is 44 (no 32 px controls on touch).
+          "w-full h-7 max-md:h-11 px-1.5 max-md:px-2 text-xs bg-card text-ink tabular-nums outline-none rounded border border-transparent",
           "focus:border-input focus:ring-2 focus:ring-ring disabled:cursor-not-allowed",
           align === 'center' && 'text-center',
           align === 'right' && 'text-right',

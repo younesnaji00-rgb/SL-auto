@@ -30,6 +30,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useFirestore } from '@/firebase';
 import { reconcileCanonicalStatuts, reconcileOptionDefaults, getDefaultsFor } from '@/lib/seed-options';
 import { useT } from '@/i18n';
+import { INPUT_TEXT } from '@/lib/input-attrs';
 
 interface OptionsManagerModalProps {
   collectionName: string;
@@ -149,7 +150,13 @@ export function OptionsManagerModal({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md" onPointerDown={(e) => e.stopPropagation()}>
+      <DialogContent
+        // An add field plus an editable list: full-screen on a phone (D 2)
+        // so the list is not squeezed into 60 dvh above the keyboard.
+        fullScreen
+        className="sm:max-w-md"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <DialogHeader>
           <DialogTitle>{t('Gérer :')} {t(title)}</DialogTitle>
         </DialogHeader>
@@ -157,6 +164,9 @@ export function OptionsManagerModal({
         <div className="space-y-4 py-4">
           <div className="flex gap-2">
             <Input
+              {...INPUT_TEXT}
+              enterKeyHint="done"
+              aria-label={`${t('Nouvelle option')} — ${t(title)}`}
               placeholder={t('Nouvelle option...')}
               value={newOption}
               onChange={(e) => setNewOption(e.target.value)}
@@ -180,11 +190,11 @@ export function OptionsManagerModal({
               />
             ) : (
               options.map((opt) => (
-                <div key={opt.id} className="flex items-center gap-2 group p-1 rounded-md hover:bg-muted/50">
+                <div key={opt.id} className="flex min-h-11 items-center gap-2 group p-1 max-md:px-2 rounded-md hover:bg-muted/50">
                   {editingId === opt.id ? (
                     <>
                       <Input
-                        className="h-8 text-sm"
+                        className="h-8 max-md:h-12 text-sm"
                         value={editLabel}
                         autoFocus
                         onChange={(e) => setEditLabel(e.target.value)}
@@ -205,7 +215,9 @@ export function OptionsManagerModal({
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                          // Hover-revealed on a mouse, always visible on touch
+                        // (D 3: no hover-only affordance on a phone).
+                        className="h-8 w-8 max-md:h-11 max-md:w-11 text-muted-foreground hover:text-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity"
                           onClick={() => { setEditingId(opt.id); setEditLabel(opt.label); }}
                         >
                           <Settings className="h-3.5 w-3.5" />
@@ -215,7 +227,7 @@ export function OptionsManagerModal({
                             type="button"
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-8 w-8 max-md:h-11 max-md:w-11 text-destructive [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity"
                             loading={isDeleting === opt.id}
                             onClick={() => setDeleteTarget({ id: opt.id, label: opt.label })}
                           >

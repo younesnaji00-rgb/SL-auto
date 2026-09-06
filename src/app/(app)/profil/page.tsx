@@ -10,7 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
-import { LifeBuoy, LogOut, Monitor, Moon, Sun, Smartphone, SlidersHorizontal } from 'lucide-react';
+import { ChevronRight, LifeBuoy, LogOut, Monitor, Moon, Sun, Smartphone, SlidersHorizontal } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,10 @@ import { userInitials } from '@/components/layout/user-menu';
 import { IconChip } from '@/components/ui/icon-chip';
 import { cn } from '@/lib/utils';
 import { applyDensity, readDensity, type Density } from '@/lib/density';
+import { useVisibleNav } from '@/hooks/use-visible-nav';
+import { mobileBarFor } from '@/lib/nav-groups';
+import { openTutorial } from '@/components/tutorial/tutorial-launcher';
+import { tutorialsEnabledFor } from '@/lib/tutorial/access';
 import { useT } from '@/i18n';
 
 /**
@@ -116,6 +120,14 @@ export default function ProfilPage() {
   const [mounted, setMounted] = useState(false);
   const [density, setDensity] = useState<Density>('normal');
   const [ua, setUa] = useState('');
+  // Destinations the phone bottom bar does not show (mobile pass): for roles
+  // with ≤ 4 destinations there is no « Plus » tab, so this page is the only
+  // place the rest can be reached from a phone.
+  const { items, role } = useVisibleNav();
+  const { bar, hasPlus } = mobileBarFor(items, role);
+  const inBar = new Set(bar.map((i) => i.href));
+  const phoneNav = hasPlus ? [] : items.filter((i) => !inBar.has(i.href) && i.href !== '/signaler-bug');
+  const canUseTutorials = tutorialsEnabledFor(role);
 
   useEffect(() => {
     setMounted(true);
@@ -187,8 +199,45 @@ export default function ProfilPage() {
         </div>
       </Section>
 
+      {/* PHONE NAVIGATION HUB (mobile pass 2026-09-06, mobile-synthesis §2).
+          The bottom bar carries at most four destinations; for roles with no
+          « Plus » tab this card is where the rest live, so Profil is a complete
+          hub and nothing is unreachable from a phone. Hidden from `md` up,
+          where the sidebar shows everything. */}
+      {phoneNav.length > 0 && (
+        <Card role="region" aria-label={t('Navigation')} className="min-w-0 overflow-hidden md:hidden">
+          <header className="flex min-h-[48px] items-center gap-2 border-b border-hairline px-4 py-3">
+            <h2 className="t-heading truncate">{t('Navigation')}</h2>
+          </header>
+          <ul>
+            {phoneNav.map((item) => {
+              const Icon = item.icon;
+              return (
+                <li key={item.href} className="border-b border-hairline last:border-b-0">
+                  <Link
+                    href={item.href}
+                    className="flex min-h-[56px] items-center gap-3 px-4 text-[15px] text-ink transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:bg-surface-2"
+                  >
+                    <Icon className="h-6 w-6 shrink-0 text-ink-2" strokeWidth={1.75} aria-hidden />
+                    <span className="min-w-0 flex-1 truncate">{t(item.label)}</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+
       <Section title={t('Aide')} icon={<LifeBuoy />}>
         <div className="divide-y divide-hairline">
+          {canUseTutorials && (
+            <PrefRow label={t('Visite guidée')} help={t('Rejouer le tutoriel de la page où vous vous trouvez.')}>
+              <Button variant="outline" onClick={openTutorial}>
+                {t('Démarrer')}
+              </Button>
+            </PrefRow>
+          )}
           <PrefRow label={t('Signaler un bug')} help={t('Décrivez un problème, joignez une capture ou un message vocal.')}>
             <Button variant="outline" asChild>
               <Link href="/signaler-bug">{t('Ouvrir le formulaire')}</Link>

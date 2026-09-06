@@ -60,7 +60,7 @@ export default function VoicePlayer({ url, duree }: VoicePlayerProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="h-7 w-7 shrink-0 text-primary hover:text-primary"
+        className="h-7 w-7 shrink-0 text-primary hover:text-primary [@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
         onClick={togglePlayback}
         type="button"
       >

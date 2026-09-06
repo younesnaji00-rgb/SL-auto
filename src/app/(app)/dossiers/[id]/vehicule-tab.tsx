@@ -11,6 +11,7 @@ import { updateDoc, type DocumentReference } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { DatePicker } from '@/components/ui/date-picker';
 import { useT } from '@/i18n';
+import { INPUT_ID, INPUT_NUMERIC, INPUT_PLATE, INPUT_TEXT } from '@/lib/input-attrs';
 
 export default function VehiculeTab({ dossier, dossierRef }: { dossier: any; dossierRef: DocumentReference }) {
     const { toast } = useToast();
@@ -73,13 +74,13 @@ export default function VehiculeTab({ dossier, dossierRef }: { dossier: any; dos
         <Card>
             <CardHeader><CardTitle>{t('Détails du Véhicule')}</CardTitle></CardHeader>
             <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="space-y-2"><Label>{t('Marque')}</Label><Input value={values.marque} onChange={e => handleChange('marque', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>{t('Modèle')}</Label><Input value={values.modele} onChange={e => handleChange('modele', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>{t('Immatriculation')}</Label><Input value={values.immatriculation} onChange={e => handleChange('immatriculation', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>{t('Numéro de série')}</Label><Input value={values.serie} onChange={e => handleChange('serie', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>{t('Énergie')}</Label><Input value={values.energie} onChange={e => handleChange('energie', e.target.value)} /></div>
-                    <div className="space-y-2"><Label>{t('Puissance fiscale')}</Label><Input value={values.puissance} onChange={e => handleChange('puissance', e.target.value)} /></div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-4">
+                    <div className="space-y-2"><Label>{t('Marque')}</Label><Input {...INPUT_TEXT} autoCapitalize="words" value={values.marque} onChange={e => handleChange('marque', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Modèle')}</Label><Input {...INPUT_TEXT} autoCapitalize="words" value={values.modele} onChange={e => handleChange('modele', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Immatriculation')}</Label><Input {...INPUT_PLATE} className="t-mono" value={values.immatriculation} onChange={e => handleChange('immatriculation', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Numéro de série')}</Label><Input {...INPUT_ID} value={values.serie} onChange={e => handleChange('serie', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Énergie')}</Label><Input {...INPUT_TEXT} value={values.energie} onChange={e => handleChange('energie', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Puissance fiscale')}</Label><Input {...INPUT_NUMERIC} value={values.puissance} onChange={e => handleChange('puissance', e.target.value)} /></div>
                     <div className="space-y-2">
                         <Label>{t('Mise en circ. (Date)')}</Label>
                         <DatePicker 
@@ -87,10 +88,10 @@ export default function VehiculeTab({ dossier, dossierRef }: { dossier: any; dos
                             onChange={(d) => handleChange('mec', d)} 
                         />
                     </div>
-                    <div className="space-y-2"><Label>{t('Kilométrage')}</Label><Input type="number" value={values.km} onChange={e => handleChange('km', e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t('Kilométrage')}</Label><Input {...INPUT_NUMERIC} value={values.km} onChange={e => handleChange('km', e.target.value)} /></div>
                 </div>
-                <div className="flex justify-end">
-                    <Button onClick={handleSave} loading={isSaving}>
+                <div className="flex justify-end max-md:block">
+                    <Button onClick={handleSave} loading={isSaving} className="max-md:h-12 max-md:w-full max-md:text-[15px] max-md:font-semibold">
                         {!isSaving && <Save className="mr-2 h-4 w-4" />}
                         {isSaving ? t('Enregistrement...') : t('Sauvegarder')}
                     </Button>

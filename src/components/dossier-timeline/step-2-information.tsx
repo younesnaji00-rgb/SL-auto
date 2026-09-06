@@ -155,7 +155,7 @@ export default function Step2Information({
       size="sm"
       data-tour="dosd-compare-btn"
       onClick={toggleCompare}
-      className="h-7 gap-1.5 px-2.5 text-xs"
+      className="h-7 gap-1.5 px-2.5 text-xs max-md:h-11 max-md:px-3 max-md:text-[14px]"
     >
       {showCompare ? (
         <X className="h-3.5 w-3.5" />
@@ -313,7 +313,7 @@ export default function Step2Information({
           </div>
           {scanDocs.length > 1 && (
             <Select value={selectedScanId ?? undefined} onValueChange={(v) => setSelectedScanId(v)}>
-              <SelectTrigger className="h-8 w-full text-xs">
+              <SelectTrigger className="h-8 w-full text-xs max-md:h-12 max-md:text-base" aria-label={t('Document source')}>
                 <SelectValue placeholder={t('Sélectionner un scan')} />
               </SelectTrigger>
               <SelectContent>

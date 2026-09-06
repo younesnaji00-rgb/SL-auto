@@ -111,6 +111,15 @@ const ROLE_BADGE_CLASS = 'border-hairline-strong text-ink-2';
 type PhaseATG = 'Avant' | 'En cours' | 'Après';
 type AccordSlot = '1er accord' | '2ème accord ou +';
 
+/**
+ * `sl:new-observation` — the phone record's bottom action bar (E4) asks the
+ * mounted Observations facet to start composing. There is no room on a 390 px
+ * screen for a second « Ajouter » next to a bottom bar, so the bar IS the
+ * affordance: it opens the collapsible if closed, scrolls the composer into
+ * view and focuses the free-text field.
+ */
+export const NEW_OBSERVATION_EVENT = 'sl:new-observation';
+
 type ObservationsTabProps = {
   dossierId: string;
   section: 'dossiers' | 'assignations-atg' | 'assignations-chiffrage';
@@ -170,6 +179,7 @@ export default function ObservationsTab({
   const [customText, setCustomText] = useState('');
   const [pendingProofs, setPendingProofs] = useState<File[]>([]);
   const newProofInputRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Collapsible variant defaults to CLOSED so observations don't dominate the
   // step's vertical space. Unread count below acts as the notification.
@@ -192,6 +202,25 @@ export default function ObservationsTab({
       return 0;
     }
   });
+
+  // Phone bottom action bar → start composing (see NEW_OBSERVATION_EVENT).
+  useEffect(() => {
+    if (!canAdd) return;
+    const onNew = () => {
+      setIsOpen(true);
+      // Two frames: let the collapsible expand before scrolling to the field.
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          const el = composerRef.current;
+          if (!el) return;
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          el.focus({ preventScroll: true });
+        }),
+      );
+    };
+    window.addEventListener(NEW_OBSERVATION_EVENT, onNew);
+    return () => window.removeEventListener(NEW_OBSERVATION_EVENT, onNew);
+  }, [canAdd]);
 
   // Mark as seen when the user opens the panel — clears the badge.
   useEffect(() => {
@@ -610,6 +639,7 @@ export default function ObservationsTab({
             </div>
           )}
           <Textarea
+            ref={composerRef}
             value={customText}
             onChange={(e) => setCustomText(e.target.value)}
             placeholder={t('Ou écrivez une observation personnalisée…')}

@@ -74,14 +74,40 @@ function DatePickerButton({ value, onChange, placeholder }: { value: string; onC
   );
 }
 
+/**
+ * Mobile pass 2026-09-06 (mobile-synthesis §5): a popover calendar is a
+ * fine-pointer control. Below md the same two values are edited with NATIVE
+ * `<input type="date">` fields — 48 px, 16 px text, two columns — so the OS
+ * picker does the work and nothing opens on top of a bottom sheet.
+ */
+function NativeDateField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="flex min-w-0 flex-1 flex-col gap-1">
+      <span className="t-label">{label}</span>
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-12 w-full rounded-md border border-input bg-card px-3 text-[16px] text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+    </label>
+  );
+}
+
 export function DateRangeFilter({ dateFrom, dateTo, onDateFromChange, onDateToChange }: DateRangeFilterProps) {
   const t = useT();
   return (
-    <div className="flex items-center gap-2">
-      <span className="t-label whitespace-nowrap">{t('Du')}</span>
-      <DatePickerButton value={dateFrom} onChange={onDateFromChange} placeholder={t('Début')} />
-      <span className="t-label whitespace-nowrap">{t('Au')}</span>
-      <DatePickerButton value={dateTo} onChange={onDateToChange} placeholder={t('Fin')} />
-    </div>
+    <>
+      <div className="flex items-center gap-2 max-md:hidden">
+        <span className="t-label whitespace-nowrap">{t('Du')}</span>
+        <DatePickerButton value={dateFrom} onChange={onDateFromChange} placeholder={t('Début')} />
+        <span className="t-label whitespace-nowrap">{t('Au')}</span>
+        <DatePickerButton value={dateTo} onChange={onDateToChange} placeholder={t('Fin')} />
+      </div>
+      <div className="flex w-full items-end gap-3 md:hidden">
+        <NativeDateField label={t('Du')} value={dateFrom} onChange={onDateFromChange} />
+        <NativeDateField label={t('Au')} value={dateTo} onChange={onDateToChange} />
+      </div>
+    </>
   );
 }

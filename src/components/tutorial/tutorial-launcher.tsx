@@ -152,6 +152,16 @@ function useLauncherPosition() {
  * interrupted run on the current page, or starts the lab from the sidebar
  * intro when there is nothing to resume.
  */
+/**
+ * Start the guided tour from anywhere (mobile pass 2026-09-06): on phones the
+ * floating « ? » button is gone, so the « Plus » sheet and the Profil page
+ * call this instead. The mounted launcher listens for the event.
+ */
+export function openTutorial() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('sl:tutorial-open'));
+}
+
 export function TutorialLauncher() {
   const pathname = usePathname();
   const t = useT();
@@ -472,6 +482,17 @@ export function TutorialLauncher() {
     start();
   };
 
+  // Phones (mobile pass 2026-09-06): the floating button is gone — a corner
+  // FAB is the least accurate target on a phone (Hoober: ~12 mm vs 7 mm at the
+  // centre) and it fought the bottom bar and the toasts for that corner. The
+  // tour is reached from a row in the « Plus » sheet / Profil instead, which
+  // dispatches this event.
+  useEffect(() => {
+    const open = () => start();
+    window.addEventListener('sl:tutorial-open', open);
+    return () => window.removeEventListener('sl:tutorial-open', open);
+  });
+
   // Arrow keys nudge the button while it has focus — the drag equivalent for
   // anyone who cannot use a pointer. Shift makes it a coarse jump.
   const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -561,7 +582,11 @@ export function TutorialLauncher() {
         className={cn(
           'fixed z-[70] h-11 w-11 rounded-full shadow-lg',
           'bg-primary text-primary-foreground transition hover:opacity-90',
-          'grid place-items-center touch-none select-none print:hidden',
+          // Phones: no floating corner button (a corner is the least accurate
+          // target — Hoober ~12 mm vs 7 mm at the centre — and it fought the
+          // bottom bar and the toasts). The tour is a row in the « Plus » /
+          // Profil sheet, which fires `sl:tutorial-open`.
+          'hidden place-items-center touch-none select-none print:hidden md:grid',
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           dragging ? 'scale-105 cursor-grabbing shadow-xl' : 'cursor-grab active:scale-95',
           // Only the never-moved default corner is laid out by CSS; a parked

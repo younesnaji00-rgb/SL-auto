@@ -37,7 +37,10 @@ export function DossierKpiStrip({
   dataTour?: string;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-4 xl:grid-cols-4" data-tour={dataTour}>
+    // Phones: 2-up with a 12 px gutter and a 36 px figure (mobile-synthesis
+    // §7 — headline count tiles are the page's triage answer, so they get the
+    // hero size; ≥ md the strip keeps its 24 px desktop figure).
+    <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4" data-tour={dataTour}>
       {tiles.map((t) => (
         <Card
           key={t.key}
@@ -54,11 +57,12 @@ export function DossierKpiStrip({
           >
             <span className="t-label block">{t.label}</span>
             {loading ? (
-              <Skeleton className="mt-1 h-7 w-14" />
+              <Skeleton className="mt-1 h-9 w-16 md:h-7 md:w-14" />
             ) : (
               <span
                 className={cn(
-                  'mt-0.5 block text-2xl font-semibold leading-tight',
+                  'mt-0.5 block text-[36px] leading-none md:text-2xl md:leading-tight',
+                  'font-semibold tabular-nums',
                   t.danger && t.value > 0 ? 'text-status-danger-fg' : 'text-ink',
                 )}
               >

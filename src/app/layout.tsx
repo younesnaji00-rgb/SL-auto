@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Outfit, Inter } from 'next/font/google';
 import './globals.css';
+import './mobile.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
@@ -65,10 +66,15 @@ export default function RootLayout({
         {/* Density zoom (DESIGN.md §6): 0.9 on 1080p monitors, 1.1 on 1440p,
             1 elsewhere — from the PHYSICAL screen height so OS scaling and
             browser zoom don't fool it. Runs before paint; re-evaluated on
-            resize (window moved to another monitor). */}
+            resize (window moved to another monitor).
+            MONITORS ONLY (mobile pass 2026-09-06): a 1080p phone held in
+            landscape reports screen.height × dpr ≈ 1080 and got the 0.9 desk
+            zoom, shrinking every touch target; tablets are similar. The tiers
+            now require a fine pointer + hover (a mouse) and a ≥ 1024 px
+            viewport — touch devices always stay at 1. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){function z(){var d=window.devicePixelRatio||1;var h=Math.round(screen.height*d);var v=1;if(Math.abs(h-1080)<=8)v=0.9;else if(Math.abs(h-1440)<=8)v=1.1;document.documentElement.style.setProperty('--app-zoom',String(v));}z();window.addEventListener('resize',z);})();`,
+            __html: `(function(){function z(){var v=1;try{var m=window.matchMedia('(hover: hover) and (pointer: fine) and (min-width: 1024px)');if(m.matches){var d=window.devicePixelRatio||1;var h=Math.round(screen.height*d);if(Math.abs(h-1080)<=8)v=0.9;else if(Math.abs(h-1440)<=8)v=1.1;}}catch(e){}document.documentElement.style.setProperty('--app-zoom',String(v));}z();window.addEventListener('resize',z);})();`,
           }}
         />
         {/* Light by default, and the OS preference does NOT get a vote

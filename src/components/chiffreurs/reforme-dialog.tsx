@@ -23,6 +23,7 @@ import { generateReformeSummaryPDF } from '@/lib/generate-reforme-summary-pdf';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { useT } from '@/i18n';
+import { INPUT_DECIMAL } from '@/lib/input-attrs';
 
 export interface ReformeDialogProps {
   dossierId: string;
@@ -210,7 +211,13 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
       {/* Dialog — element-specs §13 (M3 dialogs: brief headline + one-line
           supporting text; the confirm is closest to the edge with the
           dismissive `outline` to its left; never more than two actions). */}
-      <DialogContent hideCloseButton className="max-h-[calc(90vh/var(--app-zoom))] overflow-y-auto lg:max-w-3xl">
+      <DialogContent
+        hideCloseButton
+        // Ten amount fields + a picker -> the full-screen phone form (D 2).
+        fullScreen
+        primary={{ label: t("Déposer le dossier"), onClick: handleSave, disabled: loading, loading: saving }}
+        className="max-h-[calc(90vh/var(--app-zoom))] overflow-y-auto lg:max-w-3xl"
+      >
         <DialogHeader>
           <DialogTitle className="t-title">{t("Réforme")}</DialogTitle>
           <DialogDescription className="t-caption">
@@ -236,7 +243,7 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
                   value={state.typeReforme || 'Technique'}
                   onValueChange={(v) => set('typeReforme', v)}
                 >
-                  <SelectTrigger id="typeReforme" className="mt-1 h-10"><SelectValue placeholder={t("Choisir")} /></SelectTrigger>
+                  <SelectTrigger id="typeReforme" className="mt-1 h-10 max-md:h-12" aria-label={t("Type de réforme")}><SelectValue placeholder={t("Choisir")} /></SelectTrigger>
                   <SelectContent>
                     {REFORME_TYPES.map((rt) => (
                       <SelectItem key={rt} value={rt}>{t(rt)}</SelectItem>
@@ -271,10 +278,10 @@ export function ReformeDialog({ dossierId, open, onOpenChange }: ReformeDialogPr
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className="max-md:hidden">
             {t('Annuler')}
           </Button>
-          <Button onClick={handleSave} loading={saving} disabled={loading}>
+          <Button onClick={handleSave} loading={saving} disabled={loading} className="max-md:h-12 max-md:text-[15px] max-md:font-semibold">
             {t("Déposer le dossier")}
           </Button>
         </DialogFooter>
@@ -294,8 +301,9 @@ function NumberField({
       <Label htmlFor={id} className="t-label">{label}</Label>
       <Input
         id={id}
-        type="number"
-        inputMode="decimal"
+        // GOV.UK: "Do not use <input type='number'>" - the decimal pad
+        // comes from inputmode, and a wheel can no longer change an amount.
+        {...INPUT_DECIMAL}
         className="mt-1 tabular-nums"
         value={Number.isFinite(value) ? value : 0}
         onChange={(e) => onChange(parse(e.target.value))}

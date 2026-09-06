@@ -20,6 +20,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Segmented } from '@/components/ui/segmented';
+import { INPUT_EMAIL, INPUT_LAST, INPUT_NAME, INPUT_TEL } from '@/lib/input-attrs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -136,6 +138,13 @@ export function CreateDossierDialog({
     setExperts((prev) => ({ ...prev, [role]: { ...prev[role], [field]: value } }));
   };
 
+  // Unsaved work (§2.5): only a typed expert detail or a changed compagnie /
+  // rôle counts — an untouched dialog closes without a question.
+  const isDirty =
+    compagnie !== (initialCompagnie || NONE_VALUE) ||
+    expertRole !== '1er' ||
+    Object.values(experts).some((e) => e.nom || e.telephone || e.email || e.compagnie);
+
   const handleConfirm = async () => {
     const fbUser = auth?.currentUser;
     if (!fbUser || !db) {
@@ -199,7 +208,16 @@ export function CreateDossierDialog({
       {/* Dialog — element-specs §13 (M3 dialogs: brief headline + one line of
           supporting text; ≤ 560 px for a form; confirm at the edge with the
           dismissive `outline` to its left; bottom sheet below `lg`). */}
-      <DialogContent className="max-h-[calc(85vh/var(--app-zoom))] overflow-y-auto lg:max-w-lg" {...tourDialogGuard()}>
+      <DialogContent
+        // A Select, a radio group and 4–12 text fields → full-screen on a
+        // phone (research §2.4: > 3 controls or a picker).
+        fullScreen
+        primary={{ label: t('Créer'), onClick: handleConfirm, loading: isCreating }}
+        dirty={isDirty}
+        onDiscard={resetForm}
+        className="max-h-[calc(85vh/var(--app-zoom))] overflow-y-auto lg:max-w-lg"
+        {...tourDialogGuard()}
+      >
         <DialogHeader>
           <DialogTitle className="t-title">{t('Nouveau dossier')}</DialogTitle>
           <DialogDescription>
@@ -232,12 +250,27 @@ export function CreateDossierDialog({
           </div>
 
           <div className="grid gap-1" data-tour="dos-create-role">
-            <Label>{t('Rôle')}</Label>
+            <Label id="create-role-label">{t('Rôle')}</Label>
+            {/* Three exclusive, short options: a segmented control on touch
+                (M3 "2 to 5 options"; LukeW "dropdowns are the UI of last
+                resort"), the rimmed radio cards on a desk. */}
+            <Segmented
+              className="md:hidden"
+              aria-labelledby="create-role-label"
+              disabled={isCreating}
+              value={expertRole}
+              onValueChange={(v) => setExpertRole(v as ExpertRole)}
+              options={(['1er', '2eme', 'arbitre'] as ExpertRole[]).map((role) => ({
+                value: role,
+                label: t(EXPERT_ROLE_LABELS[role]),
+                labelText: t(EXPERT_ROLE_LABELS[role]),
+              }))}
+            />
             <RadioGroup
               value={expertRole}
               onValueChange={(v) => setExpertRole(v as ExpertRole)}
               disabled={isCreating}
-              className="grid gap-2"
+              className="hidden gap-2 md:grid"
             >
               {(['1er', '2eme', 'arbitre'] as ExpertRole[]).map((role) => (
                 <label
@@ -261,11 +294,14 @@ export function CreateDossierDialog({
               className="grid gap-4 rounded-lg bg-surface-2 p-4"
             >
               <h3 className="t-heading">{t(EXPERT_ROLE_LABELS[role])}</h3>
+              {/* Single column below sm; the desktop 2-up grid stays.
+                  Order per §2.4: Nom → Téléphone → Email → Compagnie. */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-1">
                   <Label htmlFor={`${role}-nom`}>{t('Nom complet')}</Label>
                   <Input
                     id={`${role}-nom`}
+                    {...INPUT_NAME}
                     value={experts[role].nom}
                     onChange={(e) => updateExpert(role, 'nom', e.target.value)}
                     disabled={isCreating}
@@ -275,7 +311,7 @@ export function CreateDossierDialog({
                   <Label htmlFor={`${role}-telephone`}>{t('Téléphone')}</Label>
                   <Input
                     id={`${role}-telephone`}
-                    type="tel"
+                    {...INPUT_TEL}
                     placeholder={BRAND.phonePlaceholder}
                     value={experts[role].telephone}
                     onChange={(e) => updateExpert(role, 'telephone', e.target.value)}
@@ -286,7 +322,7 @@ export function CreateDossierDialog({
                   <Label htmlFor={`${role}-email`}>{t('Email')}</Label>
                   <Input
                     id={`${role}-email`}
-                    type="email"
+                    {...INPUT_EMAIL}
                     value={experts[role].email}
                     onChange={(e) => updateExpert(role, 'email', e.target.value)}
                     disabled={isCreating}
@@ -296,6 +332,8 @@ export function CreateDossierDialog({
                   <Label htmlFor={`${role}-compagnie`}>{t('Compagnie')}</Label>
                   <Input
                     id={`${role}-compagnie`}
+                    {...INPUT_NAME}
+                    {...INPUT_LAST}
                     value={experts[role].compagnie}
                     onChange={(e) => updateExpert(role, 'compagnie', e.target.value)}
                     disabled={isCreating}
@@ -309,10 +347,10 @@ export function CreateDossierDialog({
         {/* Footer §13: [Annuler outline] [Créer default] — the dismissive
             action stays visible (outline, not ghost). */}
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
+          <Button variant="outline" onClick={handleCancel} disabled={isCreating} className="max-md:hidden">
             {t('Annuler')}
           </Button>
-          <Button onClick={handleConfirm} loading={isCreating} data-tour="dos-create-submit">
+          <Button onClick={handleConfirm} loading={isCreating} data-tour="dos-create-submit" className="max-md:h-12 max-md:text-[15px] max-md:font-semibold">
             {t('Créer')}
           </Button>
         </DialogFooter>

@@ -406,7 +406,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
         <Button
           type="button"
           variant={emphasis === 'primary' ? 'default' : 'tonal'}
-          className={cn('h-10 gap-2 px-4 font-semibold', dragging && 'ring-2 ring-primary/50')}
+          className={cn('h-11 gap-2 px-4 font-semibold md:h-10', dragging && 'ring-2 ring-primary/50')}
           disabled={busy}
           onClick={() => inputRef.current?.click()}
           onDragOver={(e) => { e.preventDefault(); if (!draggingItemId) setDragging(true); }}
@@ -448,7 +448,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
             onClick={() => inputRef.current?.click()}
             title={t(c.description)}
             className={cn(
-              'h-7 rounded-full border px-2.5 text-xs transition-colors',
+              'h-8 rounded-full border px-3 text-xs transition-colors md:h-7 md:px-2.5',
               chipOver === c.label ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:text-foreground',
               draggingItemId && 'border-dashed',
             )}
@@ -520,7 +520,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
                       )}
                       {it.confirmed && <Check className="h-4 w-4 shrink-0 text-status-success-fg" aria-label={t('Confirmé')} />}
                       <Select value={DOC_CLASS_LABELS.includes(it.type) ? it.type : UNCLASSIFIED_LABEL} onValueChange={(v) => reclassify(it, v)}>
-                        <SelectTrigger className="h-8 w-[200px] shrink-0 text-xs" aria-label={`${t('Classe de')} ${it.file.name}`}>
+                        <SelectTrigger className="h-12 w-[200px] shrink-0 text-xs md:h-8" aria-label={`${t('Classe de')} ${it.file.name}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -533,7 +533,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
                     </>
                   )}
                   {(it.status === 'uploading' || it.status === 'classifying') && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />}
-                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground" onClick={() => removeFromList(it.id)} aria-label={t('Retirer de la liste')} title={t('Retirer de la liste (le document reste dans le dossier)')}>
+                  <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground md:h-7 md:w-7" onClick={() => removeFromList(it.id)} aria-label={t('Retirer de la liste')} title={t('Retirer de la liste (le document reste dans le dossier)')}>
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </li>
@@ -547,12 +547,12 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
             </p>
             <div className="flex items-center gap-2">
               {onPrefill && (
-                <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" disabled={prefillCandidates.length === 0 || !!prefilling || busy} onClick={handlePrefill}>
+                <Button type="button" size="sm" variant="outline" className="h-11 gap-1.5 md:h-8" disabled={prefillCandidates.length === 0 || !!prefilling || busy} onClick={handlePrefill}>
                   {prefilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanSearch className="h-3.5 w-3.5" />}
                   {t('Pré-remplir les informations')}{prefillCandidates.length > 0 ? ` (${prefillCandidates.length})` : ''}
                 </Button>
               )}
-              <Button type="button" size="sm" className="h-8 gap-1.5" disabled={unconfirmed === 0 || validating || busy} onClick={validateAll}>
+              <Button type="button" size="sm" className="h-11 gap-1.5 md:h-8" disabled={unconfirmed === 0 || validating || busy} onClick={validateAll}>
                 {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                 {t('Tout valider')}
               </Button>

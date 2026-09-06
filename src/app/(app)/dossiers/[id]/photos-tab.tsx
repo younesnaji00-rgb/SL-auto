@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { format as dateFormat } from 'date-fns';
+import { format as dateFormat, startOfDay } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import {
   Upload,
@@ -52,6 +52,25 @@ import {
 import { logHistorique, logWorkflow } from './log-historique';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { PhotoGrid, PhotoGroup } from '@/components/common/photo-grid';
+import CameraCapture from '@/components/camera-capture';
+import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
+
+// Re-exported so the field-agent mission page and any other host import the
+// gallery from one place (the grid itself lives in `components/common`).
+export { PhotoGrid, PhotoGroup } from '@/components/common/photo-grid';
+
+/**
+ * `sl:capture-photos` — the record page's bottom action bar (owned by the
+ * shell) asks the mounted Photos facet to open the in-app camera. `detail`
+ * carries the section the bar is looking at; a facet mounted on another
+ * section ignores it. Documented here because this file is the only listener.
+ */
+export const CAPTURE_PHOTOS_EVENT = 'sl:capture-photos';
+export interface CapturePhotosEventDetail {
+  category?: PhotoCategory;
+}
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -179,6 +198,7 @@ export default function PhotosTab({
   // have their own tab, so date/location groups open EXPANDED by default.
   const defaultGroupsOpen = Boolean(onlyCategory);
   const t = useT();
+  const isPhone = useIsPhone();
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -230,6 +250,10 @@ export default function PhotosTab({
   // `location` field if available, otherwise by a ~100 m lat/lng bucket, and
   // photos without location fall under "Sans localisation".
   const [partitionMode, setPartitionMode] = useState<PartitionMode>('date');
+  // Phone: the section that the in-app camera is currently shooting into.
+  const [cameraCategory, setCameraCategory] = useState<PhotoCategory | null>(null);
+  // Phone: collapsed/expanded state of the day / location groups.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const fileInputRefs = useRef<Record<PhotoCategory, HTMLInputElement | null>>({
     avant: null,
@@ -271,7 +295,25 @@ export default function PhotosTab({
         return tB - tA;
       });
 
-  const handleUpload = async (cat: PhotoCategory, files: FileList) => {
+  // The record page's bottom action bar (phone) asks this facet to open the
+  // camera. Only the facet that actually shows that section answers, so the
+  // event is safe to broadcast on `window`.
+  useEffect(() => {
+    if (!canEdit) return;
+    const onCapture = (e: Event) => {
+      const detail = (e as CustomEvent<CapturePhotosEventDetail>).detail;
+      const wanted = detail?.category ?? onlyCategory ?? initialCategory ?? 'avant';
+      if (!visibleCategories.some((c) => c.id === wanted)) return;
+      setCameraCategory(wanted);
+    };
+    window.addEventListener(CAPTURE_PHOTOS_EVENT, onCapture as EventListener);
+    return () => window.removeEventListener(CAPTURE_PHOTOS_EVENT, onCapture as EventListener);
+    // `visibleCategories` is derived from the two props below, so listing them
+    // keeps the listener in step without re-subscribing on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canEdit, onlyCategory, initialCategory]);
+
+  const handleUpload = async (cat: PhotoCategory, files: FileList | File[]) => {
     if (!storage || !db) return;
     const userEmail = auth?.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'unknown';
@@ -475,7 +517,9 @@ export default function PhotosTab({
 
           {!photo.pendingUpload && (
             <div
-              className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+              // The scrim is a hover affordance only; on touch the tile is
+              // still tappable through the transparent layer.
+              className="absolute inset-0 bg-black/40 opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
               onClick={() => setPreviewPhoto(photo)}
             >
               <Eye className="h-6 w-6 text-white" />
@@ -483,7 +527,9 @@ export default function PhotosTab({
           )}
 
           {!isEditing && (
-            <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            // Hover-revealed on a mouse, permanently visible on a coarse
+            // pointer (mobile-synthesis §3: no hover-only controls on touch).
+            <div className="absolute top-2 right-2 flex flex-col gap-1.5 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity z-10">
               <Button
                 size="icon"
                 variant="secondary"
@@ -575,6 +621,79 @@ export default function PhotosTab({
     );
   };
 
+  /**
+   * PHONE gallery (E7). Same two partitions as the desktop, but each group is
+   * a 44 px disclosure row over a 3-column `PhotoGrid` — no file-name caption,
+   * no hover actions, count in the header. Groups start expanded inside a step
+   * facet (the phase is already named by the step) and collapsed elsewhere.
+   */
+  const renderPhoneGroups = (catPhotos: Photo[]) => {
+    type Group = { key: string; label: string; items: Photo[] };
+    const groups: Group[] = [];
+    const byKey = new Map<string, Group>();
+    const push = (key: string, label: string, photo: Photo) => {
+      let g = byKey.get(key);
+      if (!g) {
+        g = { key, label, items: [] };
+        byKey.set(key, g);
+        groups.push(g);
+      }
+      g.items.push(photo);
+    };
+    if (partitionMode === 'location') {
+      catPhotos.forEach((photo) => {
+        const { key, label } = locationBucket(photo);
+        push(key, key === '__unknown__' ? t('Sans localisation') : label, photo);
+      });
+      groups.sort((a, b) => {
+        if (a.key === '__unknown__') return 1;
+        if (b.key === '__unknown__') return -1;
+        return a.label.localeCompare(b.label, 'fr');
+      });
+    } else {
+      catPhotos.forEach((photo) => {
+        const d = photo.uploadedAt?.toDate ? photo.uploadedAt.toDate() : null;
+        if (!d || isNaN(d.getTime())) {
+          push('__undated__', t('Sans date'), photo);
+          return;
+        }
+        const day = startOfDay(d);
+        push(String(day.getTime()), dateFormat(day, 'd MMMM yyyy', { locale: dateFnsLocale() }), photo);
+      });
+      groups.sort((a, b) => {
+        if (a.key === '__undated__') return 1;
+        if (b.key === '__undated__') return -1;
+        return Number(b.key) - Number(a.key);
+      });
+    }
+    return (
+      <div className="-mx-1">
+        {groups.map((g) => (
+          <PhotoGroup
+            key={g.key}
+            label={g.label}
+            count={g.items.length}
+            open={openGroups[g.key] ?? defaultGroupsOpen}
+            onToggle={() => setOpenGroups((prev) => ({ ...prev, [g.key]: !(prev[g.key] ?? defaultGroupsOpen) }))}
+          >
+            <PhotoGrid
+              photos={g.items}
+              onOpen={(photo) => setPreviewPhoto(photo)}
+              renderBadge={(photo) => {
+                const status = hl.statusForEntry('photos', photo.id);
+                return status ? (
+                  <span className="pointer-events-none absolute left-1 top-1 z-10 rounded bg-card/90 px-1">
+                    <ChangeBadge status={status} />
+                  </span>
+                ) : null;
+              }}
+            />
+          </PhotoGroup>
+        ))}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-sm text-ink-3">
@@ -624,6 +743,15 @@ export default function PhotosTab({
                 </h3>
                 )}
                 <div className="flex items-center gap-2">
+                  {/*
+                    TWO EXPLICIT AFFORDANCES (mobile-forms-inputs §2.8; MDN on
+                    `capture`): « Prendre des photos » goes to the in-app
+                    camera, « Importer » to the OS sheet. This input carries NO
+                    `capture` attribute on purpose — with it, Android drops the
+                    gallery and only offers the camera, which is exactly the
+                    ambiguity this pass removes. The old single « Ajouter »
+                    button that used to sit on this input is gone.
+                  */}
                   <input
                     type="file"
                     accept="image/*"
@@ -635,20 +763,33 @@ export default function PhotosTab({
                     onChange={(e) => e.target.files && handleUpload(cat.id, e.target.files)}
                   />
                   {canEdit && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-8 text-xs gap-2"
-                      disabled={isUploading === cat.id}
-                      onClick={() => fileInputRefs.current[cat.id]?.click()}
-                    >
-                      {isUploading === cat.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Upload className="h-3.5 w-3.5" />
-                      )}
-                      {t('Ajouter')}
-                    </Button>
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size={isPhone ? 'default' : 'sm'}
+                        className={isPhone ? 'h-11 gap-2 px-3 text-[14px]' : 'h-8 gap-2 text-xs'}
+                        disabled={isUploading === cat.id}
+                        onClick={() => fileInputRefs.current[cat.id]?.click()}
+                      >
+                        {isUploading === cat.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Upload className="h-3.5 w-3.5" />
+                        )}
+                        {t('Importer')}
+                      </Button>
+                      <Button
+                        type="button"
+                        size={isPhone ? 'default' : 'sm'}
+                        className={isPhone ? 'h-11 gap-2 px-3 text-[14px]' : 'h-8 gap-2 text-xs'}
+                        disabled={isUploading === cat.id || catPhotos.length >= photoCap}
+                        onClick={() => setCameraCategory(cat.id)}
+                      >
+                        <Camera className="h-3.5 w-3.5" />
+                        {t('Prendre des photos')}
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -665,36 +806,49 @@ export default function PhotosTab({
                 <div
                   className={cn(
                     'flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-hairline-strong py-16 text-center',
-                    canEdit && 'cursor-pointer transition-colors hover:bg-surface-2',
+                    // On touch the whole-panel click is ambiguous (import? camera?)
+                    // — the explicit button below is the only pathway.
+                    canEdit && !isPhone && 'cursor-pointer transition-colors hover:bg-surface-2',
                   )}
-                  onClick={() => canEdit && fileInputRefs.current[cat.id]?.click()}
+                  onClick={() => canEdit && !isPhone && fileInputRefs.current[cat.id]?.click()}
                 >
-                  <ImageIcon className="h-12 w-12 text-ink-4" />
+                  {isPhone ? <Camera className="h-12 w-12 text-ink-4" /> : <ImageIcon className="h-12 w-12 text-ink-4" />}
                   <div>
                     <p className="t-heading">{t('Aucune photo')}</p>
-                    {canEdit && <p className="t-caption mt-1">{t('Déposez ou sélectionnez des photos pour cette section.')}</p>}
+                    {canEdit && (
+                      <p className="t-caption mt-1">
+                        {isPhone
+                          ? t('Prenez la première photo de cette section.')
+                          : t('Déposez ou sélectionnez des photos pour cette section.')}
+                      </p>
+                    )}
                   </div>
                   {canEdit && (
                     <Button
                       type="button"
-                      size="sm"
+                      size={isPhone ? 'default' : 'sm'}
                       variant="outline"
-                      className="h-8 text-xs gap-2"
+                      className={isPhone ? 'h-11 gap-2 px-3 text-[14px]' : 'h-8 gap-2 text-xs'}
                       disabled={isUploading === cat.id}
                       onClick={(e) => {
                         e.stopPropagation();
-                        fileInputRefs.current[cat.id]?.click();
+                        if (isPhone) setCameraCategory(cat.id);
+                        else fileInputRefs.current[cat.id]?.click();
                       }}
                     >
                       {isUploading === cat.id ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : isPhone ? (
+                        <Camera className="h-3.5 w-3.5" />
                       ) : (
                         <Upload className="h-3 w-3" />
                       )}
-                      {t('Ajouter')}
+                      {isPhone ? t('Prendre des photos') : t('Ajouter')}
                     </Button>
                   )}
                 </div>
+              ) : isPhone ? (
+                renderPhoneGroups(catPhotos)
               ) : partitionMode === 'location' ? (
                 <PhotosByLocation
                   photos={catPhotos}
@@ -724,7 +878,53 @@ export default function PhotosTab({
           react-zoom-pan-pinch. Per Q-9 A photo opens fit-to-screen; per
           Q-10 A zoom buttons live in a bottom-center floating toolbar;
           per Q-6 A the X close button sits top-right. */}
-      {previewPhoto && (previewMeasured || previewWasOpenRef.current) && (() => {
+      {/* PHONE preview (E8): the shared full-screen lightbox — pinch zoom,
+          swipe across the siblings of the same section, and Télécharger /
+          Supprimer in the header's « ⋯ ». Deleting a photo happens HERE and
+          nowhere else on touch (no hover-revealed tile action). */}
+      {isPhone && previewPhoto && (() => {
+        const siblings = photosForCategory(previewPhoto.category).filter((p) => !!p.url);
+        const toDoc = (p: Photo) => ({ url: p.url, nom: p.name });
+        return (
+          <DocumentPreviewLightbox
+            doc={toDoc(previewPhoto)}
+            pages={siblings.map(toDoc)}
+            onPageChange={(d) => {
+              const next = siblings.find((p) => p.url === d.url);
+              if (next) setPreviewPhoto(next);
+            }}
+            onClose={() => setPreviewPhoto(null)}
+            onDownload={() => handleDownload(previewPhoto)}
+            onDelete={
+              canEdit
+                ? () => {
+                    if (!window.confirm(t('Supprimer cette photo ?'))) return;
+                    setPreviewPhoto(null);
+                    void handleDelete(previewPhoto);
+                  }
+                : undefined
+            }
+          />
+        );
+      })()}
+
+      {/* In-app camera (E7). `maxCaptures` is the remaining room in the
+          section, so the shutter hard-stops instead of the uploader silently
+          dropping the excess. */}
+      {cameraCategory && (
+        <CameraCapture
+          open
+          onClose={() => setCameraCategory(null)}
+          onConfirm={(files) => {
+            const cat = cameraCategory;
+            setCameraCategory(null);
+            if (cat && files.length > 0) void handleUpload(cat, files);
+          }}
+          maxCaptures={Math.max(0, photoCap - photosForCategory(cameraCategory).length)}
+        />
+      )}
+
+      {!isPhone && previewPhoto && (previewMeasured || previewWasOpenRef.current) && (() => {
         previewWasOpenRef.current = true;
         const siblings = photosForCategory(previewPhoto.category);
         const currentIdx = siblings.findIndex((p) => p.id === previewPhoto.id);

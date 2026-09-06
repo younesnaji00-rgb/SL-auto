@@ -206,7 +206,20 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[calc(85vh/var(--app-zoom))] flex flex-col" {...tourDialogGuard()}>
+      <DialogContent
+        // A picker + a file summary + a send action: the full-screen phone
+        // form (D §2), not a 60 dvh sheet the chiffreur list opens over.
+        fullScreen
+        primary={{
+          label: sent ? t('Envoyé') : `${t('Envoyer')} (${totalFileCount})`,
+          onClick: handleAssign,
+          disabled: sent || isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0,
+          loading: isSubmitting,
+        }}
+        dirty={!!selectedChiffreurId && !sent}
+        className="sm:max-w-[550px] max-h-[calc(85vh/var(--app-zoom))] flex flex-col"
+        {...tourDialogGuard()}
+      >
         <DialogHeader>
           <DialogTitle>{t('Envoyer vers Chiffrage')}</DialogTitle>
           <DialogDescription>
@@ -214,7 +227,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4 flex-1 overflow-hidden">
+        <div className="grid gap-4 py-4 flex-1 max-md:overflow-visible md:overflow-hidden">
           {/* Chiffreur selection */}
           <div className="space-y-2" data-tour="chif-choose">
             <Label>{t('Chiffreur responsable')}</Label>
@@ -258,9 +271,11 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
           </div>
         </div>
 
+        {/* Phones: « Annuler » is the header « × »; the primary repeats at the
+            end of the body as a 48 px full-width button (§2.5). */}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>{t('Annuler')}</Button>
-          <Button data-tour="chif-send" onClick={handleAssign} disabled={sent || isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting} className="max-md:hidden">{t('Annuler')}</Button>
+          <Button data-tour="chif-send" className="max-md:h-12 max-md:text-[15px] max-md:font-semibold" onClick={handleAssign} disabled={sent || isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0}>
             {sent ? <Check className="mr-2 h-4 w-4" /> : isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
             {sent ? t('Envoyé') : `${t('Envoyer')} (${totalFileCount})`}
           </Button>

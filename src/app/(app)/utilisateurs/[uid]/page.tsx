@@ -95,6 +95,8 @@ import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { UserRecordSkeleton } from './loading';
+import { RecordList, RecordRow } from '@/components/ui/record-row';
+import { StatusChip } from '@/components/ui/status-chip';
 
 // Status chip helper — element-specs §11 (Carbon tag / dataviz: one helper per
 // domain so the same state always maps to the same status pair; label always).
@@ -1035,7 +1037,27 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                 // column = the human identifier, row = link with the chevron at
                 // the row end; Carbon: sticky header). The table sits in the card
                 // without a second frame (§5) — it bleeds to the card edges.
-                <div className="-mx-6 -mb-6 border-t border-hairline">
+                <>
+                {/* Phone (mobile pass 2026-09-06): a record queue is a row
+                    list, never a table panned sideways — line 1 réf + statut,
+                    line 2 assuré · nature. The whole row opens the dossier. */}
+                <RecordList ariaLabel={t('Dossiers assignés')} className="-mx-6 -mb-6 border-t border-hairline md:hidden">
+                  {assignedDossiers.map((d: any) => {
+                    const assureName = typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`.trim();
+                    return (
+                      <RecordRow
+                        key={d.id}
+                        href={`/dossiers/${d.id}`}
+                        id={d.refExpert || '—'}
+                        figure={<StatusChip status={d.statut || 'Nouveau'} />}
+                        primary={assureName || '—'}
+                        secondary={d.nature ? t(d.nature) : undefined}
+                        ariaLabel={`${t('Ouvrir le dossier')} ${d.refExpert || ''}`}
+                      />
+                    );
+                  })}
+                </RecordList>
+                <div className="-mx-6 -mb-6 hidden border-t border-hairline md:block">
                   <Table regionLabel={t('Dossiers assignés')}>
                     <TableHeader>
                       <TableRow>
@@ -1068,6 +1090,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                     </TableBody>
                   </Table>
                 </div>
+                </>
               )}
             </CardContent>
           </Card>

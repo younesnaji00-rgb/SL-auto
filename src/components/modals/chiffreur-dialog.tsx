@@ -37,6 +37,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
 import { BRAND } from "@/lib/brand";
+import { INPUT_EMAIL, INPUT_NAME, INPUT_TEL } from "@/lib/input-attrs";
 
 const EMPTY_FORM = { nom: "", email: "", phone: "", active: true };
 
@@ -143,7 +144,17 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
 
         {/* Dialog — element-specs §13 (M3: confirm at the edge, dismissive
             `outline` to its left, ≤ 560 px for forms). */}
-        <DialogContent className="lg:max-w-lg">
+        <DialogContent
+          // Four controls + an inline list -> full-screen on a phone (D 2).
+          fullScreen
+          primary={{
+            label: editTarget ? t('Mettre à jour') : t('Ajouter'),
+            onClick: handleSave,
+            loading: saving,
+          }}
+          dirty={!!(form.nom || form.email || form.phone)}
+          className="lg:max-w-lg"
+        >
           <DialogHeader>
             <DialogTitle className="t-title">
               {editTarget ? t('Modifier le chiffreur') : t('Nouveau chiffreur')}
@@ -158,6 +169,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
               <Label htmlFor="chiffreur-nom" className="t-label">{t('Nom')} *</Label>
               <Input
                 id="chiffreur-nom"
+                {...INPUT_NAME}
                 className="mt-1"
                 value={form.nom}
                 onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))}
@@ -167,7 +179,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
               <Label htmlFor="chiffreur-email" className="t-label">{t('Email')}</Label>
               <Input
                 id="chiffreur-email"
-                type="email"
+                {...INPUT_EMAIL}
                 className="mt-1"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
@@ -177,14 +189,14 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
               <Label htmlFor="chiffreur-phone" className="t-label">{t('Téléphone')}</Label>
               <Input
                 id="chiffreur-phone"
-                type="tel"
+                {...INPUT_TEL}
                 className="mt-1"
                 value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                 placeholder={BRAND.phonePlaceholder}
               />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex min-h-11 items-center gap-3">
               <Switch
                 id="chiffreur-active"
                 checked={form.active}
@@ -195,10 +207,10 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving} className="max-md:hidden">
               {t('Annuler')}
             </Button>
-            <Button onClick={handleSave} loading={saving}>
+            <Button onClick={handleSave} loading={saving} className="max-md:h-12 max-md:text-[15px] max-md:font-semibold">
               {editTarget ? t('Mettre à jour') : t('Ajouter')}
             </Button>
           </DialogFooter>

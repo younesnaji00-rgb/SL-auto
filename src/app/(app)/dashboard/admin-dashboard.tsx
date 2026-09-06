@@ -99,7 +99,9 @@ export function AdminDashboard(props: AdminDashboardProps) {
 
   return (
     <Tabs value={vue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-6">
-      <TabsList data-tour="dash-tabs">
+      {/* Phone: the tab row is the page's own sticky row under the 48 px bar,
+          full width and scrollable if the labels overflow (mobile pass). */}
+      <TabsList data-tour="dash-tabs" className="max-md:sticky max-md:top-0 max-md:z-20 max-md:-mx-4 max-md:w-[calc(100%+2rem)] max-md:justify-start max-md:overflow-x-auto max-md:rounded-none max-md:px-4 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         {VUES.map((v) => {
           const Icon = TAB_ICON[v];
           return (
@@ -161,7 +163,7 @@ function RoleTab({
         <div className="flex items-center gap-2" data-tour="dash-user-select">
           <label className="t-label whitespace-nowrap">{t('Voir')}</label>
           <Select value={selected?.id ?? ALL_TEAM} onValueChange={(v) => onSelectUser(v === ALL_TEAM ? null : v)}>
-            <SelectTrigger className="h-9 w-60">
+            <SelectTrigger className="h-9 w-60 max-md:h-12 max-md:w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -181,7 +183,7 @@ function RoleTab({
       ) : (
         <>
           {/* Row 1 — team tiles. */}
-          <div data-tour="dash-tiles" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div data-tour="dash-tiles" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <StatTile label={t(words.enCours)} value={team.tiles.enCours} loading={loading} caption={<span>{t(words.enCoursCaption)} · {t('maintenant')}</span>} href={words.queueHref} />
             <StatTile label={t('En retard')} value={team.tiles.enRetard} danger={team.tiles.enRetard > 0} loading={loading} caption={<span>{t('au-delà de 24 h ouvrées')} · {t('maintenant')}</span>} />
             <StatTile
