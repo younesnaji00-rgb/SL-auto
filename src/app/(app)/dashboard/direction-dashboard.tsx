@@ -101,7 +101,7 @@ function LadderRowView({ label, d, max }: { label: string; d: Dist; max: number 
   const t = useT();
   const pct = (v: number) => `${Math.max(0, Math.min(100, (v / max) * 100))}%`;
   return (
-    <div className="grid grid-cols-[minmax(0,11rem)_1fr_auto] items-center gap-x-3 py-1.5">
+    <div className="grid grid-cols-[minmax(0,8.5rem)_1fr_auto] items-center gap-x-3 py-1.5 2xl:grid-cols-[minmax(0,11rem)_1fr_auto]">
       <span className="t-body-sm truncate text-ink-2" title={label}>
         {label}
       </span>
@@ -176,49 +176,76 @@ export function DirectionDashboard({ dossiers, chiffrages, missions, workflowLog
         </div>
       </div>
 
-      {/* ── Bloc 1 — the north star, twice the size of anything else (demo-impact C1.2) ── */}
-      <Card className="p-5" data-tour="dir-northstar">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
-          <div className="min-w-0">
-            <p className="t-label flex items-center">
-              {t('Délai médian requête → rapport déposé')}
-              <Def>
-                <p className="font-medium text-ink">{t('Médiane des jours calendaires entre la requête de la compagnie et le dépôt du rapport.')}</p>
-                <p className="mt-2">
-                  {t('Cohorte : les dossiers DÉPOSÉS pendant la période — jamais un mélange d’ouverts et de clos. Champs : dateRequete → dateRapportDepose.')}
-                </p>
-                <p className="mt-2">{t('Le P90 dit ce que vit le dossier le plus lent sur dix ; c’est lui qui fait les réclamations.')}</p>
-              </Def>
-            </p>
-            <p className="mt-1 text-[48px] font-semibold leading-none text-ink">{ns.p50 == null ? '—' : fmtDays(ns.p50)}</p>
-            <p className="t-caption mt-2 flex flex-wrap items-center gap-x-2">
-              <span>
-                P90 <span className="font-medium text-ink-2">{fmtDays(ns.p90)}</span>
-              </span>
-              <span className="text-ink-4">·</span>
-              <span>
-                {ns.n} {t('dossiers clôturés')}
-              </span>
-              <span className="text-ink-4">·</span>
-              <span>{win}</span>
-            </p>
-            <p className="t-caption mt-3 max-w-prose">
-              {t('Sinistre → rapport')} : <span className="font-medium text-ink-2">{fmtDays(view.lead.sinistreRapport.p50)}</span>{' '}
-              <span className="text-ink-4">({t('vécu par l’assuré, quand la date de sinistre est saisie')})</span>
-            </p>
+      {/*
+        Row 1 — the headline number and its decomposition, side by side at half
+        width each (owner 2026-09-07). Both were full-width bands carrying far
+        less data than the width implied: a 48 px figure and a small chart on
+        one line, then nine short bars on the next. Pairing them also puts the
+        total next to where the days actually go, which is how the two are read.
+      */}
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <Card className="p-5" data-tour="dir-northstar">
+          {/* Stacks at half width; only a very wide screen puts the trend beside the figure. */}
+          <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(0,16rem)]">
+            <div className="min-w-0">
+              <p className="t-label flex items-center">
+                {t('Délai médian requête → rapport déposé')}
+                <Def>
+                  <p className="font-medium text-ink">{t('Médiane des jours calendaires entre la requête de la compagnie et le dépôt du rapport.')}</p>
+                  <p className="mt-2">
+                    {t('Cohorte : les dossiers DÉPOSÉS pendant la période — jamais un mélange d’ouverts et de clos. Champs : dateRequete → dateRapportDepose.')}
+                  </p>
+                  <p className="mt-2">{t('Le P90 dit ce que vit le dossier le plus lent sur dix ; c’est lui qui fait les réclamations.')}</p>
+                </Def>
+              </p>
+              <p className="mt-1 text-[48px] font-semibold leading-none text-ink">{ns.p50 == null ? '—' : fmtDays(ns.p50)}</p>
+              <p className="t-caption mt-2 flex flex-wrap items-center gap-x-2">
+                <span>
+                  P90 <span className="font-medium text-ink-2">{fmtDays(ns.p90)}</span>
+                </span>
+                <span className="text-ink-4">·</span>
+                <span>
+                  {ns.n} {t('dossiers clôturés')}
+                </span>
+                <span className="text-ink-4">·</span>
+                <span>{win}</span>
+              </p>
+              <p className="t-caption mt-3 max-w-prose">
+                {t('Sinistre → rapport')} : <span className="font-medium text-ink-2">{fmtDays(view.lead.sinistreRapport.p50)}</span>{' '}
+                <span className="text-ink-4">({t('vécu par l’assuré, quand la date de sinistre est saisie')})</span>
+              </p>
+            </div>
+            <div className="min-w-0">
+              <TrendChart
+                points={trend}
+                kind="bar"
+                label={t('Dossiers clôturés par semaine, 13 semaines')}
+                fmt={(v) => fmtInt(v)}
+                height={104}
+              />
+              <p className="t-caption mt-1">{t('Rapports déposés par semaine · 13 sem. · la dernière est en cours')}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <TrendChart
-              points={trend}
-              kind="bar"
-              label={t('Dossiers clôturés par semaine, 13 semaines')}
-              fmt={(v) => fmtInt(v)}
-              height={104}
-            />
-            <p className="t-caption mt-1">{t('Rapports déposés par semaine · 13 sem. · la dernière est en cours')}</p>
-          </div>
-        </div>
-      </Card>
+        </Card>
+
+        <Card className="p-5" data-tour="dir-ladder">
+          <SectionTitle
+            title={t('Décomposition du délai')}
+            caption={`${t('Médiane pleine, P90 en fond clair · jours calendaires · dossiers clôturés')} · ${win}`}
+            def={
+              <>
+                <p className="font-medium text-ink">{t('Chaque étape est mesurée entre ses deux dates, sur les dossiers clôturés de la période.')}</p>
+                <p className="mt-2">{t('Un dossier ne compte pour une étape que si ses deux bornes existent et sont dans l’ordre — l’effectif n est donc différent d’une ligne à l’autre, et il est imprimé.')}</p>
+              </>
+            }
+          />
+          {view.ladder.every((r) => r.dist.n === 0) ? (
+            <p className="t-caption">{t('Aucun dossier clôturé sur la période.')}</p>
+          ) : (
+            view.ladder.map((r) => <LadderRowView key={r.key} label={t(r.label)} d={r.dist} max={ladderMax} />)
+          )}
+        </Card>
+      </div>
 
       {/* ── Bloc 2 — five tiles, the ceiling (demo-impact D1, R17) ── */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5" data-tour="dir-tiles">
@@ -273,25 +300,6 @@ export function DirectionDashboard({ dossiers, chiffrages, missions, workflowLog
           href="/dossiers"
         />
       </div>
-
-      {/* ── Bloc 3 — where the days actually go ── */}
-      <Card className="p-5" data-tour="dir-ladder">
-        <SectionTitle
-          title={t('Décomposition du délai')}
-          caption={`${t('Médiane pleine, P90 en fond clair · jours calendaires · dossiers clôturés')} · ${win}`}
-          def={
-            <>
-              <p className="font-medium text-ink">{t('Chaque étape est mesurée entre ses deux dates, sur les dossiers clôturés de la période.')}</p>
-              <p className="mt-2">{t('Un dossier ne compte pour une étape que si ses deux bornes existent et sont dans l’ordre — l’effectif n est donc différent d’une ligne à l’autre, et il est imprimé.')}</p>
-            </>
-          }
-        />
-        {view.ladder.every((r) => r.dist.n === 0) ? (
-          <p className="t-caption">{t('Aucun dossier clôturé sur la période.')}</p>
-        ) : (
-          view.ladder.map((r) => <LadderRowView key={r.key} label={t(r.label)} d={r.dist} max={ladderMax} />)
-        )}
-      </Card>
 
       {/* ── The depth, grouped by question (R63) ── */}
       <Tabs defaultValue="compagnies" className="space-y-4">
