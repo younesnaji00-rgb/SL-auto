@@ -1,4 +1,5 @@
 import type React from 'react';
+import { BRAND } from '@/lib/brand';
 import {
   LayoutDashboard,
   FolderOpen,
@@ -188,7 +189,12 @@ export function titleForRoute(href: string): string | null {
   return labelForRoute(href);
 }
 
-export const APP_NAME = 'SL-auto';
+/**
+ * Always read the brand — never a literal. A hardcoded name here is what put
+ * « Dashboard · SL-auto » in the tab of a differently-branded build, because
+ * the sidebar took the brand and the title took the string.
+ */
+export const APP_NAME = BRAND.productName;
 
 /** `document.title` convention — one place, so every surface agrees. */
 export function documentTitle(pageTitle?: string | null): string {

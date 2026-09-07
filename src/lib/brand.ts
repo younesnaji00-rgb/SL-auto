@@ -1,21 +1,22 @@
 /**
- * White-label brand configuration.
+ * SL Auto Expertise brand configuration.
  *
  * ALL firm-specific identity (names, addresses, contacts, PDF footers,
- * auth email domain, currency, market context) lives here and ONLY here.
- * The active brand is selected at build time via NEXT_PUBLIC_BRAND:
+ * auth email domain, currency, market context) lives here and ONLY here, so
+ * a rebrand touches one file.
  *
- *   - unset / 'slaoui'  → the original SL Auto Expertise deployment
- *   - 'demo'            → the Canadian showcase deployment (Lionheart)
- *
- * To onboard a new client, add a BrandConfig entry and deploy with
- * NEXT_PUBLIC_BRAND=<id> plus their NEXT_PUBLIC_FIREBASE_* project vars.
+ * This is a SINGLE-BRAND app. There is no build-time brand switch and no
+ * other firm's identity in the bundle: Lionheart Appraisal is a separate
+ * product in its own repository, with its own Firebase project and its own
+ * deploy pipeline. Nothing here may name it, build as it, or deploy to it —
+ * a shared bundle is exactly how « Dashboard · SL-auto » ended up in
+ * Lionheart's browser tab.
  */
 
 export type BrandLocale = 'fr' | 'en';
 
 export interface BrandConfig {
-  /** Stable brand id (also the NEXT_PUBLIC_BRAND value). */
+  /** Stable brand id. */
   id: string;
   /** Product / app display name (window title, sidebar, breadcrumb root). */
   productName: string;
@@ -139,50 +140,6 @@ const SLAOUI: BrandConfig = {
   trialDays: null,
 };
 
-const DEMO: BrandConfig = {
-  id: 'demo',
-  productName: 'Lionheart Appraisal',
-  shortName: 'Lionheart',
-  appDescription: 'Claims management and appraisal workflow platform for independent auto appraisal firms.',
 
-  companyName: 'LIONHEART APPRAISAL',
-  companyAddress: '1250 René-Lévesque Blvd W, Suite 2200, Montréal, QC H3B 4W8',
-  companyTel: '+1 (514) 555-0142',
-  companyEmail: 'contact@lionheart-demo.ca',
-  companyAddressFooter: '1250 René-Lévesque Blvd W, Suite 2200, Montréal, QC H3B 4W8, Canada',
-  companyContactFooter: 'Tel: +1 (514) 555-0142  Email: contact@lionheart-demo.ca',
-  expertName: 'J. TREMBLAY',
-  cabinetName: 'LIONHEART APPRAISAL',
-  companyCity: 'MONTRÉAL',
 
-  // Kept as-is: existing demo Firebase Auth accounts were created under this
-  // domain — changing it would break every current login.
-  authEmailDomain: 'demo.appraisio.app',
-
-  emailSubjectTag: '[LIONHEART]',
-  emailSignature: 'The Lionheart Appraisal Team',
-
-  currencyCode: 'CAD',
-  currencyLabel: 'CAD',
-  numberLocale: 'en-CA',
-  defaultLocale: 'en',
-  market: 'CA',
-  phonePlaceholder: '+1 (XXX) XXX-XXXX',
-
-  logoSrc: null,
-  logoWordmarkSrc: null,
-  iconsPath: '/icons/demo',
-  storagePrefix: 'appraisio',
-
-  showLanguageSwitcher: true,
-  showTutorials: true,
-  tutorialRoles: null,
-  trialDays: 7,
-};
-
-const BRANDS: Record<string, BrandConfig> = {
-  slaoui: SLAOUI,
-  demo: DEMO,
-};
-
-export const BRAND: BrandConfig = BRANDS[process.env.NEXT_PUBLIC_BRAND ?? 'slaoui'] ?? SLAOUI;
+export const BRAND: BrandConfig = SLAOUI;
