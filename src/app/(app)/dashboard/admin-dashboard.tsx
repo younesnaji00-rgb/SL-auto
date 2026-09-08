@@ -12,6 +12,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { PageHeader } from '@/components/layout/page-header';
+import { useTabSlopeMorphRef } from '@/hooks/use-tab-morph';
 import { Building2, Calculator, ChevronLeft, LineChart, UserCheck, Users } from 'lucide-react';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -22,13 +24,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { SlaItem } from '../monitoring/metrics';
 import type { FunnelDossier, WorkflowLog } from '../monitoring/funnel';
-import { DASHBOARD_ROLES, computeTeamView, fmtWindow, type DashboardRole, type PersonRow, type TeamView } from './metrics';
+import { DASHBOARD_ROLES, computeTeamView, fmtWindow, toDate, type DashboardRole, type PersonRow, type TeamView } from './metrics';
 import type { DashboardChiffrage, DashboardMission, DashboardUser } from './use-dashboard-data';
 import { BarList, Block, CompareStrip, Delta, DoneLine, StatTile, WorkRow, fmtHours } from './ui';
 import { GestionnaireDashboard } from './gestionnaire-dashboard';
 import { ChiffreurDashboard } from './chiffreur-dashboard';
 import { TerrainDashboard } from './terrain-dashboard';
-import { DirectionDashboard } from './direction-dashboard';
+import { TerrainDirection } from './terrain-direction';
+import { DirectionDashboardV2 } from './direction-dashboard-v2';
+
+/** Period choices shared by the header strip; « tout » spans the whole history. */
+type Period = 30 | 90 | 365 | 'tout';
+const PERIODS: readonly Period[] = [30, 90, 365, 'tout'];
+const PERIOD_LABEL: Record<Period, string> = { 30: '30 j', 90: '90 j', 365: '12 mois', tout: 'Tout' };
+const TOUT_FALLBACK_DAYS = 365;
 
 const EXCEPTIONS_CAP = 10;
 const ALL_TEAM = '__team__';
@@ -64,12 +73,34 @@ export interface AdminDashboardProps {
   holidays: ReadonlySet<string>;
   now: Date;
   loading: boolean;
+  /** Last listener tick — the « En direct » stamp on the header line. */
+  updatedAt?: Date | null;
 }
 
 export function AdminDashboard(props: AdminDashboardProps) {
   const t = useT();
   const [vue, setVue] = useState<Vue>('direction');
   const [userId, setUserId] = useState<string | null>(null);
+  // The period lives HERE, not inside the Direction view: 5a puts the strip on
+  // the header line beside the role tabs, and that line belongs to this shell.
+  const [period, setPeriod] = useState<Period>('tout');
+  const periodRef = useTabSlopeMorphRef();
+
+  /**
+   * « Tout » as a real number of days — the span back to the oldest dossier —
+   * rather than a sentinel like 36500, so `fmtWindow` prints a true first date
+   * instead of a fabricated one in the 1920s.
+   */
+  const toutDays = useMemo(() => {
+    let oldest: number | null = null;
+    for (const d of props.dossiers) {
+      const c = toDate(d.createdAt)?.getTime();
+      if (c != null && (oldest == null || c < oldest)) oldest = c;
+    }
+    if (oldest == null) return TOUT_FALLBACK_DAYS;
+    return Math.max(1, Math.ceil((props.now.getTime() - oldest) / 86_400_000) + 1);
+  }, [props.dossiers, props.now]);
+  const windowDays = period === 'tout' ? toutDays : period;
 
   // URL ↔ state (NN/g tabs: the selected tab is addressable; a person's view can be linked).
   useEffect(() => {
@@ -97,36 +128,93 @@ export function AdminDashboard(props: AdminDashboardProps) {
     sync(vue, u);
   };
 
+  const tabsList = (
+    /* Phone: the tab row is the page's own sticky row under the 48 px bar,
+       full width and scrollable if the labels overflow (mobile pass). */
+    <TabsList data-tour="dash-tabs" className="max-md:sticky max-md:top-0 max-md:z-20 max-md:-mx-4 max-md:w-[calc(100%+2rem)] max-md:justify-start max-md:overflow-x-auto max-md:rounded-none max-md:px-4 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
+      {VUES.map((v) => {
+        const Icon = TAB_ICON[v];
+        return (
+          <TabsTrigger key={v} value={v} data-tour={`dash-tab-${v}`} className="gap-2">
+            <Icon className="h-4 w-4" aria-hidden />
+            {t(TAB_LABEL[v])}
+          </TabsTrigger>
+        );
+      })}
+    </TabsList>
+  );
+
+  /* Same tab idiom as the row beside it — one control language on the line. */
+  const periodStrip = (
+    <div
+      ref={periodRef}
+      role="tablist"
+      aria-label={t('Période')}
+      className="relative isolate inline-flex h-10 items-end gap-4 rounded-lg border border-hairline bg-surface-2 px-2 pt-1 text-ink-2"
+    >
+      {PERIODS.map((p) => {
+        const active = period === p;
+        return (
+          <button
+            key={String(p)}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => setPeriod(p)}
+            className={cn(
+              'tab-slope inline-flex h-[34px] items-center justify-center whitespace-nowrap px-3.5 text-[13px] font-medium text-ink-2 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              active && 'font-semibold text-ink',
+            )}
+          >
+            {t(PERIOD_LABEL[p])}
+            <span
+              aria-hidden
+              className={cn(
+                'pointer-events-none absolute inset-x-3 bottom-[3px] h-0.5 rounded-full bg-primary transition-opacity',
+                active ? 'opacity-100' : 'opacity-0',
+              )}
+            />
+            <span className="tab-feet" aria-hidden />
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <Tabs value={vue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-6">
-      {/* Phone: the tab row is the page's own sticky row under the 48 px bar,
-          full width and scrollable if the labels overflow (mobile pass). */}
-      <TabsList data-tour="dash-tabs" className="max-md:sticky max-md:top-0 max-md:z-20 max-md:-mx-4 max-md:w-[calc(100%+2rem)] max-md:justify-start max-md:overflow-x-auto max-md:rounded-none max-md:px-4 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
-        {VUES.map((v) => {
-          const Icon = TAB_ICON[v];
-          return (
-            <TabsTrigger key={v} value={v} data-tour={`dash-tab-${v}`} className="gap-2">
-              <Icon className="h-4 w-4" aria-hidden />
-              {t(TAB_LABEL[v])}
-            </TabsTrigger>
-          );
-        })}
-      </TabsList>
+      {/* ONE header line (owner 2026-09-08, layout 5a): the title alone on the
+          left, role tabs + period strip on the right. Nothing sits beside the
+          title any more — the freshness stamp and the window were there, and
+          every block already prints its own window in its caption. */}
+      <PageHeader
+        title={t('Tableau de bord')}
+        size="compact"
+        actions={
+          <>
+            {tabsList}
+            {periodStrip}
+          </>
+        }
+      />
       <TabsContent value="direction" className="space-y-6">
-        <DirectionDashboard
+        <DirectionDashboardV2
           dossiers={props.dossiers}
           chiffrages={props.chiffrages}
           missions={props.missions}
           workflowLogs={props.workflowLogs}
+          users={props.users}
           sla={props.sla}
           holidays={props.holidays}
           now={props.now}
           loading={props.loading}
+          windowDays={windowDays}
+          onOpenTeam={(role) => changeVue(VUE_OF_ROLE[role])}
         />
       </TabsContent>
       {DASHBOARD_ROLES.map((role) => (
         <TabsContent key={role} value={VUE_OF_ROLE[role]} className="space-y-6">
-          <RoleTab role={role} userId={userId} onSelectUser={changeUser} {...props} />
+          <RoleTab role={role} userId={userId} onSelectUser={changeUser} windowDays={windowDays} {...props} />
         </TabsContent>
       ))}
     </Tabs>
@@ -137,6 +225,7 @@ function RoleTab({
   role,
   userId,
   onSelectUser,
+  windowDays,
   dossiers,
   chiffrages,
   missions,
@@ -145,7 +234,7 @@ function RoleTab({
   holidays,
   now,
   loading,
-}: AdminDashboardProps & { role: DashboardRole; userId: string | null; onSelectUser: (u: string | null) => void }) {
+}: AdminDashboardProps & { role: DashboardRole; userId: string | null; onSelectUser: (u: string | null) => void; windowDays: number }) {
   const t = useT();
   const team = useMemo(() => computeTeamView(role, users, { dossiers, chiffrages, missions, sla, holidays }, now), [role, users, dossiers, chiffrages, missions, sla, holidays, now]);
   const teamUsers = useMemo(() => team.perPerson.map((r) => r.user), [team]);
@@ -155,11 +244,14 @@ function RoleTab({
 
   return (
     <>
-      {/* Selector — « Voir : Toute l'équipe ▾ », only users of this role. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="t-caption">
-          {teamUsers.length} {t(role === 'Agent de Terrain' ? 'agents actifs' : role === 'Chiffreur' ? 'chiffreurs actifs' : 'gestionnaires actifs')}
-        </p>
+      {/*
+        Selector — « Voir : Toute l'équipe ▾ », only users of this role.
+        Hidden on Terrain: 5d has no selector row, because a row of the
+        per-agent table is itself the way into one agent, and the count now
+        prints on the header line. The « Retour à l'équipe » button inside
+        the person view is still the way back.
+      */}
+      <div className={cn('flex flex-wrap items-center justify-end gap-3', role === 'Agent de Terrain' && !selected && 'hidden')}>
         <div className="flex items-center gap-2" data-tour="dash-user-select">
           <label className="t-label whitespace-nowrap">{t('Voir')}</label>
           <Select value={selected?.id ?? ALL_TEAM} onValueChange={(v) => onSelectUser(v === ALL_TEAM ? null : v)}>
@@ -182,7 +274,54 @@ function RoleTab({
         <PersonView role={role} user={selected} team={team} onBack={() => onSelectUser(null)} dossiers={dossiers} chiffrages={chiffrages} missions={missions} sla={sla} holidays={holidays} now={now} loading={loading} />
       ) : (
         <>
-          {/* Row 1 — team tiles. */}
+          {/*
+            Row 1 — for Gestionnaire this IS the redesigned role page (layout
+            5b), read team-wide: `person={null}` makes computeGestionnaireView
+            keep every dossier instead of one owner's, so the same blocks
+            summarise the whole team. Owner 2026-09-08: the admin has to see
+            the new page on this tab, not only after drilling into a person.
+            It replaces the generic tile row rather than sitting above it —
+            5b carries its own richer tiles, and two `dash-tiles` anchors on
+            one screen would break the tour. The other roles are unchanged.
+          */}
+          {role === 'Gestionnaire' ? (
+            <GestionnaireDashboard
+              dossiers={dossiers}
+              chiffrages={chiffrages}
+              sla={sla}
+              rappelsRecus={[]}
+              holidays={holidays}
+              now={now}
+              person={null}
+              loading={loading}
+              viewAs
+              users={users}
+            />
+          ) : role === 'Chiffreur' ? (
+            /* 5c, read team-wide: `person={null}` keeps every assignment. */
+            <ChiffreurDashboard
+              chiffrages={chiffrages}
+              dossiers={dossiers}
+              holidays={holidays}
+              now={now}
+              person={null}
+              loading={loading}
+            />
+          ) : role === 'Agent de Terrain' ? (
+            /* 5d is itself a direction view — it replaces the whole generic
+               team branch (tiles, exceptions, charge, « Par personne »)
+               rather than sitting beside it. */
+            <TerrainDirection
+              windowDays={windowDays}
+              team={team}
+              missions={missions}
+              dossiers={dossiers}
+              holidays={holidays}
+              now={now}
+              loading={loading}
+              onSelectUser={onSelectUser}
+            />
+          ) : (
           <div data-tour="dash-tiles" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <StatTile label={t(words.enCours)} value={team.tiles.enCours} loading={loading} caption={<span>{t(words.enCoursCaption)} · {t('maintenant')}</span>} href={words.queueHref} />
             <StatTile label={t('En retard')} value={team.tiles.enRetard} danger={team.tiles.enRetard > 0} loading={loading} caption={<span>{t('au-delà de 24 h ouvrées')} · {t('maintenant')}</span>} />
@@ -206,9 +345,17 @@ function RoleTab({
               }
             />
           </div>
+          )}
 
+          {/* Rows 2–3 — skipped for Terrain (5d already carries the exceptions
+              and the per-agent table) and for Gestionnaire (5b now carries
+              « Charge par personne », and the owner dropped the exceptions and
+              the « Par personne » table from that tab, 2026-09-08). Rendering
+              them again would print the same lists twice under one tab. */}
+          {role === 'Chiffreur' && (
+            <>
           {/* Row 2 — exceptions (who needs support now) + load per person. */}
-          <div className="grid items-start gap-6 lg:grid-cols-3">
+          <div className="grid gap-6 lg:grid-cols-3">
             <Block
               title={t('Exceptions')}
               count={team.exceptions.length}
@@ -293,6 +440,8 @@ function RoleTab({
               </Table>
             </div>
           </Block>
+            </>
+          )}
         </>
       )}
     </>

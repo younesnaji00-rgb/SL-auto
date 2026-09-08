@@ -15,11 +15,23 @@ import { useMemo } from 'react';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import type { FunnelDossier } from '../monitoring/funnel';
-import { chiffrageOwnedBy, computeChiffreurView, fmtWindow, type PersonRef, type QueueBand, type QueueEntry } from './metrics';
-import { devisLineStats, devisRates } from './analytics';
+import { computeChiffreurView, fmtWindow, type PersonRef, type QueueBand, type QueueEntry } from './metrics';
 import type { DashboardChiffrage } from './use-dashboard-data';
-import { BandHeader, Block, Delta, DoneLine, Meter, StatTile, WorkRow, fmtHours } from './ui';
-import { StackedBar, fmtPct } from '@/components/viz';
+import { BandHeader, Block, Delta, DoneLine, StatTile, WorkRow, fmtHours } from './ui';
+import { Donut, SliceLegend, toSlices, type PieDatum } from './pie';
+
+/**
+ * The bands keep the queue's OWN colours rather than the categorical
+ * `--slice-*` ramp: late → warning → today → later is a meaning the reader
+ * already carries over from /assignations-chiffrage, and inventing new hues
+ * for it would make the two pages disagree.
+ */
+const BAND_COLOR: Record<QueueBand, string> = {
+  'En retard': 'hsl(var(--status-danger-fg))',
+  'Moins de 6 h': 'hsl(var(--tertiary))',
+  "Aujourd'hui": 'hsl(var(--chart-1))',
+  'À venir': 'hsl(var(--ink) / 0.28)',
+};
 
 const QUEUE_CAP = 7;
 
@@ -62,14 +74,17 @@ export function ChiffreurDashboard({ chiffrages, dossiers, holidays, now, person
   const week = fmtWindow(now, 7);
   const month = fmtWindow(now, 30);
 
-  // The control the chiffreur actually exercises, counted in LINES rather than
-  // dirhams (kpi-expansion §4.2.1): what was struck off the garage's devis.
-  // It sits beside « Révisions » because speed and judgment are read together.
-  const lines = useMemo(
-    () => devisLineStats(chiffrages, now, 30, (c) => (person ? chiffrageOwnedBy(c, person) : false)),
-    [chiffrages, now, person],
-  );
-  const lineRates = useMemo(() => devisRates(lines), [lines]);
+  /** The ring: the same bands the list is grouped by, in the same order. */
+  const urgence: PieDatum[] = view.bands.map((b) => ({
+    key: b.band,
+    label: t(BAND_LABEL[b.band]),
+    value: b.count,
+    color: BAND_COLOR[b.band],
+  }));
+  const urgenceSlices = toSlices(urgence).slices;
+
+  const joursTotal = view.terminesParJour.reduce((n, d) => n + d.count, 0);
+  const joursMax = Math.max(1, ...view.terminesParJour.map((d) => d.count));
 
   // Rows grouped by band, in urgency order, capped as a whole.
   const shown = view.queue.slice(0, QUEUE_CAP);
@@ -131,7 +146,8 @@ export function ChiffreurDashboard({ chiffrages, dossiers, holidays, now, person
         </StatTile>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-3">
+      {/* ── Rang unique ────────────────────────────────────────────────── */}
+      <div className="grid gap-4 lg:grid-cols-12">
         <Block
           title={t('Ma file')}
           count={view.queue.length}
@@ -139,7 +155,7 @@ export function ChiffreurDashboard({ chiffrages, dossiers, holidays, now, person
           moreHref="/assignations-chiffrage"
           moreLabel={view.queue.length > QUEUE_CAP ? `${t('Voir les')} ${view.queue.length - QUEUE_CAP} ${t('autres')}` : t('Ouvrir la file')}
           dataTour="dash-worklist"
-          className="lg:col-span-2"
+          className="lg:col-span-8"
         >
           {loading ? (
             <div className="space-y-3 px-5 py-3">
@@ -179,57 +195,49 @@ export function ChiffreurDashboard({ chiffrages, dossiers, holidays, now, person
           )}
         </Block>
 
-        <div className="space-y-6" data-tour="dash-context">
-          <Block title={t('Révisions')} caption={`${t('2ème et 3ème accords reçus')} · ${month}`}>
-            <div className="px-5 pb-3">
-              <p className={cn('text-2xl font-semibold leading-tight text-ink')}>
-                {view.revisions30.total === 0 ? '—' : `${Math.round((view.revisions30.revisions / view.revisions30.total) * 100)} %`}
-              </p>
-              <p className="t-caption mt-1 tabular-nums">
-                {view.revisions30.revisions} {t('révisions')} {t('sur')} {view.revisions30.total} {t('assignations reçues')}
-              </p>
-              <p className="t-caption mt-2">{t('Le pendant qualité de la vitesse : un accord repris est un accord à refaire.')}</p>
-            </div>
+        <div className="flex flex-col gap-4 lg:col-span-4" data-tour="dash-context">
+          <Block title={t('Par urgence')} caption={t('Ma file, telle que la file la découpe')} bodyClassName="px-5 pb-5">
+            {view.queue.length === 0 ? (
+              <DoneLine title={t('Rien en file')} />
+            ) : (
+              <div className="flex items-center gap-4">
+                <Donut
+                  data={urgence}
+                  label={t('Ma file par bande d’urgence')}
+                  caption={t('Par urgence')}
+                  centerValue={view.queue.length}
+                  centerLabel={t('en file')}
+                  size={104}
+                />
+                <SliceLegend slices={urgenceSlices} className="min-w-0 flex-1 space-y-2" />
+              </div>
+            )}
           </Block>
 
-          <Block title={t('Mon contrôle du devis')} caption={`${t('Lignes écartées et pièces retenues')} · ${month}`}>
-            <div className="px-5 pb-3">
-              {lines.rows === 0 ? (
-                <p className="t-caption">{t('Aucun devis structuré sur la période.')}</p>
-              ) : (
-                <>
-                  <p className="text-2xl font-semibold leading-tight text-ink">{fmtPct(lineRates.ecartees.pct)}</p>
-                  <p className="t-caption mt-1 tabular-nums">
-                    {lines.ecartees} {t('lignes écartées sur')} {lines.rows} · {lines.dossiers} {t('dossiers')}
-                  </p>
-                  {lines.remplacement > 0 && (
-                    <div className="mt-3">
-                      <StackedBar
-                        label={t('Nature des pièces remplacées')}
-                        segments={[
-                          { key: 'ori', label: t('Originale'), value: lines.originale, tone: 'accent' },
-                          { key: 'ada', label: t('Adaptable'), value: lines.adaptable, tone: 'accent-2' },
-                          { key: 'occ', label: t('Occasion'), value: lines.occasion, tone: 'accent-3' },
-                        ]}
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </Block>
-          <Block title={t('Par urgence')} caption={t('Ma file, telle que la file la découpe')}>
-            <div className="px-5 pb-3">
-              <Meter
-                segments={view.bands.map((b) => ({
-                  key: b.band,
-                  label: t(BAND_LABEL[b.band]).toLowerCase(),
-                  value: b.count,
-                  judged: b.band === 'En retard',
-                  time: b.band === "Aujourd'hui" || b.band === 'Moins de 6 h',
-                }))}
-              />
-            </div>
+          <Block
+            title={t('Terminés par jour')}
+            count={joursTotal}
+            caption={t('Chiffrages rendus, jour par jour')}
+            bodyClassName="px-5 pb-5"
+          >
+            {joursTotal === 0 ? (
+              <DoneLine title={t('Aucun chiffrage rendu cette semaine.')} />
+            ) : (
+              <ul className="flex items-end gap-2" style={{ height: 104 }}>
+                {view.terminesParJour.map((d) => (
+                  <li key={d.key} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+                    <span className="text-[11px] font-semibold tabular-nums text-ink">{d.count}</span>
+                    <span
+                      className={cn('w-full max-w-[22px] rounded-sm', d.count > 0 ? 'bg-chart-1' : 'bg-surface-3')}
+                      // Floor of 3 px so an empty day is still a readable tick.
+                      style={{ height: Math.max(3, (d.count / joursMax) * 64) }}
+                      aria-hidden
+                    />
+                    <span className="t-caption text-[10px]">{d.label}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Block>
         </div>
       </div>

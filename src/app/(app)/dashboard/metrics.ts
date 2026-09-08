@@ -371,13 +371,32 @@ export interface ChiffreurTiles {
   dansDelais30: { pct: number | null; onTime: number; n: number };
 }
 
+/** One calendar day of a short daily series (« lun 4 »). */
+export interface DayCount {
+  /** `yyyy-MM-dd`, local. */
+  key: string;
+  /** Short weekday in the app's locale (« lun »). */
+  label: string;
+  count: number;
+}
+
 export interface ChiffreurView {
   queue: QueueEntry[];
   bands: Array<{ band: QueueBand; count: number }>;
   tiles: ChiffreurTiles;
   /** Revision share over the assignments received in the last 30 days. */
   revisions30: { revisions: number; total: number };
+  /**
+   * Assignments completed on each of the last 7 calendar days, oldest first —
+   * the same `completedAt` predicate the `termines7` tile counts, only broken
+   * out per day so the shape of a week is visible.
+   */
+  terminesParJour: DayCount[];
 }
+
+/** `yyyy-MM-dd` in local time — never `toISOString`, which shifts across UTC. */
+const dayKey = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /** Round number of every queue assignment (1 = first for its dossier), whoever the chiffreur is. */
 export function assignmentRounds(all: DashboardChiffrage[]): Map<string, number> {
@@ -453,9 +472,27 @@ export function computeChiffreurView(
   const onTime = done30.filter((e) => !e.late).length;
   const received30 = entries.filter((e) => inWindow(e.start, d30, now));
 
+  // Last 7 calendar days, oldest first; days with nothing completed stay at 0
+  // so the series keeps its shape instead of collapsing.
+  const perDay = new Map<string, DayCount>();
+  const terminesParJour: DayCount[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = startOfDay(addDays(now, -i));
+    const row: DayCount = { key: dayKey(d), label: format(d, 'EEE', { locale: fr }).replace('.', ''), count: 0 };
+    perDay.set(row.key, row);
+    terminesParJour.push(row);
+  }
+  for (const e of done) {
+    const at = toDate(e.chiffrage.completedAt);
+    if (!at) continue;
+    const row = perDay.get(dayKey(at));
+    if (row) row.count += 1;
+  }
+
   return {
     queue: open,
     bands,
+    terminesParJour,
     tiles: {
       enAttente: open.length,
       revisionsEnAttente: open.filter((e) => e.revision).length,

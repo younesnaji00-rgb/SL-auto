@@ -91,6 +91,20 @@
     --chart-4: 312 37% 51%;
     --chart-5: 72 55% 36%;
 
+    /* Ladder pie only (Direction, owner 2026-09-08). Nine muted hues in the
+       chart-token idiom - saturation held at 22-38% so no slice competes
+       with the teal accent or the terracotta warning. Ordered for adjacent
+       contrast: the pie sorts slices by size, so neighbours are ranks. */
+    --slice-1: 188 32% 38%;
+    --slice-2: 18 38% 50%;
+    --slice-3: 232 30% 52%;
+    --slice-4: 78 28% 40%;
+    --slice-5: 340 24% 54%;
+    --slice-6: 152 22% 42%;
+    --slice-7: 38 34% 50%;
+    --slice-8: 212 28% 48%;
+    --slice-9: 310 22% 50%;
+
     /* Navigation sits on the cream ladder (user ruling: the third colour
        lives INSIDE pages, never on the nav). Active item = teal bar + icon. */
     --sidebar-background: 42 26% 94%;
@@ -204,6 +218,17 @@
     --chart-3: 227 73% 66%;
     --chart-4: 327 58% 60%;
     --chart-5: 79 46% 42%;
+
+    /* Same nine, lifted for the graphite ground. */
+    --slice-1: 188 30% 55%;
+    --slice-2: 18 42% 62%;
+    --slice-3: 232 38% 68%;
+    --slice-4: 78 26% 55%;
+    --slice-5: 340 32% 68%;
+    --slice-6: 152 24% 56%;
+    --slice-7: 38 38% 62%;
+    --slice-8: 212 32% 62%;
+    --slice-9: 310 26% 64%;
 
     --sidebar-background: 218 13% 9%;
     --sidebar-foreground: 40 15% 92%;

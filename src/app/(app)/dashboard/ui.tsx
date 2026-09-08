@@ -87,7 +87,7 @@ export function StatTile({ label, value, caption, danger, size = 'headline', hre
   );
   if (href) {
     return (
-      <Card className={cn('min-w-0 p-0', className)} title={title} data-tour={dataTour}>
+      <Card className={cn('h-full min-w-0 p-0', className)} title={title} data-tour={dataTour}>
         <Link href={href} className="block rounded-[inherit] p-4 transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {body}
         </Link>
@@ -95,7 +95,7 @@ export function StatTile({ label, value, caption, danger, size = 'headline', hre
     );
   }
   return (
-    <Card className={cn('min-w-0 p-4', className)} title={title} data-tour={dataTour}>
+    <Card className={cn('h-full min-w-0 p-4', className)} title={title} data-tour={dataTour}>
       {body}
     </Card>
   );
@@ -133,7 +133,13 @@ export interface BlockProps {
 export function Block({ title, count, countDanger, caption, moreHref, moreLabel, dataTour, className, bodyClassName, children }: BlockProps) {
   const t = useT();
   return (
-    <Card className={cn('min-w-0 overflow-hidden', className)} data-tour={dataTour}>
+    /*
+      Full-height card (owner 2026-09-08): inside a stretch grid every block
+      fills its row, so a row of cards has ONE bottom edge instead of a ragged
+      one. `flex-col` + a `min-h-0 flex-1` body is what lets the body — never
+      the header — take the overflow and scroll.
+    */
+    <Card className={cn('flex h-full min-w-0 flex-col overflow-hidden', className)} data-tour={dataTour}>
       <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3 sm:px-5 sm:pt-5">
         <div className="min-w-0">
           <h2 className="t-heading flex items-center gap-2">
@@ -158,7 +164,7 @@ export function Block({ title, count, countDanger, caption, moreHref, moreLabel,
           </Link>
         )}
       </div>
-      <div className={cn('pb-2', bodyClassName)}>{children}</div>
+      <div className={cn('min-h-0 flex-1 overflow-y-auto pb-2 scrollbar-thin', bodyClassName)}>{children}</div>
     </Card>
   );
 }

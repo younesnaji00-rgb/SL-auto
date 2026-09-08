@@ -175,7 +175,19 @@ export function TutorialLauncher() {
     tutorialsDisabled,
     tutorialsDisabledServer,
   );
-  const allowed = tutorialsEnabledFor(profile?.role) && !disabled;
+  /**
+   * Two different reasons to show less, and they are NOT the same (owner
+   * 2026-09-08):
+   *
+   *  • `roleAllowed` — the brand reserves tutorials for certain roles. Nothing
+   *    renders at all; the feature does not exist for this user.
+   *  • `disabled` — the user chose « Ne plus afficher le tutoriel ». That means
+   *    stop INTERRUPTING me, not take the help away: the floating "?" stays in
+   *    its corner so the tour is still one click away. Only the automatic
+   *    welcome lightbox and the spotlight nudge go quiet.
+   */
+  const roleAllowed = tutorialsEnabledFor(profile?.role);
+  const allowed = roleAllowed && !disabled;
   const [seen, setSeen] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showPointer, setShowPointer] = useState(false);
@@ -375,13 +387,14 @@ export function TutorialLauncher() {
     return () => window.removeEventListener('sl:tutorial-open', open);
   }, []);
   useEffect(() => {
-    // Tutorial switched off (or no tour on this route): the body below never
-    // runs again, so the ref would keep the last handler alive. Drop it, or a
-    // stray event could start a tour the user has just turned off.
-    if (!allowed || !tut) startRef.current = null;
-  }, [allowed, tut]);
+    // No tour on this route (or the role has none at all): the body below
+    // never runs, so the ref would keep the last handler alive. Drop it.
+    // NOT gated on `disabled` any more — « ne plus afficher » keeps the "?"
+    // and the « Plus » sheet row working, it only stops the auto-open.
+    if (!roleAllowed || !tut) startRef.current = null;
+  }, [roleAllowed, tut]);
 
-  if (!allowed || !tut) return null;
+  if (!roleAllowed || !tut) return null;
 
   const markWelcomed = () => {
     try {
@@ -537,7 +550,7 @@ export function TutorialLauncher() {
 
   return (
     <>
-      {showWelcome && (
+      {allowed && showWelcome && (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-ink/40 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true">
           <div className="w-full max-w-md rounded-2xl border border-hairline bg-surface-1 p-6 text-center shadow-2xl animate-in fade-in zoom-in-95 duration-300">
             <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground">
@@ -583,7 +596,7 @@ export function TutorialLauncher() {
                 {t('Ne plus afficher le tutoriel')}
               </button>
               <p className="t-caption mt-1">
-                {t('Réactivable à tout moment depuis le menu « Aide » de la barre latérale.')}
+                {t('Le bouton « ? » reste dans le coin : la visite ne s’ouvrira simplement plus d’elle-même.')}
               </p>
             </div>
           </div>
@@ -616,7 +629,9 @@ export function TutorialLauncher() {
         )}
         style={px ? { left: px.left, top: px.top } : { marginBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {(!seen || showPointer) && !dragging && (
+        {/* The pulse is a nudge — it belongs to the automatic behaviour the
+            user just switched off, so it stops with it while the button stays. */}
+        {allowed && (!seen || showPointer) && !dragging && (
           <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
         )}
         <HelpCircle className="relative h-6 w-6" />

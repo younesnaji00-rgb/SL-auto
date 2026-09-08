@@ -69,8 +69,8 @@ export const TUTORIAL_SHELL_EN: Record<string, string> = {
     "Let's walk through the app: the frame around every page, then the menu top to bottom — saving the best for last.",
   "Glissez cette poignée pour donner plus de place au document ou au tableau. Votre réglage est retenu pour les prochains devis.":
     "Drag this handle to give more room to the document or to the table. Your setting is remembered for the next quotes.",
-  "Il relance la visite à tout moment et reprend là où vous vous étiez arrêté.\nGlissez-le pour le déplacer : il gêne un bouton ? Posez-le ailleurs, il retrouvera sa place au prochain écran.\nPour ne plus le voir du tout, choisissez « Ne plus afficher le tutoriel » dans la fenêtre d'accueil — le menu « Aide » vous le rendra.":
-    "It restarts the tour whenever you want, and picks up where you left off.\nDrag it to move it: in the way of a button? Put it somewhere else — it keeps that spot on the next screen.\nTo stop seeing it at all, choose “Don't show the tutorial again” in the welcome window — the “Help” menu will give it back.",
+  "Il relance la visite à tout moment et reprend là où vous vous étiez arrêté.\nGlissez-le pour le déplacer : il gêne un bouton ? Posez-le ailleurs, il retrouvera sa place au prochain écran.\nPour que la visite ne s'ouvre plus d'elle-même, choisissez « Ne plus afficher le tutoriel » — ce bouton, lui, reste ici.":
+    "It restarts the tour whenever you want, and picks up where you left off.\nDrag it to move it: in the way of a button? Put it somewhere else — it keeps that spot on the next screen.\nTo stop the tour opening on its own, choose “Don’t show the tutorial again” — this button stays right here.",
   "Isoler les dossiers en réforme technique ou économique — ils ne se chiffrent pas comme les autres.":
     "Isolate files written off on technical or economic grounds — they are not estimated like the others.",
   "L'assignation envoyée il y a un instant est déjà là, avec son délai de 24 h.\nCliquez sur la ligne pour ouvrir le chiffrage.":
@@ -169,8 +169,8 @@ export const TUTORIAL_SHELL_EN: Record<string, string> = {
     "Finding a row",
   "Retrouvez n'importe quel dossier, en lecture seule : aucun risque de modification.\nC'est la page à ouvrir pour répondre à une question au téléphone — jamais celle où l'on travaille.":
     "Find any file, read-only: no risk of changing anything.\nThis is the page to open to answer a question on the phone — never the one you work in.",
-  "Réactivable à tout moment depuis le menu « Aide » de la barre latérale.":
-    "You can turn it back on any time from the sidebar's “Help” menu.",
+  "Le bouton « ? » reste dans le coin : la visite ne s’ouvrira simplement plus d’elle-même.":
+    "The “?” button stays in the corner — the tour simply will not open on its own any more.",
   "Réactiver le tutoriel guidé":
     "Turn the guided tutorial back on",
   "Signaler un bug, et — si vous désactivez un jour le tutoriel — le réactiver depuis ici.":

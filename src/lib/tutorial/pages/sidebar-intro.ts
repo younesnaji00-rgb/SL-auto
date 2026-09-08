@@ -155,7 +155,7 @@ export const sidebarIntroTutorial: PageTutorial = {
       anchor: 'tutorial-launcher',
       title: 'Ce bouton « ? »',
       body:
-        "Il relance la visite à tout moment et reprend là où vous vous étiez arrêté.\nGlissez-le pour le déplacer : il gêne un bouton ? Posez-le ailleurs, il retrouvera sa place au prochain écran.\nPour ne plus le voir du tout, choisissez « Ne plus afficher le tutoriel » dans la fenêtre d'accueil — le menu « Aide » vous le rendra.",
+        "Il relance la visite à tout moment et reprend là où vous vous étiez arrêté.\nGlissez-le pour le déplacer : il gêne un bouton ? Posez-le ailleurs, il retrouvera sa place au prochain écran.\nPour que la visite ne s'ouvre plus d'elle-même, choisissez « Ne plus afficher le tutoriel » — ce bouton, lui, reste ici.",
     },
 
     {

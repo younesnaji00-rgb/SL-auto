@@ -67,8 +67,11 @@ function DashboardInner({ role }: { role: string }) {
     [profile],
   );
 
+  // Admin has no subtitle (owner 2026-09-08): its header is ONE line — title,
+  // freshness, the cohort window, the role tabs and the period strip — so
+  // AdminDashboard renders its own PageHeader with those in `meta`/`actions`.
   const subtitle = isAdmin
-    ? t("L'équipe par rôle, maintenant — et chaque personne telle qu'elle se voit.")
+    ? null
     : role === 'Chiffreur'
       ? t('Votre file, vos délais — telle que la file la découpe.')
       : role === 'Agent de Terrain'
@@ -77,7 +80,9 @@ function DashboardInner({ role }: { role: string }) {
 
   return (
     <div className="flex-1 space-y-6">
-      <PageHeader title={t('Tableau de bord')} subtitle={subtitle} size="compact" meta={<Freshness at={data.updatedAt} />} />
+      {!isAdmin && (
+        <PageHeader title={t('Tableau de bord')} subtitle={subtitle} size="compact" meta={<Freshness at={data.updatedAt} />} />
+      )}
       {isAdmin && (
         <AdminDashboard
           dossiers={dossiers}
@@ -89,6 +94,7 @@ function DashboardInner({ role }: { role: string }) {
           holidays={holidays}
           now={now}
           loading={loading}
+          updatedAt={data.updatedAt}
         />
       )}
       {role === 'Gestionnaire' && (
