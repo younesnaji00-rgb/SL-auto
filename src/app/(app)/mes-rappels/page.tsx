@@ -261,13 +261,15 @@ export default function MesRappelsPage() {
     window.history.replaceState(window.history.state, '', url);
   };
 
-  // ── Reçus queue (addendum 2026-09-03 bis §B): « À traiter » is FIFO —
-  //    oldest first (action-needed order, addendum ter A); « Traités » leaves
-  //    the queue and reads newest-treated first. Sorted here, NOT in the hook
-  //    (the notification bell shares useRappels and keeps newest-first). ──
+  // ── Reçus queue: BOTH segments read NEWEST FIRST (owner ruling
+  //    2026-09-07). This supersedes the FIFO « À traiter » of addendum
+  //    2026-09-03 bis §B / ter A: the rappel that just arrived is the one
+  //    being talked about, and oldest-first buried it at the bottom of the
+  //    queue. « Traités » already read newest-treated first. Sorted here,
+  //    NOT in the hook (the bell shares useRappels and keeps newest-first). ──
   const [segment, setSegment] = useState<Segment>('a-traiter');
   const aTraiter = useMemo(
-    () => rappels.filter((r) => !r.resolvedAt).sort((a, b) => tsMillis(a.createdAt) - tsMillis(b.createdAt)),
+    () => rappels.filter((r) => !r.resolvedAt).sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt)),
     [rappels],
   );
   const traites = useMemo(
@@ -622,7 +624,7 @@ export default function MesRappelsPage() {
                     />
                   )
                 ) : isPhone ? (
-                  // PHONE — the same FIFO queue as a row list: réf + date /
+                  // PHONE — the same queue as a row list (newest first): réf + date /
                   // « Aujourd'hui », the observation as the second line (500
                   // weight while unread), state chip + sender on the third.
                   // The teal unread bar rides the row primitive.
@@ -660,7 +662,7 @@ export default function MesRappelsPage() {
                   </RecordList>
                 ) : (
                   // Queue table (§3 + addendum bis §B): 6 columns, one-line
-                  // grid, FIFO. Unread = teal left bar + full-ink ladder; the
+                  // grid, newest first. Unread = teal left bar + full-ink ladder; the
                   // Nouveau chip is the only filled info pair. Emphasis budget:
                   // ref (mono 600) + statut chip.
                   <Card className="overflow-hidden">

@@ -354,6 +354,33 @@ export function TutorialLauncher() {
     return () => window.removeEventListener('keydown', onKey);
   }, [showWelcome, dismissWelcome]);
 
+  // Phones (mobile pass 2026-09-06): the floating button is gone — a corner
+  // FAB is the least accurate target on a phone (Hoober: ~12 mm vs 7 mm at the
+  // centre) and it fought the bottom bar and the toasts for that corner. The
+  // tour is reached from a row in the « Plus » sheet / Profil instead, which
+  // dispatches `sl:tutorial-open`.
+  //
+  // This listener MUST be registered ABOVE the `allowed` early return. It used
+  // to sit near the bottom of the component, so the instant the user chose
+  // « Ne plus afficher le tutoriel » — which flips `allowed` to false and takes
+  // that return — the render produced one hook FEWER than the previous one and
+  // React destroyed the whole tree with "Rendered fewer hooks than expected"
+  // (a blank « Application error » page; hit live in a demo, 2026-09-07).
+  // `startRef` carries the current render's `start`, which is only defined
+  // below the return.
+  const startRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const open = () => startRef.current?.();
+    window.addEventListener('sl:tutorial-open', open);
+    return () => window.removeEventListener('sl:tutorial-open', open);
+  }, []);
+  useEffect(() => {
+    // Tutorial switched off (or no tour on this route): the body below never
+    // runs again, so the ref would keep the last handler alive. Drop it, or a
+    // stray event could start a tour the user has just turned off.
+    if (!allowed || !tut) startRef.current = null;
+  }, [allowed, tut]);
+
   if (!allowed || !tut) return null;
 
   const markWelcomed = () => {
@@ -482,16 +509,9 @@ export function TutorialLauncher() {
     start();
   };
 
-  // Phones (mobile pass 2026-09-06): the floating button is gone — a corner
-  // FAB is the least accurate target on a phone (Hoober: ~12 mm vs 7 mm at the
-  // centre) and it fought the bottom bar and the toasts for that corner. The
-  // tour is reached from a row in the « Plus » sheet / Profil instead, which
-  // dispatches this event.
-  useEffect(() => {
-    const open = () => start();
-    window.addEventListener('sl:tutorial-open', open);
-    return () => window.removeEventListener('sl:tutorial-open', open);
-  });
+  // Hand THIS render's `start` to the `sl:tutorial-open` listener registered
+  // above the early return.
+  startRef.current = start;
 
   // Arrow keys nudge the button while it has focus — the drag equivalent for
   // anyone who cannot use a pointer. Shift makes it a coarse jump.
