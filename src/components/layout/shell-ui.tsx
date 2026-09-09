@@ -21,12 +21,22 @@ interface ShellUiValue {
   openPalette: (initialQuery?: string) => void;
   openCreateDossier: () => void;
   canCreateDossier: boolean;
+  /**
+   * True while a page has claimed the whole window. The shell top bar steps
+   * aside; the page is responsible for putting its own navigation back where
+   * the user can reach it. Set by the devis editor's full-height comparison
+   * pane (owner ruling 2026-09-09) and cleared on unmount.
+   */
+  hideChrome: boolean;
+  setHideChrome: (v: boolean) => void;
 }
 
 const ShellUiContext = createContext<ShellUiValue>({
   openPalette: () => {},
   openCreateDossier: () => {},
   canCreateDossier: false,
+  hideChrome: false,
+  setHideChrome: () => {},
 });
 
 export function ShellUiProvider({ children }: { children: React.ReactNode }) {
@@ -40,6 +50,7 @@ export function ShellUiProvider({ children }: { children: React.ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [hideChrome, setHideChrome] = useState(false);
 
   const canCreateDossier = canWrite('dossiers');
 
@@ -78,8 +89,8 @@ export function ShellUiProvider({ children }: { children: React.ReactNode }) {
   useHotkeys(hotkeys, [hotkeys]);
 
   const value = useMemo<ShellUiValue>(
-    () => ({ openPalette, openCreateDossier, canCreateDossier }),
-    [openPalette, openCreateDossier, canCreateDossier],
+    () => ({ openPalette, openCreateDossier, canCreateDossier, hideChrome, setHideChrome }),
+    [openPalette, openCreateDossier, canCreateDossier, hideChrome],
   );
 
   return (

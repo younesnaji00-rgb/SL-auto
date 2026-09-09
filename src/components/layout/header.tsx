@@ -2,8 +2,13 @@
 
 /**
  * Top bar — universal actions only (Atlassian split): location on the left,
- * create · rappels · account on the right. Page-specific actions live in
- * <PageHeader>, never here.
+ * rappels · account on the right. Page-specific actions live in <PageHeader>,
+ * never here.
+ *
+ * « Nouveau » is deliberately NOT here (owner ruling 2026-09-09): a dossier is
+ * created from the dossiers page, where the list confirms the creation. A
+ * global create button let it be pressed from contexts that then jump the user
+ * somewhere else. The `c` hotkey and the command palette still open the dialog.
  *
  * Mobile pass (2026-09-06): below `md` this component renders <PhoneTopBar>
  * instead — 48 px, the page title in the bar, an up-link instead of the
@@ -14,8 +19,6 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import Breadcrumb from '@/components/breadcrumb';
 import Logo from '@/components/logo';
 import Notifications from '@/components/layout/notifications';
@@ -24,20 +27,12 @@ import PhoneTopBar from '@/components/layout/phone-top-bar';
 import { useShellUi } from '@/components/layout/shell-ui';
 import { useT } from '@/i18n';
 
-function QuickCreate() {
-  const t = useT();
-  const { openCreateDossier, canCreateDossier } = useShellUi();
-  if (!canCreateDossier) return null;
-  return (
-    <Button onClick={openCreateDossier} className="h-9 gap-1.5 px-3" title={t('Nouveau dossier')} data-tour="shell-create">
-      <Plus className="h-4 w-4" />
-      <span className="hidden sm:inline">{t('Nouveau')}</span>
-    </Button>
-  );
-}
-
 const Header = () => {
   const t = useT();
+  const { hideChrome } = useShellUi();
+  // A page can claim the whole window (devis editor, comparison pane open).
+  // It then owns the navigation it took away.
+  if (hideChrome) return null;
   return (
     <>
       {/* Phones (< md): the whole bar is different — title, up-link, one action. */}
@@ -57,7 +52,6 @@ const Header = () => {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
-          <QuickCreate />
           <Notifications />
           <UserMenu />
         </div>

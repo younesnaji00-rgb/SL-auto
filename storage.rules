@@ -1,10 +1,26 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // task #6 — stamps storage; read: any auth, write: Admin only
+    // Stamps (task #6).
+    //
+    // 2026-09-09: this rule used to gate writes on a CROSS-SERVICE read —
+    // `firestore.get(/databases/(default)/documents/users/$(uid)).data.role`.
+    // That call is the only one of its kind in this bucket, and it is a
+    // single point of failure: if the document is missing, or the Storage
+    // service agent lacks Firestore access, the expression ERRORS, and a rule
+    // that errors DENIES the request outright — the catch-all below cannot
+    // rescue it. Result: every other upload in the app worked and stamps
+    // alone failed with `storage/unauthorized`.
+    //
+    // It also bought nothing: the catch-all already lets any signed-in user
+    // write anywhere in this bucket, so the Admin gate here was cosmetic. The
+    // real gates on stamps are the Firestore `stamps` rules (create requires
+    // `createdBy == request.auth.uid`) and the Admin-only /tampons page. Once
+    // the catch-all below is scoped per prefix, re-introduce an Admin gate
+    // here using a CUSTOM CLAIM (`request.auth.token.role`), which is read
+    // from the token and cannot fail the way a cross-service read can.
     match /stamps/{fileName=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+      allow read, write: if request.auth != null;
     }
     // Signed-in users only. Tokenless URLs (?alt=media&token=) are denied.
     // getDownloadURL()'s token-bearing URLs still work for in-app rendering.

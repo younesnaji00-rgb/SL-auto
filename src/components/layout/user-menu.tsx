@@ -2,16 +2,17 @@
 
 /**
  * Avatar menu — identity, theme, bug report and sign-out in one control
- * (Attio / Slack pattern). Profile access lives in the sidebar footer on
- * desktop; on touch the menu is an `ActionSheet` (mobile-synthesis §3:
- * every dropdown renders as a sheet on coarse pointers) whose first row is
- * Profil, so the account is never more than one tap away on a phone.
+ * (Attio / Slack pattern). On desktop the same three actions are ALSO rows in
+ * the sidebar footer (owner ruling 2026-09-09); this menu stays because the
+ * phone top bar has no sidebar footer to reach. On touch it renders as an
+ * `ActionSheet` (mobile-synthesis §3: every dropdown renders as a sheet on
+ * coarse pointers). There is no Profil page any more.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { LogOut, Moon, Sun, Bug, UserRound } from 'lucide-react';
+import { LogOut, Moon, Sun, Bug } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -86,8 +87,8 @@ export default function UserMenu({ compact }: UserMenuProps) {
 
   if (coarse) {
     const items: ActionItem[] = [
-      { key: 'profil', label: t('Profil'), icon: <UserRound />, href: '/profil' },
       { key: 'theme', label: isDark ? t('Mode clair') : t('Mode sombre'), icon: isDark ? <Sun /> : <Moon />, onSelect: toggleTheme },
+      { key: 'bug', label: t('Signaler un bug'), icon: <Bug />, href: '/signaler-bug' },
       { key: 'signout', label: t('Déconnexion'), icon: <LogOut />, destructive: true, onSelect: () => void signOut() },
     ];
     return (

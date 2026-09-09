@@ -98,7 +98,7 @@ export function DevisPreviewDialog({
   onConfirm,
   onEdit,
 }: DevisPreviewDialogProps) {
-  const { stamps } = useStamps({ mineOnly: true });
+  const { stamps, loading: stampsLoading } = useStamps({ mineOnly: true });
   const db = useFirestore();
   const t = useT();
   const [selectedStampId, setSelectedStampId] = useState<string>(NONE_VALUE);
@@ -143,6 +143,17 @@ export function DevisPreviewDialog({
       setCursorPos(null);
     }
   }, [open]);
+
+  // A chiffreur with exactly ONE assigned stamp should not have to find it in
+  // a dropdown: assigning a stamp IS the instruction to use it (owner ruling
+  // 2026-09-09). Selecting it loads the image and arms placing mode, so the
+  // next click on a page glues it there. Two or more assigned stamps stay a
+  // deliberate choice, and « Sans tampon » is always one click away.
+  const soleStampId = stamps.length === 1 ? stamps[0].id : null;
+  useEffect(() => {
+    if (!open || !soleStampId) return;
+    setSelectedStampId((cur) => (cur === NONE_VALUE ? soleStampId : cur));
+  }, [open, soleStampId]);
 
   // Resolve stamp data URL & enter/exit placing mode when the dropdown changes.
   useEffect(() => {
@@ -566,6 +577,13 @@ export function DevisPreviewDialog({
                     {s.name || s.id}
                   </SelectItem>
                 ))}
+                {!stampsLoading && stamps.length === 0 && (
+                  // Empty is an ANSWER here, not an omission: no stamp has
+                  // been assigned to this account yet (element-specs §12).
+                  <p className="t-caption px-2 py-1.5">
+                    {t("Aucun tampon ne vous est attribué — demandez-en un à un administrateur (page Tampons).")}
+                  </p>
+                )}
               </SelectContent>
             </Select>
           </div>

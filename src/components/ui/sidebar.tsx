@@ -35,6 +35,16 @@ type SidebarContext = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   toggleSidebar: () => void
+  /**
+   * Hover-expand (owner ruling 2026-09-09): the rail is the resting state and
+   * pointing at it opens it, so there is no toggle button to hunt for. The
+   * expansion is an OVERLAY — `state` flips to "expanded" (labels appear) but
+   * the layout spacer stays at rail width, so the page underneath never
+   * reflows on a mouse-over. Pointer-driven only: a coarse pointer or a
+   * keyboard user still gets the persistent `open` state.
+   */
+  hoverExpanded: boolean
+  setHovered: (v: boolean) => void
 }
 
 const SidebarContext = React.createContext<SidebarContext | null>(null)
@@ -76,6 +86,8 @@ const SidebarProvider = React.forwardRef<
     const viewport = useViewportClass()
 
     const [_open, _setOpen] = React.useState(defaultOpen)
+    // Hover-expand: transient, never persisted to the cookie.
+    const [hovered, setHovered] = React.useState(false)
     const open = openProp ?? _open
     const setOpen = React.useCallback(
       (value: boolean | ((value: boolean) => boolean)) => {
@@ -116,7 +128,10 @@ const SidebarProvider = React.forwardRef<
       if (viewport === "tablet") _setOpen(false)
     }, [viewport])
 
-    const state = open ? "expanded" : "collapsed"
+    // A hover reads as "expanded" so the rows show their labels, but only as
+    // an overlay — see `hoverExpanded` on the spacer below.
+    const hoverExpanded = !open && hovered && !isMobile
+    const state = open || hoverExpanded ? "expanded" : "collapsed"
 
     const contextValue = React.useMemo<SidebarContext>(
       () => ({
@@ -127,8 +142,10 @@ const SidebarProvider = React.forwardRef<
         openMobile,
         setOpenMobile,
         toggleSidebar,
+        hoverExpanded,
+        setHovered,
       }),
-      [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+      [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, hoverExpanded]
     )
 
     return (
@@ -179,7 +196,7 @@ const Sidebar = React.forwardRef<
     },
     ref
   ) => {
-    const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+    const { isMobile, state, openMobile, setOpenMobile, hoverExpanded, setHovered } = useSidebar()
 
     if (collapsible === "none") {
       return (
@@ -222,15 +239,24 @@ const Sidebar = React.forwardRef<
         className="group peer hidden md:block text-sidebar-foreground"
         data-state={state}
         data-collapsible={state === "collapsed" ? collapsible : ""}
+        data-hover-expanded={hoverExpanded ? "true" : undefined}
         data-variant={variant}
         data-side={side}
+        // Pointer only: a touch "hover" would latch the panel open, and a
+        // keyboard user has the persistent toggle. `onPointerEnter` fires for
+        // mouse and pen but not for a tap.
+        onPointerEnter={(e) => { if (e.pointerType === "mouse" || e.pointerType === "pen") setHovered(true) }}
+        onPointerLeave={() => setHovered(false)}
       >
         <div
           className={cn(
             "duration-300 relative h-svh w-[--sidebar-width] bg-transparent transition-[width] ease-standard motion-reduce:transition-none",
             "group-data-[collapsible=offcanvas]:w-0",
             "group-data-[side=right]:rotate-180",
-            "group-data-[collapsible=icon]:w-[--sidebar-width-icon]"
+            "group-data-[collapsible=icon]:w-[--sidebar-width-icon]",
+            // The hover expansion floats over the page: the reserved width
+            // never changes, so nothing reflows under the pointer.
+            "group-data-[hover-expanded=true]:w-[--sidebar-width-icon]"
           )}
         />
         <div
@@ -248,7 +274,7 @@ const Sidebar = React.forwardRef<
         >
           <div
             data-sidebar="sidebar"
-            className="glass-sidebar flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
+            className="glass-sidebar flex h-full w-full flex-col group-data-[hover-expanded=true]:shadow-xl group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
           >
             {children}
           </div>

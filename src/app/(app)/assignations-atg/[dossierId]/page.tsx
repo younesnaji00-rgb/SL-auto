@@ -34,7 +34,7 @@ import { assureName } from '@/lib/dossier-label';
 import ObservationsTab from '@/components/observations-tab';
 import CameraCapture from '@/components/camera-capture';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
-import { MAX_PHOTOS_PER_SECTION, MAX_PHOTOS_WITH_REFORME } from '@/app/(app)/dossiers/[id]/photos-tab';
+import { MAX_PHOTOS_PER_SECTION, MAX_PHOTOS_WITH_REFORME, photoCapForCategory } from '@/app/(app)/dossiers/[id]/photos-tab';
 import { useOptions } from '@/hooks/use-options';
 import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
@@ -176,8 +176,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // Dossier data
   const dossierRef = useMemo(() => (db ? doc(db, 'dossiers', dossierId) : null), [db, dossierId]);
   const { data: dossier, loading: dossierLoading } = useDoc<any>(dossierRef as any);
-  // Proposition réforme (item 021) lifts the per-section cap from 30 to 60.
-  const photoCap = (dossier as any)?.propositionReforme ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION;
 
   // Planifications
   const plansQuery = useMemo(
@@ -235,6 +233,15 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
 
   // Current tab's photo category
   const currentCategory = MISSION_TABS.find(t => t.id === activeTab)?.category || 'avant';
+  // The cap belongs to the MISSION, not the section: a second « Avant »
+  // mission on the same dossier buys the agent another full allowance, so an
+  // agent who filled 30 slots is not stuck when the gestionnaire re-plans
+  // (owner ruling 2026-09-09). Proposition réforme (item 021) still lifts the
+  // per-mission allowance from 30 to 60.
+  const photoCap = useMemo(
+    () => photoCapForCategory(currentCategory, plans, !!(dossier as any)?.propositionReforme),
+    [currentCategory, plans, dossier],
+  );
 
   // Filtered photos for active tab
   const filteredPhotos = useMemo(
@@ -300,7 +307,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     // race-free with respect to additional snapshots arriving mid-batch.
     const statutBeforeUpload: string | undefined = dossier?.statut;
     const categoryAtUpload: PhotoCategory = currentCategory;
-    // Enforce per-section cap (item 020) — lifted to MAX_PHOTOS_WITH_REFORME
+    // Enforce the cap for this section (item 020) — one allowance per
+    // mission planned for it, lifted to MAX_PHOTOS_WITH_REFORME per mission
     // when proposition réforme is active on this dossier (item 021).
     const existing = filteredPhotos.length;
     const available = Math.max(0, photoCap - existing);

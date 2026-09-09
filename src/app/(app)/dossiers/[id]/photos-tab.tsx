@@ -30,13 +30,14 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
-import { useFirestore, useAuth, useStorage, useDoc } from '@/firebase';
+import { useFirestore, useAuth, useStorage, useDoc, useCollection } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useTabSlopeMorphRef } from '@/hooks/use-tab-morph';
@@ -171,12 +172,40 @@ const CATEGORIES: { id: PhotoCategory; label: string; fullLabel: string }[] = [
   { id: 'apres', label: 'Photos après', fullLabel: 'Photos après' },
 ];
 
-/** Default cap per photo section (avant / en cours / après). Lifted to
+/** « typeMission » on a planification → the photo section it feeds. */
+export const TYPE_MISSION_TO_CATEGORY: Record<string, PhotoCategory> = {
+  'Avant': 'avant',
+  'En cours': 'en_cours',
+  'Après': 'apres',
+};
+
+/** Cap per photo section (avant / en cours / après) PER MISSION. Lifted to
  *  {@link MAX_PHOTOS_WITH_REFORME} when the dossier has `propositionReforme`
- *  set (see item 021). */
+ *  set (see item 021), and multiplied by the number of missions planned for
+ *  that section — a second « Avant » mission on the same dossier buys the
+ *  agent another full allowance (owner ruling 2026-09-09), which is what
+ *  {@link photoCapForCategory} computes. */
 export const MAX_PHOTOS_PER_SECTION = 30;
 /** Cap when proposition réforme is active. */
 export const MAX_PHOTOS_WITH_REFORME = 60;
+
+/**
+ * How many photos a section accepts for this dossier: one full allowance per
+ * mission planned for that section, never fewer than one (a section with no
+ * mission yet still accepts its first 30). Shared by the gestionnaire's photo
+ * tab and the agent's mission screen so the two never disagree.
+ */
+export function photoCapForCategory(
+  category: PhotoCategory,
+  planifications: { typeMission?: unknown }[] | null | undefined,
+  propositionReforme?: boolean,
+): number {
+  const perMission = propositionReforme ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION;
+  const missions = (planifications ?? []).filter(
+    (plan) => TYPE_MISSION_TO_CATEGORY[String(plan?.typeMission ?? '')] === category,
+  ).length;
+  return perMission * Math.max(1, missions);
+}
 
 /* Preview-lightbox header height (≈46px) is folded into the lg
    window-width formula on the DialogContent below. */
@@ -213,7 +242,19 @@ export default function PhotosTab({
     [db, dossierId],
   );
   const { data: dossier } = useDoc<any>(dossierRef as any);
-  const photoCap = dossier?.propositionReforme ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION;
+  // The cap is PER MISSION, not per section: an agent who filled the 30
+  // « Avant » slots gets another 30 the moment a second « Avant » mission is
+  // created (owner ruling 2026-09-09). Sections with no mission yet still get
+  // one allowance so the tab is never dead on arrival.
+  const planificationsQuery = React.useMemo(
+    () => (db ? query(collection(db, 'dossiers', dossierId, 'planifications')) : null),
+    [db, dossierId],
+  );
+  const { data: planifications } = useCollection<any>(planificationsQuery as any);
+  const capFor = React.useCallback(
+    (cat: PhotoCategory) => photoCapForCategory(cat, planifications, !!dossier?.propositionReforme),
+    [planifications, dossier?.propositionReforme],
+  );
 
   const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -317,14 +358,16 @@ export default function PhotosTab({
     if (!storage || !db) return;
     const userEmail = auth?.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'unknown';
-    // Enforce per-section cap. Accept up to the cap, toast the overflow.
+    // Enforce the cap for THIS section, which grows with the number of
+    // missions planned for it. Accept up to the cap, toast the overflow.
+    const cap = capFor(cat);
     const existing = photosForCategory(cat).length;
-    const available = Math.max(0, photoCap - existing);
+    const available = Math.max(0, cap - existing);
     if (available === 0) {
       toast({
         variant: 'destructive',
         title: t('Limite atteinte'),
-        description: `${t('Limite de')} ${photoCap} ${t('photos atteinte pour cette section.')}`,
+        description: `${t('Limite de')} ${cap} ${t('photos atteinte pour cette section.')}`,
       });
       return;
     }
@@ -335,7 +378,7 @@ export default function PhotosTab({
         toast({
           variant: 'destructive',
           title: t('Limite de photos'),
-          description: `${files.length - available} ${t('photo(s) ignorée(s) — la limite de')} ${photoCap} ${t('par section a été atteinte.')}`,
+          description: `${files.length - available} ${t('photo(s) ignorée(s) — la limite de')} ${cap} ${t('par section a été atteinte.')}`,
         });
       }
       // Fire all uploads in parallel. Use allSettled so one failure doesn't abort the batch.
@@ -718,7 +761,7 @@ export default function PhotosTab({
                 <Camera className="h-3.5 w-3.5" />
                 {t(cat.label)}
                 <span className="rounded-full bg-surface-3 px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2">
-                  {count}/{photoCap}
+                  {count}/{capFor(cat.id)}
                 </span>
               </TabsTrigger>
             );
@@ -733,12 +776,12 @@ export default function PhotosTab({
               {/* Upload header */}
               <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                 {onlyCategory ? (
-                  <span className="t-caption tabular-nums">{catPhotos.length}/{photoCap} {t('photos')}</span>
+                  <span className="t-caption tabular-nums">{catPhotos.length}/{capFor(cat.id)} {t('photos')}</span>
                 ) : (
                 <h3 className="t-heading flex items-center gap-2">
                   {t(cat.fullLabel)}
                   <span className="rounded-full bg-surface-3 px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2">
-                    {catPhotos.length}/{photoCap}
+                    {catPhotos.length}/{capFor(cat.id)}
                   </span>
                 </h3>
                 )}
@@ -783,7 +826,7 @@ export default function PhotosTab({
                         type="button"
                         size={isPhone ? 'default' : 'sm'}
                         className={isPhone ? 'h-11 gap-2 px-3 text-[14px]' : 'h-8 gap-2 text-xs'}
-                        disabled={isUploading === cat.id || catPhotos.length >= photoCap}
+                        disabled={isUploading === cat.id || catPhotos.length >= capFor(cat.id)}
                         onClick={() => setCameraCategory(cat.id)}
                       >
                         <Camera className="h-3.5 w-3.5" />
@@ -920,7 +963,7 @@ export default function PhotosTab({
             setCameraCategory(null);
             if (cat && files.length > 0) void handleUpload(cat, files);
           }}
-          maxCaptures={Math.max(0, photoCap - photosForCategory(cameraCategory).length)}
+          maxCaptures={Math.max(0, capFor(cameraCategory) - photosForCategory(cameraCategory).length)}
         />
       )}
 

@@ -47,6 +47,14 @@ export function useStamps(
       setStamps([]);
       return;
     }
+    // A user with no assignment has no stamps, and that is a RESOLVED answer,
+    // not a pending one — the picker must be able to say so instead of sitting
+    // on a spinner forever (owner report 2026-09-09).
+    if (mineOnly && assignedStampIds.length === 0) {
+      setStamps([]);
+      setLoading(false);
+      return;
+    }
     const colRef = collection(db, 'stamps');
     // Single-field query — no composite index needed. The active filter runs
     // client-side; the stamps collection is small enough that fetching all

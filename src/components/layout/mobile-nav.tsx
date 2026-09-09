@@ -25,13 +25,13 @@
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutGrid, UserRound } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import { useVisibleNav } from '@/hooks/use-visible-nav';
 import { useRappels } from '@/hooks/use-rappels';
 import { useIsPhoneLandscape, useKeyboardOpen } from '@/hooks/use-viewport-class';
 import { usePageChrome } from '@/components/layout/page-chrome';
 import { PlusSheet } from '@/components/layout/plus-sheet';
-import { mobileBarFor, mobileLabelFor, PROFIL_HREF, type NavItem } from '@/lib/nav-groups';
+import { mobileBarFor, mobileLabelFor, type NavItem } from '@/lib/nav-groups';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 
@@ -93,12 +93,11 @@ export default function MobileNav() {
   const { bar, overflow, hasPlus } = useMemo(() => mobileBarFor(items, role), [items, role]);
 
   // « Plus » is the active tab whenever the current page lives inside it
-  // (an overflow destination, Profil, the bug form) — the bar must always
-  // tell the user which area they are in (Apple HIG tab bars).
+  // (an overflow destination, the bug form) — the bar must always tell the
+  // user which area they are in (Apple HIG tab bars).
   const plusActive =
     hasPlus &&
     (overflow.some((i: NavItem) => isNavItemActive(pathname, i.href)) ||
-      isNavItemActive(pathname, PROFIL_HREF) ||
       isNavItemActive(pathname, '/signaler-bug'));
 
   return (
@@ -128,7 +127,7 @@ export default function MobileNav() {
               </li>
             );
           })}
-          {hasPlus ? (
+          {hasPlus && (
             <li>
               <button
                 type="button"
@@ -143,19 +142,6 @@ export default function MobileNav() {
                 </span>
                 <span>{t('Plus')}</span>
               </button>
-            </li>
-          ) : (
-            <li>
-              <Link
-                href={PROFIL_HREF}
-                aria-current={isNavItemActive(pathname, PROFIL_HREF) ? 'page' : undefined}
-                className={tabClass(isNavItemActive(pathname, PROFIL_HREF))}
-              >
-                <span className={pillClass(isNavItemActive(pathname, PROFIL_HREF))}>
-                  <UserRound className="h-6 w-6" strokeWidth={isNavItemActive(pathname, PROFIL_HREF) ? 2.25 : 1.75} />
-                </span>
-                <span>{t('Profil')}</span>
-              </Link>
             </li>
           )}
         </ul>

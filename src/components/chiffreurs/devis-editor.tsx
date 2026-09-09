@@ -45,7 +45,8 @@ import { enqueueUpload } from '@/lib/offline/upload-queue';
 import {
   type DevisExtraColumn, type DevisHeader, type DevisRow, type DevisSnapshot, type DevisVersion, type StructuredDevis,
   type EditableBaseDocType, type EditableDocType, type ObservationOption,
-  emptyHeader, emptyRow, formatFr, normalizeExtraColumns, parseFr, rowTotalHT, sumHT, sumTTC, sumTVA,
+  accordRowTotalHT, emptyHeader, emptyRow, formatFr, normalizeExtraColumns, parseFr, rowTotalHT, sumHT, sumTTC, sumTVA,
+  VETUSTE_STEP, isValidVetuste,
   REF_OPTIONS, TYPE_OPTIONS, OBSERVATION_OPTIONS, OBSERVATION_LABELS, toBaseEditableDocType,
 } from '@/lib/devis-schema';
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
@@ -57,6 +58,7 @@ import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import ReferencePanel from '@/app/editor/reference-panel';
 import { useSidebar } from '@/components/ui/sidebar';
+import { useShellUi } from '@/components/layout/shell-ui';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { DevisPreviewDialog } from '@/components/chiffreurs/devis-preview-dialog';
 import { ScanWarningDialog } from '@/components/chiffreurs/scan-warning-dialog';
@@ -138,6 +140,7 @@ export function DevisEditor({
   const { profile, canWrite } = useCurrentUser();
   const canEdit = canWrite('assignations-chiffrage');
   const { setOpen: setAppSidebarOpen } = useSidebar();
+  const { setHideChrome } = useShellUi();
 
   const [loading, setLoading] = useState(!isGestionnaire);
   const [extracting, setExtracting] = useState(false);
@@ -586,8 +589,10 @@ export function DevisEditor({
 
   // Accord totals helpers. The cap (accord PU ≤ row PUHT) is signalled
   // inline (red border + message) on the cell — no clamping or revert.
+  // Vétusté lives HERE and nowhere else: the left-hand P.U H.T / Total H.T
+  // columns reproduce the garage's figures untouched (owner ruling 2026-09-09).
   const computeAccordTotalHT = (puAccord: number, qte: number, vetuste: number) =>
-    puAccord * qte * (1 - vetuste / 100);
+    accordRowTotalHT(puAccord, qte, vetuste);
   const computeAccordPrixTTC = (totalHTAccord: number, tva: number) =>
     totalHTAccord * (1 + tva / 100);
 
@@ -631,7 +636,7 @@ export function DevisEditor({
       const qte = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
       const vetuste = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
       const tva = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
-      const tHt = pu * qte * (1 - vetuste / 100);
+      const tHt = accordRowTotalHT(pu, qte, vetuste);
       return sum + tHt * (1 + tva / 100);
     }, 0);
   }, [extraColumns, rows]);
@@ -1094,6 +1099,22 @@ export function DevisEditor({
     [saving, previewOpen, header, rows, extraColumns],
   );
 
+  // Full-height comparison (owner ruling 2026-09-09): on a desktop split, the
+  // source document gets the WHOLE window — the shell top bar is suppressed
+  // and this editor's own headline/action row moves into the right-hand table
+  // panel. Everything comes back the moment the pane is closed; the stacked
+  // (< desktop) layout is untouched because there is no second column to move
+  // the toolbar into.
+  //
+  // Declared ABOVE the loading early-return: the effect must run on every
+  // render of this component, loading or not (rules of hooks — this branch
+  // has no ESLint config to catch it for us).
+  const compareFullHeight = comparisonOpen && !!dossierId && !stackedCompare;
+  useEffect(() => {
+    setHideChrome(compareFullHeight);
+    return () => setHideChrome(false);
+  }, [compareFullHeight, setHideChrome]);
+
   // Render ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -1116,15 +1137,18 @@ export function DevisEditor({
   // leads. Never two filled buttons in view (element-specs §8).
   const reviewPending = canEdit && !scanReviewed;
 
-  return (
-    <div className="w-full space-y-4 px-4 py-4 sm:px-6">
-      {/* Toolbar — original 3d5629a layout: a NON-sticky row (this page has
-          no other sticky chrome, so nothing needs to stick — §23). Anatomy per
-          element-specs §18 (Apple HIG toolbars: leading = navigation/title,
-          trailing = important items, ≤ 3 groups): back · title block · Comparer
-          (outline ⇄ tonal toggle) · « J'ai vérifié » · Ré-extraire (outline,
-          visible — it is an edit-type action, so a labelled button, not a
-          symbol or a ⋯ item) · ONE filled Enregistrer at the right end. */}
+  // The toolbar is a VALUE, not a fixed position: with the comparison pane
+  // open it moves into the right-hand (table) panel so the source document
+  // owns the full window height — headline, actions and shell top bar all
+  // step aside (owner ruling 2026-09-09). Closing the pane puts it back.
+  // Toolbar — original 3d5629a layout: a NON-sticky row (this page has no
+  // other sticky chrome, so nothing needs to stick — §23). Anatomy per
+  // element-specs §18 (Apple HIG toolbars: leading = navigation/title,
+  // trailing = important items, ≤ 3 groups): back · title block · Comparer
+  // (outline ⇄ tonal toggle) · « J'ai vérifié » · Ré-extraire (outline,
+  // visible — it is an edit-type action, so a labelled button, not a symbol
+  // or a ⋯ item) · ONE filled Enregistrer at the right end.
+  const toolbar = (
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {!isGestionnaire && chiffrageId && (
           <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" asChild>
@@ -1202,6 +1226,11 @@ export function DevisEditor({
           {t("Enregistrer")}
         </Button>
       </div>
+  );
+
+  return (
+    <div className={cn('w-full space-y-4 px-4 sm:px-6', compareFullHeight ? 'py-2' : 'py-4')}>
+      {!compareFullHeight && toolbar}
 
       {/* C6 — post-save exit velocity (chiffrage-redesign-spec): inline strip
           directly under the toolbar — NOT a toast, it carries actions. Status
@@ -1771,6 +1800,11 @@ export function DevisEditor({
                         className={cn("relative rounded-md", vetusteMissing && "ring-1 ring-status-danger-fg")}
                         title={vetusteMissing ? 'Vétusté manquante' : undefined}
                       >
+                        {/* Vétusté is a barème figure, never a free number:
+                            only whole steps of 5 % are legal. A typed 33 is
+                            REVERTED and toasted rather than silently rounded,
+                            so the chiffreur re-reads the barème (owner ruling
+                            2026-09-09). */}
                         <CellNumberInput
                           value={r.vetuste ?? null}
                           onChange={(v) => updateRow(r.id, { vetuste: v })}
@@ -1779,10 +1813,18 @@ export function DevisEditor({
                           decimals={0}
                           align="right"
                           allowNull
-                          step={5}
+                          step={VETUSTE_STEP}
                           min={0}
                           max={50}
                           showSteppers
+                          validate={isValidVetuste}
+                          onInvalid={(entered) =>
+                            toast({
+                              variant: 'destructive',
+                              title: t('Vétusté refusée'),
+                              description: `${formatFr(entered, 0)} % — ${t('la vétusté se saisit par tranches de 5 % (0, 5, 10 … 50).')}`,
+                            })
+                          }
                         />
                         {vetusteMissing && (
                           <>
@@ -2039,7 +2081,7 @@ export function DevisEditor({
               minSize="28%"
               style={{ overflow: 'visible', maxHeight: 'none' }}
             >
-              {sourcePane('paper sticky top-16 h-[calc((100dvh-10rem)/var(--app-zoom))] w-full overflow-hidden')}
+              {sourcePane('paper sticky top-0 h-[calc((100dvh-2rem)/var(--app-zoom))] w-full overflow-hidden')}
             </SplitPanel>
             {/* C1 — quiet 1 px hairline handle with a grabber-dot area that
                 stays mid-viewport; hover/drag tint per spec. */}
@@ -2060,7 +2102,15 @@ export function DevisEditor({
               minSize="40%"
               style={{ overflow: 'visible', maxHeight: 'none' }}
             >
-              {editorBody}
+              <div className="min-w-0 space-y-4">
+                {/* Headline + actions ride WITH the table while the source
+                    pane owns the full height. Sticky so « Enregistrer » and
+                    « Comparer » stay reachable as the table scrolls. */}
+                <div className="sticky top-0 z-30 -mx-1 bg-background/80 px-1 py-2 backdrop-blur-sm">
+                  {toolbar}
+                </div>
+                {editorBody}
+              </div>
             </SplitPanel>
           </SplitGroup>
         );

@@ -203,16 +203,45 @@ export function emptyRow(): DevisRow {
   };
 }
 
-export function rowTotalHT(r: { qte: number | null; puHT: number; vetuste?: number | null }): number {
+/**
+ * Row total for the LEFT-HAND « Total H.T » column: quantity × unit price,
+ * nothing else.
+ *
+ * Owner ruling 2026-09-09: vétusté and T.V.A must NOT touch the garage's own
+ * figures. The left half of the table reproduces the source devis as written,
+ * so the gestionnaire can check it line for line against the paper. Vétusté
+ * and T.V.A belong to the expert's answer — they are applied to the « PUHT
+ * accordé / proposé » column and to the totals derived from it
+ * ({@link accordRowTotalHT}), never here.
+ */
+export function rowTotalHT(r: { qte: number | null; puHT: number }): number {
   // Blank qte (null) means the line explicitly doesn't count (source qty was 0).
   // Legitimate blank-but-neutral rows (main d'oeuvre / labor rows) are stored
   // with qte=1 by the extractor, so they multiply cleanly.
   const q = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
   const p = Number.isFinite(r.puHT) ? r.puHT : 0;
-  const vRaw = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
+  return q * p;
+}
+
+/**
+ * Row total for an accord / proposition column: the expert's unit price,
+ * depreciated by the row's vétusté. This is the ONE place vétusté enters the
+ * arithmetic (owner ruling 2026-09-09).
+ */
+export function accordRowTotalHT(puAccord: number, qte: number | null, vetuste?: number | null): number {
+  const q = typeof qte === 'number' && Number.isFinite(qte) ? qte : 0;
+  const pu = Number.isFinite(puAccord) ? puAccord : 0;
+  const vRaw = typeof vetuste === 'number' && Number.isFinite(vetuste) ? vetuste : 0;
   // Clamp vétusté to [0, 100] so an out-of-range value never flips the sign.
   const v = Math.min(100, Math.max(0, vRaw));
-  return q * p * (1 - v / 100);
+  return q * pu * (1 - v / 100);
+}
+
+/** Vétusté is entered in whole steps of 5 % (0, 5, 10 … 50). */
+export const VETUSTE_STEP = 5;
+export function isValidVetuste(v: number | null | undefined): boolean {
+  if (v === null || v === undefined) return true; // blank is allowed (main d'oeuvre)
+  return Number.isFinite(v) && v % VETUSTE_STEP === 0;
 }
 
 export function sumHT(rows: DevisRow[]): number {

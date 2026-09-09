@@ -6,7 +6,7 @@
  * Priority+ "creates a scent", Facebook's fifth "More" tab). A `BottomSheet
  * tall` listing every destination that did not fit in the bar, grouped like
  * the sidebar (Opérations / Assignations / Administration), then the account
- * rows: Profil, « Aide / Tutoriel », Signaler un bug, Déconnexion. 56 px rows,
+ * rows: mode sombre, « Aide / Tutoriel », Signaler un bug, Déconnexion. 56 px rows,
  * icon + label, the rappels count on Rappels, the current page highlighted.
  *
  * Navigation and the history stack: the sheet holds a history entry (platform
@@ -19,13 +19,14 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bug, HelpCircle, LogOut, UserRound } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { Bug, HelpCircle, LogOut, Moon, Sun } from 'lucide-react';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { useVisibleNav } from '@/hooks/use-visible-nav';
 import { useSignOut } from '@/components/layout/user-menu';
 import { openTutorial } from '@/components/tutorial/tutorial-launcher';
 import { tutorialsEnabledFor } from '@/lib/tutorial/access';
-import { PROFIL_HREF, type NavItem } from '@/lib/nav-groups';
+import { type NavItem } from '@/lib/nav-groups';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 
@@ -92,6 +93,12 @@ export function PlusSheet({ open, onOpenChange, overflow, unread = 0 }: PlusShee
   const pathname = usePathname() || '';
   const { navGroups, role } = useVisibleNav();
   const signOut = useSignOut();
+  const { theme, setTheme } = useTheme();
+  // next-themes resolves client-side only; keep the label neutral until it does.
+  const [themeMounted, setThemeMounted] = React.useState(false);
+  useEffect(() => setThemeMounted(true), []);
+  const isDark = themeMounted && theme === 'dark';
+  const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
   const navigate = useCloseThenNavigate(onOpenChange);
 
   // Overflow items in sidebar grouping and order.
@@ -142,11 +149,13 @@ export function PlusSheet({ open, onOpenChange, overflow, unread = 0 }: PlusShee
         <section className="pb-2">
           <h3 className="t-label px-4 pb-1 pt-3">{t('Compte')}</h3>
           <ul>
+            {/* The Profil page is gone (owner ruling 2026-09-09) — what it
+                held is these rows. */}
             <li>
-              <Link href={PROFIL_HREF} onClick={(e) => onRow(e, PROFIL_HREF)} aria-current={isActive(pathname, PROFIL_HREF) ? 'page' : undefined} className={rowClass(isActive(pathname, PROFIL_HREF))}>
-                <UserRound className="h-6 w-6 shrink-0 text-ink-2" strokeWidth={1.75} aria-hidden />
-                <span className="min-w-0 flex-1 truncate">{t('Profil')}</span>
-              </Link>
+              <button type="button" className={rowClass(false)} onClick={toggleTheme}>
+                {isDark ? <Sun className="h-6 w-6 shrink-0 text-ink-2" strokeWidth={1.75} aria-hidden /> : <Moon className="h-6 w-6 shrink-0 text-ink-2" strokeWidth={1.75} aria-hidden />}
+                <span className="min-w-0 flex-1 truncate">{isDark ? t('Mode clair') : t('Mode sombre')}</span>
+              </button>
             </li>
             {canUseTutorials && (
               <li>

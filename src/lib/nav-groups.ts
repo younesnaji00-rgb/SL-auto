@@ -94,16 +94,12 @@ export const NAV_GROUPS: NavGroup[] = [
 export const EXTRA_ROUTES: Record<string, { label: string; parent?: string }> = {
   '/chiffrage': { label: 'Chiffrage', parent: '/assignations-chiffrage' },
   '/devis-editor': { label: 'Éditeur de devis', parent: '/assignations-chiffrage' },
-  '/profil': { label: 'Profil' },
 };
 
 /** Flat list of every nav item, in sidebar order. */
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
 
-/** The bottom bar's own tab besides destinations. */
-export const PROFIL_HREF = '/profil';
-
-/** Most destinations a phone bottom bar holds before Profil / « Plus ». */
+/** Most destinations a phone bottom bar holds before « Plus ». */
 export const MOBILE_BAR_MAX = 4;
 
 export interface MobileBar {
@@ -111,14 +107,14 @@ export interface MobileBar {
   bar: NavItem[];
   /** Destinations that only live in the « Plus » sheet (empty when `hasPlus` is false). */
   overflow: NavItem[];
-  /** True → the fifth tab is « Plus » (Profil lives inside it); false → the last tab is Profil. */
+  /** True → a fifth « Plus » tab holds the overflow; false → every destination is a tab. */
   hasPlus: boolean;
 }
 
 /**
  * Combo rule for the phone bottom bar (mobile-synthesis §2, A1): a role that
- * sees ≤ 4 destinations gets them all + Profil (nothing hidden); a role that
- * sees ≥ 5 gets its top 4 by `mobileOrder` + « Plus ». `items` is the
+ * sees ≤ 4 destinations gets them all (nothing hidden); a role that sees ≥ 5
+ * gets its top 4 by `mobileOrder` + « Plus ». `items` is the
  * role-and-grant-filtered list from `useVisibleNav()` (sidebar order), so a
  * per-user grant lands in the bar of a small role and in « Plus » of a large
  * one. « Signaler un bug » is a footer item, never a tab.

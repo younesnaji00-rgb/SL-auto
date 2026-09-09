@@ -25,6 +25,16 @@ export interface CellNumberInputProps {
   max?: number;
   /** Show ▲/▼ chevrons inside the cell. Default false. */
   showSteppers?: boolean;
+  /**
+   * Commit-time guard. Runs on blur (and on Enter) against the value the user
+   * typed. Returning false REVERTS the cell to the value it held on focus and
+   * calls {@link onInvalid} — nothing is written and nothing is rounded, so a
+   * rejected entry is visibly rejected. Steppers bypass it: they can only
+   * produce legal values by construction.
+   */
+  validate?: (v: number | null) => boolean;
+  /** Called with the rejected value when {@link validate} returns false. */
+  onInvalid?: (v: number) => void;
 }
 
 const clamp = (n: number, lo: number | undefined, hi: number | undefined) => {
@@ -46,6 +56,8 @@ export function CellNumberInput({
   min,
   max,
   showSteppers = false,
+  validate,
+  onInvalid,
 }: CellNumberInputProps) {
   const displayFor = (v: number | null | undefined) =>
     v === null || v === undefined ? '' : formatFr(v, decimals);
@@ -105,6 +117,11 @@ export function CellNumberInput({
           // C3 — Échap reverts to the pre-focus value. stopPropagation only
           // when there is something to revert, so an untouched cell still
           // lets Échap close a surrounding popover/dialog.
+          if (e.key === 'Enter') {
+            // Same commit path as blur (the guard lives there).
+            e.currentTarget.blur();
+            return;
+          }
           if (e.key !== 'Escape') return;
           const prev = focusValueRef.current;
           const prevText = displayFor(prev);
@@ -120,12 +137,21 @@ export function CellNumberInput({
           if (text.trim() === '') {
             setText('');
             onChange(allowNull ? null : 0);
-          } else {
-            const parsed = parseFr(text);
-            const finalVal = hasBounds ? clamp(parsed, min, max) : parsed;
-            setText(formatFr(finalVal, decimals));
-            if (finalVal !== parsed) onChange(finalVal);
+            return;
           }
+          const parsed = parseFr(text);
+          const finalVal = hasBounds ? clamp(parsed, min, max) : parsed;
+          // Commit-time guard: an illegal entry never lands. Revert to what
+          // the cell held on focus and let the caller explain why.
+          if (validate && !validate(finalVal)) {
+            const prev = focusValueRef.current;
+            setText(displayFor(prev));
+            onChange(prev);
+            onInvalid?.(finalVal);
+            return;
+          }
+          setText(formatFr(finalVal, decimals));
+          if (finalVal !== parsed) onChange(finalVal);
         }}
         disabled={disabled}
         inputMode="decimal"

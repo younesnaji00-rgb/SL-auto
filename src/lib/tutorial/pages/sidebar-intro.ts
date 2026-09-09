@@ -36,13 +36,6 @@ export const sidebarIntroTutorial: PageTutorial = {
       cursorAt: 'left',
     },
     {
-      anchor: 'shell-create',
-      title: 'Créer, depuis n’importe où',
-      body:
-        "« Nouveau » crée un dossier sans quitter la page où vous êtes.\nAu clavier : la touche C.",
-      side: 'bottom',
-    },
-    {
       anchor: 'shell-notifications',
       title: 'La cloche',
       body:
@@ -59,17 +52,10 @@ export const sidebarIntroTutorial: PageTutorial = {
     {
       title: 'Le clavier, si vous aimez ça',
       body:
-        "Ctrl+K (⌘K sur Mac) ou la touche « / » ouvrent la recherche universelle : une référence, une plaque, un assuré, une page, une action.\nCtrl+B replie le menu, Maj+D bascule le thème, C crée un dossier.\nTout reste faisable à la souris — ces raccourcis ne font que gagner du temps.",
+        "Ctrl+K (⌘K sur Mac) ou la touche « / » ouvrent la recherche universelle : une référence, une plaque, un assuré, une page, une action.\nLe menu de gauche s’ouvre au survol, et Ctrl+B le garde ouvert. Maj+D bascule le thème, C crée un dossier depuis la page Dossiers.\nTout reste faisable à la souris — ces raccourcis ne font que gagner du temps.",
     },
 
     // ── The menu, top to bottom ─────────────────────────────────────────
-    {
-      anchor: 'nav-toggle',
-      title: 'Replier le menu',
-      body:
-        "Ce bouton réduit le menu à ses icônes pour donner toute la largeur au tableau. Les libellés reviennent au survol.",
-      side: 'right',
-    },
     {
       anchor: 'nav-/dashboard',
       title: 'La vue d’ensemble',
@@ -128,16 +114,16 @@ export const sidebarIntroTutorial: PageTutorial = {
       side: 'right',
     },
     {
-      anchor: 'nav-profil',
-      title: 'Votre profil',
-      body: 'Vos informations et vos préférences.',
+      anchor: 'nav-theme',
+      title: 'Le bas du menu',
+      body:
+        "Le thème clair / sombre, « Signaler un bug » et la déconnexion sont trois lignes du menu, chacune à sa place.\nAu clavier, Maj+D bascule le thème.",
       side: 'right',
     },
     {
-      anchor: 'nav-aide-trigger',
-      title: 'Le menu « Aide »',
-      body:
-        "Signaler un bug, et — si vous désactivez un jour le tutoriel — le réactiver depuis ici.",
+      anchor: 'nav-signout',
+      title: 'Se déconnecter',
+      body: 'Ferme votre session sur cet appareil et libère votre compte.',
       side: 'right',
     },
 

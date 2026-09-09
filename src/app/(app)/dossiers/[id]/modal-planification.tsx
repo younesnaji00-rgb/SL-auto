@@ -45,7 +45,6 @@ import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 import { cn } from '@/lib/utils';
 import { INPUT_ADDRESS } from '@/lib/input-attrs';
 import { FormErrorSummary, useFormErrors, type FieldRule } from '@/components/ui/form';
-import { BRAND } from '@/lib/brand';
 import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 
 /** Narrows a free-form typeMission string to the canonical tri-state, or null. */
@@ -172,7 +171,6 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     adresse: '',
     observation: '',
     observationCustomText: '',
-    observationPersonnalisee: '',
     agentLocationManuel: '',
   });
 
@@ -220,9 +218,22 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           setAddressLocating(false);
         }
       },
-      () => {
+      (err) => {
         setAddressLocating(false);
-        toast({ variant: 'destructive', title: t('Position refusée ou indisponible') });
+        // Say WHICH of the three things went wrong — "refusée ou indisponible"
+        // gave the gestionnaire nothing to act on (owner question 2026-09-09).
+        // PERMISSION_DENIED = 1, POSITION_UNAVAILABLE = 2, TIMEOUT = 3.
+        const detail =
+          err?.code === 1
+            ? t("Autorisez l'accès à la position dans votre navigateur, puis réessayez.")
+            : err?.code === 3
+              ? t('Le relevé GPS a expiré. Réessayez près d’une fenêtre ou activez le Wi-Fi.')
+              : t('Aucun signal de position sur cet appareil. Saisissez l’adresse à la main.');
+        toast({
+          variant: 'destructive',
+          title: t('Position indisponible'),
+          description: detail,
+        });
       },
       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
     );
@@ -270,11 +281,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         adresse: initialData.adresse || '',
         observation: initialData.observation || '',
         observationCustomText: initialData?.observationCustomText || '',
-        observationPersonnalisee: initialData.observationPersonnalisee || '',
         agentLocationManuel: initialData.agentLocationManuel || '',
       });
     } else if (open) {
-      setFormData({ agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationCustomText: initialData?.observationCustomText || '', observationPersonnalisee: '', agentLocationManuel: '' });
+      setFormData({ agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationCustomText: initialData?.observationCustomText || '', agentLocationManuel: '' });
     }
   }, [initialData, open, defaultTypeMission, defaultAgentTerrain]);
 
@@ -414,7 +424,6 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         zone: derivedZone,
         adresse: formData.adresse,
         observation: resolvedObservation,
-        observationPersonnalisee: formData.observationPersonnalisee,
         agentLocationManuel: formData.agentLocationManuel,
         modifiedAt: serverTimestamp(),
         modifiedBy: auth?.currentUser?.uid || 'Admin',
@@ -783,26 +792,22 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 defaultValues={['Assuré injoignable', 'Véhicule hors ville d\'expertise', 'Autre']}
               />
             </div>
-            {formData.observation === 'Autre' && (
+          </div>
+
+          {/* « Autre » is the only preset that asks for free text, so the
+              field appears only then (owner ruling 2026-09-09). One field,
+              one stored value — the always-visible duplicate that used to
+              sit below wrote an `observationPersonnalisee` nothing read. */}
+          {formData.observation === 'Autre' && (
+            <div className="space-y-2 max-md:order-8">
+              <Label htmlFor="plan-observation-autre">{t('Observation personnalisée')}</Label>
               <Textarea
+                id="plan-observation-autre"
                 value={formData.observationCustomText}
                 onChange={(e) => setFormData({ ...formData, observationCustomText: e.target.value })}
                 placeholder={t('Écrivez une observation personnalisée…')}
                 rows={2}
                 className="text-sm"
-              />
-            )}
-          </div>
-
-          {/* Redundant for the demo: picking « Autre » already reveals a
-              free-text field right above. */}
-          {BRAND.id !== 'demo' && (
-            <div className="space-y-2 max-md:order-8">
-              <Label>{t('Observation personnalisée')}</Label>
-              <Textarea
-                placeholder={t('Ajouter une observation personnalisée (facultatif)…')}
-                value={formData.observationPersonnalisee}
-                onChange={(e) => setFormData({ ...formData, observationPersonnalisee: e.target.value })}
               />
             </div>
           )}

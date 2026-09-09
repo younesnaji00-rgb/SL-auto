@@ -3,14 +3,18 @@
 /**
  * Product navigation. Quiet by design (Linear: "don't compete for attention
  * you haven't earned"): tinted active row, hairline border, no shadow, no
- * editing inside the nav. Universal actions (create, account, theme) live in
- * the header; the profile row and help live in the footer.
+ * editing inside the nav.
+ *
+ * The nav rests as an ICON RAIL and expands on hover — there is no collapse
+ * button (owner ruling 2026-09-09). The footer carries the account actions as
+ * three ordinary rows, in the same anatomy as a destination: mode sombre,
+ * « Signaler un bug », déconnexion. There is no Profil page.
  */
 
 import React, { useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import NextLink from 'next/link';
-import { Calculator, FolderOpen, HelpCircle, PanelLeft } from 'lucide-react';
+import { Calculator, FolderOpen, HelpCircle, LogOut, Moon, Sun } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -25,24 +29,14 @@ import {
   SidebarMenuBadge,
   useSidebar,
 } from '@/components/ui/sidebar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import Logo from '@/components/logo';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { useTheme } from 'next-themes';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useRappels } from '@/hooks/use-rappels';
 import { useVisibleNav } from '@/hooks/use-visible-nav';
 import { useWorkspaceStore, TAB_KINDS } from '@/hooks/use-workspace-tabs';
-import { userInitials } from '@/components/layout/user-menu';
+import { useSignOut } from '@/components/layout/user-menu';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { tutorialsEnabledFor } from '@/lib/tutorial/access';
@@ -123,13 +117,21 @@ const ActiveRowIndicator = ({ deps }: { deps: React.DependencyList }) => {
 
 const AppSidebar = () => {
   const pathname = usePathname();
-  const { state, toggleSidebar, isMobile, setOpenMobile } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const isCollapsed = state === 'collapsed';
   const { navGroups, footerItems, isVisible } = useVisibleNav();
   const { rappels } = useRappels();
   const { recents } = useWorkspaceStore();
   const { profile } = useCurrentUser();
+  const { theme, setTheme } = useTheme();
+  const signOut = useSignOut();
   const t = useT();
+  // next-themes resolves on the client only: render the neutral label until
+  // it does, or the server and the first paint disagree.
+  const [themeMounted, setThemeMounted] = React.useState(false);
+  React.useEffect(() => setThemeMounted(true), []);
+  const isDark = themeMounted && theme === 'dark';
+  const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
 
   const unreadRappelsCount = rappels.filter((r) => !r.read && !r.resolvedAt).length;
   const closeOnMobile = () => {
@@ -140,8 +142,7 @@ const AppSidebar = () => {
     r.kind === 'dossier' ? isVisible('/dossiers') : isVisible('/assignations-chiffrage'),
   ).slice(0, 5);
 
-  const displayName = profile ? `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || t('Profil') : t('Profil');
-  const isProfilActive = pathname === '/profil' || pathname.startsWith('/profil/');
+  const displayName = profile ? `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || t('Utilisateur') : t('Utilisateur');
   // The guided tour's own "?" button is its only entry point, and the welcome
   // lightbox lets the user switch the tutorial off — which hides that button.
   // This Aide entry is the way back; it exists ONLY while the tutorial is off,
@@ -162,23 +163,9 @@ const AppSidebar = () => {
         )}
       >
         <Logo collapsed={isCollapsed} />
-        {/* The toggle stays at the TOP in both states (owner ruling
-            2026-09-02 — it used to jump to the footer when collapsed). */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              onClick={toggleSidebar}
-              data-tour="nav-toggle"
-              aria-label={isCollapsed ? t('Agrandir la barre latérale') : t('Réduire la barre latérale')}
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">{isCollapsed ? t('Agrandir') : t('Réduire')}</TooltipContent>
-        </Tooltip>
+        {/* No collapse button (owner ruling 2026-09-09): the rail opens on
+            hover and closes when the pointer leaves, so there is nothing to
+            toggle. Ctrl/⌘+B still pins it open for keyboard users. */}
       </SidebarHeader>
 
       <SidebarContent className="relative bg-sidebar">
@@ -242,72 +229,67 @@ const AppSidebar = () => {
       </SidebarContent>
 
       <SidebarFooter className={cn('shrink-0 border-t border-sidebar-border bg-sidebar p-2', isCollapsed && 'items-center')}>
-        {/* Profil row at the bottom of the nav (owner ruling 2026-09-03) with
-            a quiet icon-only Aide menu beside it. The guided-tour entry point
-            is the single bottom-right "?" button (TutorialLauncher) — no
-            duplicate here. */}
-        <div className={cn('flex gap-1', isCollapsed ? 'flex-col items-center' : 'flex-row items-center')}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <NextLink
-                href="/profil"
-                onClick={closeOnMobile}
-                aria-current={isProfilActive ? 'page' : undefined}
-                data-tour="nav-profil"
-                className={cn(
-                  'flex min-w-0 items-center gap-2 rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent',
-                  isCollapsed ? 'h-8 w-8 justify-center' : 'h-9 flex-1 px-1.5',
-                  isProfilActive && 'bg-sidebar-active shadow-rim',
-                )}
-              >
-                <Avatar className="h-6 w-6 shrink-0">
-                  <AvatarFallback className="bg-surface-4 text-[10px] font-semibold text-ink">{userInitials(profile)}</AvatarFallback>
-                </Avatar>
-                {!isCollapsed && <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{displayName}</span>}
-              </NextLink>
-            </TooltipTrigger>
-            <TooltipContent side="right">{t('Profil')}</TooltipContent>
-          </Tooltip>
-          {/* Brand-gated EN/FR switcher (hidden on single-language brands). */}
-          <LanguageSwitcher className="h-8 shrink-0 justify-center text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground" />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                aria-label={t('Aide')}
-                data-tour="nav-aide-trigger"
-              >
-                <HelpCircle className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start" className="w-56" data-tour="nav-aide">
-              <DropdownMenuLabel>{t('Aide')}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {canUseTutorials && tourOff && (
-                <>
-                  <DropdownMenuItem onSelect={() => setTutorialsDisabled(false)}>
-                    <HelpCircle className="mr-2 h-4 w-4" />
-                    {t('Réactiver le tutoriel guidé')}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              {footerItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <DropdownMenuItem key={item.href} asChild>
-                    <NextLink href={item.href} onClick={closeOnMobile}>
-                      <Icon className="mr-2 h-4 w-4" />
-                      {t(item.label)}
-                    </NextLink>
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {/* Account actions are ROWS, not a menu (owner ruling 2026-09-09): the
+            three things a user actually does here — flip the theme, report a
+            bug, sign out — each get their own row, in the same anatomy as a
+            nav destination, so the rail shows them as icons and the expanded
+            panel shows them labelled. The Profil page is gone; the identity is
+            the quiet caption above them. */}
+        {!isCollapsed && (
+          <div className="min-w-0 px-2 pb-1.5">
+            <p className="truncate text-[13px] font-medium text-sidebar-foreground">{displayName}</p>
+            {profile?.role && <p className="truncate text-[11px] text-sidebar-muted">{t(profile.role)}</p>}
+          </div>
+        )}
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={toggleTheme}
+              tooltip={isDark ? t('Mode clair') : t('Mode sombre')}
+              data-tour="nav-theme"
+            >
+              {isDark ? <Sun /> : <Moon />}
+              <span>{isDark ? t('Mode clair') : t('Mode sombre')}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          {footerItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+            return (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild isActive={isActive} tooltip={t(item.label)} data-tour={`nav-${item.href}`}>
+                  <NextLink href={item.href} onClick={closeOnMobile} aria-current={isActive ? 'page' : undefined}>
+                    <Icon />
+                    <span>{t(item.label)}</span>
+                  </NextLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+          {/* The « ? » launcher is the tour's entry point; this row only exists
+              while the user has switched the tutorial off, as the way back. */}
+          {canUseTutorials && tourOff && (
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={() => setTutorialsDisabled(false)} tooltip={t('Réactiver le tutoriel guidé')}>
+                <HelpCircle />
+                <span>{t('Réactiver le tutoriel guidé')}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => void signOut()}
+              tooltip={t('Déconnexion')}
+              className="text-status-danger-fg hover:bg-status-danger-bg hover:text-status-danger-fg [&>svg]:text-status-danger-fg"
+              data-tour="nav-signout"
+            >
+              <LogOut />
+              <span>{t('Déconnexion')}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        {/* Brand-gated EN/FR switcher (hidden on single-language brands). */}
+        <LanguageSwitcher className={cn('h-8 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground', isCollapsed ? 'w-8 justify-center' : 'w-full justify-start px-2')} />
       </SidebarFooter>
     </Sidebar>
   );

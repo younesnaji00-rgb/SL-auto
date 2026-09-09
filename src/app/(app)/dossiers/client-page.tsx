@@ -28,6 +28,7 @@ import { DateRangeFilter } from '@/components/date-range-filter';
 import AssignmentHistorySheet from './assignment-history-sheet';
 import StatusHistorySheet from './status-history-sheet';
 import ObservationHistorySheet from './observation-history-sheet';
+import DossierHistorySheet from './dossier-history-sheet';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useDossierTabs } from '@/hooks/use-dossier-tabs';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
@@ -177,10 +178,11 @@ export default function DossiersClientPage() {
 
   // Single click = preview tab (replaced by the next preview); "Ouvrir dans un
   // onglet" / double-click = permanent tab (VS Code preview-tab semantics).
-  // Snapshot the filtered order whenever a dossier is opened, so the record
-  // bar can iterate « précédent / suivant » in the same order (see
-  // src/lib/dossier-list-order.ts). A ref rather than a dep: dossierList
-  // changes on every keystroke of the search box.
+  // The filtered order is still snapshotted on open: the record bar's
+  // « précédent / suivant » chevrons are gone (owner ruling 2026-09-09), but
+  // the snapshot is cheap and is what any future "next in this list" affordance
+  // would read (src/lib/dossier-list-order.ts). A ref rather than a dep:
+  // dossierList changes on every keystroke of the search box.
   const dossierListRef = React.useRef<Array<{ id: string }>>([]);
   const openDossier = useCallback((d: { id: string; refExpert?: string; numero?: string; assure?: any }, opts?: { preview?: boolean; navigate?: boolean }) => {
     writeDossierListOrder(dossierListRef.current.map((row) => row.id));
@@ -331,6 +333,10 @@ export default function DossiersClientPage() {
   const [rappelObservation, setRappelObservation] = useState('');
   const [statusHistoryDossier, setStatusHistoryDossier] = useState<any>(null);
   const [observationHistoryDossier, setObservationHistoryDossier] = useState<any>(null);
+  // The row menu's single « Historique » (owner ruling 2026-09-09). The two
+  // sheets above are still reachable, but only from their own cell: clicking
+  // the statut chip or the observation chip opens that column's slice.
+  const [historyDossier, setHistoryDossier] = useState<any>(null);
 
   // Export mode state
   const [exportMode, setExportMode] = useState(false);
@@ -2016,11 +2022,8 @@ export default function DossiersClientPage() {
                             <DropdownMenuItem onSelect={() => setWorkflowDossier(d)}>
                               <History className="mr-2 h-4 w-4" /> {t('Workflow')}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setStatusHistoryDossier(d)}>
-                              <History className="mr-2 h-4 w-4" /> {t('Historique des statuts')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setObservationHistoryDossier(d)}>
-                              <History className="mr-2 h-4 w-4" /> {t('Historique des observations')}
+                            <DropdownMenuItem onSelect={() => setHistoryDossier(d)}>
+                              <History className="mr-2 h-4 w-4" /> {t('Historique')}
                             </DropdownMenuItem>
                             {canDelete && (
                               <>
@@ -2315,6 +2318,11 @@ export default function DossiersClientPage() {
         open={!!observationHistoryDossier}
         onOpenChange={(open) => !open && setObservationHistoryDossier(null)}
         dossier={observationHistoryDossier}
+      />
+      <DossierHistorySheet
+        open={!!historyDossier}
+        onOpenChange={(open) => !open && setHistoryDossier(null)}
+        dossier={historyDossier}
       />
       <Dialog open={isSendToOpen} onOpenChange={setIsSendToOpen}>
         <DialogContent data-tour="dos-sendto-dialog" {...tourDialogGuard()}>

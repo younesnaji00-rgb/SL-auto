@@ -130,7 +130,9 @@ export default function AppLayout({
       <AuthGuard>
         <PageChromeProvider>
           <WorkspaceTabsProvider>
-            <SidebarProvider>
+            {/* The nav rests as an icon rail and opens on hover (owner ruling
+                2026-09-09) — the reading surface keeps the width by default. */}
+            <SidebarProvider defaultOpen={false}>
               <ShellUiProvider>
                 <AppShell>{children}</AppShell>
               </ShellUiProvider>

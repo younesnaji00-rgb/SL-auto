@@ -70,7 +70,7 @@ export default function PhoneTopBar() {
   }
 
   const navItem = items.find((i) => isNavItemActive(pathname, i.href));
-  const isRoot = !!navItem && (pathname === navItem.href || pathname === '/profil');
+  const isRoot = !!navItem && pathname === navItem.href;
   const parent = crumbs.length >= 2 ? crumbs[crumbs.length - 2] : null;
   const upHref = phone.upHref ?? (isRoot ? null : parent?.href ?? null);
   const upLabel = phone.upLabel ?? parent?.label ?? null;

@@ -23,8 +23,7 @@
 
 import React, { useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Bell, Calculator, CalendarPlus, ChevronDown, ChevronUp, History, Mail, MoreHorizontal, Save, Trash2, Undo2 } from 'lucide-react';
+import { ArrowLeft, Bell, Calculator, CalendarPlus, History, Mail, MoreHorizontal, Save, Trash2, Undo2 } from 'lucide-react';
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { usePhoneChrome } from '@/components/layout/page-chrome';
 import type { ActionItem } from '@/components/ui/action-sheet';
@@ -45,7 +44,6 @@ import { dossierLabel, assureName } from '@/lib/dossier-label';
 import { nextStep, primaryActionForStep, type StepState } from '@/lib/dossier-steps';
 import { useRegisterPageTitle } from '@/components/layout/page-chrome';
 import { useWorkspaceTabs, useTabDirty } from '@/hooks/use-workspace-tabs';
-import { readDossierListOrder } from '@/lib/dossier-list-order';
 import { useT } from '@/i18n';
 
 export interface RecordBarProps {
@@ -105,7 +103,6 @@ export function RecordBar({
   // Phone: the title line is the mono ref alone (the assuré becomes the
   // subtitle), so `REF · Assuré` would print the name twice.
   useRegisterPageTitle(isPhone ? phoneTitle || dossier?.refExpert || t('Sans réf.') : label);
-  const router = useRouter();
 
   // Arrival moment for a JUST-CREATED dossier (motion-spec §1.2 F3 + §8
   // Yellow-Fade): create-dossier-dialog stamps sessionStorage before
@@ -121,21 +118,6 @@ export function RecordBar({
         window.setTimeout(() => setJustCreated(false), 2100);
       }
     } catch { /* ignore */ }
-  }, [dossierId]);
-
-  // « Précédent / suivant » iterate the list page's filtered order (written
-  // to sessionStorage when a row is opened — anti pogo-sticking, research
-  // 2026-09-03). Hidden entirely when the dossier wasn't opened from the list.
-  const listNav = useMemo(() => {
-    const order = readDossierListOrder();
-    const idx = order.indexOf(dossierId);
-    if (idx === -1) return null;
-    return {
-      prevId: idx > 0 ? order[idx - 1] : null,
-      nextId: idx < order.length - 1 ? order[idx + 1] : null,
-      position: idx + 1,
-      total: order.length,
-    };
   }, [dossierId]);
 
   const tabs = useWorkspaceTabs('dossier');
@@ -164,35 +146,21 @@ export function RecordBar({
 
   // ── Phone: publish this bar INTO the shell top bar (E3) ──────────────────
   // Every desktop overflow row becomes an « ⋯ » action-sheet item, in the same
-  // order; Précédent / Suivant join it because a 44 px pair of chevrons has no
-  // room next to a two-line title (they are `hidden sm:flex` on desktop too).
+  // order.
+  //
+  // « Dossier précédent / suivant » used to lead this list, mirroring a pair
+  // of chevrons in the bar. Both are gone (owner ruling 2026-09-09): stepping
+  // blind through a filtered list is not how this record is navigated, and the
+  // chevrons read as "scroll" next to the ref. The list page is one click away.
   const secondaryActions = useMemo<ActionItem[]>(() => {
     const items: ActionItem[] = [];
-    if (listNav) {
-      items.push({
-        key: 'prev',
-        label: t('Dossier précédent'),
-        icon: <ChevronUp />,
-        hint: `${listNav.position}/${listNav.total} ${t('de la liste')}`,
-        disabled: !listNav.prevId,
-        onSelect: () => listNav.prevId && router.push(`/dossiers/${listNav.prevId}`),
-      });
-      items.push({
-        key: 'next',
-        label: t('Dossier suivant'),
-        icon: <ChevronDown />,
-        hint: `${listNav.position}/${listNav.total} ${t('de la liste')}`,
-        disabled: !listNav.nextId,
-        onSelect: () => listNav.nextId && router.push(`/dossiers/${listNav.nextId}`),
-      });
-    }
     items.push({ key: 'planifier', label: t('Nouvelle planification'), icon: <CalendarPlus />, hidden: readOnly, onSelect: () => onPlanifier() });
     items.push({ key: 'chiffrage', label: t('Envoyer au chiffrage'), icon: <Calculator />, hidden: readOnly, onSelect: onChiffrage });
     items.push({ key: 'email', label: t('Envoyer un email'), icon: <Mail />, hidden: readOnly, onSelect: onEmail });
     items.push({ key: 'historique', label: t('Historique'), icon: <History />, onSelect: onHistorique });
     if (onDelete) items.push({ key: 'delete', label: t('Supprimer le dossier'), icon: <Trash2 />, destructive: true, onSelect: onDelete });
     return items;
-  }, [listNav, readOnly, onDelete, onPlanifier, onChiffrage, onEmail, onHistorique, router, t]);
+  }, [readOnly, onDelete, onPlanifier, onChiffrage, onEmail, onHistorique, t]);
 
   const assure = assureName(dossier?.assure);
   const phoneChrome = useMemo(
@@ -233,41 +201,6 @@ export function RecordBar({
         </TooltipTrigger>
         <TooltipContent>{t('Dossiers')}</TooltipContent>
       </Tooltip>
-
-      {listNav && (
-        <div className="hidden shrink-0 items-center sm:flex">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-ink-3 hover:text-ink"
-                disabled={!listNav.prevId}
-                aria-label={t('Dossier précédent')}
-                onClick={() => listNav.prevId && router.push(`/dossiers/${listNav.prevId}`)}
-              >
-                <ChevronUp className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('Dossier précédent')} — {listNav.position}/{listNav.total} {t('de la liste')}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-ink-3 hover:text-ink"
-                disabled={!listNav.nextId}
-                aria-label={t('Dossier suivant')}
-                onClick={() => listNav.nextId && router.push(`/dossiers/${listNav.nextId}`)}
-              >
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('Dossier suivant')} — {listNav.position}/{listNav.total} {t('de la liste')}</TooltipContent>
-          </Tooltip>
-        </div>
-      )}
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
         {/* Reading order: ref (mono, ink) → assuré (ink) → compagnie / plaque (ink-3) → statut. */}

@@ -78,6 +78,10 @@ export default function TamponsSettingsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [queued, setQueued] = useState<Array<{ id: string; file: File; derivedName: string }>>([]);
   const [progress, setProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
+  // Why an import failed, per file. The batch used to swallow every error into
+  // a count, so "I can't import stamps" had no diagnosis anywhere in the UI
+  // (owner report 2026-09-09). Cleared at the start of each run.
+  const [importErrors, setImportErrors] = useState<Array<{ name: string; reason: string }>>([]);
   const [deleteTarget, setDeleteTarget] = useState<Stamp | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   // Drag-over highlight for the picker button (the one drop target).
@@ -175,6 +179,8 @@ export default function TamponsSettingsPage() {
       '';
     const total = queued.length;
     setProgress({ total, done: 0, failed: 0 });
+    setImportErrors([]);
+    const errors: Array<{ name: string; reason: string }> = [];
     let done = 0;
     let failed = 0;
     for (const item of queued) {
@@ -197,6 +203,12 @@ export default function TamponsSettingsPage() {
         done += 1;
       } catch (err) {
         console.error('Stamp import failed for', item.file.name, err);
+        // Firebase errors carry a machine code (`storage/unauthorized`,
+        // `permission-denied`, …) that says exactly which door is shut. Keep
+        // it: a bare "échec" sent the admin to the browser console.
+        const code = (err as { code?: string })?.code;
+        const message = err instanceof Error ? err.message : String(err);
+        errors.push({ name: item.file.name, reason: code ? `${code} — ${message}` : message });
         failed += 1;
       } finally {
         setProgress({ total, done, failed });
@@ -211,11 +223,13 @@ export default function TamponsSettingsPage() {
         ? `${done} ${importedLabel}, ${failed} ${failedLabel}`
         : `${done} ${importedLabel}`;
     toast({
-      variant: failed > 0 && done === 0 ? 'destructive' : 'default',
+      variant: failed > 0 ? 'destructive' : 'default',
       title: failed > 0 && done === 0 ? t('Import échoué') : t('Import terminé'),
-      description: summary,
+      description: failed > 0 ? `${summary} — ${errors[0].reason}` : summary,
     });
-    setQueued([]);
+    setImportErrors(errors);
+    // Files that failed stay queued so « Importer » retries exactly those.
+    setQueued((prev) => prev.filter((q) => errors.some((e) => e.name === q.file.name)));
     setProgress(null);
   };
 
@@ -366,6 +380,22 @@ export default function TamponsSettingsPage() {
               </span>
             )}
           </div>
+          {importErrors.length > 0 && (
+            // §11 danger pair: the reason stays on screen until the next run,
+            // because the admin usually has to change something (rules, role,
+            // file type) before retrying.
+            <div role="alert" className="rounded-lg bg-status-danger-bg px-4 py-3 text-status-danger-fg">
+              <p className="text-sm font-semibold">{t("Ces tampons n'ont pas pu être importés")}</p>
+              <ul className="mt-1 space-y-0.5">
+                {importErrors.map((e) => (
+                  <li key={e.name} className="t-caption text-status-danger-fg">
+                    <span className="font-medium">{e.name}</span> — {e.reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Queued files — element-specs §4 (Material 3 lists: label +
               supporting text + trailing icon button): 44 px rows, hairlines
               only, derived name 14/600, file name t-caption, remove `ghost`. */}
