@@ -653,22 +653,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     subtitle: [assureForChrome, plateForChrome].filter(Boolean).join(' · ') || null,
     titleChip: { label: activeTab, tone: 'neutral' },
     primaryAction: null,
+    // Itinéraire / Appeler already sit on the header card and the bottom bar;
+    // the « ⋯ » sheet keeps only what has no other home on the screen.
     secondaryActions: [
-      {
-        key: 'route',
-        label: t('Itinéraire'),
-        icon: <Navigation />,
-        hidden: !firstAdresse,
-        href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(firstAdresse)}`,
-        external: true,
-      },
-      {
-        key: 'call',
-        label: t('Appeler'),
-        icon: <Phone />,
-        hidden: !assureTelephoneHref,
-        href: `tel:${assureTelephoneHref}`,
-      },
       {
         key: 'obs',
         label: t('Observations'),

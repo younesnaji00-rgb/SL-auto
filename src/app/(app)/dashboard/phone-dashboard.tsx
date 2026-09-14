@@ -8,7 +8,8 @@
  *
  * Same metric layer as the desktop views — `computeGestionnaireView`,
  * `computeChiffreurView`, `computeTerrainView`, `photosToChiffrageOpen` —
- * nothing new is computed here. The screen is ONE column:
+ * the only figure derived here is the gestionnaire's median open age (the
+ * desktop draws the same population as age buckets). The screen is ONE column:
  *
  *   KPI line   the role's headline figures, one scrolling line
  *   Blocks     the role's work lists as cards (header · count chip ·
@@ -22,7 +23,7 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { MapPin, Phone } from 'lucide-react';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, startOfDay } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import { assureName } from '@/lib/dossier-label';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +37,8 @@ import {
   computeChiffreurView,
   computeGestionnaireView,
   computeTerrainView,
+  dossierOwnedBy,
+  isOpenDossier,
   toDate,
   type MissionView,
   type PersonRef,
@@ -45,10 +48,32 @@ import {
 import { photosToChiffrageOpen } from './analytics';
 import type { DashboardChiffrage, DashboardMission } from './use-dashboard-data';
 import { fmtHours } from './ui';
-import { PhoneBlock, PhoneBlockRow, PhoneKpiLine, type PhoneKpi } from './phone-blocks';
+import { PhoneBlock, PhoneBlockRow, PhoneKpiLine, fmtDaysFr, type PhoneKpi } from './phone-blocks';
 
 /** Design: three rows per block, the rest behind « Voir tout ». */
 const ROWS = 3;
+
+/**
+ * Median age (calendar days since the requête, else the creation) of the
+ * open dossiers in scope — the same population and day arithmetic as the
+ * desktop's « Âge des ouverts » buckets (`computeGestionnaireView`), reduced
+ * to one figure for the KPI line. Null when nothing is open.
+ */
+function medianOpenAgeDays(dossiers: FunnelDossier[], now: Date, person: PersonRef | null): number | null {
+  const today = startOfDay(now).getTime();
+  const days: number[] = [];
+  for (const d of dossiers) {
+    if (person && !dossierOwnedBy(d as any, person)) continue;
+    if (!isOpenDossier(d)) continue;
+    const requete = toDate(d.dateRequete) ?? toDate(d.createdAt);
+    if (!requete) continue;
+    days.push(Math.floor((today - startOfDay(requete).getTime()) / 86_400_000));
+  }
+  if (days.length === 0) return null;
+  days.sort((a, b) => a - b);
+  const mid = days.length >> 1;
+  return days.length % 2 ? days[mid] : (days[mid - 1] + days[mid]) / 2;
+}
 
 const refOfDossier = (d: FunnelDossier | null | undefined, fallback: string): string => {
   const raw = (d as any)?.refExpert;
@@ -78,14 +103,17 @@ export function PhoneGestionnaireDashboard({ dossiers, chiffrages = [], sla, rap
   const { tiles } = view;
   const attente = view.enAttente.reduce((n, g) => n + g.count, 0);
   const unread = useMemo(() => rappelsRecus.filter((r) => !r.read), [rappelsRecus]);
+  const medianAge = useMemo(() => medianOpenAgeDays(dossiers, now, person), [dossiers, now, person]);
 
   const kpis: PhoneKpi[] = [
     { key: 'ouverts', value: tiles.enCours, label: t('ouverts'), href: '/dossiers' },
     { key: 'retard', value: tiles.enRetard, label: t('en retard'), danger: tiles.enRetard > 0 },
+    // Duration figure (design « 4,2 j »): median age of the open dossiers.
+    { key: 'age', value: fmtDaysFr(medianAge, medianAge != null && Number.isInteger(medianAge) ? 0 : 1), label: t('âge médian') },
     { key: 'attente', value: attente, label: t('en attente d’un tiers') },
     { key: 'termines', value: tiles.termines7, label: `${t('terminés')} / 7 j` },
   ];
-  if (!viewAs) kpis.splice(2, 0, { key: 'rappels', value: tiles.rappelsNonLus, label: t('rappels non lus'), href: '/mes-rappels' });
+  if (!viewAs) kpis.splice(3, 0, { key: 'rappels', value: tiles.rappelsNonLus, label: t('rappels non lus'), href: '/mes-rappels' });
 
   const rowOf = (w: WorkItem, withWho = true) => (
     <PhoneBlockRow

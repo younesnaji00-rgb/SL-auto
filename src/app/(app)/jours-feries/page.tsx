@@ -718,8 +718,10 @@ export default function JoursFeriesSettingsPage() {
               // with the day number (terracotta = time: solid for THE next
               // holiday, tint for upcoming, neutral for the past) · the full
               // French date · « Prochain jour férié » / « Passé » / ISO ·
-              // chip « Prochain » (time) or « 1 j » · ›. Tap = the row's
-              // delete as an ActionSheet (undo-first toast, as on desktop).
+              // chip « Prochain » (time) on the next holiday only — a holiday
+              // is ONE stored date, so no duration chip is printed · ›. Tap =
+              // the row's delete as an ActionSheet (undo-first toast, as on
+              // desktop).
               if (isPhone) {
                 return (
                   <div className="flex flex-col gap-2 md:hidden">
@@ -749,7 +751,7 @@ export default function JoursFeriesSettingsPage() {
                                     ? t('Passé')
                                     : <span className="font-mono tabular-nums">{o.label}</span>
                               }
-                              chip={upcoming ? { label: t('Prochain'), tone: 'time' } : { label: `1 ${t('j')}`, tone: 'neutral' }}
+                              chip={upcoming ? { label: t('Prochain'), tone: 'time' } : null}
                               avatar={<span className="text-[13px] font-semibold tabular-nums">{o.date ? format(o.date, 'd') : '—'}</span>}
                               avatarClassName={
                                 upcoming

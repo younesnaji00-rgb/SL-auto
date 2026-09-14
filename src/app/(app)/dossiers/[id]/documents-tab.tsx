@@ -128,10 +128,9 @@ const acceptBrowserFile = (f: File) =>
   f.type.startsWith('image/') || /\.(pdf|docx?|xlsx?)$/i.test(f.name);
 
 const SECTION_LABEL_CLASS = 't-label';
-// TWO columns on a phone (docs/research/mobile-record-pages.md §E6 — one
-// column is ~3 300 px of scroll; `sm:` was never a phone rule), 12 px gutter.
-// Desktop from `xl` up is unchanged.
-const SOCKET_GRID_CLASS = 'grid grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-4';
+// THREE columns on a phone (Phone.dc.html « Pièces » grid `repeat(3,1fr)`),
+// two on tablets, 12 px gutter. Desktop from `xl` up is unchanged.
+const SOCKET_GRID_CLASS = 'grid grid-cols-2 max-md:grid-cols-3 gap-3 xl:grid-cols-3 2xl:grid-cols-4';
 
 const noop = () => {};
 
@@ -709,8 +708,14 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     const received = entries.filter((x) => x.docs.some((d) => !!d.url && !d.pendingUpload)).length;
     return (
       <div className="flex items-baseline justify-between gap-3">
-        <h4 className={SECTION_LABEL_CLASS}>{t(label)}</h4>
-        <span className="t-caption shrink-0 tabular-nums">
+        {/* Phone (Phone.dc.html): ONE 12 px ink-3 line « Pièces requises · n/m »
+            (`t-label` is already 12 px ink-3); the right-aligned « reçues »
+            caption is desktop-only. Same wrapper in both shells. */}
+        <h4 className={SECTION_LABEL_CLASS}>
+          {t(label)}
+          <span className="tabular-nums md:hidden"> · {received}/{entries.length}</span>
+        </h4>
+        <span className="t-caption shrink-0 tabular-nums max-md:hidden">
           {received}/{entries.length} {t('reçues')}
         </span>
       </div>

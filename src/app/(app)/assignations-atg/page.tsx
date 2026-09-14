@@ -64,7 +64,7 @@ import {
   CheckinButton, EnRouteButton, MissionRowActions, ReassignPopover, mapsSearchUrl, telHref, waHref,
 } from './mission-quick-actions';
 import { GeofenceCheckinBanner } from './mission-geofence-checkin';
-import PhoneMissionsList from './phone-missions-list';
+import PhoneMissionsList, { type PhoneMissionSort } from './phone-missions-list';
 import { MessageCircle } from 'lucide-react';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
@@ -768,6 +768,38 @@ export default function AssignationsATGPage() {
     return results;
   }, [planifications, activeTab, compagnieFilter, agentFilter, dateFrom, dateTo, keyword, dossierLive]);
 
+  // PHONE tab counts: the same sheet filters + keyword as above, applied to
+  // EVERY phase, so each tab's number matches the subtitle's filtered count
+  // once that tab is opened (desktop keeps the unfiltered `countByType`).
+  const phoneCountByType = useMemo(() => {
+    const counts: Record<string, number> = { 'Avant': 0, 'En cours': 0, 'Après': 0 };
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to = dateTo ? new Date(dateTo) : null;
+    if (to) to.setHours(23, 59, 59, 999);
+    const needle = keyword && keyword.trim() ? keyword.trim().toLowerCase() : '';
+    planifications.forEach(p => {
+      const type = normalizeType(p.typeMission);
+      if (counts[type] === undefined) return;
+      if (compagnieFilter !== 'Toutes' && (p.compagnie || '').trim() !== compagnieFilter) return;
+      if (agentFilter !== 'Tous' && (p.agentTerrain || '').trim() !== agentFilter) return;
+      if (from || to) {
+        const raw = p.dateRDV || p.createdAt;
+        if (!raw) return;
+        const date = raw.toDate ? raw.toDate() : new Date(raw);
+        if (from && date < from) return;
+        if (to && date > to) return;
+      }
+      if (needle) {
+        const matricule = dossierLive[p.dossierId]?.matricule || '';
+        const hit = [p.dossierNom, p.assureNom, p.assureTelephone, p.adresse, p.zone, p.observation, p.compagnie, p.agentTerrain, p.typeMission, matricule]
+          .some(f => typeof f === 'string' && f.toLowerCase().includes(needle));
+        if (!hit) return;
+      }
+      counts[type]++;
+    });
+    return counts;
+  }, [planifications, compagnieFilter, agentFilter, dateFrom, dateTo, keyword, dossierLive]);
+
   // Groups in TRIAGE order (terrain-attention-hierarchy.md §1: highest acuity
   // first — StatPearls ED triage; the mere-urgency effect means whatever sits
   // on top gets worked). En retard is usually small or empty, so a good day
@@ -1418,18 +1450,28 @@ export default function AssignationsATGPage() {
     // title, greeting, search, filters and the scan primary; the body is the
     // card queue. The framed demo view below keeps its own header.
     if (isMobile) {
+      // One sort for the whole phone list, carried by the page's per-group
+      // deadline sort (desc = the most entamé 24 h first = « proche »).
+      const phoneDir: SortDirection = deadlineSortByGroup.today ?? deadlineSortByGroup.expired ?? deadlineSortByGroup.future;
+      const phoneSort: PhoneMissionSort = phoneDir === 'desc' ? 'proche' : phoneDir === 'asc' ? 'lointaine' : 'recent';
+      const onPhoneSortChange = (next: PhoneMissionSort) => {
+        const dir: SortDirection = next === 'proche' ? 'desc' : next === 'lointaine' ? 'asc' : null;
+        setDeadlineSortByGroup({ today: dir, expired: dir, future: dir });
+      };
       return (
         <>
           <PhoneMissionsList
             loading={loading}
-            groups={groups}
+            groups={groups.map(g => ({ ...g, items: sortGroupItems(g.items, deadlineSortByGroup[g.key]) }))}
             tabItems={tabScopedPlans}
             filteredCount={filteredPlanifications.length}
             activeTab={activeTab}
-            countByType={countByType}
+            countByType={phoneCountByType}
             onTabChange={(id) => setFilters({ activeTab: id })}
             keyword={keyword}
             onKeywordChange={(v) => setFilters({ keyword: v })}
+            sort={phoneSort}
+            onSortChange={onPhoneSortChange}
             filters={{ compagnieFilter, agentFilter, dateFrom, dateTo }}
             filterDefaults={{ compagnieFilter: 'Toutes', agentFilter: 'Tous', dateFrom: '', dateTo: '' }}
             onApplyFilters={(next) => setFilters(next)}

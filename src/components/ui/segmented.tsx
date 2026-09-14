@@ -82,7 +82,10 @@ export function Segmented<T extends string = string>({
       aria-label={aria['aria-label']}
       aria-labelledby={aria['aria-labelledby']}
       className={cn(
-        'relative isolate flex w-full flex-wrap gap-0.5 rounded-lg bg-surface-2 p-0.5',
+        'relative isolate flex w-full gap-0.5 rounded-lg bg-surface-2 p-0.5',
+        // `xs` (the phone bar's area toggle) is ONE row by design — labels
+        // truncate; the form sizes still wrap rather than truncate.
+        size === 'xs' ? 'flex-nowrap' : 'flex-wrap',
         disabled && 'pointer-events-none opacity-50',
         className,
       )}

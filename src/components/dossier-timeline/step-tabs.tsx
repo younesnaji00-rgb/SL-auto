@@ -173,14 +173,19 @@ export function StepTabs({ tabs, defaultValue, storageKey, value: controlled, on
               key={tab.value}
               value={tab.value}
               className={cn(
-                'group relative flex min-h-[48px] flex-col items-center justify-center gap-0.5 px-1 text-[13px] font-medium leading-tight text-ink-3',
-                'transition-colors data-[state=active]:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                // Phone.dc.html facet cell: 44 px, 14 px label (600 when
+                // active), the badge INLINE after the label (gap 6).
+                'group relative flex min-h-[44px] flex-row items-center justify-center gap-1.5 px-1 text-[14px] font-medium leading-tight text-ink-3',
+                'transition-colors data-[state=active]:font-semibold data-[state=active]:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
               )}
             >
-              <span className="max-w-full truncate">{tab.label}</span>
-              {tab.badge && <TabBadge badge={tab.badge} className="max-w-full truncate text-[11px] leading-4" />}
-              {typeof tab.count === 'number' && tab.count > 0 && !tab.badge && (
-                <span className="text-[11px] leading-4 tabular-nums text-ink-3">{tab.count}</span>
+              <span className="min-w-0 truncate">{tab.label}</span>
+              {/* Badge tone keyed on the ACTIVE cell (prototype `badgeStyle`):
+                  warning pair when active, surface-3 / ink-3 when idle. */}
+              {(tab.badge || (typeof tab.count === 'number' && tab.count > 0)) && (
+                <span className="inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-3 group-data-[state=active]:bg-status-warning-bg group-data-[state=active]:text-status-warning-fg">
+                  {tab.badge ? tab.badge.label : tab.count}
+                </span>
               )}
               <span
                 aria-hidden

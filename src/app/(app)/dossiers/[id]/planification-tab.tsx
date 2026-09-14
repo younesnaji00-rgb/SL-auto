@@ -109,21 +109,13 @@ export default function PlanificationTab({
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
+          {/* No « Nouvelle planification » here once the list has rows: the
+              page's bottom action bar owns « Planifier la visite … ». The
+              empty state below keeps its own button. */}
           <h3 className="flex items-center gap-2 text-[12px] text-ink-3">
             {t('Visites planifiées')}
             {visiblePlans.length > 0 && <span className="tabular-nums">· {visiblePlans.length}</span>}
           </h3>
-          {visiblePlans.length > 0 && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="-my-1 h-10 gap-1.5 px-2 text-[12px] text-primary hover:text-primary"
-              onClick={() => onNewPlanification(typeFilter)}
-              data-tour={typeFilter === 'Avant' ? 'dosd-planif-new' : undefined}
-            >
-              <Plus className="h-3.5 w-3.5" /> {t('Nouvelle planification')}
-            </Button>
-          )}
         </div>
 
         {visiblePlans.length === 0 ? (

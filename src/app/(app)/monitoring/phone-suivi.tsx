@@ -7,24 +7,32 @@
  *   Pills     the page's period presets (Tout · Jour · Semaine · Mois — the
  *             state `page.tsx` already owns) + the two other modes of the page
  *             (« Par compagnie », « Par utilisateur ») as toggles.
- *   KPI line  the headline figures (`computeHeadline` + the total cycle time).
  *   Funnel    « Funnel des étapes » — one 10 px bar per step, width = share of
- *             the first step, value tabular; a row opens the same DossierDrawer
- *             the desktop tiles open.
+ *             the first step (en délai, primary) + a danger segment for the
+ *             hors-délai part, ONE tabular figure; a row opens the same
+ *             DossierDrawer the desktop tiles open.
  *   Team      « Par gestionnaire » — initials · name · open · hors délai
  *             from the page's per-user measures (Gestionnaire rows; every
  *             user when no row carries that role).
  *
+ * No KPI line here: the headline figures live on the Tableau de bord.
  * Desktop/tablet keep the tiles, tables and bar lists of page.tsx unchanged.
  */
 
 import { useMemo } from 'react';
 import { useT } from '@/i18n';
 import { ScopePills, type ScopePill } from '@/components/ui/scope-pills';
-import { PhoneBarCard, PhoneBarRow, PhoneBlock, PhoneKpiLine, PhonePersonRow, type PhoneKpi } from '../dashboard/phone-blocks';
-import { fmtHours } from '../dashboard/ui';
+import { PhoneBarCard, PhoneBarRow, PhoneBlock, PhonePersonRow } from '../dashboard/phone-blocks';
 import { STEP_KEYS, STEP_LABELS_SHORT, type StepKey } from './funnel';
 import type { CycleTimeRow, Headline } from './metrics';
+
+/** Phone-only step labels (design): the photo steps read as visits. `funnel.ts` is shared with desktop and untouched. */
+const PHONE_STEP_LABELS: Partial<Record<StepKey, string>> = {
+  photosAvant: 'Visite avant',
+  photosEnCours: 'Visite en cours',
+  photosApres: 'Visite après',
+};
+const phoneStepLabel = (k: StepKey): string => PHONE_STEP_LABELS[k] ?? STEP_LABELS_SHORT[k];
 
 export type SuiviPreset = 'tout' | 'jour' | 'semaine' | 'mois' | 'custom';
 export type SuiviVue = 'global' | 'compagnie' | 'user';
@@ -77,18 +85,8 @@ export function PhoneSuiviPills({ activePreset, onPreset, vue, onChangeVue }: Ph
   return <ScopePills pills={pills} sticky ariaLabel={t('Période')} dataTour="mon-periode" />;
 }
 
-export function PhoneSuivi({ periodLabel, headline, counts, horsDelaiCounts, cycleTimes, users, totalDossiers, loading, onSelectStep, onChangeVue }: PhoneSuiviProps) {
+export function PhoneSuivi({ periodLabel, counts, horsDelaiCounts, users, loading, onSelectStep, onChangeVue }: PhoneSuiviProps) {
   const t = useT();
-  const total = cycleTimes.find((r) => r.key === 'total')?.medianHours ?? null;
-
-  const kpis: PhoneKpi[] = [
-    { key: 'traites', value: headline.traites, label: t('traités') },
-    { key: 'late', value: headline.enRetard, label: t('en retard'), danger: headline.enRetard > 0 },
-    { key: 'delai', value: fmtHours(total), label: t('délai médian') },
-    { key: 'respect', value: headline.respectPct == null ? '—' : `${headline.respectPct} %`, label: t('en délai') },
-    { key: 'attente', value: headline.enAttente, label: t('en attente') },
-    { key: 'crees', value: headline.crees, label: t('créés') },
-  ];
 
   // Width = share of the FIRST step (the design's 64 → 100 %); when nothing
   // was created in the period, the busiest step carries the scale instead.
@@ -109,8 +107,6 @@ export function PhoneSuivi({ periodLabel, headline, counts, horsDelaiCounts, cyc
 
   return (
     <div className="flex flex-col gap-2">
-      {totalDossiers > 0 && <PhoneKpiLine items={kpis} />}
-
       <PhoneBarCard title={t('Funnel des étapes')} caption={`${t('Dossiers ayant franchi chaque étape en délai')} · ${periodLabel}`} dataTour="mon-kpis">
         {loading ? (
           <div className="space-y-2.5 py-1" aria-busy="true">
@@ -123,24 +119,26 @@ export function PhoneSuivi({ periodLabel, headline, counts, horsDelaiCounts, cyc
             const v = counts[k] ?? 0;
             const late = horsDelaiCounts[k] ?? 0;
             return (
+              // One figure (en délai) in the value column; the hors-délai part
+              // is the danger segment of the bar and lives in the aria-label.
               <PhoneBarRow
                 key={k}
-                label={t(STEP_LABELS_SHORT[k])}
+                label={t(phoneStepLabel(k))}
                 value={v}
                 frac={ref > 0 ? v / ref : 0}
                 late={late}
+                lateFrac={ref > 0 ? late / ref : 0}
                 onClick={() => onSelectStep(k, late > 0 && v === 0 ? 'horsDelai' : 'realise')}
-                ariaLabel={`${t(STEP_LABELS_SHORT[k])} : ${v} ${t('en délai')}${late > 0 ? ` · ${late} ${t('hors délai')}` : ''} — ${t('voir les dossiers')}`}
+                ariaLabel={`${t(phoneStepLabel(k))} : ${v} ${t('en délai')}${late > 0 ? ` · ${late} ${t('hors délai')}` : ''} — ${t('voir les dossiers')}`}
               />
             );
           })
         )}
-        {!loading && <p className="mt-1.5 text-[12px] leading-4 text-ink-3">{t('Le second chiffre, en rouge, est hors délai · toucher une étape ouvre ses dossiers')}</p>}
       </PhoneBarCard>
 
       <PhoneBlock
         title={team.gestionnaires ? t('Par gestionnaire') : t('Par utilisateur')}
-        caption={`${t('ouverts')} · ${t('hors délai')} · ${periodLabel}`}
+        hint={`${t('ouverts')} · ${t('hors délai')}`}
         onMore={team.rows.length > TEAM_ROWS ? () => onChangeVue('user') : undefined}
         emptyText={t('Aucun utilisateur dans le périmètre')}
         loading={loading}

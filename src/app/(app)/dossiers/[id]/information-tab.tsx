@@ -202,7 +202,9 @@ const PhoneFields = ({ fields }: { fields: FieldDef[] }) => {
       trailing: status ? <ChangeBadge status={status} /> : undefined,
     };
   });
-  return <DefinitionList items={items} />;
+  // Two-column fact grid (Phone.dc.html `grid-template-columns:1fr 1fr`);
+  // this list only renders below `md`, so the base classes are phone-only.
+  return <DefinitionList items={items} className="grid grid-cols-2 gap-x-4 gap-y-3" />;
 };
 
 /** Quiet section: hairline header (icon + title, optional right-side actions)

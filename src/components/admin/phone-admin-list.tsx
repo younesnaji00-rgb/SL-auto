@@ -109,7 +109,7 @@ export interface PhoneAdminChip {
 
 export interface PhoneAdminCardProps
   extends Pick<RecordCardProps, 'href' | 'onClick' | 'recordId' | 'dataTour' | 'ariaLabel' | 'disabled' | 'className' | 'returned'> {
-  /** The record's name — 15/600, wraps (never « … »). */
+  /** The record's name — 14/600 (design), wraps (never « … »). */
   name: string;
   /** Second line, 12 px ink-3 (« Gestionnaire · Casablanca »). */
   meta?: React.ReactNode;
@@ -129,13 +129,16 @@ export function PhoneAdminCard({ name, meta, chip, round, avatar, avatarClassNam
   const interactive = !rest.disabled && (!!href || !!onClick);
   return (
     <RecordCard
-      title={name}
+      // Admin cards title at 14/600 (design 571–583), a step under the
+      // RecordCard default 15 — the size is the only override, so it is a
+      // wrapper span rather than a new RecordCard prop.
+      title={<span className="text-[14px]">{name}</span>}
       meta={meta}
       leading={<PhoneAdminAvatar name={name} round={round} className={avatarClassName}>{avatar}</PhoneAdminAvatar>}
       trailing={
         <span className="flex items-center gap-1.5">
           {chip && <Badge variant={chip.tone ?? 'neutral'}>{chip.label}</Badge>}
-          {interactive && !noChevron && <ChevronRight className="h-5 w-5 text-ink-4" aria-hidden />}
+          {interactive && !noChevron && <ChevronRight className="h-5 w-5 text-ink-3" aria-hidden />}
         </span>
       }
       href={href}

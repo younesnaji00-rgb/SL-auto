@@ -11,9 +11,10 @@
  *     scroll to it and move focus to its heading, and the mounted StepTabs to
  *     switch tab.
  *
- * PHONE (mobile pass 2026-09-06 — docs/research/mobile-record-pages.md E2/E12):
- *   the record page is a hub + one screen per step on the SAME route, addressed
- *   by query params. The page registers a navigator with
+ * PHONE (mobile pass 2026-09-06 — docs/research/mobile-record-pages.md E2/E12;
+ *   hub retired by the 2026-09-14 redesign — the bare route lands on the
+ *   current step): one screen per step on the SAME route, addressed by query
+ *   params. The page registers a navigator with
  *   `registerStepNavigator()`; while one is registered `gotoStep()` resolves to
  *   `router.push('/dossiers/{id}?etape=N&onglet=x', { scroll: false })` — one
  *   history entry per screen, so browser back / Android back / iOS swipe-back
@@ -21,7 +22,7 @@
  *   caller needs to know which shell it is talking to.
  *
  * URL grammar (E12):
- *   /dossiers/{id}                       hub
+ *   /dossiers/{id}                       current step
  *   /dossiers/{id}?etape=4               step screen
  *   /dossiers/{id}?etape=4&onglet=photos step screen, facet selected
  *   /dossiers/{id}?vue=historique        full-screen history
@@ -52,18 +53,19 @@ export function stepTabsKey(dossierId: string, stepId: number): string {
 
 // ── URL builders (phone grammar; harmless on desktop) ───────────────────────
 
-export function hubUrl(dossierId: string): string {
+/** The record's own URL — on a phone it lands on the CURRENT step. */
+export function dossierUrl(dossierId: string): string {
   return `/dossiers/${dossierId}`;
 }
 
 export function stepUrl(dossierId: string, stepId: number, tab?: string): string {
   const q = new URLSearchParams({ [STEP_PARAM]: String(stepId) });
   if (tab) q.set(TAB_PARAM, tab);
-  return `${hubUrl(dossierId)}?${q.toString()}`;
+  return `${dossierUrl(dossierId)}?${q.toString()}`;
 }
 
 export function historiqueUrl(dossierId: string): string {
-  return `${hubUrl(dossierId)}?${VIEW_PARAM}=${HISTORIQUE_VIEW}`;
+  return `${dossierUrl(dossierId)}?${VIEW_PARAM}=${HISTORIQUE_VIEW}`;
 }
 
 /** Parse `?etape=` into a step id, or null when absent / not a number. */

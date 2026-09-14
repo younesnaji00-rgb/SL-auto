@@ -31,7 +31,7 @@
 
 import * as React from 'react';
 import { collection } from 'firebase/firestore';
-import { Download, FileText, Image as ImageIcon, Maximize2 } from 'lucide-react';
+import { ChevronRight, Download, FileText, Image as ImageIcon, Maximize2 } from 'lucide-react';
 import { useCollection, useFirestore } from '@/firebase';
 import { Segmented } from '@/components/ui/segmented';
 import { RECORD_CARD_CLASS } from '@/components/ui/record-card';
@@ -248,7 +248,7 @@ export function PhoneChiffrageScreen({
           {devisFile ? (
             <article className={RECORD_CARD_CLASS} aria-label={t('Devis déposé')}>
               <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-status-danger-bg text-[12px] font-bold tracking-wide text-status-danger-fg" aria-hidden>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-status-danger-bg text-[10px] font-bold tracking-[0.02em] text-status-danger-fg" aria-hidden>
                   {isPdf(devisFile.nom) ? 'PDF' : <FileText className="h-4 w-4" />}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -275,7 +275,7 @@ export function PhoneChiffrageScreen({
 
               {/* Page-1 preview, framed like a sheet on the surface-2 desk. */}
               <div className="border-t border-hairline bg-surface-2 px-6 pb-2 pt-3">
-                <div className="relative aspect-[1/1.35] overflow-hidden rounded bg-white shadow-[0_1px_3px_hsl(var(--shadow-color)/0.12),0_8px_24px_-8px_hsl(var(--shadow-color)/0.18)]">
+                <div className="relative aspect-[1/1.35] overflow-hidden rounded bg-card shadow-[0_1px_3px_hsl(var(--shadow-color)/0.12),0_8px_24px_-8px_hsl(var(--shadow-color)/0.18)]">
                   {isPdf(devisFile.nom) ? (
                     <PdfThumbnail
                       url={devisFile.url}
@@ -295,16 +295,24 @@ export function PhoneChiffrageScreen({
                     className="absolute inset-0 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-ink-solid/80 px-3 text-[12px] font-medium text-background backdrop-blur-sm">
-                      <Maximize2 className="h-3.5 w-3.5" aria-hidden />
+                      <Maximize2 className="h-5 w-5" aria-hidden />
                       {t('Plein écran')}
                     </span>
                   </button>
                 </div>
-                {numPages !== null && numPages > 1 && (
-                  <div className="flex justify-center gap-1.5 pb-0.5 pt-2.5" aria-label={`${numPages} ${t('pages')}`}>
-                    {Array.from({ length: Math.min(numPages, 8) }).map((_, i) => (
-                      <span key={i} className={cn('h-1.5 rounded-full', i === 0 ? 'w-4 bg-ink-2' : 'w-1.5 bg-hairline-strong')} aria-hidden />
-                    ))}
+                {/* One dot per page (design prints one even for a single page);
+                    past 8 pages the dots would blur — a « 1 / n » caption instead. */}
+                {numPages !== null && numPages >= 1 && (
+                  <div className="flex justify-center gap-1.5 pb-0.5 pt-2.5" aria-label={`${numPages} ${numPages > 1 ? t('pages') : t('page')}`}>
+                    {numPages <= 8 ? (
+                      Array.from({ length: numPages }).map((_, i) => (
+                        <span key={i} className={cn('h-1.5 rounded-full', i === 0 ? 'w-4 bg-ink-2' : 'w-1.5 bg-hairline-strong')} aria-hidden />
+                      ))
+                    ) : (
+                      <span className="text-[12px] leading-4 tabular-nums text-ink-3" aria-hidden>
+                        1 / {numPages}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -323,7 +331,7 @@ export function PhoneChiffrageScreen({
                           <span className="block text-[13px] font-semibold leading-[1.3] text-ink">{t(stageLabel(slot))}</span>
                           <span className="block truncate text-[12px] leading-4 text-ink-3">{doc.nom || doc.fileName || slot}</span>
                         </span>
-                        <Maximize2 className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+                        <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
                       </button>
                     </li>
                   ))}
@@ -345,7 +353,7 @@ export function PhoneChiffrageScreen({
             <div className="flex flex-col gap-1.5">
               <span className="text-[12px] font-medium text-ink-2">{t('Montant chiffré')}</span>
               <div
-                className="flex h-12 items-center justify-between rounded-md border border-hairline-strong bg-card px-3"
+                className="flex h-12 items-center justify-between rounded-md border border-input bg-card px-3"
                 role="status"
                 aria-label={`${t('Montant chiffré')} ${amounts.accordTTC === null ? '—' : formatDhs(amounts.accordTTC)}`}
               >

@@ -20,8 +20,9 @@
  * Header tap → the existing phone detail screen (`?rappel=`), which is where
  * « Marquer traité » and the session timeline live. « Ouvrir le dossier »
  * runs the page's session handshake (mark read / start session); « Voir le
- * traitement » opens the read-only replay screen (`?replay=`) and is hidden
- * while the rappel has no session yet (nothing to replay).
+ * traitement » opens the read-only replay screen (`?replay=`) and is disabled
+ * while the rappel has no session yet (nothing to replay) — kept in place so
+ * the two buttons stay equal-width.
  *
  * Desktop / tablet never mount this file (page.tsx gates on `useIsPhone`).
  */
@@ -243,22 +244,6 @@ export default function PhoneRappelsList({
                   {whenLabel(r.createdAt, t)}
                 </span>
               }
-              meta={
-                <>
-                  {/* The rappel text takes its own full-width line (basis-full
-                      inside the meta flex-wrap); 14 px, 2-line clamp, 500 while unread. */}
-                  <span
-                    className={cn(
-                      'basis-full overflow-hidden text-[14px] leading-[1.4] text-ink [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box]',
-                      unread ? 'font-medium' : 'font-normal',
-                    )}
-                  >
-                    {r.observation || <span className="text-ink-4">—</span>}
-                  </span>
-                  {chip}
-                  {from && <span className="truncate">{from}</span>}
-                </>
-              }
               unread={unread}
               onClick={() => onSelect(r)}
               ariaLabel={`${ref} — ${r.observation || ''}`.trim()}
@@ -270,28 +255,49 @@ export default function PhoneRappelsList({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="flex-1 gap-1.5 px-2 text-[13px] font-medium max-md:min-h-9"
+                    className="flex-1 gap-1.5 px-2 text-[13px] font-medium max-md:min-h-9 [&_svg]:size-5"
                     onClick={() => (isSent ? onOpenSentDossier(r) : onOpenDossier(r))}
                   >
-                    <FolderOpen className="h-4 w-4" aria-hidden />
+                    <FolderOpen aria-hidden />
                     {t('Ouvrir le dossier')}
                   </Button>
-                  {r.sessionId ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 gap-1.5 px-2 text-[13px] font-medium max-md:min-h-9"
-                      data-tour="rap-detail-btn"
-                      onClick={() => onShowReplay(r)}
-                    >
-                      <History className="h-4 w-4" aria-hidden />
-                      {t('Voir le traitement')}
-                    </Button>
-                  ) : null}
+                  {/* Always present so the two buttons keep equal widths (design
+                      197–200); without a session there is nothing to replay → disabled. */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-1.5 px-2 text-[13px] font-medium max-md:min-h-9 [&_svg]:size-5"
+                    data-tour="rap-detail-btn"
+                    disabled={!r.sessionId}
+                    aria-label={r.sessionId ? undefined : t('Aucun traitement')}
+                    onClick={() => onShowReplay(r)}
+                  >
+                    <History aria-hidden />
+                    {t('Voir le traitement')}
+                  </Button>
                 </RecordCardActions>
               }
-            />
+            >
+              {/* Rappel text + state row: a full-width block under the header
+                  (design 197–200), flush with the card padding so the 2-line
+                  clamp uses the whole card width. The header button above
+                  carries the tap (and the text in its aria-label). */}
+              <div className="-mt-1.5 flex flex-col gap-1 px-3.5 pb-2.5">
+                <p
+                  className={cn(
+                    'm-0 overflow-hidden text-[14px] leading-[1.4] text-ink [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box]',
+                    unread ? 'font-medium' : 'font-normal',
+                  )}
+                >
+                  {r.observation || <span className="text-ink-4">—</span>}
+                </p>
+                <div className="flex min-w-0 items-center gap-2 text-[12px] leading-4 text-ink-3">
+                  {chip}
+                  {from && <span className="min-w-0 truncate">{from}</span>}
+                </div>
+              </div>
+            </RecordCard>
           );
         })}
       </RecordCardList>

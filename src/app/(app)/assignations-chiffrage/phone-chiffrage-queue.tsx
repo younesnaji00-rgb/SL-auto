@@ -5,19 +5,19 @@
  * Claude Design handoff `Phone.dc.html` screen « chiffrage », turn 3 « cartes
  * partout · recherche et filtres dans la barre »).
  *
- *   [ bar: Chiffrage 5 · ⌕ · ⚙︎² ]            ← published through usePhoneChrome
- *   ( À traiter 5 ) ( Tous 38 )                ← ScopePills, sticky under the bar
- *   EN RETARD 2                                ← slim band label (the urgency
- *   ┌────────────────────────────────────────┐    bands ARE the sort, A3)
- *   │ SL-25-0412                18 450,00 DHS │
- *   │ Karim Benjelloun          [En retard 2h]│
- *   │ Wafa Assurance · reçu il y a 3 j · S. E.│
+ *   [ bar: Chiffrage 5 · « 5 à traiter » · ⌕ · ⚙︎² ]   ← published through usePhoneChrome
+ *   ( À traiter 5 ) ( Tous 38 )                ← ScopePills under the bar
+ *   ┌────────────────────────────────────────┐    ONE flat card list; the urgency
+ *   │ SL-25-0412                18 450,00 DHS │    bands ARE the order (A3) but
+ *   │ Karim Benjelloun          [En retard 2h]│    draw no header — every card
+ *   │ Wafa Assurance · reçu il y a 3 j · S. E.│    carries its own délai chip
  *   └────────────────────────────────────────┘
  *
  * Card = RecordCard: ref (mono) stacked ABOVE the assuré (wraps), meta line
- * « compagnie · reçu il y a … · gestionnaire », trailing column = the devis /
- * chiffré amount (13/600 tabular) over the délai chip (the assignment's own
- * state: En retard · n h restantes · Chiffré). The page owns the data, the
+ * « compagnie · reçu il y a … · gestionnaire (· chiffreur when the viewer is
+ * not the chiffreur) », trailing column = the devis / chiffré amount (13/600
+ * tabular) over the délai chip (the assignment's own state: En retard · n h
+ * restantes · Chiffré — always a Badge). The page owns the data, the
  * filters, the sort and the sheets; this file only paints and publishes the
  * bar (count · search + sort · filters).
  */
@@ -43,6 +43,7 @@ export interface PhoneQueueItem {
   dossierNom: string;
   sentByNom?: string;
   sentByEmail?: string;
+  assignedChiffreurNom?: string;
   createdAt: any;
   completedAt?: any;
   structuredEditables?: Record<string, unknown>;
@@ -69,8 +70,8 @@ export interface PhoneChiffrageQueueProps {
   onScopeChange: (scope: PhoneQueueScope) => void;
   nbATraiter: number;
   nbTous: number;
-  /** Rows currently displayed (the bar's count pill). */
-  nbShown: number;
+  /** Viewer is not the chiffreur (desktop `showChiffreurColumn`): the meta line names the chiffreur. */
+  showChiffreur: boolean;
   search: string;
   onSearchChange: (value: string) => void;
   sortLabel: string;
@@ -103,7 +104,7 @@ export function PhoneChiffrageQueue({
   onScopeChange,
   nbATraiter,
   nbTous,
-  nbShown,
+  showChiffreur,
   search,
   onSearchChange,
   sortLabel,
@@ -121,12 +122,14 @@ export function PhoneChiffrageQueue({
 }: PhoneChiffrageQueueProps) {
   const t = useT();
 
-  // Bar: own count · inline search with the sort button · filters icon.
-  // Functions are stable by identity from the page (hook compares by value
-  // for primitives, identity for functions).
+  // Bar: the à-traiter count (pinned — it does not swing with the « Tous »
+  // pill) + « n à traiter » subtitle · inline search with the sort button ·
+  // filters icon. Functions are stable by identity from the page (hook
+  // compares by value for primitives, identity for functions).
   const chrome = React.useMemo(
     () => ({
-      count: nbShown,
+      count: nbATraiter,
+      subtitle: `${nbATraiter} ${t('à traiter')}`,
       search: {
         value: search,
         onChange: onSearchChange,
@@ -138,7 +141,7 @@ export function PhoneChiffrageQueue({
       },
       filters: { count: filterCount, onOpen: onOpenFilters, dataTour: 'ach-filters' },
     }),
-    [nbShown, search, onSearchChange, sortLabel, onSort, filterCount, onOpenFilters, t],
+    [nbATraiter, search, onSearchChange, sortLabel, onSort, filterCount, onOpenFilters, t],
   );
   usePhoneChrome(chrome);
 
@@ -152,7 +155,7 @@ export function PhoneChiffrageQueue({
 
   return (
     <div className="md:hidden">
-      <ScopePills pills={pills} sticky ariaLabel={t('Portée de la file')} dataTour="ach-scope" />
+      <ScopePills pills={pills} ariaLabel={t('Portée de la file')} dataTour="ach-scope" />
       <AppliedChips chips={appliedChips} onClearAll={onResetFilters} className="mt-3" />
 
       {loading ? (
@@ -176,65 +179,58 @@ export function PhoneChiffrageQueue({
           className="mt-3 bg-transparent"
         />
       ) : (
-        <div className="mt-3 flex flex-col gap-4">
-          {groups.map((group, gi) => (
-            <section key={group.band ?? `flat-${gi}`} className="flex flex-col gap-2">
-              {group.band && (
-                // Slim band label — the header carries the urgency meaning once
-                // (A3) so the cards stay calm; danger pair only on « En retard ».
-                <h2 data-tour="ach-band" className="flex min-h-6 items-center gap-2 px-0.5">
-                  <span className="t-label">{t(group.band)}</span>
-                  <span
-                    className={cn(
-                      'inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[11px] font-medium tabular-nums',
-                      group.band === 'En retard' ? 'bg-status-danger-bg text-status-danger-fg' : 'bg-surface-3 text-ink-2',
-                    )}
-                  >
-                    {group.count}
-                  </span>
-                </h2>
-              )}
-              <RecordCardList ariaLabel={group.band ? t(group.band) : t('Assignations au chiffrage')}>
-                {group.entries.map((entry) => {
-                  const c = entry.item;
-                  const ref = c.dossierNom || t('Sans réf.');
-                  const assure = renderAssure(dossierAssure[c.dossierId]) ?? t('Assuré non renseigné');
-                  const compagnie = dossierCompagnies[c.dossierId] || '';
-                  const when = entry.completed ?? toDate(c.createdAt);
-                  const ago = when ? formatDistanceToNow(when, { locale: dateFnsLocale(), addSuffix: true }) : null;
-                  const whenLabel = ago ? `${entry.completed ? t('chiffré') : t('reçu')} ${ago}` : null;
-                  const meta = [compagnie, whenLabel, c.sentByNom?.trim() || null].filter(Boolean).join(' · ');
-                  // Chiffré → the accord total; otherwise the garage's devis
-                  // total the chiffreur is about to work on. « — » when neither
-                  // snapshot carries rows yet.
-                  const amounts = chiffrageAmounts(c.structuredEditables);
-                  const amount = entry.completed ? (amounts.accordTTC ?? amounts.devisTTC) : amounts.devisTTC;
-                  return (
-                    <RecordCard
-                      key={c.id}
-                      recordId={c.id}
-                      dataTour="ach-row"
-                      id={ref}
-                      title={assure}
-                      meta={meta ? <span className="[overflow-wrap:anywhere]">{meta}</span> : undefined}
-                      trailing={
-                        <>
-                          <span className={cn('text-[13px] font-semibold tabular-nums', amount === null ? 'text-ink-4' : 'text-ink')}>
-                            {amount === null ? '—' : formatDhs(amount)}
-                          </span>
-                          <span className="text-[12px] text-ink-3">{renderDelaiChip(entry)}</span>
-                        </>
-                      }
-                      href={`/assignations-chiffrage/${c.id}`}
-                      ariaLabel={`${ref} — ${assure}${group.band ? ` — ${t(group.band)}` : ''}`}
-                      onClick={() => onOpen(c)}
-                    />
-                  );
-                })}
-              </RecordCardList>
-            </section>
-          ))}
-        </div>
+        // ONE flat list under the pills (design: no band headers, no group
+        // gaps) — the band ORDER is kept by concatenating the groups' entries;
+        // the délai chip on each card carries the urgency, the band name goes
+        // to the card's accessible name.
+        <RecordCardList ariaLabel={t('Assignations au chiffrage')} className="mt-3">
+          {groups
+            .flatMap((group) => group.entries.map((entry) => ({ entry, band: group.band })))
+            .map(({ entry, band }) => {
+              const c = entry.item;
+              const ref = c.dossierNom || t('Sans réf.');
+              const assure = renderAssure(dossierAssure[c.dossierId]) ?? t('Assuré non renseigné');
+              const compagnie = dossierCompagnies[c.dossierId] || '';
+              const when = entry.completed ?? toDate(c.createdAt);
+              const ago = when ? formatDistanceToNow(when, { locale: dateFnsLocale(), addSuffix: true }) : null;
+              const whenLabel = ago ? `${entry.completed ? t('chiffré') : t('reçu')} ${ago}` : null;
+              const meta = [
+                compagnie,
+                whenLabel,
+                c.sentByNom?.trim() || null,
+                // Same condition as the desktop « Chiffreur » column.
+                showChiffreur ? c.assignedChiffreurNom?.trim() || null : null,
+              ]
+                .filter(Boolean)
+                .join(' · ');
+              // Chiffré → the accord total; otherwise the garage's devis
+              // total the chiffreur is about to work on. « — » when neither
+              // snapshot carries rows yet.
+              const amounts = chiffrageAmounts(c.structuredEditables);
+              const amount = entry.completed ? (amounts.accordTTC ?? amounts.devisTTC) : amounts.devisTTC;
+              return (
+                <RecordCard
+                  key={c.id}
+                  recordId={c.id}
+                  dataTour="ach-row"
+                  id={ref}
+                  title={assure}
+                  meta={meta ? <span className="[overflow-wrap:anywhere]">{meta}</span> : undefined}
+                  trailing={
+                    <>
+                      <span className={cn('text-[13px] font-semibold tabular-nums', amount === null ? 'text-ink-4' : 'text-ink')}>
+                        {amount === null ? '—' : formatDhs(amount)}
+                      </span>
+                      <span className="text-[12px] text-ink-3">{renderDelaiChip(entry)}</span>
+                    </>
+                  }
+                  href={`/assignations-chiffrage/${c.id}`}
+                  ariaLabel={`${ref} — ${assure}${band ? ` — ${t(band)}` : ''}`}
+                  onClick={() => onOpen(c)}
+                />
+              );
+            })}
+        </RecordCardList>
       )}
     </div>
   );

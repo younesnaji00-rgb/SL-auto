@@ -578,7 +578,8 @@ export default function AssignationsChiffragePage() {
       return <Badge variant="danger">{late ? `${t('En retard')} ${late}` : t('En retard')}</Badge>;
     }
     if (entry.remainingHours <= WARNING_HOURS) return <Badge variant="warning">{formatRemaining(entry.remainingHours)}</Badge>;
-    return <span className="tabular-nums">{formatRemaining(entry.remainingHours)}</span>;
+    // Always a Badge so every card's trailing column has the same anatomy.
+    return <Badge variant="neutral">{formatRemaining(entry.remainingHours)}</Badge>;
   };
 
   // A8 — peek content from data ALREADY in the page's state maps.
@@ -750,7 +751,7 @@ export default function AssignationsChiffragePage() {
           onScopeChange={setQueueScope}
           nbATraiter={nbATraiter}
           nbTous={filteredChiffrages.length}
-          nbShown={scopedChiffrages.length}
+          showChiffreur={showChiffreurColumn}
           search={q}
           onSearchChange={phoneSearchChange}
           sortLabel={phoneSort === 'lointain' ? t('Délai le plus lointain') : t('Délai le plus proche')}

@@ -74,18 +74,30 @@ export function StepStamp({
   );
 }
 
-export function StepStatusChip({ status, label }: { status: StepStatus; label: string }) {
+export function StepStatusChip({ status, label, filled = false }: { status: StepStatus; label: string; filled?: boolean }) {
   const t = useT();
   return (
     <span
       className={cn(
-        // done = success pair · active = accent tint · todo = ink-3 outline ·
-        // blocked = dashed ink-4 (DESIGN.md §3 / §10).
         'inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium',
-        status === 'done' && 'bg-status-success-bg text-status-success-fg',
-        status === 'in_progress' && 'bg-accent text-accent-foreground',
-        status === 'todo' && 'border border-hairline-strong text-ink-3',
-        status === 'blocked' && 'border border-dashed border-hairline-strong text-ink-4',
+        filled
+          ? // Phone step screen (Phone.dc.html `statusChipStyle`): FILLED 20 px
+            // pills — done→success · in_progress→info · blocked→danger ·
+            // todo→neutral. Never on the desktop timeline.
+            cn(
+              status === 'done' && 'bg-status-success-bg text-status-success-fg',
+              status === 'in_progress' && 'bg-status-info-bg text-status-info-fg',
+              status === 'blocked' && 'bg-status-danger-bg text-status-danger-fg',
+              status === 'todo' && 'bg-surface-3 text-ink-2',
+            )
+          : // done = success pair · active = accent tint · todo = ink-3 outline ·
+            // blocked = dashed ink-4 (DESIGN.md §3 / §10).
+            cn(
+              status === 'done' && 'bg-status-success-bg text-status-success-fg',
+              status === 'in_progress' && 'bg-accent text-accent-foreground',
+              status === 'todo' && 'border border-hairline-strong text-ink-3',
+              status === 'blocked' && 'border border-dashed border-hairline-strong text-ink-4',
+            ),
       )}
     >
       {t(label)}

@@ -95,8 +95,10 @@ export interface PhoneBlockProps {
   count?: number | null;
   /** Count chip tone: danger for late / relance blocks, time for today's visits. Neutral otherwise. */
   countTone?: PhoneTone;
-  /** Second line under the title (12 px ink-3), e.g. « ouverts · en retard ». */
+  /** Second line under the title (12 px ink-3), e.g. « Aucune action depuis plus de 2 j ouvrés ». */
   caption?: React.ReactNode;
+  /** Inline column hint in the header row after the title (12 px ink-3), e.g. « ouverts · hors délai ». */
+  hint?: React.ReactNode;
   moreHref?: string;
   moreLabel?: string;
   onMore?: () => void;
@@ -117,20 +119,22 @@ const COUNT_VARIANT: Record<PhoneTone, React.ComponentProps<typeof Badge>['varia
   success: 'success',
 };
 
-export function PhoneBlock({ title, count, countTone = 'neutral', caption, moreHref, moreLabel, onMore, emptyText, loading, dataTour, className, children }: PhoneBlockProps) {
+export function PhoneBlock({ title, count, countTone = 'neutral', caption, hint, moreHref, moreLabel, onMore, emptyText, loading, dataTour, className, children }: PhoneBlockProps) {
   const t = useT();
   const hasRows = React.Children.toArray(children).some(Boolean);
   const more = moreLabel ?? t('Voir tout');
   const moreCls = 'ml-auto inline-flex h-10 shrink-0 items-center gap-0.5 text-[13px] font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded';
   return (
     <section className={cn(RECORD_CARD_CLASS, className)} data-tour={dataTour}>
-      <div className="flex items-center gap-2 px-3.5 pb-1 pt-1.5">
+      {/* Design header: 12 px top · 8 px bottom (the « Voir tout » hit area is 40 px tall). */}
+      <div className="flex items-center gap-2 px-3.5 pb-2 pt-3">
         <h2 className="min-w-0 text-[15px] font-semibold leading-5 text-ink [text-wrap:pretty]">{title}</h2>
         {count != null && (
           <Badge variant={countTone === 'danger' && count === 0 ? 'neutral' : COUNT_VARIANT[countTone]} className="h-5 min-w-[20px] justify-center px-1.5">
             {count}
           </Badge>
         )}
+        {hint && <span className="min-w-0 truncate text-[12px] leading-4 text-ink-3">{hint}</span>}
         {moreHref ? (
           <Link href={moreHref} className={moreCls}>
             {more}
@@ -188,7 +192,7 @@ const ROW_CLASS =
 export function PhoneBlockRow({ id, who, time, timeTone = 'neutral', chip, href, onClick, ariaLabel, dataTour }: PhoneBlockRowProps) {
   const body = (
     <>
-      <span className="shrink-0 font-mono text-[13px] font-semibold tabular-nums">{id}</span>
+      <span className="shrink-0 font-mono text-[14px] font-semibold tabular-nums">{id}</span>
       <span className="min-w-0 flex-1 truncate text-ink-2">{who}</span>
       {chip}
       {time != null && time !== '' && (
@@ -265,28 +269,46 @@ export interface PhoneBarRowProps {
   value: number;
   /** 0–1 share of the reference (the first funnel step, the busiest person). */
   frac: number;
-  /** Second figure printed after the value in danger-fg when > 0 (late part). */
+  /**
+   * Late part. Without `lateFrac` it is printed as a second figure after the
+   * value (danger-fg, « 12 · 3 »). With `lateFrac` the value column keeps ONE
+   * figure and the late part becomes a danger-tinted segment of the bar
+   * (funnel rows — the count then belongs in `ariaLabel`).
+   */
   late?: number;
+  /** 0–1 share of the same reference painted danger right after the primary segment. */
+  lateFrac?: number;
   onClick?: () => void;
   ariaLabel?: string;
   /** Label column width (design: 104 px). */
   labelWidth?: string;
 }
 
+const pct = (f: number) => Math.max(0, Math.min(100, Math.round(f * 100)));
+
 /**
  * Design rows are 30 px; tappable rows are lifted to 40 px so the finger has
  * a target (brief: touch targets ≥ 40 px). Static rows keep 30 px.
  */
-export function PhoneBarRow({ label, value, frac, late, onClick, ariaLabel, labelWidth = 'w-[104px]' }: PhoneBarRowProps) {
+export function PhoneBarRow({ label, value, frac, late, lateFrac, onClick, ariaLabel, labelWidth = 'w-[104px]' }: PhoneBarRowProps) {
+  const segment = lateFrac !== undefined;
+  const mainPct = value > 0 ? pct(frac) : 0;
+  const latePct = segment && !!late && late > 0 ? Math.min(100 - mainPct, pct(lateFrac)) : 0;
   const inner = (
     <>
       <span className={cn('shrink-0 truncate text-[12px] text-ink-2', labelWidth)}>{label}</span>
-      <span className="relative block h-2.5 min-w-0 flex-1 rounded-full bg-surface-3" aria-hidden>
-        {value > 0 && <span className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${Math.max(0, Math.min(100, Math.round(frac * 100)))}%` }} />}
+      <span className="relative block h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
+        {mainPct > 0 && <span className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${mainPct}%` }} />}
+        {latePct > 0 && (
+          <span
+            className={cn('absolute inset-y-0 bg-status-danger-solid', mainPct === 0 ? 'rounded-full' : 'rounded-r-full')}
+            style={{ left: `${mainPct}%`, width: `${latePct}%` }}
+          />
+        )}
       </span>
       <span className={cn('min-w-[36px] shrink-0 text-right text-[13px] font-semibold tabular-nums', value === 0 ? 'text-ink-4' : 'text-ink')}>
         {value}
-        {!!late && late > 0 && <span className="text-status-danger-fg"> · {late}</span>}
+        {!segment && !!late && late > 0 && <span className="text-status-danger-fg"> · {late}</span>}
       </span>
     </>
   );

@@ -122,13 +122,10 @@ export default function PhoneTopBar() {
 
   const toggleSearch = () => {
     if (!phone.search) return;
-    if (searchOpen) {
-      // Closing clears: a hidden query must never keep filtering the list.
-      if (phone.search.value) phone.search.onChange('');
-      setSearchOpen(false);
-    } else {
-      setSearchOpen(true);
-    }
+    // Closing only hides the field — the query stays applied (design: the ✕
+    // INSIDE the field is the one control that clears it). The bar's ⌕ keeps
+    // its pressed paint while a query applies so the filtering is never hidden.
+    setSearchOpen((open) => !open);
   };
 
   return (
@@ -188,7 +185,7 @@ export default function PhoneTopBar() {
             {upHref ? (
               <Link
                 href={upHref}
-                className="flex h-11 min-w-0 max-w-[7.5rem] shrink-0 items-center gap-0.5 rounded-md pl-1 pr-2 text-sm text-ink-2 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-11 min-w-0 max-w-24 shrink-0 items-center gap-0.5 rounded-md pl-1 pr-2 text-sm text-ink-2 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden />
                 <span className="truncate">{upLabel ? t(upLabel) : ''}</span>
@@ -200,7 +197,8 @@ export default function PhoneTopBar() {
             )}
             <div className="flex min-w-0 flex-1 flex-col justify-center px-1">
               <div className="flex min-w-0 items-center gap-1.5">
-                <h1 className={cn('min-w-0 truncate text-[16px] font-semibold leading-tight text-ink', phone.titleChip && 'font-mono tabular-nums')}>
+                {/* A record screen's title is always a reference (réf, plaque…) → mono, chip or not (design). */}
+                <h1 className="min-w-0 truncate font-mono text-[16px] font-semibold leading-tight tabular-nums text-ink">
                   {registeredTitle ? t(registeredTitle) : navItem ? t(navItem.title ?? navItem.label) : ''}
                 </h1>
                 {phone.titleChip && (
@@ -228,7 +226,7 @@ export default function PhoneTopBar() {
               aria-pressed={searchOpen}
               aria-label={t('Rechercher')}
               data-tour={phone.search.dataTour}
-              className={cn(ICON_BTN, searchOpen && 'bg-surface-3 text-ink')}
+              className={cn(ICON_BTN, (searchOpen || !!searchValue) && 'bg-surface-3 text-ink')}
             >
               <Search className="h-5 w-5" />
             </button>
@@ -278,7 +276,7 @@ export default function PhoneTopBar() {
       {phone.search && searchOpen && (
         <div role="search" className="flex items-center gap-2 px-3 pb-2 animate-in fade-in-0 duration-150 motion-reduce:animate-none">
           <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-3" aria-hidden />
             <input
               type="search"
               inputMode="search"

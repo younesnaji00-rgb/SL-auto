@@ -121,7 +121,11 @@ export interface Ecart {
   delta: number;
   /** Signed percentage of the devis total, null when the devis is 0. */
   pct: number | null;
-  /** « − 498,00 DHS · − 2,7 % » — U+2212 minus, thin thousands, 2 decimals. */
+  /**
+   * « − 498,00 · − 2,7 % » — U+2212 minus, thin thousands, 2 decimals, NO
+   * unit (the design's écart line; the DHS unit is already printed twice
+   * above it on the same card). Only the phone chiffrage screen reads this.
+   */
   label: string;
   tone: 'success' | 'danger' | 'neutral';
 }
@@ -136,7 +140,7 @@ export function ecartWithDevis(accordTTC: number, devisTTC: number): Ecart {
   return {
     delta,
     pct,
-    label: `${sign}${abs} DHS${pctLabel}`,
+    label: `${sign}${abs}${pctLabel}`,
     tone: delta < 0 ? 'success' : delta > 0 ? 'danger' : 'neutral',
   };
 }

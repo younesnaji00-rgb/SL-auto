@@ -26,6 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useT, dateFnsLocale } from '@/i18n';
 import { useFirestore, useStorage, useAuth, useDoc } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useIsPhone } from '@/hooks/use-viewport-class';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { apiFetch } from '@/lib/api-fetch';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
@@ -151,6 +152,7 @@ export default function Step1Import({
   const storage = useStorage();
   const auth = useAuth();
   const { canWrite, canDelete, profile } = useCurrentUser();
+  const isPhone = useIsPhone();
   const { toast } = useToast();
   const t = useT();
 
@@ -485,13 +487,15 @@ export default function Step1Import({
       <div className="flex flex-wrap items-center gap-3">
         {canEdit && (
           <SmartInbox
-            className="min-w-0 flex-[1_1_20rem]"
+            // Phone (Phone.dc.html): always the tonal, full-width button —
+            // the filled primary is reserved for the bottom action bar.
+            className="min-w-0 flex-[1_1_20rem] max-md:w-full max-md:[&>div>button]:w-full"
             dossierId={dossierId}
             dossier={dossier}
             readOnly={readOnly}
             prefilling={isScanning}
             buttonLabel={t('Pré-remplir depuis un document')}
-            emphasis={hasImportDoc ? 'tonal' : 'primary'}
+            emphasis={isPhone || hasImportDoc ? 'tonal' : 'primary'}
             icon={null}
             onPrefill={async (files, sourceDocId) => {
               const userEmail = auth?.currentUser?.email || 'Admin';

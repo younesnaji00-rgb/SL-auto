@@ -92,7 +92,7 @@ export function BottomActionBar({ primary, secondary = [], caption, className }:
               <span className="sr-only">{s.label}</span>
             </>
           );
-          const cls = 'inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-ink-2 shadow-rim transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
+          const cls = 'inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-card text-ink-2 shadow-rim transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
           if (s.href && !s.disabled) {
             return s.external ? (
               <a key={i} href={s.href} target="_blank" rel="noopener noreferrer" className={cls} aria-label={s.label} title={s.label} data-tour={s.dataTour}>

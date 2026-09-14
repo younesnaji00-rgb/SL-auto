@@ -22,10 +22,11 @@ import { StepTabs, type StepTab } from '@/components/dossier-timeline/step-tabs'
 import { useRequiredDocsStatus } from '@/hooks/use-required-docs-status';
 import { chiffrageGateReason, isChiffrageGateClosed } from '@/lib/required-docs';
 import { getMissingRequiredFields } from '@/lib/required-fields';
+import { mapToAccorde, parseAccordeParent } from '@/lib/docType-accorde';
 import { useFocusMode } from '@/hooks/use-focus-mode';
 import {
   gotoStep,
-  hubUrl,
+  dossierUrl,
   historiqueUrl,
   parseLegacyStepHash,
   parseStepParam,
@@ -63,8 +64,8 @@ import ObservationsTab, { NEW_OBSERVATION_EVENT } from '@/components/observation
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
 
 // ── Phone shells (mobile redesign 2026-09-14 — Phone.dc.html dossier detail) ──
-// The record lands directly on the current step; the hub (./phone/hub) is
-// retired and no longer routed to.
+// The record lands directly on the current step; the former hub screen is
+// gone (its files were deleted).
 import { PhoneStepScreen } from './phone/step-screen';
 import { PhoneHistoriqueScreen } from './phone/historique-screen';
 import { usePhotoCounts } from './phone/use-photo-counts';
@@ -90,16 +91,55 @@ const RAPPEL_SESSION_KEY = (dossierId: string) => `rappel-active-session-${dossi
 const CAPTURE_PHOTOS_EVENT = 'sl:capture-photos';
 
 /**
- * Bottom-bar labels (E4: ONE primary, ≤ 24 characters, a French verb phrase —
- * the phrase IS the affordance, so no FAB). Shorter than the desktop record
- * bar's labels, which have the whole width of a 1 280 px row to spend.
+ * Bottom-bar primary per STEP (E4: ONE primary, a French verb phrase — the
+ * phrase IS the affordance, so no FAB). Verbatim the prototype's `PRIMARY`
+ * map (Phone.dc.html). Step 1's « Enregistrer » is not here: the phone edits
+ * through section sheets that save themselves, so the step has no primary.
  */
-const PHONE_PRIMARY_LABEL: Record<string, string> = {
-  planifier: 'Planifier la visite',
-  chiffrage: 'Envoyer au chiffrage',
-  rapport: 'Générer le rapport',
-  honoraires: 'Déposer les honoraires',
+const PHONE_PRIMARY_BY_STEP: Record<number, string> = {
+  4: 'Planifier la visite avant',
+  6: 'Envoyer au chiffrage',
+  9: 'Planifier la visite en cours',
+  11: 'Envoyer au chiffrage',
+  10: 'Planifier la visite après',
+  7: 'Générer le rapport',
+  8: "Déposer la note d'honoraire",
 };
+
+/** Tour anchors of the two single-surface steps' own controls (rapport-tab /
+ *  slot-card) — the bar drives them so the surface keeps one handler. */
+const RAPPORT_GENERATE_ANCHOR = '[data-tour="dosd-rapport-generer"] button';
+const HONORAIRE_SLOT_ANCHOR = '[data-tour="dosd-honoraire-slot"]';
+
+/**
+ * Progress of the accord slots the « Documents » facet shows (steps 6 and 11),
+ * from the filled-types set the required-docs gate already loads. Mirrors
+ * lib/doc-family + FamilyRow: a family counts once its source is in; on the
+ * 2ème-and-up step a slot opens once the previous ordinal is filled. `null`
+ * while loading or when no slot is open yet (no badge rather than « 0/0 »).
+ */
+function accordSlotProgress(filled: Set<string> | null | undefined, stepId: 6 | 11): { received: number; total: number } | null {
+  if (!filled) return null;
+  const parents = new Set<string>(['Devis Garage', 'Facture Garage']);
+  for (const type of filled) if (parseAccordeParent(type)) parents.add(type);
+  const slots: string[] = [];
+  for (const parent of parents) {
+    for (const kind of ['accord', 'proposition-accord'] as const) {
+      if (stepId === 6) {
+        const first = mapToAccorde(parent, kind, 1);
+        if (filled.has(parent) || filled.has(first)) slots.push(first);
+      } else {
+        // mapToAccorde clamps the ordinal to 3 — stop there.
+        for (let ord = 2; ord <= 3; ord++) {
+          if (!filled.has(mapToAccorde(parent, kind, ord - 1))) break;
+          slots.push(mapToAccorde(parent, kind, ord));
+        }
+      }
+    }
+  }
+  if (slots.length === 0) return null;
+  return { received: slots.filter((s) => filled.has(s)).length, total: slots.length };
+}
 
 type PhoneActionKind = 'planifier' | 'chiffrage' | 'rapport' | 'honoraires' | 'photos' | 'observation';
 
@@ -130,7 +170,7 @@ function workflowAction(step: StepState | null): PhoneAction | null {
   const a = primaryActionForStep(step.id);
   if (!a.kind) return null;
   return {
-    label: PHONE_PRIMARY_LABEL[a.kind] ?? a.label,
+    label: PHONE_PRIMARY_BY_STEP[step.id] ?? a.label,
     kind: a.kind,
     icon: a.kind === 'chiffrage' ? <Calculator /> : a.kind === 'planifier' ? <CalendarPlus /> : <FileText />,
     stepId: step.id,
@@ -457,6 +497,14 @@ function DossierDetail({ id }: { id: string }) {
     if (n > 0) return { kind: 'progress', label: String(n) };
     return findStep(stepStates, stepId)?.status === 'in_progress' ? { kind: 'warn', label: '0' } : undefined;
   };
+  // Phone only (design: « Documents 1/2 »): received/total of the accord slots
+  // of the step, like « Pièces ». Desktop: no badge.
+  const accordBadge = (stepId: 6 | 11): StepTab['badge'] => {
+    if (!isPhone) return undefined;
+    const p = accordSlotProgress(requiredDocs.status?.filledTypes, stepId);
+    if (!p) return undefined;
+    return { kind: p.received >= p.total ? 'ok' : 'progress', label: `${p.received}/${p.total}` };
+  };
 
   // ── Facets, declared once ────────────────────────────────────────────────
   // The desktop timeline wraps each list in a <StepTabs>; the phone step
@@ -467,7 +515,13 @@ function DossierDetail({ id }: { id: string }) {
       {
         value: 'informations', label: t('Informations'), icon: <ClipboardList />,
         badge: missingFields.length > 0
-          ? { kind: 'warn', label: `${missingFields.length} ${missingFields.length > 1 ? t('champs manquants') : t('champ manquant')}` }
+          ? {
+              kind: 'warn',
+              // Phone (prototype): « 2 manquants » — the facet name already says « champs ».
+              label: isPhone
+                ? `${missingFields.length} ${missingFields.length > 1 ? t('manquants') : t('manquant')}`
+                : `${missingFields.length} ${missingFields.length > 1 ? t('champs manquants') : t('champ manquant')}`,
+            }
           : undefined,
         content: (
           <div className="space-y-6">
@@ -495,7 +549,7 @@ function DossierDetail({ id }: { id: string }) {
       { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <div data-tour="dosd-observations"><ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Avant" /></div> },
     ],
     6: [
-      { value: 'documents', label: t('Documents'), icon: <FolderOpen />, content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots /> },
+      { value: 'documents', label: t('Documents'), icon: <FolderOpen />, badge: accordBadge(6), content: <Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} hidePhotos showOnlyAccordSlots hideCardinalPlus onlyImportTab showReformeSlots /> },
       { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="1er accord" /> },
     ],
     9: [
@@ -506,7 +560,7 @@ function DossierDetail({ id }: { id: string }) {
     11: [
       // data-tour: the guided tour explains the cardinal-accord
       // serialization on this wrapper.
-      { value: 'documents', label: t('Documents'), icon: <FolderOpen />, content: <div data-tour="dosd-accord2"><Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" /></div> },
+      { value: 'documents', label: t('Documents'), icon: <FolderOpen />, badge: accordBadge(11), content: <div data-tour="dosd-accord2"><Step4Pieces dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onSendToChiffrage={() => setChiffrageModalOpen(true)} requireFirstAccordFilled hidePhotos showOnlyAccordSlots onlyImportTab cardinalFilter="2-plus" /></div> },
       { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextAccord="2ème accord ou +" /> },
     ],
     10: [
@@ -549,10 +603,24 @@ function DossierDetail({ id }: { id: string }) {
         return handleNewPlanification(visitTypeForStep(action.stepId) ?? undefined);
       case 'chiffrage':
         return setChiffrageModalOpen(true);
-      case 'rapport':
-        return goToStep(7);
-      case 'honoraires':
-        return goToStep(8);
+      case 'rapport': {
+        // On the Rapport screen the bar drives the surface's own « Générer le
+        // rapport » (rapport-tab.tsx: type dialog → handleGenerate). Elsewhere
+        // it leads to the step.
+        if (phoneStep?.id !== 7) return goToStep(7);
+        const btn = document.querySelector<HTMLButtonElement>(RAPPORT_GENERATE_ANCHOR);
+        if (btn && !btn.disabled) return btn.click();
+        return (btn ?? document.querySelector(RAPPORT_GENERATE_ANCHOR.split(' ')[0]))?.scrollIntoView({ block: 'center' });
+      }
+      case 'honoraires': {
+        // The Note d'honoraire slot (slot-card.tsx) owns the file picker: open
+        // it from the bar; a filled slot is scrolled into view instead.
+        if (phoneStep?.id !== 8) return goToStep(8);
+        const tile = document.querySelector<HTMLElement>(HONORAIRE_SLOT_ANCHOR);
+        const input = tile?.querySelector<HTMLInputElement>('input[type="file"]');
+        if (input) return input.click();
+        return tile?.scrollIntoView({ block: 'center' });
+      }
       case 'photos':
         // The mounted Photos facet owns the camera (photos-tab.tsx listens).
         return window.dispatchEvent(
@@ -563,23 +631,15 @@ function DossierDetail({ id }: { id: string }) {
     }
   };
 
-  // ONE primary (E4): the next step's workflow action on the hub, the facet's
-  // own primary on a step screen (falling back to that step's workflow action).
+  // ONE primary (E4), per STEP (prototype `PRIMARY[step.id]`): the step's own
+  // workflow action; only a step without one (Mission) falls back to the open
+  // facet's action. Facet actions stay reachable inside the panels.
   // Read-only roles get no bar at all — the content takes the height back.
   const next = computeNextStep(stepStates);
-  // On a step screen an action that only NAVIGATES to the step already in view
-  // (Rapport, Note d'honoraire — those surfaces carry their own generate
-  // button) is not an action: the bar stays empty rather than offering a
-  // button that does nothing.
-  const ownStepAction = (() => {
-    if (!phoneStep) return null;
-    const a = workflowAction(phoneStep);
-    return a && (a.kind === 'rapport' || a.kind === 'honoraires') ? null : a;
-  })();
   const barAction: PhoneAction | null = readOnly
     ? null
     : phoneStep
-      ? facetAction(phoneStep, phoneFacet) ?? ownStepAction
+      ? workflowAction(phoneStep) ?? facetAction(phoneStep, phoneFacet)
       : workflowAction(next);
 
   // A blocked step's primary stays visible but disabled, with the reason as
@@ -595,6 +655,9 @@ function DossierDetail({ id }: { id: string }) {
     barAction?.kind === 'chiffrage' && barAction.stepId === 11 && !requiredDocs.firstAccordFilled;
   const chiffrageGateClosed =
     barAction?.kind === 'chiffrage' && (isChiffrageGateClosed(requiredDocs.status) || chiffrageAccordGateClosed);
+  // « Générer le rapport » is gated exactly like the surface's own button
+  // (rapport-tab.tsx): the directeur's validation must be on the dossier.
+  const rapportGateClosed = barAction?.kind === 'rapport' && viewDossier.directorValidated == null;
   const barCaption = barBlockedReason
     ? t(barBlockedReason)
     : chiffrageGateClosed
@@ -602,7 +665,9 @@ function DossierDetail({ id }: { id: string }) {
         (chiffrageAccordGateClosed
           ? t("Au moins un 1er accord ou une 1ère proposition doit être rempli avant d'assigner.")
           : t('Dès que les pièces requises sont reçues'))
-      : undefined;
+      : rapportGateClosed
+        ? t("En attente de validation du directeur des opérations ou de l'administrateur")
+        : undefined;
 
   // The phone top bar's title + up-link, resolved for the screen in view.
   // Step screens: the mono ref + statut chip (RecordBar's default) and
@@ -634,7 +699,7 @@ function DossierDetail({ id }: { id: string }) {
           label: t(barAction.label),
           icon: barAction.icon,
           onClick: () => runPhoneAction(barAction),
-          disabled: !!barBlockedReason || chiffrageGateClosed,
+          disabled: !!barBlockedReason || chiffrageGateClosed || rapportGateClosed,
         }
       : null;
 
@@ -698,7 +763,7 @@ function DossierDetail({ id }: { id: string }) {
         onChiffrage={() => setChiffrageModalOpen(true)}
         onGoToStep={goToStep}
         phoneTitle={phoneTitle}
-        upHref={historiqueView ? hubUrl(id) : '/dossiers'}
+        upHref={historiqueView ? dossierUrl(id) : '/dossiers'}
         upLabel={historiqueView ? 'Dossier' : 'Dossiers'}
       />
 

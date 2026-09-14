@@ -29,7 +29,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import { Check, ChevronLeft, ChevronRight, ListChecks, Lock } from 'lucide-react';
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, FileText, ListChecks, Lock } from 'lucide-react';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { StepStatusChip } from '@/components/dossier-timeline/timeline-bar';
 import { StepTabs, type StepTab } from '@/components/dossier-timeline/step-tabs';
@@ -169,40 +169,63 @@ function StepChips({ dossierId, steps, currentId }: { dossierId: string; steps: 
 /* « À faire » sheet                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Leading icon of a todo row (prototype `row(label, sub, '→', icon)`):
+ *  waiting on someone → clock · pièces / documents → fileText · else alert. */
+function TodoIcon({ todo }: { todo: DossierTodo }) {
+  const Icon = todo.waiting
+    ? Clock
+    : todo.id === 'docs' || ('tab' in todo.action && todo.action.tab === 'documents')
+      ? FileText
+      : AlertTriangle;
+  return <Icon className="h-5 w-5" aria-hidden />;
+}
+
 function TodosSheet({
   open,
   onOpenChange,
   todos,
+  steps,
   onRun,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   todos: DossierTodo[];
+  steps: StepState[];
   onRun: (todo: DossierTodo) => void;
 }) {
   const t = useT();
   return (
     <BottomSheet open={open} onOpenChange={onOpenChange} title={`${t('À faire')} · ${todos.length}`} flush>
       <ul className="divide-y divide-hairline">
-        {todos.map((todo) => (
-          <li key={todo.id}>
-            <button
-              type="button"
-              onClick={() => {
-                onOpenChange(false);
-                onRun(todo);
-              }}
-              className="flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-surface-2 focus:outline-none focus-visible:bg-surface-2"
-            >
-              <span className="min-w-0 flex-1">
-                <span className={cn('block text-[15px] leading-snug', todo.waiting ? 'text-ink-2' : 'font-medium text-ink')}>{todo.label}</span>
-                {todo.detail && <span className="block truncate text-[12px] text-ink-3">{todo.detail}</span>}
-              </span>
-              <span className="shrink-0 text-[12px] text-ink-3">{todo.target}</span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
-            </button>
-          </li>
-        ))}
+        {todos.map((todo) => {
+          // Destination « Étape · facette » (prototype: « Mission · Informations »).
+          const stepLabel = steps.find((s) => s.id === todo.action.stepId)?.label;
+          const destination = [stepLabel ? t(stepLabel) : null, todo.target].filter(Boolean).join(' · ');
+          return (
+            <li key={todo.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenChange(false);
+                  onRun(todo);
+                }}
+                className="flex min-h-[52px] w-full items-center gap-3.5 px-4 py-2 text-left transition-colors hover:bg-surface-2 focus:outline-none focus-visible:bg-surface-2"
+              >
+                <span className={cn('flex w-6 shrink-0 justify-center', todo.waiting ? 'text-ink-3' : 'text-ink-2')}>
+                  <TodoIcon todo={todo} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={cn('block text-[15px] leading-snug', todo.waiting ? 'text-ink-2' : 'font-medium text-ink')}>{todo.label}</span>
+                  <span className="block truncate text-[12px] text-ink-3">
+                    {destination}
+                    {todo.detail && <> · {todo.detail}</>}
+                  </span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </BottomSheet>
   );
@@ -364,14 +387,14 @@ export function PhoneStepScreen({
             className="-my-1.5 ml-auto flex h-10 shrink-0 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-status-warning-bg px-2.5 text-[12px] font-semibold text-status-warning-fg">
-              <ListChecks className="h-3.5 w-3.5" aria-hidden />
+              <ListChecks className="h-4 w-4" aria-hidden />
               {t('À faire')} <span className="tabular-nums">{todos.length}</span>
             </span>
           </button>
         )}
       </div>
 
-      <TodosSheet open={todosOpen} onOpenChange={setTodosOpen} todos={todos} onRun={runTodo} />
+      <TodosSheet open={todosOpen} onOpenChange={setTodosOpen} todos={todos} steps={steps} onRun={runTodo} />
 
       <StepChips dossierId={dossierId} steps={steps} currentId={step.id} />
 
@@ -394,7 +417,7 @@ export function PhoneStepScreen({
       >
         <div className="mb-2.5 flex items-center justify-between gap-3">
           <h2 className="font-headline text-[17px] font-semibold leading-tight text-ink">{t(step.longLabel)}</h2>
-          <StepStatusChip status={step.status} label={step.statusLabel} />
+          <StepStatusChip status={step.status} label={step.statusLabel} filled />
         </div>
         {step.status === 'blocked' && step.blockedReason && <p className="mb-3 text-[12px] text-ink-3">{t(step.blockedReason)}</p>}
 

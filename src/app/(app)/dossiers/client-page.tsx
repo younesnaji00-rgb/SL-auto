@@ -728,8 +728,10 @@ export default function DossiersClientPage() {
     : filters.sortByCreation === 'asc'
       ? 'ancien'
       : 'recent';
+  // The bar prints the SHORT form (design « ⇅ Récents »); the sheet keeps the
+  // full option labels (« Plus récents », « En retard d'abord »).
   const phoneSortLabel =
-    phoneSort === 'retard' ? t("En retard d'abord") : phoneSort === 'ancien' ? t('Plus anciens') : t('Plus récents');
+    phoneSort === 'retard' ? t('En retard') : phoneSort === 'ancien' ? t('Anciens') : t('Récents');
 
   // Bar chrome callbacks — stable identities: `usePhoneChrome` republishes on
   // its primitive signature only and reads functions by identity.
@@ -762,6 +764,23 @@ export default function DossiersClientPage() {
     if (filters.status !== 'Tous') keep.add(filters.status);
     return present.filter((s) => keep.has(s.label));
   }, [filterStatuses, facetCounts.status, filters.status]);
+  // ONE compagnie pill after the status pills (design « Wafa Assurance 14 »):
+  // the applied compagnie, else the largest facet (counted on every other
+  // filter, so the figure is what the tap yields). Toggles `compagnie`.
+  const togglePhoneCompagnie = useCallback((label: string) => {
+    setFilters((prev) => ({ ...prev, compagnie: prev.compagnie === label ? 'Toutes' : label }));
+    setPage(1);
+  }, [setFilters]);
+  const phoneCompagniePill = useMemo(() => {
+    if (filters.compagnie !== 'Toutes') {
+      return { label: filters.compagnie, count: facetCounts.compagnie.get(filters.compagnie) ?? 0 };
+    }
+    let best: { label: string; count: number } | null = null;
+    facetCounts.compagnie.forEach((count, label) => {
+      if (!best || count > best.count) best = { label, count };
+    });
+    return best;
+  }, [facetCounts.compagnie, filters.compagnie]);
   const phoneIsLate = (d: any) => {
     const age = ageDays(d?.createdAt);
     return isActionNeeded(d?.statut) && age !== null && age >= LATE_AFTER_DAYS;
@@ -1244,23 +1263,17 @@ export default function DossiersClientPage() {
             statusFilter={filters.status}
             counts={kpi}
             statusPills={phoneStatusPills}
+            compagnieFilter={filters.compagnie}
+            compagniePill={phoneCompagniePill}
             filterCount={appliedFilterCount}
             loading={loading}
             onScope={setPhoneScope}
             onStatus={togglePhoneStatus}
+            onCompagnie={togglePhoneCompagnie}
             onOpenFilters={openPhoneFilters}
           />
-          <AppliedChips
-            chips={appliedChips}
-            onClearAll={() =>
-              setFilters({
-                nature: 'Toutes', status: 'Tous', compagnie: 'Toutes',
-                observation: 'Toutes', creator: 'Tous', lateOnly: false,
-                dateFrom: '', dateTo: '', datePreset: null,
-              })
-            }
-            className="md:hidden"
-          />
+          {/* No applied-chips row under the pills (design): the active pill
+              and the « Filtres » badge carry the applied state. */}
         </>
       )}
 
@@ -2199,15 +2212,9 @@ export default function DossiersClientPage() {
         >
           {(pending, set) => (
             <>
-              <FilterSection label={t('Retard')} set={pending.lateOnly}>
-                <FilterToggle
-                  label={t('En retard uniquement')}
-                  hint={`${t('à traiter depuis ≥')} ${LATE_AFTER_DAYS} ${t('j')}`}
-                  checked={pending.lateOnly}
-                  onChange={(v) => set({ lateOnly: v })}
-                />
-              </FilterSection>
-
+              {/* Section order = design sheet: Statut · Compagnie · Période ·
+                  Nature · Créé par · En retard uniquement, then the app's own
+                  extras (Observation, Vues enregistrées). */}
               <FilterSection label={t('Statut')} set={pending.status !== 'Tous'}>
                 <FilterSelect
                   ariaLabel={t('Statut')}
@@ -2228,43 +2235,6 @@ export default function DossiersClientPage() {
                   options={[
                     { value: 'Toutes', label: t('Toutes les compagnies') },
                     ...filterCompagnies.map((c) => ({ value: c.label, label: c.label, count: facetCounts.compagnie.get(c.label) ?? 0 })),
-                  ]}
-                />
-              </FilterSection>
-
-              <FilterSection label={t('Nature du dossier')} set={pending.nature !== 'Toutes'}>
-                <FilterSelect
-                  ariaLabel={t('Nature du dossier')}
-                  value={pending.nature}
-                  onChange={(v) => set({ nature: v })}
-                  options={[
-                    { value: 'Toutes', label: t('Toutes les natures') },
-                    ...filterNatures.map((n) => ({ value: n.label, label: t(n.label), count: facetCounts.nature.get(n.label) ?? 0 })),
-                  ]}
-                />
-              </FilterSection>
-
-              <FilterSection label={t('Observation')} set={pending.observation !== 'Toutes'}>
-                <FilterSelect
-                  ariaLabel={t('Observation')}
-                  value={pending.observation}
-                  onChange={(v) => set({ observation: v })}
-                  options={[
-                    { value: 'Toutes', label: t('Toutes les observations') },
-                    ...filterObservations.map((o) => ({ value: o.label, label: t(o.label), count: facetCounts.observation.get(o.label) ?? 0 })),
-                    ...customObservationTexts.map((txt) => ({ value: txt, label: txt, count: facetCounts.observation.get(txt) ?? 0 })),
-                  ]}
-                />
-              </FilterSection>
-
-              <FilterSection label={t('Créé par')} set={pending.creator !== 'Tous'}>
-                <FilterSelect
-                  ariaLabel={t('Créé par')}
-                  value={pending.creator}
-                  onChange={(v) => set({ creator: v })}
-                  options={[
-                    { value: 'Tous', label: t('Tous les créateurs') },
-                    ...filterCreators.map((name) => ({ value: name, label: name, count: facetCounts.creator.get(name) ?? 0 })),
                   ]}
                 />
               </FilterSection>
@@ -2303,6 +2273,52 @@ export default function DossiersClientPage() {
                     />
                   </label>
                 </div>
+              </FilterSection>
+
+              <FilterSection label={t('Nature du dossier')} set={pending.nature !== 'Toutes'}>
+                <FilterSelect
+                  ariaLabel={t('Nature du dossier')}
+                  value={pending.nature}
+                  onChange={(v) => set({ nature: v })}
+                  options={[
+                    { value: 'Toutes', label: t('Toutes les natures') },
+                    ...filterNatures.map((n) => ({ value: n.label, label: t(n.label), count: facetCounts.nature.get(n.label) ?? 0 })),
+                  ]}
+                />
+              </FilterSection>
+
+              <FilterSection label={t('Créé par')} set={pending.creator !== 'Tous'}>
+                <FilterSelect
+                  ariaLabel={t('Créé par')}
+                  value={pending.creator}
+                  onChange={(v) => set({ creator: v })}
+                  options={[
+                    { value: 'Tous', label: t('Tous les créateurs') },
+                    ...filterCreators.map((name) => ({ value: name, label: name, count: facetCounts.creator.get(name) ?? 0 })),
+                  ]}
+                />
+              </FilterSection>
+
+              <FilterSection label={t('Retard')} set={pending.lateOnly}>
+                <FilterToggle
+                  label={t('En retard uniquement')}
+                  hint={`${t('à traiter depuis ≥')} ${LATE_AFTER_DAYS} ${t('j')}`}
+                  checked={pending.lateOnly}
+                  onChange={(v) => set({ lateOnly: v })}
+                />
+              </FilterSection>
+
+              <FilterSection label={t('Observation')} set={pending.observation !== 'Toutes'}>
+                <FilterSelect
+                  ariaLabel={t('Observation')}
+                  value={pending.observation}
+                  onChange={(v) => set({ observation: v })}
+                  options={[
+                    { value: 'Toutes', label: t('Toutes les observations') },
+                    ...filterObservations.map((o) => ({ value: o.label, label: t(o.label), count: facetCounts.observation.get(o.label) ?? 0 })),
+                    ...customObservationTexts.map((txt) => ({ value: txt, label: txt, count: facetCounts.observation.get(txt) ?? 0 })),
+                  ]}
+                />
               </FilterSection>
 
               <FilterSection

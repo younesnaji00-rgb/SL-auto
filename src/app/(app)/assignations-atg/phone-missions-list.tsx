@@ -7,13 +7,13 @@
  * demo phone frame are untouched.
  *
  *   top bar (shell)  « Missions »  Bonjour <prénom> · mar. 16 sept. · 12 missions
- *                    ⌕ search « Réf., assuré, lieu… » · ⚙︎ Filtres (n) · [scan]
+ *                    ⌕ search « Réf., assuré, lieu… » · ⇅ Plus récents · ⚙︎ Filtres (n) · [scan]
  *   sticky           Avant 12 | En cours 4 | Après 3         (36 px tabs, 2 px rule)
  *   summary chips    ⚠ En retard 2 · Aujourd’hui 4 · À venir 6 · ◷ Prochaine 11:00
  *   group band       En retard (2)                          Itinéraire →
  *   cards            [14:30 / ven. 12]  SL-25-0399                          ☏
  *                                        Rachid Idrissi
- *                                        Aïn Sebaâ · 0 photo · En retard 2 j
+ *                                        Aïn Sebaâ · Garage Nord · 0 photo · En retard 2 j
  *
  * Every element maps to what the page already computes: the triage groups
  * (En retard first), the 24 business-hour deadline chip, the per-phase photo
@@ -31,6 +31,7 @@ import { Badge } from '@/components/ui/badge';
 import { DateBlock } from '@/components/ui/date-block';
 import { RECORD_CARD_CLASS, RecordCardList, RecordCardListSkeleton } from '@/components/ui/record-card';
 import { FilterSheet, FilterSection, FilterSelect } from '@/components/ui/filter-sheet';
+import { SortSheet } from '@/components/ui/sort-sheet';
 import { usePhoneChrome } from '@/components/layout/page-chrome';
 import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -82,9 +83,20 @@ export interface PhoneMissionFilters {
   dateTo: string;
 }
 
+/**
+ * The bar's sort — ORDERS, not columns. `recent` is the page's load order
+ * (createdAt desc); the two deadline orders map onto the page's per-group
+ * `deadlineSortByGroup` (proche = most urgent first).
+ */
+export type PhoneMissionSort = 'recent' | 'proche' | 'lointaine';
+
 export interface PhoneMissionsListProps {
   loading: boolean;
-  /** Triage groups in display order (En retard · Aujourd’hui · À venir), empty ones included. */
+  /**
+   * Triage groups in display order (En retard · Aujourd’hui · À venir), empty
+   * ones included — every band is painted, an empty one with a « 0 » chip.
+   * Items arrive already in the chosen sort order.
+   */
   groups: PhoneMissionGroup[];
   /** Missions of the active phase BEFORE the sheet filters — feeds the live « Afficher N missions ». */
   tabItems: PhoneMission[];
@@ -95,6 +107,8 @@ export interface PhoneMissionsListProps {
   onTabChange: (id: string) => void;
   keyword: string;
   onKeywordChange: (value: string) => void;
+  sort: PhoneMissionSort;
+  onSortChange: (next: PhoneMissionSort) => void;
   filters: PhoneMissionFilters;
   filterDefaults: PhoneMissionFilters;
   onApplyFilters: (next: PhoneMissionFilters) => void;
@@ -154,6 +168,8 @@ export default function PhoneMissionsList({
   onTabChange,
   keyword,
   onKeywordChange,
+  sort,
+  onSortChange,
   filters,
   filterDefaults,
   onApplyFilters,
@@ -173,6 +189,7 @@ export default function PhoneMissionsList({
 }: PhoneMissionsListProps) {
   const t = useT();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
   // The scan flow hands its camera trigger back here; the bar button calls it.
   const scanRef = useRef<(() => void) | null>(null);
 
@@ -193,6 +210,9 @@ export default function PhoneMissionsList({
     return [`${t('Bonjour')} ${greetingName}`, day, `${n} ${n > 1 ? t('missions') : t('mission')}`].filter(Boolean).join(' · ');
   }, [t, greetingName, filteredCount]);
 
+  // Short order names for the bar button; the sheet spells them out.
+  const sortLabel = sort === 'proche' ? t('Échéance proche') : sort === 'lointaine' ? t('Échéance lointaine') : t('Plus récents');
+
   usePhoneChrome(
     useMemo(
       () => ({
@@ -202,6 +222,8 @@ export default function PhoneMissionsList({
           value: keyword,
           onChange: onKeywordChange,
           placeholder: t('Réf., assuré, lieu…'),
+          sortLabel,
+          onSort: () => setSortOpen(true),
         },
         filters: { count: filterCount, onOpen: () => setSheetOpen(true), dataTour: 'atg-filters' },
         primaryAction: canScan
@@ -213,7 +235,7 @@ export default function PhoneMissionsList({
             }
           : null,
       }),
-      [subtitle, keyword, onKeywordChange, filterCount, canScan, t],
+      [subtitle, keyword, onKeywordChange, sortLabel, filterCount, canScan, t],
     ),
   );
 
@@ -250,7 +272,6 @@ export default function PhoneMissionsList({
   const lateCount = groups.find((g) => g.key === 'expired')?.items.length ?? 0;
   const todayCount = groups.find((g) => g.key === 'today')?.items.length ?? 0;
   const futureCount = groups.find((g) => g.key === 'future')?.items.length ?? 0;
-  const visibleGroups = groups.filter((g) => g.items.length > 0);
 
   const jumpToGroup = (g: PhoneMissionGroupKey) => {
     document.getElementById(`atg-group-${g}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -323,16 +344,18 @@ export default function PhoneMissionsList({
           className="-mx-4 flex gap-1.5 overflow-x-auto px-4 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
-          {summaryChip(
-            'late',
-            <>
-              {lateCount > 0 && <TriangleAlert className="h-3.5 w-3.5" aria-hidden />}
-              {t('En retard')} {lateCount}
-            </>,
-            lateCount > 0 ? () => jumpToGroup('expired') : null,
-            lateCount > 0 ? 'bg-status-danger-bg font-semibold text-status-danger-fg' : 'border border-hairline-strong text-ink-3',
-            t('Voir les missions en retard'),
-          )}
+          {/* The alarm chip is painted only when there is something to alarm about. */}
+          {lateCount > 0 &&
+            summaryChip(
+              'late',
+              <>
+                <TriangleAlert className="h-3.5 w-3.5" aria-hidden />
+                {t('En retard')} {lateCount}
+              </>,
+              () => jumpToGroup('expired'),
+              'bg-status-danger-bg font-semibold text-status-danger-fg',
+              t('Voir les missions en retard'),
+            )}
           {summaryChip(
             'today',
             <>{t("Aujourd'hui")} {todayCount}</>,
@@ -370,7 +393,7 @@ export default function PhoneMissionsList({
         <div className="pt-2">{emptyState}</div>
       ) : (
         <div data-tour="atg-groups" className="flex flex-col">
-          {visibleGroups.map((group) => {
+          {groups.map((group) => {
             const addressable = group.items.filter((p) => p.adresse?.trim()).length;
             const calm = group.key === 'expired';
             return (
@@ -392,6 +415,8 @@ export default function PhoneMissionsList({
                   </button>
                 </div>
 
+                {/* An empty band is the band alone (the « 0 » chip says it). */}
+                {group.items.length > 0 && (
                 <RecordCardList ariaLabel={`${t('Missions')} ${t(group.label)}`} className="pb-3 pt-2">
                   {group.items.map((p) => {
                     const key = missionKey(p);
@@ -400,8 +425,8 @@ export default function PhoneMissionsList({
                     const photoCount = dossierLive?.photos?.[missionToCategory(p.typeMission)] ?? 0;
                     const tel = telHref(dossierLive?.assureTelephone ?? p.assureTelephone);
                     const isNext = !calm && key === nextMissionKey;
-                    const place = p.zone?.trim() || p.adresse?.trim() || '';
-                    const checkin = toDate(p.checkinAt);
+                    // Zone AND venue on one truncated line (« Aïn Sebaâ · Garage Nord »).
+                    const place = [p.zone?.trim(), p.adresse?.trim()].filter(Boolean).join(' · ');
                     let day = '';
                     try {
                       day = rdv ? format(rdv, 'EEE d', { locale: dateFnsLocale() }) : '';
@@ -429,7 +454,7 @@ export default function PhoneMissionsList({
                               <span className="font-mono text-[12px] font-semibold leading-4 tabular-nums text-ink-3">{p.dossierNom || p.dossierId}</span>
                               <span className="text-[15px] font-semibold leading-[1.3] text-ink [text-wrap:pretty]">{p.assureNom || '—'}</span>
                               <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] leading-4 text-ink-3 [&>*]:min-w-0">
-                                {place && <span>{place}</span>}
+                                {place && <span className="max-w-full truncate">{place}</span>}
                                 {/* Photo progress: colour only for the done state; zero stays quiet. */}
                                 {photoCount > 0 ? (
                                   <Badge variant="success">
@@ -440,11 +465,6 @@ export default function PhoneMissionsList({
                                 )}
                                 {/* Deadline: hidden once photos exist (the mission's job is done). */}
                                 {photoCount === 0 && renderDeadline(p, calm)}
-                                {checkin && (
-                                  <Badge variant="success">
-                                    {t('Arrivé')} {format(checkin, 'HH:mm')}
-                                  </Badge>
-                                )}
                               </span>
                             </span>
                           </button>
@@ -462,6 +482,7 @@ export default function PhoneMissionsList({
                     );
                   })}
                 </RecordCardList>
+                )}
               </section>
             );
           })}
@@ -531,6 +552,19 @@ export default function PhoneMissionsList({
           </>
         )}
       </FilterSheet>
+
+      {/* Trier — one choice, applies on tap (orders, not columns). */}
+      <SortSheet<PhoneMissionSort>
+        open={sortOpen}
+        onOpenChange={setSortOpen}
+        value={sort}
+        options={[
+          { value: 'recent', label: t('Plus récents') },
+          { value: 'proche', label: t('Échéance la plus proche'), hint: t('Les 24 h ouvrées les plus entamées d’abord') },
+          { value: 'lointaine', label: t('Échéance la plus lointaine') },
+        ]}
+        onChange={onSortChange}
+      />
     </div>
   );
 }

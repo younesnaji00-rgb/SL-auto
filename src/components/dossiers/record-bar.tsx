@@ -169,7 +169,9 @@ export function RecordBar({
         ? {
             upHref,
             upLabel,
-            subtitle: [assure, dossier?.matricule].filter(Boolean).join(' · ') || null,
+            // The assuré only (Phone.dc.html `recordSubtitle`): the plate is
+            // already the step screen's identity row.
+            subtitle: assure || null,
             // The statut beside the ref (mobile redesign 2026-09-14: « SL-25-0412
             // (statut) »), with its tone from the shared status-colors family.
             // Only while the title IS the ref — a sub-screen title (« Historique »)
@@ -180,7 +182,7 @@ export function RecordBar({
             primaryAction: null,
           }
         : null,
-    [isPhone, upHref, upLabel, assure, dossier?.matricule, secondaryActions, phoneTitle, statut],
+    [isPhone, upHref, upLabel, assure, secondaryActions, phoneTitle, statut],
   );
   usePhoneChrome(phoneChrome);
 

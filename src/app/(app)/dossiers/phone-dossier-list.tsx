@@ -5,7 +5,7 @@
  * Design handoff `Phone.dc.html`, dossiers `fvMerged` variant; turn 2 notes
  * « puces de portée, sans ligne KPI », turn 3 « cartes partout »).
  *
- *   [ À traiter 42 ] [ Tous 318 ] [ En retard 7 ] [ Chiffrage en cours 11 ] … [ Filtres 2 ]
+ *   [ À traiter 42 ] [ Tous 318 ] [ En retard 7 ] [ Chiffrage en cours 11 ] … [ Wafa Assurance 14 ] [ Filtres 2 ]
  *   ┌────────────────────────────────────────────┐
  *   │ SL-25-0412                        12 j     │
  *   │ Karim Benjelloun                  [statut] │
@@ -47,12 +47,18 @@ export interface PhoneDossierScopePillsProps {
   counts: { aTraiter: number; total: number; enRetard: number };
   /** Quick status pills present in the data (label as stored + faceted count). */
   statusPills: Array<{ label: string; count: number }>;
+  /** Applied `compagnie` filter (« Toutes » = none). */
+  compagnieFilter?: string;
+  /** ONE compagnie pill after the status pills (design « Wafa Assurance 14 »): the applied one, else the top facet. */
+  compagniePill?: { label: string; count: number } | null;
   /** Applied attribute-filter count printed on the « Filtres » pill. */
   filterCount: number;
   loading?: boolean;
   onScope: (scope: PhoneDossierScope) => void;
   /** Toggles the single-valued status filter. */
   onStatus: (label: string) => void;
+  /** Toggles the single-valued compagnie filter. */
+  onCompagnie?: (label: string) => void;
   onOpenFilters: () => void;
 }
 
@@ -62,10 +68,13 @@ export function PhoneDossierScopePills({
   statusFilter,
   counts,
   statusPills,
+  compagnieFilter = 'Toutes',
+  compagniePill,
   filterCount,
   loading,
   onScope,
   onStatus,
+  onCompagnie,
   onOpenFilters,
 }: PhoneDossierScopePillsProps) {
   const t = useT();
@@ -83,6 +92,17 @@ export function PhoneDossierScopePills({
       active: statusFilter === s.label,
       onClick: () => onStatus(s.label),
     })),
+    ...(compagniePill && onCompagnie
+      ? [
+          {
+            key: `compagnie:${compagniePill.label}`,
+            label: compagniePill.label,
+            count: n(compagniePill.count),
+            active: compagnieFilter === compagniePill.label,
+            onClick: () => onCompagnie(compagniePill.label),
+          },
+        ]
+      : []),
     { key: 'filtres', kind: 'filters' as const, label: t('Filtres'), count: filterCount > 0 ? filterCount : undefined, onClick: onOpenFilters, ariaLabel: filterCount > 0 ? `${t('Filtres')} (${filterCount})` : t('Filtres') },
   ];
   return (

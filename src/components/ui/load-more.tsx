@@ -3,9 +3,10 @@
 /**
  * LoadMore + useRenderCap — phone paging (mobile-synthesis §4; research
  * docs/research/mobile-lists-tables.md §7). Phone lists render a client-side
- * cap of 25 rows (Baymard 15–30), then a full-width 48 px outline « Afficher
- * 25 de plus » under a `t-caption` « 25 sur 312 dossiers » (visible total —
- * addendum ter A). No rows-per-page, no page numbers, no infinite scroll
+ * cap of 25 rows (Baymard 15–30), then ONE full-width 44 px rim button
+ * « Afficher 25 de plus · 25 sur 312 » (mobile redesign 2026-09-14, design
+ * Phone.dc.html 112/183; the visible total — addendum ter A — sits inside the
+ * button). No rows-per-page, no page numbers, no infinite scroll
  * (goal-directed queue — NN/g). The cap counts RENDERED rows, not documents,
  * so live inserts above the fold appear immediately; it resets whenever the
  * filter signature changes and can be restored by list-scroll-restore.
@@ -90,23 +91,23 @@ export function LoadMore({ shown, total, step = 25, hasMore, onMore, noun, nounP
   const one = noun ?? t('dossier');
   const many = nounPlural ?? t('dossiers');
   const nextStep = Math.min(step, Math.max(0, total - shown));
+  // Design (Phone.dc.html 112/183): ONE 44 px rim button « Afficher 25 de
+  // plus · 8 sur 42 », the count inside it in ink-3/400. The caption line
+  // only remains when there is nothing more to show (the visible total) or
+  // when a caller passes a `suffix` (a date range) — never a second count.
+  const showCaption = !more || !!suffix;
   return (
     <div className={cn('flex flex-col items-stretch gap-2 py-3', className)} data-tour={dataTour}>
-      <p className="t-caption text-center tabular-nums" aria-live="polite">
-        {more ? (
-          <>
-            {shown} {t('sur')} {total} {total > 1 ? many : one}
-          </>
-        ) : (
-          <>
-            {total} {total > 1 ? many : one}
-          </>
-        )}
-        {suffix}
-      </p>
+      {showCaption && (
+        <p className="t-caption text-center tabular-nums" aria-live="polite">
+          {total} {total > 1 ? many : one}
+          {suffix}
+        </p>
+      )}
       {more && (
-        <Button type="button" variant="outline" className="h-12 w-full text-[15px]" onClick={onMore}>
+        <Button type="button" variant="outline" className="h-11 w-full text-[14px] font-medium" onClick={onMore}>
           {`${t('Afficher')} ${nextStep} ${t('de plus')}`}
+          <span className="font-normal tabular-nums text-ink-3">{` · ${shown} ${t('sur')} ${total}`}</span>
         </Button>
       )}
     </div>

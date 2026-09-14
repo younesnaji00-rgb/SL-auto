@@ -398,10 +398,13 @@ function buildGroups(
     }
   }
 
+  // Only steps that carry data become groups (design replayGroups): the
+  // position keeps the business order (« 3 · 1er accord ») even when step 2
+  // is skipped, and the long step label heads the card (« 2ème accord et + »).
   return DOSSIER_STEP_DEFS.map((s, i) => {
     const rows = rowsByStep.get(s.id) ?? [];
-    return { id: s.id, pos: i + 1, title: t(s.label), rows, changes: rows.filter((r) => r.status).length };
-  });
+    return { id: s.id, pos: i + 1, title: t(s.longLabel), rows, changes: rows.filter((r) => r.status).length };
+  }).filter((g) => g.rows.length > 0);
 }
 
 interface Change {
@@ -424,7 +427,7 @@ function buildChanges(
 ): Change[] {
   const out: Change[] = [];
   const stepPos = (id: number) => Math.max(0, DOSSIER_STEP_DEFS.findIndex((s) => s.id === id)) + 1;
-  const stepLabel = (id: number) => t(DOSSIER_STEP_DEFS.find((s) => s.id === id)?.label ?? 'Mission');
+  const stepLabel = (id: number) => t(DOSSIER_STEP_DEFS.find((s) => s.id === id)?.longLabel ?? 'Création de mission');
   const cb = before ? canonicalizeDossierForDiff(before.dossier ?? {}) : null;
   const ca = after ? canonicalizeDossierForDiff(after.dossier ?? {}) : null;
 
@@ -504,6 +507,14 @@ function Legend({ t }: { t: Translate }) {
 }
 
 function GroupCards({ groups, highlight, t }: { groups: Group[]; highlight: boolean; t: Translate }) {
+  // Empty groups are filtered out upstream; one empty state when NOTHING carries data.
+  if (groups.length === 0) {
+    return (
+      <div className="pt-2.5">
+        <EmptyState icon={<Info />} title={t('Aucun élément')} description={t('Aucune information enregistrée sur ce dossier pour cet état.')} dashed={false} />
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-3 pt-2.5">
       {groups.map((g) => (
@@ -521,17 +532,14 @@ function GroupCards({ groups, highlight, t }: { groups: Group[]; highlight: bool
               </Badge>
             )}
           </div>
-          <div className={cn(RECORD_CARD_CLASS, 'grid grid-cols-2 gap-x-3 px-3.5 py-1')}>
-            {g.rows.length === 0 ? (
-              <p className="col-span-2 m-0 py-2 text-[12px] text-ink-4">{t('Aucun élément')}</p>
-            ) : (
-              g.rows.map((row) => (
-                <div key={row.key} className={cn('min-w-0 py-2', row.span && 'col-span-2')}>
-                  <div className="text-[11px] leading-4 text-ink-3">{row.label}</div>
-                  <div className={cn('mt-0.5', valueClass(row))}>{row.value}</div>
-                </div>
-              ))
-            )}
+          {/* Design 234: two columns, no column gap, padding 4px 14px. */}
+          <div className={cn(RECORD_CARD_CLASS, 'grid grid-cols-2 px-3.5 py-1')}>
+            {g.rows.map((row) => (
+              <div key={row.key} className={cn('min-w-0 py-2', row.span && 'col-span-2')}>
+                <div className="text-[11px] leading-4 text-ink-3">{row.label}</div>
+                <div className={cn('mt-0.5', valueClass(row))}>{row.value}</div>
+              </div>
+            ))}
           </div>
         </section>
       ))}
@@ -586,11 +594,16 @@ export interface PhoneReplayScreenProps {
   rappel: Rappel;
   /** Up-link of the top bar (« ‹ Rappels »). */
   upHref?: string;
+  /**
+   * Label of that up-link, already translated. Defaults to « Rappels » (the
+   * list); the page passes « Rappel » when `upHref` returns to a rappel detail.
+   */
+  upLabel?: string;
   /** « Ouvrir le dossier » — the page's open action for this rappel. */
   onOpenDossier: (r: Rappel) => void;
 }
 
-export default function PhoneReplayScreen({ rappel, upHref = '/mes-rappels', onOpenDossier }: PhoneReplayScreenProps) {
+export default function PhoneReplayScreen({ rappel, upHref = '/mes-rappels', upLabel, onOpenDossier }: PhoneReplayScreenProps) {
   const db = useFirestore();
   const t = useT();
   const id = rappel.dossierId;
@@ -603,16 +616,17 @@ export default function PhoneReplayScreen({ rappel, upHref = '/mes-rappels', onO
     useMemo(
       () => ({
         upHref,
-        upLabel: t('Rappels'),
+        upLabel: upLabel ?? t('Rappels'),
         subtitle,
-        titleChip: resolved ? { label: t('Traité'), tone: 'success' as const } : { label: t('En cours'), tone: 'info' as const },
+        // Unsaved treatment = warning, as the desktop dialog's « Traitement en cours » chip.
+        titleChip: resolved ? { label: t('Traité'), tone: 'success' as const } : { label: t('En cours'), tone: 'warning' as const },
         primaryAction: null,
         secondaryActions: [],
         search: null,
         onSearchFocus: null,
         filters: null,
       }),
-      [upHref, subtitle, resolved, t],
+      [upHref, upLabel, subtitle, resolved, t],
     ),
   );
 
@@ -734,7 +748,7 @@ export default function PhoneReplayScreen({ rappel, upHref = '/mes-rappels', onO
 
   const paneHint =
     pane === 'avant'
-      ? t("L'état du dossier tel qu'il était à l'envoi du rappel : une copie figée, non modifiable.")
+      ? t("L'état du dossier à l'envoi du rappel : une copie figée, non modifiable.")
       : resolved
         ? t("Le dossier tel que le gestionnaire l'a sauvegardé : ce qu'il a changé pendant le traitement est surligné.")
         : t("Le dossier tel qu'il est aujourd'hui : ce que le gestionnaire a changé pendant le traitement est surligné.");
@@ -744,18 +758,18 @@ export default function PhoneReplayScreen({ rappel, upHref = '/mes-rappels', onO
       {/* Session facts (design 211–216): Début · ✓ Sauvegardé · Lecture seule. */}
       <div data-tour="rap-replay-head" className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[12px] leading-4 text-ink-3">
         <span className="inline-flex items-center gap-1">
-          <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <CalendarClock className="h-4 w-4 shrink-0" aria-hidden />
           {t('Début')} <b className="font-medium text-ink">{fmtFact(rappel.sessionStartedAt)}</b>
         </span>
         {resolved ? (
           <span className="inline-flex items-center gap-1">
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-status-success-fg" aria-hidden />
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-status-success-fg" aria-hidden />
             {t('Sauvegardé')} <b className="font-medium text-ink">{fmtFact(rappel.resolvedAt)}</b>
           </span>
         ) : (
-          <Badge variant="info">{t('Traitement en cours')}</Badge>
+          <Badge variant="warning">{t('Traitement en cours')}</Badge>
         )}
-        <Badge variant="neutral" className="gap-1">
+        <Badge variant="neutral" className="gap-1 [&>svg]:h-4 [&>svg]:w-4">
           <Eye aria-hidden /> {t('Lecture seule')}
         </Badge>
       </div>

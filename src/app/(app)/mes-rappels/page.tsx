@@ -544,6 +544,7 @@ export default function MesRappelsPage() {
       <PhoneReplayScreen
         rappel={phoneReplayRappel}
         upHref={own && selectedId ? `/mes-rappels?rappel=${encodeURIComponent(selectedId)}` : '/mes-rappels'}
+        upLabel={own && selectedId ? t('Rappel') : undefined}
         onOpenDossier={(r) => (own ? openRappel(r) : router.push(`/dossiers/${r.dossierId}`))}
       />
     );

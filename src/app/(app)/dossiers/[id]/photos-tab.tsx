@@ -855,16 +855,21 @@ export default function PhotosTab({
                         )}
                         {t('Importer')}
                       </Button>
-                      <Button
-                        type="button"
-                        size={isPhone ? 'default' : 'sm'}
-                        className={isPhone ? 'h-11 gap-2 px-3 text-[14px]' : 'h-8 gap-2 text-xs'}
-                        disabled={isUploading === cat.id || catPhotos.length >= capFor(cat.id)}
-                        onClick={() => setCameraCategory(cat.id)}
-                      >
-                        <Camera className="h-3.5 w-3.5" />
-                        {t('Prendre des photos')}
-                      </Button>
+                      {/* Phone: no filled camera button in the header (the
+                          bottom action bar owns the primary); « Importer »
+                          stays. */}
+                      {!isPhone && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 gap-2 text-xs"
+                          disabled={isUploading === cat.id || catPhotos.length >= capFor(cat.id)}
+                          onClick={() => setCameraCategory(cat.id)}
+                        >
+                          <Camera className="h-3.5 w-3.5" />
+                          {t('Prendre des photos')}
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
