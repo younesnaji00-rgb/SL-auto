@@ -49,10 +49,19 @@ export function useAgentLiveLocation(agentName: string): UseAgentLiveLocationRes
     let cancelled = false;
     (async () => {
       try {
-        const snap = await getDocs(
+        let snap = await getDocs(
           query(collection(db, 'users'), where('nom', '==', name), limit(1)),
         );
         if (cancelled) return;
+        // Case/whitespace drift between the options label and the account
+        // name is common (« agent 2 » vs « Agent 2 »); fall back to the
+        // backfilled lowercase mirror before giving up.
+        if (snap.empty) {
+          snap = await getDocs(
+            query(collection(db, 'users'), where('nomLowercase', '==', name.toLowerCase()), limit(1)),
+          );
+          if (cancelled) return;
+        }
         const found = snap.docs[0];
         setAgentUid(found?.id ?? null);
       } catch (err) {

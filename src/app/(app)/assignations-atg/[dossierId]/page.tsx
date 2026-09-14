@@ -25,7 +25,7 @@ import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
-import { watermarkAtgPhoto } from '@/lib/photo-watermark';
+import { watermarkAtgPhotoWithGeo } from '@/lib/photo-watermark';
 import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
 import { addObservation } from '../../dossiers/[id]/log-observation';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -34,12 +34,11 @@ import { assureName } from '@/lib/dossier-label';
 import ObservationsTab from '@/components/observations-tab';
 import CameraCapture from '@/components/camera-capture';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
-import { MAX_PHOTOS_PER_SECTION, MAX_PHOTOS_WITH_REFORME, photoCapForCategory } from '@/app/(app)/dossiers/[id]/photos-tab';
+import { MAX_PHOTOS_PER_SECTION, MAX_PHOTOS_WITH_REFORME, photoCapForCategory, photoCapTitle } from '@/app/(app)/dossiers/[id]/photos-tab';
 import { useOptions } from '@/hooks/use-options';
 import { deriveStatus, isPlanificationStatus } from '@/lib/status-machine';
 import { CollapsedByDayList } from '@/components/common/collapsed-by-day-list';
 import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
-import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { usePhoneChrome, useRegisterPageTitle } from '@/components/layout/page-chrome';
 import { BottomActionBar } from '@/components/layout/bottom-action-bar';
@@ -117,7 +116,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const auth = useAuth();
   const { toast } = useToast();
   const { canWrite, canDelete, profile } = useCurrentUser();
-  const tutorialMode = useTutorialMode();
   const isPhone = useIsPhone();
   const canEdit = canWrite('assignations-atg');
   const isATG = profile?.role === 'Agent de Terrain';
@@ -339,7 +337,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       for (const file of files) {
         const timestamp = Date.now();
         // Stamp BEFORE queuing so the watermark survives offline uploads too.
-        const stamped = await watermarkAtgPhoto(file, watermarkName);
+        const { file: stamped, geo } = await watermarkAtgPhotoWithGeo(file, watermarkName);
         const storagePath = `dossiers/${dossierId}/photos/${categoryAtUpload}/${timestamp}_${stamped.name}`;
         await uploadFileWithOfflineSupport({
           storage,
@@ -354,6 +352,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             uploadedAt: serverTimestamp(),
             uploadedBy: userEmail,
             storagePath,
+            // Feeds the gestionnaire's « Par localisation » grouping.
+            ...(geo ? { lat: geo.lat, lng: geo.lng } : {}),
           },
         });
         await logHistorique(db, dossierId, 'Upload photo Agent de Terrain', userEmail, `Photo "${stamped.name}" uploadée (${categoryAtUpload}).`, 'photo', profile?.nom);
@@ -870,7 +870,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           </div>
 
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2" data-tour="atgd-photo-actions">
-            <span className="t-caption tabular-nums">
+            <span className="t-caption tabular-nums" title={photoCapTitle(currentCategory, plans, !!(dossier as any)?.propositionReforme)}>
               {filteredPhotos.length}/{photoCap} {t('photos')}
             </span>
             {canEdit && (
@@ -1012,9 +1012,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                     {propositionReforme ? t('Annuler la réforme proposée') : t('Proposer une réforme')}
                   </Button>
                 )}
-                {/* Demo/tutorial brand: gallery import next to the camera — the
-                    guided tour (and desktop prospects) have no camera to talk to. */}
-                {canEdit && tutorialMode && (
+                {/* Gallery import next to the camera. Was tutorial-only, which left
+                    the production agent with no way to add photos already taken
+                    with the phone's own camera app before opening the mission. */}
+                {canEdit && (
                   <>
                     <Button
                       data-tour="atgd-import"

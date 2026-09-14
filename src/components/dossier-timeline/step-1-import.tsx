@@ -9,7 +9,7 @@ import {
   Timestamp,
   type DocumentReference,
 } from 'firebase/firestore';
-import { Check, Eye, FileIcon, FileText, Loader2, ScanSearch, Trash2, Upload } from 'lucide-react';
+import { Check, Eye, FileIcon, FileText, Loader2, RefreshCw, ScanSearch, Trash2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
@@ -288,6 +288,9 @@ export default function Step1Import({
           updates.lastImportOverwrites = deleteField();
           updates.lastImportOverwriteAt = deleteField();
         }
+        // Fields the scan created from nothing — « Retirer » on the source
+        // document empties these and restores the overwritten ones above.
+        updates.lastImportFilled = filledFields.length > 0 ? filledFields : deleteField();
 
         // Record the scanned document as Step 1's single source, whether or
         // not any field was actually written (user may have pre-filled
@@ -373,10 +376,31 @@ export default function Step1Import({
     setIsDeletingImport(true);
     try {
       await deleteDoc(importDocRef);
-      await writeDossierDoc({
+      // Undo what the scan wrote: values it overwrote go back to their
+      // previous state, values it created are cleared. Removing the source
+      // used to leave every AI-filled field in place as if the document were
+      // still there (QA bug 011).
+      const revert: Record<string, any> = {
         importDocId: deleteField(),
         importDocScannedAt: deleteField(),
-      });
+        lastImportOverwrites: deleteField(),
+        lastImportOverwriteAt: deleteField(),
+        lastImportFilled: deleteField(),
+      };
+      const overwrites: { field: string; previousValue: any }[] = Array.isArray(dossier?.lastImportOverwrites) ? dossier.lastImportOverwrites : [];
+      for (const o of overwrites) {
+        if (!o?.field) continue;
+        revert[o.field] = o.previousValue === undefined ? null : o.previousValue;
+      }
+      const filled: string[] = Array.isArray(dossier?.lastImportFilled) ? dossier.lastImportFilled : [];
+      for (const field of filled) {
+        if (typeof field !== 'string' || !field) continue;
+        revert[field] = deleteField();
+      }
+      for (const field of [...overwrites.map((o) => o?.field), ...filled]) {
+        if (field === 'dateSinistre' || field === 'dateRequete') revert[`${field}Source`] = deleteField();
+      }
+      await writeDossierDoc(revert);
       setLastFilledCount(null);
       if (buffered) {
         draft.bufferLog({
@@ -394,7 +418,10 @@ export default function Step1Import({
           profile?.nom,
         );
       }
-      toast({ title: t('Document source supprimé') });
+      toast({
+        title: t('Document source supprimé'),
+        description: t('Les champs pré-remplis depuis ce document ont été rétablis.'),
+      });
     } catch (err: any) {
       console.error('[Step1Import] delete import doc error:', err);
       toast({
@@ -408,6 +435,32 @@ export default function Step1Import({
   }, [db, dossierId, dossierRef, importDocRef, toast, auth, writeDossierDoc, buffered, draft, profile?.nom, t]);
 
   const busy = isUploading || isScanning;
+
+  // Re-run the AI pre-fill from the source document already in Storage. The
+  // « Pré-remplir les informations » button lives in the drop queue, which is
+  // local state — it vanishes on tab switch, step fold or reload, leaving no
+  // way back to the scan (QA bug 010).
+  const handleRescanImportDoc = useCallback(async () => {
+    const d: any = importDoc;
+    const url: string | undefined = d?.url || undefined;
+    if (!url || d?.pendingUpload || !importDocId) return;
+    const userEmail = auth?.currentUser?.email || 'Admin';
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const name: string = d?.nom || d?.fileName || 'document';
+      const file = new File([blob], name, { type: blob.type || d?.contentType || 'application/octet-stream' });
+      await runScanAndMerge([file], userEmail, importDocId);
+    } catch (err: any) {
+      console.error('[Step1Import] rescan error:', err);
+      toast({
+        variant: 'destructive',
+        title: t('Erreur de scan'),
+        description: err?.message || t('Impossible de relire le document source.'),
+      });
+    }
+  }, [importDoc, importDocId, auth, runScanAndMerge, toast, t]);
   const hasImportDoc = Boolean(importDocId);
 
   const lightbox = (
@@ -432,6 +485,7 @@ export default function Step1Import({
       <div className="flex flex-wrap items-center gap-3">
         {canEdit && (
           <SmartInbox
+            className="min-w-0 flex-[1_1_20rem]"
             dossierId={dossierId}
             dossier={dossier}
             readOnly={readOnly}
@@ -472,6 +526,19 @@ export default function Step1Import({
                 onClick={() => setPreviewDoc({ url: url as string, nom: name })}
               >
                 <Eye className="h-3.5 w-3.5" /> {t('Aperçu')}
+              </Button>
+            )}
+            {canPreview && canEdit && !readOnly && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs text-ink-3 hover:text-ink max-md:h-11 max-md:px-3 max-md:text-[14px]"
+                onClick={handleRescanImportDoc}
+                disabled={busy || isDeletingImport}
+                title={t('Relancer le pré-remplissage depuis ce document')}
+              >
+                {isScanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} {t('Pré-remplir à nouveau')}
               </Button>
             )}
             {canDelete && (

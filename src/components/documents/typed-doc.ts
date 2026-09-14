@@ -174,6 +174,26 @@ export function accordRowLabel(parsed: ParsedAccordDocType): string {
 }
 
 /**
+ * Guarantee a downloadable image name carries an extension. Renaming a photo
+ * in place accepts free text ("photo avant gauche"), and an extensionless
+ * file is what Windows reports as "format non reconnu". The extension is
+ * recovered from the storage URL's path when the name has none.
+ */
+export function ensureImageExtension(name: string, url: string): string {
+  const trimmed = (name || '').trim() || 'photo';
+  if (/\.[a-z0-9]{2,5}$/i.test(trimmed)) return trimmed;
+  let ext = 'jpg';
+  try {
+    const path = decodeURIComponent(new URL(url).pathname);
+    const m = path.match(/\.([a-z0-9]{2,5})$/i);
+    if (m) ext = m[1].toLowerCase();
+  } catch {
+    /* relative or malformed url — keep the jpg default */
+  }
+  return `${trimmed}.${ext}`;
+}
+
+/**
  * Download a remote file under its original name (fetch → blob → anchor).
  * Falls back to opening the URL in a new tab when the fetch is blocked (CORS).
  */

@@ -27,6 +27,7 @@ import { StatusChip } from '@/components/ui/status-chip';
 import { cn } from '@/lib/utils';
 import { dateFnsLocale, useT, t as tGlobal } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useChiffreurs } from '@/hooks/use-chiffreurs';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { useHotkeys } from '@/hooks/use-hotkeys';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
@@ -103,9 +104,10 @@ export default function AssignationsChiffragePage() {
   const db = useFirestore();
   const router = useRouter();
   const { profile } = useCurrentUser();
+  const { chiffreurs: chiffreurDirectory } = useChiffreurs();
   const { openTab } = useChiffrageTabs();
   const chiffreurWorkload = useChiffreurWorkload();
-  const [chiffrages, setChiffrages] = useState<ChiffrageItem[]>([]);
+  const [allChiffrages, setAllChiffrages] = useState<ChiffrageItem[]>([]);
   const [dossierStatuts, setDossierStatuts] = useState<Record<string, string>>({});
   const [dossierObs, setDossierObs] = useState<Record<string, { text: string; count: number }>>({});
   const [dossierReformeTypes, setDossierReformeTypes] = useState<Record<string, string>>({});
@@ -129,16 +131,35 @@ export default function AssignationsChiffragePage() {
     if (!db) return;
     const qy = query(collection(db, 'chiffrages'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(qy, (snap) => {
-      let items = snap.docs.map(d => ({ id: d.id, ...d.data() } as ChiffrageItem)).filter(c => c.files && c.files.length > 0);
-      if (profile?.role === 'Chiffreur' && profile?.nom) {
-        const myName = profile.nom.toLowerCase().trim();
-        items = items.filter(c => c.assignedChiffreurNom?.toLowerCase().trim() === myName);
-      }
-      setChiffrages(items);
+      setAllChiffrages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChiffrageItem)).filter(c => c.files && c.files.length > 0));
       setLoading(false);
-    }, () => setLoading(false));
+    }, (err) => {
+      console.error('[assignations-chiffrage] listener failed:', err);
+      setLoading(false);
+    });
     return () => unsub();
-  }, [db, profile?.role, profile?.nom]);
+  }, [db]);
+
+  // A chiffreur sees the chiffrages assigned to them. The assignment stores a
+  // `chiffreurs/{id}` (not an auth uid) plus a display name, so we resolve
+  // « me » through the chiffreurs directory by login email first, then by
+  // accent/case-insensitive name — an exact `nom` string equality was the only
+  // link before, and one renamed account emptied the whole queue silently.
+  const chiffrages = useMemo(() => {
+    if (profile?.role !== 'Chiffreur') return allChiffrages;
+    const myEmail = (profile.email || '').toLowerCase().trim();
+    const myName = normalize(profile.nom || '').trim();
+    const myIds = new Set(
+      chiffreurDirectory
+        .filter(c => (myEmail && (c.email || '').toLowerCase().trim() === myEmail) || (myName && normalize(c.nom || '').trim() === myName))
+        .map(c => c.id),
+    );
+    return allChiffrages.filter(c =>
+      (c.assignedChiffreurId && myIds.has(c.assignedChiffreurId)) ||
+      (myEmail && ((c as any).assignedChiffreurEmail || '').toLowerCase().trim() === myEmail) ||
+      (myName && normalize(c.assignedChiffreurNom || '').trim() === myName),
+    );
+  }, [allChiffrages, chiffreurDirectory, profile?.role, profile?.email, profile?.nom]);
 
   // Listen to dossier statuts + compagnies + natures for all referenced dossierIds
   const [dossierCompagnies, setDossierCompagnies] = useState<Record<string, string>>({});

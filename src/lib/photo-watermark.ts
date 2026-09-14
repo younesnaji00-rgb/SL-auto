@@ -157,8 +157,21 @@ export async function watermarkAtgPhoto(
   file: File,
   displayName: string,
 ): Promise<File> {
+  return (await watermarkAtgPhotoWithGeo(file, displayName)).file;
+}
+
+/**
+ * Same as {@link watermarkAtgPhoto} but also hands back the coordinates that
+ * were stamped, so the caller can persist them on the photo doc — burning
+ * them into pixels only left « Par localisation » permanently empty.
+ */
+export async function watermarkAtgPhotoWithGeo(
+  file: File,
+  displayName: string,
+): Promise<{ file: File; geo: GeoCoords | null }> {
+  let geo: GeoCoords | null = null;
   try {
-    const geo = await getCurrentGeo();
+    geo = await getCurrentGeo();
     const lines = [
       'SL auto',
       formatStamp(),
@@ -166,12 +179,15 @@ export async function watermarkAtgPhoto(
       displayName || 'Agent de Terrain',
     ];
     const blob = await watermarkImage(file, lines);
-    if (blob === file) return file;
-    return new File([blob], file.name, {
-      type: blob.type || file.type,
-      lastModified: Date.now(),
-    });
+    if (blob === file) return { file, geo };
+    return {
+      file: new File([blob], file.name, {
+        type: blob.type || file.type,
+        lastModified: Date.now(),
+      }),
+      geo,
+    };
   } catch {
-    return file;
+    return { file, geo };
   }
 }

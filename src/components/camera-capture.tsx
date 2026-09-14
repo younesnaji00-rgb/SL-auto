@@ -173,7 +173,11 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
   const visibleCaptures = captures.slice(-24);
 
   return (
-    <div className="fixed inset-0 z-50 flex h-[100dvh] flex-col bg-black">
+    // `h-dvh` (not `h-[100dvh]`): the app zooms <html> by --app-zoom and only
+    // the re-declared utility divides by it. The raw value overflowed the
+    // viewport by ~10 % on 1440p desktops — exactly the height of the shutter
+    // row, which is how "the camera has no capture button" got reported.
+    <div className="fixed inset-0 z-50 flex h-dvh flex-col bg-black">
       {/* Camera viewfinder — the whole screen; every control floats over it so
           the centre of the frame (what the agent is aiming at) stays clear. */}
       <div className="relative min-h-0 flex-1 overflow-hidden">

@@ -3,7 +3,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// Module-level cache: url → dataUrl. Survives across mounts within the session.
+// Module-level cache: `url@width` → dataUrl. Survives across mounts within
+// the session. Keyed on width too: a viewer that zooms needs a sharper raster,
+// and a url-only cache handed back the 480 px page stretched to 4× (blurry
+// « zoom » in the comparer).
 const thumbnailCache = new Map<string, string>();
 
 let pdfJsPromise: Promise<any> | null = null;
@@ -37,10 +40,23 @@ export function PdfThumbnail({
   width?: number;
   lazy?: boolean;
 }) {
-  const [dataUrl, setDataUrl] = useState<string | null>(thumbnailCache.get(url) || null);
+  const cacheKey = `${url}@${width}`;
+  const [dataUrl, setDataUrl] = useState<string | null>(thumbnailCache.get(cacheKey) || null);
   const [errored, setErrored] = useState(false);
   const [inView, setInView] = useState(!lazy);
+  const [stale, setStale] = useState(false);
   const holderRef = useRef<HTMLDivElement>(null);
+  // A new width (zoom) or url must re-render; keep the previous raster on
+  // screen until the sharper one is ready so the pane doesn't blink.
+  const lastKeyRef = useRef(cacheKey);
+  useEffect(() => {
+    if (lastKeyRef.current === cacheKey) return;
+    lastKeyRef.current = cacheKey;
+    const cached = thumbnailCache.get(cacheKey);
+    setErrored(false);
+    setStale(!cached);
+    if (cached) setDataUrl(cached);
+  }, [cacheKey]);
 
   // Lazy gate: start the (expensive) fetch + pdfjs render only near viewport.
   useEffect(() => {
@@ -64,7 +80,7 @@ export function PdfThumbnail({
   }, [lazy, inView, dataUrl]);
 
   useEffect(() => {
-    if (!inView || dataUrl || errored || !url) return;
+    if (!inView || (dataUrl && !stale) || errored || !url) return;
     let cancelled = false;
     (async () => {
       try {
@@ -84,15 +100,18 @@ export function PdfThumbnail({
         if (!ctx) throw new Error('no 2d context');
         await page.render({ canvasContext: ctx, viewport }).promise;
         const result = canvas.toDataURL('image/png');
-        thumbnailCache.set(url, result);
-        if (!cancelled) setDataUrl(result);
+        thumbnailCache.set(cacheKey, result);
+        if (!cancelled) {
+          setDataUrl(result);
+          setStale(false);
+        }
       } catch (e) {
         console.warn('[pdf-thumbnail] render failed:', e);
         if (!cancelled) setErrored(true);
       }
     })();
     return () => { cancelled = true; };
-  }, [url, width, dataUrl, errored, inView]);
+  }, [url, width, cacheKey, dataUrl, stale, errored, inView]);
 
   if (errored || !url) {
     return (

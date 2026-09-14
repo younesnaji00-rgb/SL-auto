@@ -292,9 +292,11 @@ export function SlotCard({
     (parsedAccord.kind === 'accord' || parsedAccord.kind === 'proposition-accord');
   const cardinalPimpleDisabled = !docs.some((d) => !d.pendingUpload && !!d.url);
   // Hide placeholder docs (no url) — they are cardinal-slot bookkeeping, not
-  // files, and must not masquerade as documents. What remains are the PAGES
-  // of this slot's document, in upload order.
-  const pages = sortPagesAsc(docs.filter((d) => !!d.url));
+  // files, and must not masquerade as documents. Offline-queued uploads are
+  // the one exception: they have no url YET, and the socket must say
+  // "En attente…" rather than flip back to "Déposer" behind a success toast.
+  // What remains are the PAGES of this slot's document, in upload order.
+  const pages = sortPagesAsc(docs.filter((d) => !!d.url || !!d.pendingUpload));
   // Base-slot pimple: next to `Devis Garage` / `Facture Garage`, lets the
   // gestionnaire spawn a new numbered slot (first = "… 2", then 3, etc.).
   const baseExtraKind: ExtraSlotKind | null =

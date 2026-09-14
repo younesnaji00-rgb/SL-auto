@@ -25,9 +25,16 @@ export function useDossiers(allowedCompagnies?: string[]) {
             (snapshot) => {
                 let results = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Dossier));
 
-                // Filter by user's allowed companies
+                // Filter by user's allowed companies. A dossier whose compagnie
+                // is still blank (freshly created, not yet qualified) belongs to
+                // nobody's scope in particular — hiding it made « 2 sur 6 »
+                // dossiers vanish from the list and the Total tile for the very
+                // person who had just created them.
                 if (allowed && allowed.length > 0) {
-                    results = results.filter(d => allowed.includes((d.compagnie || '').toLowerCase().trim()));
+                    results = results.filter(d => {
+                        const c = (d.compagnie || '').toLowerCase().trim();
+                        return !c || allowed.includes(c);
+                    });
                 }
 
                 setDossiers(results);

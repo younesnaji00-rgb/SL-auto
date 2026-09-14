@@ -341,6 +341,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
 
       const successCount = results.filter((r) => r.status === 'fulfilled').length;
       const failCount = results.length - successCount;
+      const queuedCount = results.filter((r) => r.status === 'fulfilled' && r.value?.queued).length;
 
       // Fire-and-forget AI extraction when the slot is editable (Devis Garage /
       // Facture Garage / numbered extras). Each successful upload kicks off its
@@ -443,7 +444,12 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
         }, profile?.nom);
       }
 
-      if (failCount === 0) {
+      if (failCount === 0 && queuedCount > 0) {
+        toast({
+          title: t('Document(s) en attente d’envoi'),
+          description: `${t('Hors ligne — l’envoi reprendra automatiquement au retour du réseau.')} (${t(slot)})`,
+        });
+      } else if (failCount === 0) {
         toast({
           title: successCount === 1 ? t('Document uploadé') : `${successCount} ${t('documents uploadés')}`,
           description: `${t('Ajouté(s) dans')} "${t(slot)}".`,

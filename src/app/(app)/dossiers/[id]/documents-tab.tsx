@@ -339,6 +339,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     const userEmail = auth.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'unknown';
     setUploadingType(type);
+    let queuedCount = 0;
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -361,7 +362,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
           }
         }
 
-        await uploadFileWithOfflineSupport({
+        const uploadResult = await uploadFileWithOfflineSupport({
           storage,
           db,
           file,
@@ -378,10 +379,18 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
             ...devisMetadata,
           },
         });
+        if (uploadResult.queued) queuedCount++;
         await logHistorique(db, dossierId, 'Upload document', userEmail, `Document "${file.name}" uploadé.`, 'document', profile?.nom);
         await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', { details: `Document "${file.name}" ajouté (par gestionnaire)` }, profile?.nom);
       }
-      toast({ title: files.length === 1 ? t('Document uploadé avec succès') : `${files.length} ${t('documents uploadés')}` });
+      if (queuedCount > 0) {
+        toast({
+          title: t('Document(s) en attente d’envoi'),
+          description: t('Hors ligne — l’envoi reprendra automatiquement au retour du réseau.'),
+        });
+      } else {
+        toast({ title: files.length === 1 ? t('Document uploadé avec succès') : `${files.length} ${t('documents uploadés')}` });
+      }
       return true;
     } catch (error: any) {
       console.error('Upload error:', error);
