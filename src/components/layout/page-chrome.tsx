@@ -44,9 +44,39 @@ export interface PhoneSelection {
   allSelected?: boolean;
 }
 
+/** Inline search of a phone list page (mobile redesign 2026-09-14): the bar
+ *  shows a search toggle; open → a 40 px field under the bar row with an
+ *  optional « Trier : <label> » button beside it. */
+export interface PhoneSearch {
+  value: string;
+  onChange: (value: string) => void;
+  /** FORMAT cue (« Réf., assuré, plaque… »), never a generic word. */
+  placeholder?: string;
+  ariaLabel?: string;
+  /** Current sort, printed in the button (« Récents »). */
+  sortLabel?: string | null;
+  onSort?: (() => void) | null;
+  dataTour?: string;
+}
+
+/** « Filtres » icon with a count badge in the bar. */
+export interface PhoneFilters {
+  count: number;
+  onOpen: () => void;
+  dataTour?: string;
+}
+
+export type PhoneChipTone = 'neutral' | 'info' | 'warning' | 'success' | 'danger' | 'time';
+
 export interface PhoneChrome {
-  /** Count pill next to the title. */
+  /** Count pill next to the title / on the area segment. */
   count?: number | string | null;
+  /** Phone-only title override for a ROOT page (defaults to the nav item's short label). */
+  title?: string | null;
+  search?: PhoneSearch | null;
+  filters?: PhoneFilters | null;
+  /** Status chip painted next to a record title (the dossier statut, the mission phase). */
+  titleChip?: { label: string; tone?: PhoneChipTone } | null;
   primaryAction?: PhonePrimaryAction | null;
   /** Rows of the « ⋯ » action sheet in the top bar. */
   secondaryActions?: ActionItem[];
@@ -197,6 +227,11 @@ export function usePhoneChrome(chrome: PhoneChrome | null | undefined) {
         up: [chrome.upHref ?? null, chrome.upLabel ?? null],
         sub: chrome.subtitle ?? null,
         hasSearch: !!chrome.onSearchFocus,
+        title: chrome.title ?? null,
+        // The value is part of the signature on purpose: the bar echoes it.
+        search: chrome.search ? [chrome.search.value, chrome.search.placeholder ?? null, chrome.search.sortLabel ?? null, !!chrome.search.onSort, chrome.search.dataTour ?? null] : null,
+        filters: chrome.filters ? [chrome.filters.count, chrome.filters.dataTour ?? null] : null,
+        chip: chrome.titleChip ? [chrome.titleChip.label, chrome.titleChip.tone ?? null] : null,
       })
     : 'null';
   const fnRef = useRef(chrome);

@@ -13,6 +13,7 @@ import {
   Stamp,
   CalendarDays,
   Bell,
+  Settings,
 } from 'lucide-react';
 
 /**
@@ -133,6 +134,75 @@ export function mobileBarFor(items: NavItem[], role: string | undefined): Mobile
 /** Label painted under a bottom-bar icon (falls back to the short `label`). */
 export function mobileLabelFor(item: NavItem): string {
   return item.mobileLabel ?? item.label;
+}
+
+/* ── Phone areas (mobile redesign 2026-09-14) ─────────────────────────────
+   Claude Design handoff (`Phone.dc.html`): the phone bottom bar has at most
+   FIVE fixed tabs — Pilotage · Travail · Chiffrage · Terrain · Admin — and a
+   tab's sub-destinations live in the TOP bar: a 30 px segment toggle
+   (Dossiers | Rappels, Tableau de bord | Suivi d'équipe) or, for Admin, a
+   scrollable chips row (Utilisateurs · Compagnies · Tampons · Jours fériés).
+   An area with no destination visible to the role is dropped; an area with a
+   single destination is a plain tab whose page title sits in the bar.
+   Supersedes the 2026-09-06 combo rule (`mobileBarFor`, kept for reference). */
+
+export type MobileAreaKey = 'pilotage' | 'travail' | 'chiffrage' | 'terrain' | 'admin';
+
+export interface MobileArea {
+  key: MobileAreaKey;
+  /** Tab label (≤ 9 characters — one line under a 24 px icon). */
+  label: string;
+  icon: React.ElementType;
+  /** Sub-destinations, in segment / chip order. */
+  hrefs: string[];
+  /** How the sub-destinations are shown in the top bar. */
+  sub: 'segments' | 'chips';
+  /** Title painted in the bar when the area shows chips (the chips carry the destination). */
+  title?: string;
+}
+
+export const MOBILE_AREAS: MobileArea[] = [
+  { key: 'pilotage', label: 'Pilotage', icon: Gauge, hrefs: ['/dashboard', '/monitoring'], sub: 'segments' },
+  { key: 'travail', label: 'Travail', icon: FolderOpen, hrefs: ['/dossiers', '/mes-rappels', '/consultation'], sub: 'segments' },
+  { key: 'chiffrage', label: 'Chiffrage', icon: Calculator, hrefs: ['/assignations-chiffrage'], sub: 'segments' },
+  { key: 'terrain', label: 'Terrain', icon: UserCheck, hrefs: ['/assignations-atg'], sub: 'segments' },
+  { key: 'admin', label: 'Admin', icon: Settings, hrefs: ['/utilisateurs', '/compagnies', '/tampons', '/jours-feries'], sub: 'chips', title: 'Administration' },
+];
+
+export interface ResolvedMobileArea extends MobileArea {
+  /** The area's destinations the current user may see, in order (never empty). */
+  items: NavItem[];
+}
+
+/**
+ * The phone areas for a user, from the role-and-grant-filtered nav items
+ * (`useVisibleNav().items`). Areas with nothing visible are dropped.
+ */
+export function mobileAreasFor(items: NavItem[]): ResolvedMobileArea[] {
+  const byHref = new Map(items.map((i) => [i.href, i] as const));
+  return MOBILE_AREAS.map((a) => ({
+    ...a,
+    items: a.hrefs.map((h) => byHref.get(h)).filter((x): x is NavItem => !!x),
+  })).filter((a) => a.items.length > 0);
+}
+
+/** The area a pathname belongs to (longest matching destination), or null. */
+export function mobileAreaForPath(areas: ResolvedMobileArea[], pathname: string): ResolvedMobileArea | null {
+  let best: ResolvedMobileArea | null = null;
+  let bestLen = -1;
+  for (const a of areas) {
+    for (const i of a.items) {
+      if ((pathname === i.href || pathname.startsWith(`${i.href}/`)) && i.href.length > bestLen) {
+        best = a;
+        bestLen = i.href.length;
+      }
+    }
+  }
+  if (best) return best;
+  // Reachable-but-not-nav routes (/chiffrage/[id], /devis-editor) belong to their parent's area.
+  const extra = Object.keys(EXTRA_ROUTES).find((h) => pathname === h || pathname.startsWith(`${h}/`));
+  const parent = extra ? EXTRA_ROUTES[extra].parent : undefined;
+  return parent ? areas.find((a) => a.items.some((i) => i.href === parent)) ?? null : null;
 }
 
 /**

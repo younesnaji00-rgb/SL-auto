@@ -44,8 +44,8 @@ export interface SegmentedProps<T extends string = string> {
   /** Points at the visible `<Label>` instead. */
   'aria-labelledby'?: string;
   disabled?: boolean;
-  /** 44 px (touch, the default in forms) or 36 px (dense desk toolbars). */
-  size?: 'default' | 'sm';
+  /** 44 px (touch, the default in forms), 36 px (dense desk toolbars) or 30 px (`xs`: the phone top-bar area toggle — mobile redesign 2026-09-14). */
+  size?: 'default' | 'sm' | 'xs';
   id?: string;
   className?: string;
 }
@@ -118,8 +118,12 @@ export function Segmented<T extends string = string>({
               // draws its own background (motion-spec: one surface travels).
               'relative z-[1] min-w-0 flex-1 basis-0 rounded-md px-2 text-center font-medium leading-tight transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
-              size === 'sm' ? 'min-h-9 py-1.5 text-[13px]' : 'min-h-11 py-2 text-[14px] max-md:text-[15px]',
-              active ? 'text-ink' : 'text-ink-3 hover:text-ink-2',
+              size === 'xs'
+                ? 'flex min-h-[30px] items-center justify-center gap-1.5 truncate py-1 text-[13px]'
+                : size === 'sm'
+                  ? 'min-h-9 py-1.5 text-[13px]'
+                  : 'min-h-11 py-2 text-[14px] max-md:text-[15px]',
+              active ? (size === 'xs' ? 'font-semibold text-ink' : 'text-ink') : 'text-ink-3 hover:text-ink-2',
               opt.disabled && 'cursor-not-allowed opacity-50',
             )}
           >
