@@ -461,7 +461,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
 
       {/* Queue */}
       {items.length > 0 && (
-        <div className="overflow-hidden rounded-lg border bg-card">
+        <div className="w-full min-w-0 overflow-hidden rounded-lg border bg-card">
           <ul className="divide-y divide-border/70">
             {items.map((it) => {
               const band = confidenceBand(it.confidence);
@@ -545,14 +545,17 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
               {ready.length} {ready.length > 1 ? t('documents classés') : t('document classé')}
               {unconfirmed > 0 && ` · ${unconfirmed} ${t('à confirmer')}`}
             </p>
-            <div className="flex items-center gap-2">
+            {/* `flex-wrap` + `shrink-0`: the buttons carry `whitespace-nowrap`, so
+                a narrow card used to CLIP « Pré-remplir les informations » down
+                to its icon and two letters instead of wrapping the row. */}
+            <div className="flex flex-wrap items-center gap-2">
               {onPrefill && (
-                <Button type="button" size="sm" variant="outline" className="h-11 gap-1.5 md:h-8" disabled={prefillCandidates.length === 0 || !!prefilling || busy} onClick={handlePrefill}>
+                <Button type="button" size="sm" variant="outline" className="h-11 shrink-0 gap-1.5 md:h-8" disabled={prefillCandidates.length === 0 || !!prefilling || busy} onClick={handlePrefill}>
                   {prefilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanSearch className="h-3.5 w-3.5" />}
                   {t('Pré-remplir les informations')}{prefillCandidates.length > 0 ? ` (${prefillCandidates.length})` : ''}
                 </Button>
               )}
-              <Button type="button" size="sm" className="h-11 gap-1.5 md:h-8" disabled={unconfirmed === 0 || validating || busy} onClick={validateAll}>
+              <Button type="button" size="sm" className="h-11 shrink-0 gap-1.5 md:h-8" disabled={unconfirmed === 0 || validating || busy} onClick={validateAll}>
                 {validating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                 {t('Tout valider')}
               </Button>

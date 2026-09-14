@@ -87,6 +87,8 @@ export interface SendToChiffrageParams {
   dossierNom: string;
   assignedChiffreurId: string;
   assignedChiffreurNom: string;
+  /** Login email of the chiffreur (from `chiffreurs/{id}.email`) — the queue matches on it, not on the display name. */
+  assignedChiffreurEmail?: string;
   files: ChiffrageFile[];
   sentByUid: string;
   sentByEmail: string;
@@ -114,6 +116,7 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
     dossierNom,
     assignedChiffreurId,
     assignedChiffreurNom,
+    assignedChiffreurEmail,
     files,
     sentByUid,
     sentByEmail,
@@ -151,6 +154,7 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
           })),
           assignedChiffreurId,
           assignedChiffreurNom,
+          ...(assignedChiffreurEmail ? { assignedChiffreurEmail: assignedChiffreurEmail.toLowerCase().trim() } : {}),
           status: "pending",
           completedAt: null,
           sentByUid,
@@ -172,6 +176,7 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
     dossierNom,
     assignedChiffreurId,
     assignedChiffreurNom,
+    ...(assignedChiffreurEmail ? { assignedChiffreurEmail: assignedChiffreurEmail.toLowerCase().trim() } : {}),
     files: files.map((f) => ({
       name: f.name,
       storagePath: f.storagePath,

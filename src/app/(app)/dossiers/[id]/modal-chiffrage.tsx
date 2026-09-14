@@ -20,7 +20,7 @@ import { Check, Loader2, Send, ImageIcon, FileText } from 'lucide-react';
 import { sendToChiffrage, ChiffrageFile } from '@/lib/send-to-chiffrage';
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
-import { chiffrageGateReason, computeRequiredDocsStatus, isChiffrageGateClosed, type RequiredDocLike, type RequiredDocsStatus } from '@/lib/required-docs';
+import { chiffrageGateReason, computeRequiredDocsStatus, isChiffrageGateClosed, isChiffrageOutputType, type RequiredDocLike, type RequiredDocsStatus } from '@/lib/required-docs';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useT } from '@/i18n';
@@ -84,11 +84,20 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
       getDocs(collection(db, 'dossiers', dossierId, 'photos')),
       getDocs(collection(db, 'dossiers', dossierId, 'documents')),
     ]).then(([photosSnap, docsSnap]) => {
-      const photos: FileItem[] = photosSnap.docs.map(d => {
+      // Only files that actually exist in Storage travel to the chiffreur:
+      // offline placeholders (no url yet), cardinal-slot bookkeeping docs and
+      // the chiffrage's OWN outputs (accords, rapports, notes) are neither
+      // shown on the dossier page nor useful to send — counting them made the
+      // recap say « Envoyer (23) » for a dossier showing 4 pièces.
+      const isReal = (data: Record<string, any>) => !!data.url && !data.pendingUpload && !!data.storagePath;
+      const photos: FileItem[] = photosSnap.docs.filter(d => isReal(d.data())).map(d => {
         const data = d.data();
         return { id: d.id, name: data.name || 'photo.jpg', storagePath: data.storagePath || '', type: 'photo', category: data.category };
       });
-      const docs: FileItem[] = docsSnap.docs.map(d => {
+      const docs: FileItem[] = docsSnap.docs.filter(d => {
+        const data = d.data();
+        return isReal(data) && !isChiffrageOutputType(data.type || data.typeDocument || '');
+      }).map(d => {
         const data = d.data();
         return {
           id: d.id,
@@ -171,6 +180,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
         dossierNom: dossier?.refExpert || dossierId,
         assignedChiffreurId: chiffreur.id,
         assignedChiffreurNom: chiffreur.nom,
+        assignedChiffreurEmail: chiffreur.email,
         files: selectedFiles,
         sentByUid: userId,
         sentByEmail: userEmail,

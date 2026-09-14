@@ -39,7 +39,7 @@ import { useAtgFeasibility } from '@/hooks/use-atg-feasibility';
 import { useAgentLiveLocation } from '@/hooks/use-agent-live-location';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatDurationFr } from '@/lib/atg-feasibility';
-import { MapPin } from 'lucide-react';
+import { MapPin, LocateFixed } from 'lucide-react';
 import { apiFetch } from '@/lib/api-fetch';
 import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 import { cn } from '@/lib/utils';
@@ -306,9 +306,20 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   // available (denied / no last-known location / no UID match). Drives both
   // the existing "Position non disponible" alert and the manual fallback
   // <Input> row that lets the gestionnaire type a location by hand.
+  // NOT gated on `agentLive.agentUid`: when the dropdown label matches no
+  // user account (seeded « Agent 1 », a renamed agent…) the uid stays null
+  // and the whole block used to vanish on switching agents. Now it stays and
+  // explains why the position cannot be requested.
   const isAgentLocationUnavailable =
-    !!formData.agentTerrain && !agentLive.isFresh && !!agentLive.agentUid &&
-    !demoSelfLocationActive;
+    !!formData.agentTerrain && !agentLive.isFresh && !demoSelfLocationActive;
+
+  // A self-location obtained for one agent (demo/tour stand-in) must not
+  // silently pose as the next agent's position.
+  useEffect(() => {
+    if (isCurrentUserAT) return;
+    setSelfLocation(null);
+    setSelfLocationPending(false);
+  }, [formData.agentTerrain, isCurrentUserAT]);
 
   // Resolve the displayed coords (the agent's live position, or — when the
   // current user is the AT — their own browser position) to a human-readable
@@ -695,10 +706,14 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             <div className="space-y-2" data-tour="plan-time">
               <Label htmlFor="plan-heure">{t('Heure RDV')}</Label>
               <div className="relative">
-                <Clock className="absolute left-3 top-3 h-4 w-4 text-primary max-md:top-4" />
+                <Clock className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-primary max-md:top-4" aria-hidden />
                 <Input
                   id="plan-heure"
                   type="time"
+                  // Clicking anywhere on the field opens the OS picker where the
+                  // browser supports it (Chrome/Edge); Firefox/Safari keep their
+                  // inline behaviour. Guarded: showPicker throws without a user gesture.
+                  onClick={(e) => { try { (e.currentTarget as HTMLInputElement).showPicker?.(); } catch { /* not supported */ } }}
                   // Native time input, quarter-hour steps (Apple HIG pickers:
                   // "quarter-hour intervals"); the OS wheel/keypad is the one
                   // touch time control nobody has to learn.
@@ -721,7 +736,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
               {...INPUT_ADDRESS}
               enterKeyHint="next"
               placeholder={t('Adresse du rendez-vous...')}
-              className="h-10 max-md:h-12 pr-12"
+              className="h-10 max-md:h-12 pr-[5.75rem]"
               value={formData.adresse}
               onChange={(e) => setFormData({...formData, adresse: e.target.value})}
               {...formErrors.fieldProps('plan-adresse')}
@@ -747,16 +762,38 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 44 px trailing button that reads the device GPS and reverse-
                 geocodes it into the field. The permission prompt only fires
                 on this explicit tap. */}
-            <button
-              type="button"
-              onClick={fillAddressFromPosition}
-              disabled={addressLocating}
-              aria-label={t('Utiliser ma position')}
-              title={t('Utiliser ma position')}
-              className="absolute right-0 top-0 flex h-full w-11 items-center justify-center rounded-r-md text-ink-3 transition-colors hover:text-ink disabled:opacity-50"
-            >
-              {addressLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
-            </button>
+            {/* Two trailing controls, each saying what it does: the map-pin
+                opens the TYPED address in Google Maps (what the gestionnaire
+                reaches for when checking the mission site); the crosshair
+                replaces the field with the device position. The old single
+                MapPin did the latter while looking like the former — one tap
+                silently overwrote the address with the gestionnaire's own GPS. */}
+            <div className="absolute right-0 top-0 flex h-full items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  const q = formData.adresse.trim();
+                  if (!q) return;
+                  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank', 'noopener,noreferrer');
+                }}
+                disabled={!formData.adresse.trim()}
+                aria-label={t('Ouvrir cette adresse dans Google Maps')}
+                title={t('Ouvrir cette adresse dans Google Maps')}
+                className="flex h-full w-11 items-center justify-center text-ink-3 transition-colors hover:text-ink disabled:opacity-40"
+              >
+                <MapPin className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={fillAddressFromPosition}
+                disabled={addressLocating}
+                aria-label={t('Remplacer par ma position')}
+                title={t('Remplacer par ma position')}
+                className="flex h-full w-11 items-center justify-center rounded-r-md text-ink-3 transition-colors hover:text-ink disabled:opacity-50"
+              >
+                {addressLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+              </button>
+            </div>
             </div>
             {fieldError('plan-adresse')}
           </div>
@@ -865,7 +902,11 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 {/* Demo: the agents have no connected phone, so this button
                     stands in the demo user's own browser position — and the
                     permission prompt only fires on this explicit click. */}
-                {demoSelfAsAgent ? (
+                {!demoSelfAsAgent && !agentLive.agentUid ? (
+                  <p className="text-sm italic text-muted-foreground">
+                    {t('Aucun compte utilisateur ne porte ce nom — la position ne peut pas être demandée. Vérifiez le nom de l’agent dans Utilisateurs.')}
+                  </p>
+                ) : demoSelfAsAgent ? (
                   <Button
                     type="button"
                     size="sm"

@@ -420,8 +420,10 @@ export function DatesCles({ dossierId, dossier, layout = 'grid' }: { dossierId: 
 
   return (
     <div className="space-y-4">
-      {/* Top block: single-column rows (no left/right pairing). */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+      {/* One column throughout: the Historique lives in a ≤ 576 px sheet, so a
+          viewport-keyed `md:grid-cols-2` split it into ~250 px tracks where
+          « Date demande expertise (en cours) » collided with its value. */}
+      <div className="grid grid-cols-1 gap-y-2">
         {[
           { label: t('Date réception mission'), field: 'dateRequete', value: dossier?.dateRequete },
           { label: t('Date sinistre'), field: 'dateSinistre', value: dossier?.dateSinistre },
@@ -431,7 +433,7 @@ export function DatesCles({ dossierId, dossier, layout = 'grid' }: { dossierId: 
           <React.Fragment key={row.label}>{renderDateClesRow(row)}</React.Fragment>
         ))}
       </div>
-      {/* Paired rows: demande on the left, expertise on the right, per phase. */}
+      {/* Per phase: demande, then expertise. */}
       {([
         { phase: 'avant', demande: dossier?.dateDemandeExpertiseAvant, expertise: dossier?.datePhotosAvant },
         { phase: 'en cours', demande: dossier?.dateDemandeExpertiseEnCours, expertise: dossier?.datePhotosEnCours },
@@ -443,7 +445,7 @@ export function DatesCles({ dossierId, dossier, layout = 'grid' }: { dossierId: 
         </div>
       ))}
       {/* Tail block: remaining single-column rows. */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+      <div className="grid grid-cols-1 gap-y-2">
         {[
           { label: t('Date chiffrage'), value: dossier?.dateChiffrage },
           { label: t('Date validation facture'), value: dossier?.dateFactureValide },

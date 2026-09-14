@@ -3,8 +3,27 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import type { FirebaseStorage } from 'firebase/storage';
 import type { Firestore } from 'firebase/firestore';
 import { enqueueUpload } from './upload-queue';
+import { uploadProcessor } from './upload-processor';
 
 const MAX_OFFLINE_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+
+/** Storage error codes that mean "the wire dropped", not "the server said no". */
+const NETWORK_STORAGE_CODES = new Set([
+  'storage/retry-limit-exceeded',
+  'storage/canceled',
+  'storage/server-file-wrong-size',
+  'unavailable',
+]);
+
+export function isNetworkFailure(err: unknown): boolean {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+  const code = (err as { code?: string } | null)?.code;
+  if (code && NETWORK_STORAGE_CODES.has(code)) return true;
+  // fetch()/XHR transport errors surface as a TypeError with no code.
+  if (err instanceof TypeError) return true;
+  const msg = err instanceof Error ? err.message.toLowerCase() : '';
+  return msg.includes('network') || msg.includes('failed to fetch');
+}
 
 export interface UploadFileParams {
   storage: FirebaseStorage;
@@ -49,8 +68,14 @@ export async function uploadFileWithOfflineSupport(
       });
 
       return { queued: false, url, docId: docRef.id };
-    } catch {
-      // Network failed mid-upload — fall through to offline queue
+    } catch (err) {
+      // Only a *network* failure earns the offline queue. Anything else
+      // (Storage rules, wrong bucket, CORS, quota…) would be retried up to
+      // 5 times against the same wall and leave a URL-less placeholder
+      // behind a "Document uploadé" toast — the slot then shows "Déposer"
+      // again as if nothing happened. Surface those to the caller instead.
+      if (!isNetworkFailure(err)) throw err;
+      console.warn(`[upload] réseau indisponible pour "${fileName}", mise en file d'attente`, err);
     }
   }
 
@@ -83,6 +108,12 @@ export async function uploadFileWithOfflineSupport(
       _placeholderDocId: placeholderRef.id,
     },
   });
+
+  // The sync hook only drains the queue on mount and on an offline→online
+  // flip; an item enqueued mid-session would otherwise sit until a reload.
+  // Fire-and-forget: if we're still offline the processor fails fast and the
+  // network-status effect will pick it up later.
+  void uploadProcessor.processQueue(storage, db).catch(() => {});
 
   return { queued: true, placeholderDocId: placeholderRef.id, docId: placeholderRef.id };
 }

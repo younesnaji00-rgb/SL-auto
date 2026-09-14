@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Search, Trash2, AlertCircle, Eye, History, FolderOpen, ChevronLeft, ChevronRight, RotateCcw, Filter, Check, Columns3, Plus, BellRing } from 'lucide-react';
-import { format, formatDistanceToNowStrict, differenceInCalendarDays, isToday, startOfDay, endOfDay, startOfWeek, startOfMonth } from 'date-fns';
+import { format, formatDistanceToNowStrict, differenceInCalendarDays, isToday, startOfDay, endOfDay, startOfWeek, startOfMonth, parseISO } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import { Input } from '@/components/ui/input';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -373,7 +373,11 @@ export default function DossiersClientPage() {
   // same pass on the applied filters.
   const filterRows = useCallback((filters: DossierFilters, except: string | null) => {
     let results = [...allDossiers];
-    if (except !== 'scope' && filters.scope !== 'tous') results = results.filter(d => isActionNeeded(d.statut));
+    // A typed search overrides the « À traiter » scope: someone looking for a
+    // reference wants the dossier whatever its statut (the scope segment is
+    // still honoured for browsing).
+    const searching = !!filters.search.trim();
+    if (except !== 'scope' && filters.scope !== 'tous' && !searching) results = results.filter(d => isActionNeeded(d.statut));
     if (except !== 'scope' && filters.lateOnly) {
       results = results.filter(d => {
         const age = ageDays((d as any).createdAt);
@@ -408,6 +412,11 @@ export default function DossiersClientPage() {
           d.vehicule?.immatriculationAnterieur,
           d.compagnie,
           d.referenceCompagnie,
+          d.nature,
+          (d as any).typeDossier,
+          (d as any).numeroPolice,
+          (d as any).numeroSinistre,
+          typeof (d as any).garage === 'string' ? (d as any).garage : (d as any).garage?.nom,
           resolveCreatorName(d),
         ].filter(Boolean).join(' '));
         return terms.every(t => hay.includes(t));
@@ -416,7 +425,7 @@ export default function DossiersClientPage() {
     // Date filter keys off `createdAt` (per R2-8) — the dossier's own creation
     // timestamp, not the gestionnaire-entered dateRequete.
     if (filters.dateFrom) {
-      const from = new Date(filters.dateFrom);
+      const from = startOfDay(parseISO(filters.dateFrom));
       results = results.filter(d => {
         const raw = (d as any).createdAt;
         if (!raw) return false;
@@ -425,8 +434,7 @@ export default function DossiersClientPage() {
       });
     }
     if (filters.dateTo) {
-      const to = new Date(filters.dateTo);
-      to.setHours(23, 59, 59, 999);
+      const to = endOfDay(parseISO(filters.dateTo));
       results = results.filter(d => {
         const raw = (d as any).createdAt;
         if (!raw) return false;
@@ -1036,7 +1044,9 @@ export default function DossiersClientPage() {
   };
 
   const applyPreset = (preset: 'jour' | 'semaine' | 'mois') => {
-    setFilters(presetRange(preset));
+    // The KPI tile counted every statut; opening it onto the « À traiter »
+    // subset made « Créés aujourd'hui : 3 » show one row.
+    setFilters({ ...presetRange(preset), scope: 'tous', lateOnly: false });
     setPage(1);
   };
 

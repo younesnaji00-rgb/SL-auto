@@ -188,7 +188,10 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
             <TooltipContent className="hidden [@media(hover:hover)]:block">{gateReason}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <p className="t-caption max-w-full text-right [@media(hover:hover)]:hidden">{gateReason}</p>
+        {/* Printed on every pointer: the required pièces live on step 1, out
+            of sight from this step, so a hover-only reason read as « the
+            button is broken » (QA bug 029). */}
+        <p className="t-caption max-w-full text-right">{gateReason}</p>
       </div>
     );
   };

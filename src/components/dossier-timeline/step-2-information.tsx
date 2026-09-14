@@ -76,6 +76,10 @@ export default function Step2Information({
   const [paneWidth, setPaneWidth] = useState(480);
   // Viewer zoom: 1 = fit to pane width. Reset whenever another scan is shown.
   const [zoom, setZoom] = useState(1);
+  // Drag-to-pan (mouse only — touch already scrolls natively). Scroll offsets
+  // are driven straight from pointer deltas; nothing to sync with React.
+  const dragRef = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
   useEffect(() => {
     setZoom(1);
   }, [selectedScanId]);
@@ -258,16 +262,16 @@ export default function Step2Information({
         )}
         aria-hidden={!paneShown || undefined}
       >
-        {/* The pane is absolutely positioned so it never adds height of its
-            own: it fills the step's row (whose height the form drives) and
-            hugs the document when that is shorter — a landscape scan gives a
-            short wide window, a portrait scan a tall one. Documents taller
-            than the row scroll inside; zooming past fit-width adds the
-            horizontal scrollbar. */}
+        {/* Sticky under the record bar and capped to the viewport: the pane
+            follows the form as the gestionnaire scrolls down to compare the
+            lower fields, and zooming enlarges the document INSIDE a frame
+            that stops at the screen edge instead of stretching the page
+            (QA bugs 012 / 014). The aside is the sticky containing block, so
+            the pane stops following once the form ends. */}
         <Card
           variant="outline"
           data-tour="dosd-compare-panel"
-          className="absolute inset-x-0 top-0 flex max-h-full flex-col gap-2 overflow-hidden p-3"
+          className="sticky top-[calc(60px+1rem)] flex max-h-[calc(100dvh/var(--app-zoom)-60px-2rem)] flex-col gap-2 overflow-hidden p-3"
         >
           {/* Pane header — label + file name · zoom · eye (lightbox) · close. */}
           <div className="flex items-start justify-between gap-2">
@@ -327,7 +331,35 @@ export default function Step2Information({
           )}
           <div
             ref={paneRef}
-            className="min-h-0 flex-1 overflow-auto overscroll-contain rounded-md border border-hairline bg-surface-2 scrollbar-thin"
+            className={cn(
+              'min-h-0 flex-1 overflow-auto overscroll-contain rounded-md border border-hairline bg-surface-2 scrollbar-thin',
+              zoom > 1 && (dragging ? 'cursor-grabbing select-none' : 'cursor-grab'),
+            )}
+            onPointerDown={(e) => {
+              if (e.pointerType !== 'mouse' || e.button !== 0) return;
+              const el = paneRef.current;
+              if (!el) return;
+              dragRef.current = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
+              el.setPointerCapture(e.pointerId);
+              setDragging(true);
+            }}
+            onPointerMove={(e) => {
+              const d = dragRef.current;
+              const el = paneRef.current;
+              if (!d || !el) return;
+              el.scrollLeft = d.sl - (e.clientX - d.x);
+              el.scrollTop = d.st - (e.clientY - d.y);
+            }}
+            onPointerUp={(e) => {
+              const el = paneRef.current;
+              if (el?.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+              dragRef.current = null;
+              setDragging(false);
+            }}
+            onPointerCancel={() => {
+              dragRef.current = null;
+              setDragging(false);
+            }}
           >
             {selectedUrl ? (
               // Inline viewer. Zoom 100 % = fit to the pane width; beyond it
@@ -345,7 +377,9 @@ export default function Step2Information({
                 ) : (
                   <PdfThumbnail
                     url={selectedUrl}
-                    width={Math.round(paneWidth * zoom)}
+                    // Bucketed to 100 px so a zoom step re-rasterises the page
+                    // at a useful resolution without a render per pixel.
+                    width={Math.max(100, Math.round((paneWidth * zoom) / 100) * 100)}
                     lazy={false}
                     className="block h-auto min-h-[12rem] w-full object-contain"
                   />

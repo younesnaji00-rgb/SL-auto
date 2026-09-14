@@ -8,7 +8,7 @@
  * focus to its heading.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Lock } from 'lucide-react';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -47,6 +47,18 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
   // 2026-09-02); children stay mounted through the collapse so the height
   // has something to animate over, then unmount.
   const { mounted: contentMounted, shown: contentShown } = usePresence(!collapsed, 250);
+  // The fold wrapper needs `overflow-hidden` only while the grid-rows
+  // transition runs; left on permanently it becomes the containing block of
+  // every `position: sticky` descendant (the compare pane) and pins them.
+  const [foldSettled, setFoldSettled] = useState(!collapsed);
+  useEffect(() => {
+    if (!contentShown) {
+      setFoldSettled(false);
+      return;
+    }
+    const id = window.setTimeout(() => setFoldSettled(true), 260);
+    return () => window.clearTimeout(id);
+  }, [contentShown]);
   return (
     <section
       id={`step-${step.id}`}
@@ -110,7 +122,7 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
             contentShown ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
           )}
         >
-          <div className="min-h-0 overflow-hidden">
+          <div className={cn('min-h-0', !(contentShown && foldSettled) && 'overflow-hidden')}>
             <div id={`step-${step.id}-content`} hidden={!contentMounted} className="space-y-4">
               {contentMounted && children}
             </div>

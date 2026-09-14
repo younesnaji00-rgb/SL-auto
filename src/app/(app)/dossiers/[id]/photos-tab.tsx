@@ -37,6 +37,7 @@ import {
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
+import { downloadFileFromUrl, ensureImageExtension } from '@/components/documents/typed-doc';
 import { useFirestore, useAuth, useStorage, useDoc, useCollection } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -201,10 +202,34 @@ export function photoCapForCategory(
   propositionReforme?: boolean,
 ): number {
   const perMission = propositionReforme ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION;
+  return perMission * photoMissionsForCategory(category, planifications);
+}
+
+/** Number of missions planned for a section (never below 1 — see {@link photoCapForCategory}). */
+export function photoMissionsForCategory(
+  category: PhotoCategory,
+  planifications: { typeMission?: unknown }[] | null | undefined,
+): number {
   const missions = (planifications ?? []).filter(
     (plan) => TYPE_MISSION_TO_CATEGORY[String(plan?.typeMission ?? '')] === category,
   ).length;
-  return perMission * Math.max(1, missions);
+  return Math.max(1, missions);
+}
+
+/**
+ * Tooltip for the `n/cap` counter. A tester reading « 30/150 » against the
+ * « 30 par étape » rule sees a wrong constant; the multiplier only makes
+ * sense once the label says « 5 missions × 30 ».
+ */
+export function photoCapTitle(
+  category: PhotoCategory,
+  planifications: { typeMission?: unknown }[] | null | undefined,
+  propositionReforme?: boolean,
+): string | undefined {
+  const missions = photoMissionsForCategory(category, planifications);
+  if (missions <= 1) return undefined;
+  const perMission = propositionReforme ? MAX_PHOTOS_WITH_REFORME : MAX_PHOTOS_PER_SECTION;
+  return `${missions} missions × ${perMission} photos`;
 }
 
 /* Preview-lightbox header height (≈46px) is folded into the lg
@@ -253,6 +278,10 @@ export default function PhotosTab({
   const { data: planifications } = useCollection<any>(planificationsQuery as any);
   const capFor = React.useCallback(
     (cat: PhotoCategory) => photoCapForCategory(cat, planifications, !!dossier?.propositionReforme),
+    [planifications, dossier?.propositionReforme],
+  );
+  const capTitleFor = React.useCallback(
+    (cat: PhotoCategory) => photoCapTitle(cat, planifications, !!dossier?.propositionReforme),
     [planifications, dossier?.propositionReforme],
   );
 
@@ -408,6 +437,7 @@ export default function PhotosTab({
 
       const successful = results.filter((r) => r.status === 'fulfilled').length;
       const failed = results.length - successful;
+      const queued = results.filter((r) => r.status === 'fulfilled' && r.value?.queued).length;
 
       // Batch-log — one historique/workflow entry for the group rather than per-file.
       if (successful > 0) {
@@ -436,7 +466,12 @@ export default function PhotosTab({
         }
       }
 
-      if (failed === 0) {
+      if (failed === 0 && queued > 0) {
+        toast({
+          title: t('Photo(s) en attente d’envoi'),
+          description: t('Hors ligne — l’envoi reprendra automatiquement au retour du réseau.'),
+        });
+      } else if (failed === 0) {
         toast({
           title: successful === 1 ? t('Photo uploadée') : `${successful} ${t('photos uploadées')}`,
         });
@@ -493,17 +528,14 @@ export default function PhotosTab({
   };
 
   const handleDownload = async (photo: Photo) => {
+    // A photo still in the offline queue has no url; fetching `null` used to
+    // save the app's 404 page under a `.jpg` name — an "unreadable image".
+    if (!photo.url || photo.pendingUpload) {
+      toast({ variant: 'destructive', title: t('Photo pas encore envoyée'), description: t('Réessayez une fois l’envoi terminé.') });
+      return;
+    }
     try {
-      const response = await fetch(photo.url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = photo.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+      await downloadFileFromUrl(photo.url, ensureImageExtension(photo.name, photo.url));
     } catch (e) {
       console.error('Download error:', e);
       toast({ variant: 'destructive', title: t('Erreur lors du téléchargement') });
@@ -578,6 +610,7 @@ export default function PhotosTab({
                 variant="secondary"
                 className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
                 onClick={() => handleDownload(photo)}
+                disabled={!photo.url || !!photo.pendingUpload}
                 title={t('Telecharger')}
               >
                 <Download className="h-3.5 w-3.5" />
@@ -760,7 +793,7 @@ export default function PhotosTab({
               <TabsTrigger key={cat.id} value={cat.id} className="gap-2">
                 <Camera className="h-3.5 w-3.5" />
                 {t(cat.label)}
-                <span className="rounded-full bg-surface-3 px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2">
+                <span className="rounded-full bg-surface-3 px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2" title={capTitleFor(cat.id)}>
                   {count}/{capFor(cat.id)}
                 </span>
               </TabsTrigger>
@@ -776,11 +809,11 @@ export default function PhotosTab({
               {/* Upload header */}
               <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                 {onlyCategory ? (
-                  <span className="t-caption tabular-nums">{catPhotos.length}/{capFor(cat.id)} {t('photos')}</span>
+                  <span className="t-caption tabular-nums" title={capTitleFor(cat.id)}>{catPhotos.length}/{capFor(cat.id)} {t('photos')}</span>
                 ) : (
                 <h3 className="t-heading flex items-center gap-2">
                   {t(cat.fullLabel)}
-                  <span className="rounded-full bg-surface-3 px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2">
+                  <span className="rounded-full bg-surface-3 px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums text-ink-2" title={capTitleFor(cat.id)}>
                     {catPhotos.length}/{capFor(cat.id)}
                   </span>
                 </h3>
