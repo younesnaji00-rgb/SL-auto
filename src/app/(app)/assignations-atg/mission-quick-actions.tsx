@@ -9,7 +9,7 @@
  * they are needed") but never the ONLY path — the peek panel repeats them.
  */
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { doc, updateDoc, serverTimestamp, collection, query, where, limit, getDocs } from 'firebase/firestore';
 import { MessageCircle, MoreHorizontal, Navigation, Phone, UserCog, MapPin, Car } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -407,17 +407,13 @@ export function EnRouteButton({
  * field is THE adoption predictor). Falls back to time-only when
  * geolocation is unavailable.
  */
-export function CheckinButton({
-  dossierId,
-  planifId,
-  checkedIn,
-  className,
-}: {
-  dossierId: string;
-  planifId: string;
-  checkedIn: boolean;
-  className?: string;
-}) {
+/**
+ * The check-in write behind « Arrivé sur place » / « Confirmer l’arrivée »,
+ * shared by the queue card button and the phone mission bottom bar (mobile
+ * redesign 2026-09-14): time + best-effort GPS on the planification, one
+ * historique line, one toast.
+ */
+export function useMissionCheckin() {
   const db = useFirestore();
   const auth = useAuth();
   const { profile } = useCurrentUser();
@@ -425,11 +421,7 @@ export function CheckinButton({
   const t = useT();
   const [saving, setSaving] = useState(false);
 
-  if (checkedIn) return null;
-
-  const checkin = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
+  const checkin = useCallback(async (dossierId: string, planifId: string) => {
     if (!db || saving) return;
     setSaving(true);
     try {
@@ -452,6 +444,31 @@ export function CheckinButton({
     } finally {
       setSaving(false);
     }
+  }, [db, saving, auth, profile?.nom, toast, t]);
+
+  return { checkin, saving };
+}
+
+export function CheckinButton({
+  dossierId,
+  planifId,
+  checkedIn,
+  className,
+}: {
+  dossierId: string;
+  planifId: string;
+  checkedIn: boolean;
+  className?: string;
+}) {
+  const t = useT();
+  const { checkin: runCheckin, saving } = useMissionCheckin();
+
+  if (checkedIn) return null;
+
+  const checkin = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    void runCheckin(dossierId, planifId);
   };
 
   return (

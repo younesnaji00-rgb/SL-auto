@@ -1,7 +1,7 @@
 'use client';
 
 import { PageHeader } from '@/components/layout/page-header';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { collection, onSnapshot, query, orderBy, doc } from 'firebase/firestore';
@@ -45,10 +45,12 @@ import { useChiffrageTabs } from '@/hooks/use-chiffrage-tabs';
 // band headers; the toolbar's selects move into the « Filtres » sheet and the
 // Délai header sort into a « Trier » sheet.
 import { useIsPhone } from '@/hooks/use-viewport-class';
-import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
-import { SearchRow, type SearchRowHandle } from '@/components/ui/search-row';
-import { FilterSheet, FilterSection, FilterSelect, AppliedChips, type AppliedChip } from '@/components/ui/filter-sheet';
+import { FilterSheet, FilterSection, FilterSelect, type AppliedChip } from '@/components/ui/filter-sheet';
 import { SortSheet } from '@/components/ui/sort-sheet';
+// Mobile redesign 2026-09-14 (Phone.dc.html « chiffrage »): the phone list is
+// a column of RecordCards under « À traiter | Tous » pills; search, sort and
+// filters live in the top bar. Painted by phone-chiffrage-queue.tsx.
+import { PhoneChiffrageQueue, type PhoneQueueItem } from './phone-chiffrage-queue';
 
 interface ChiffrageItem {
   id: string;
@@ -507,7 +509,14 @@ export default function AssignationsChiffragePage() {
   const isPhone = useIsPhone();
   const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
   const [phoneSortOpen, setPhoneSortOpen] = useState(false);
-  const searchRowRef = useRef<SearchRowHandle>(null);
+  // Stable handlers for the phone bar (usePhoneChrome keeps functions by identity).
+  const phoneSearchChange = useCallback((v: string) => setFilters({ q: v }), [setFilters]);
+  const phoneOpenSort = useCallback(() => setPhoneSortOpen(true), []);
+  const phoneOpenFilters = useCallback(() => setPhoneFiltersOpen(true), []);
+  const phoneOpenItem = useCallback(
+    (c: PhoneQueueItem) => openTab(c.id, c.dossierNom || `${t('Chiffrage')} ${c.id.slice(0, 6)}`),
+    [openTab, t],
+  );
 
   const appliedFilterCount =
     (compagnieFilter !== 'Toutes' ? 1 : 0) +
@@ -582,7 +591,6 @@ export default function AssignationsChiffragePage() {
       <PageHeader
         title={titleForRoute('/assignations-chiffrage') ?? t('Assignations au chiffrage')}
         count={scopedChiffrages.length}
-        onSearchFocus={() => searchRowRef.current?.focus()}
         meta={
           // A5 — quiet load summary (attention R5: periphery informs without
           // overburdening); danger-fg only when > 0; zero-state omitted.
@@ -710,125 +718,33 @@ export default function AssignationsChiffragePage() {
         }
       />
 
-      {/* PHONE — sticky search row (+ the scope segments in its `below` slot),
-          then the queue as a row list grouped by the SAME urgency bands. */}
+      {/* PHONE — « À traiter | Tous » pills, then the queue as RecordCards
+          grouped by the SAME urgency bands; search · sort · filters are in the
+          top bar (mobile redesign 2026-09-14). */}
       {isPhone && (
-        <div className="md:hidden">
-          <SearchRow
-            ref={searchRowRef}
-            value={q}
-            onChange={(v) => setFilters({ q: v })}
-            placeholder={t('Réf., assuré, plaque…')}
-            ariaLabel={t('Rechercher dans la file')}
-            filterCount={appliedFilterCount}
-            onFilters={() => setPhoneFiltersOpen(true)}
-            sortLabel={phoneSort === 'lointain' ? t('Délai le plus lointain') : t('Délai le plus proche')}
-            onSort={() => setPhoneSortOpen(true)}
-            dataTour="ach-search"
-            below={
-              <div
-                role="group"
-                aria-label={t('Portée de la file')}
-                data-tour="ach-scope"
-                className="relative isolate flex h-10 w-full items-center gap-0.5 rounded-md bg-surface-2 p-0.5"
-              >
-                <SlidingThumb className="rounded-md bg-accent shadow-rim" deps={[queueScope, nbATraiter, filteredChiffrages.length]} />
-                {([['a-traiter', 'À traiter', nbATraiter], ['tous', 'Tous', filteredChiffrages.length]] as const).map(([key, label, count]) => (
-                  <Button
-                    key={key}
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    data-seg-active={queueScope === key}
-                    aria-pressed={queueScope === key}
-                    onClick={() => setQueueScope(key)}
-                    className={cn(
-                      'relative z-[1] h-9 flex-1 gap-1.5 px-2 shadow-none',
-                      queueScope === key && 'text-accent-foreground hover:bg-transparent hover:text-accent-foreground',
-                    )}
-                  >
-                    {t(label)}
-                    <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
-                      {count}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-            }
-          />
-          <AppliedChips chips={appliedChips} onClearAll={resetFilters} className="mt-2" />
-
-          {loading ? (
-            <RecordListSkeleton count={6} lines={3} ariaLabel={t('Chargement de la file')} />
-          ) : bandGroups.length === 0 ? (
-            <EmptyState
-              icon={<Calculator />}
-              title={hasActiveFilter ? t('Aucun chiffrage pour ces filtres') : t('Aucun chiffrage assigné')}
-              description={hasActiveFilter
-                ? t('Élargissez la période ou réinitialisez les filtres pour revoir la file.')
-                : t('Les nouvelles assignations de chiffrage apparaîtront ici.')}
-              action={hasActiveFilter ? (
-                <Button variant="tonal" onClick={resetFilters}>{t('Réinitialiser les filtres')}</Button>
-              ) : undefined}
-              className="mt-3 bg-transparent"
-            />
-          ) : (
-            bandGroups.map((group, gi) => (
-              <section key={group.band ?? `flat-${gi}`}>
-                {group.band && (
-                  // 40 px band header: t-label + count pill, SOLID surface-2
-                  // (never glass — GPU cost), sticky inside its own group.
-                  <h2
-                    data-tour="ach-band"
-                    className="sticky top-0 z-10 -mx-4 flex h-10 items-center gap-2 border-y border-hairline bg-surface-2 px-4"
-                  >
-                    <span className="t-label">{t(group.band)}</span>
-                    <span
-                      className={cn(
-                        'inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[11px] font-medium tabular-nums',
-                        group.band === 'En retard' ? 'bg-status-danger-bg text-status-danger-fg' : 'bg-surface-3 text-ink-2',
-                      )}
-                    >
-                      {group.count}
-                    </span>
-                  </h2>
-                )}
-                <RecordList ariaLabel={group.band ? t(group.band) : t('Assignations au chiffrage')} className="border-t-0">
-                  {group.entries.map((entry) => {
-                    const c = entry.item;
-                    const obs = dossierObs[c.dossierId];
-                    const obsCount = obs?.count ?? 0;
-                    return (
-                      <RecordRow
-                        key={c.id}
-                        recordId={c.id}
-                        dataTour="ach-row"
-                        id={c.dossierNom || t('Sans réf.')}
-                        figure={renderDelaiChip(entry)}
-                        primary={renderAssure(dossierAssure[c.dossierId]) ?? t('Assuré non renseigné')}
-                        secondary={dossierMatricule[c.dossierId] || undefined}
-                        line3={
-                          <>
-                            <StatusChip status={dossierStatuts[c.dossierId] || 'Nouveau'} />
-                            {obsCount > 0 && (
-                              <Badge variant="neutral" aria-label={`${obsCount} ${obsCount > 1 ? t('observations') : t('observation')}`}>
-                                <MessageSquare aria-hidden />
-                                <span className="tabular-nums">{obsCount}</span>
-                              </Badge>
-                            )}
-                          </>
-                        }
-                        href={`/assignations-chiffrage/${c.id}`}
-                        ariaLabel={`${c.dossierNom || t('Sans réf.')} — ${t(group.band ?? '')}`.trim()}
-                        onClick={() => openTab(c.id, c.dossierNom || `${t('Chiffrage')} ${c.id.slice(0, 6)}`)}
-                      />
-                    );
-                  })}
-                </RecordList>
-              </section>
-            ))
-          )}
-        </div>
+        <PhoneChiffrageQueue
+          loading={loading}
+          groups={bandGroups}
+          scope={queueScope}
+          onScopeChange={setQueueScope}
+          nbATraiter={nbATraiter}
+          nbTous={filteredChiffrages.length}
+          nbShown={scopedChiffrages.length}
+          search={q}
+          onSearchChange={phoneSearchChange}
+          sortLabel={phoneSort === 'lointain' ? t('Délai le plus lointain') : t('Délai le plus proche')}
+          onSort={phoneOpenSort}
+          filterCount={appliedFilterCount}
+          onOpenFilters={phoneOpenFilters}
+          appliedChips={appliedChips}
+          hasActiveFilter={hasActiveFilter}
+          onResetFilters={resetFilters}
+          renderDelaiChip={(entry) => renderDelaiChip(entry as QueueEntry)}
+          dossierAssure={dossierAssure}
+          dossierCompagnies={dossierCompagnies}
+          renderAssure={renderAssure}
+          onOpen={phoneOpenItem}
+        />
       )}
 
       {/* Data table (element-specs §3 + A4 column order: identifier → deadline

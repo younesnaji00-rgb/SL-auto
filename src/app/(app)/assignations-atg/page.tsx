@@ -64,6 +64,7 @@ import {
   CheckinButton, EnRouteButton, MissionRowActions, ReassignPopover, mapsSearchUrl, telHref, waHref,
 } from './mission-quick-actions';
 import { GeofenceCheckinBanner } from './mission-geofence-checkin';
+import PhoneMissionsList from './phone-missions-list';
 import { MessageCircle } from 'lucide-react';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
@@ -1413,6 +1414,44 @@ export default function AssignationsATGPage() {
   );
 
   if (effectiveMobile) {
+    // Real phone (mobile redesign 2026-09-14): the shell top bar carries the
+    // title, greeting, search, filters and the scan primary; the body is the
+    // card queue. The framed demo view below keeps its own header.
+    if (isMobile) {
+      return (
+        <>
+          <PhoneMissionsList
+            loading={loading}
+            groups={groups}
+            tabItems={tabScopedPlans}
+            filteredCount={filteredPlanifications.length}
+            activeTab={activeTab}
+            countByType={countByType}
+            onTabChange={(id) => setFilters({ activeTab: id })}
+            keyword={keyword}
+            onKeywordChange={(v) => setFilters({ keyword: v })}
+            filters={{ compagnieFilter, agentFilter, dateFrom, dateTo }}
+            filterDefaults={{ compagnieFilter: 'Toutes', agentFilter: 'Tous', dateFrom: '', dateTo: '' }}
+            onApplyFilters={(next) => setFilters(next)}
+            compagnieOptions={compagnieOptions}
+            agentOptions={agentOptions}
+            canSeeNameFilter={canSeeNameFilter}
+            live={dossierLive}
+            nextMissionKey={nextMissionKey}
+            nextTime={nextTime}
+            onOpenMission={openMission}
+            onOpenNext={nextMission ? () => openMission(nextMission) : null}
+            onRoute={openRouteForItems}
+            renderDeadline={(p, calm) => <DeadlineChip dateRDV={p.dateRDV} createdAt={p.createdAt} calm={calm} />}
+            canScan={canUseAtFlows && BRAND.id !== 'demo'}
+            greetingName={profile?.prenom || profile?.nom || t('agent')}
+            emptyState={emptyState}
+          />
+          {/* Geofenced arrival suggestion — thumb-zone banner (ATG only). */}
+          {isATG && <GeofenceCheckinBanner candidates={geofenceCandidates} />}
+        </>
+      );
+    }
     return (
       <div className={cn(!isMobile && 'mx-auto min-h-screen w-full max-w-[430px] border-x border-hairline bg-background shadow-xl')}>
         {/* Mobile sticky header (element-specs §23) */}

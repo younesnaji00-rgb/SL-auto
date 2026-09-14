@@ -35,6 +35,16 @@ import { useT, dateFnsLocale } from '@/i18n';
 import { useStamps, type Stamp } from '@/hooks/use-stamps';
 import { cn } from '@/lib/utils';
 import { TamponsSkeleton } from './loading';
+// Mobile redesign 2026-09-14 (Phone.dc.html 571–583): the stamp list is a
+// column of RecordCards under a dashed « + Nouveau tampon »; the import card
+// opens as a full-screen sheet from the bar's « + »; a card tap opens the
+// row's actions (activer / désactiver · supprimer) as an ActionSheet.
+import { Plus, Power } from 'lucide-react';
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { usePhoneChrome } from '@/components/layout/page-chrome';
+import { RecordCardList } from '@/components/ui/record-card';
+import { ActionSheet } from '@/components/ui/action-sheet';
+import { PhoneAdminCard, PhoneCreateButton, PhoneCreateHost } from '@/components/admin/phone-admin-list';
 
 interface ChiffreurUser {
   id: string;
@@ -128,6 +138,41 @@ export default function TamponsSettingsPage() {
       router.replace(getDefaultRouteForRole(profile.role));
     }
   }, [userLoading, profile?.role, router]);
+
+  /* ------------------------------------------------------------------ */
+  /* Phone (hooks before the early return below)                         */
+  /* ------------------------------------------------------------------ */
+  const isPhone = useIsPhone();
+  const [phoneSearch, setPhoneSearch] = useState('');
+  const [phoneCreateOpen, setPhoneCreateOpen] = useState(false);
+  const [phoneActionStampId, setPhoneActionStampId] = useState<string | null>(null);
+  const phoneActionStamp = stamps.find((s) => s.id === phoneActionStampId) ?? null;
+  const phoneStamps = useMemo(() => {
+    const q = phoneSearch.trim().toLowerCase();
+    return q ? stamps.filter((s) => (s.name || '').toLowerCase().includes(q)) : stamps;
+  }, [stamps, phoneSearch]);
+  const phoneCreateLabel = t('Nouveau tampon');
+  // Top bar (design 845–850): count on the « Tampons » chip, name search,
+  // filled « + » opening the import sheet. The bar paints « Administration ».
+  usePhoneChrome(
+    useMemo(
+      () =>
+        isPhone
+          ? {
+              count: stampsLoading ? null : phoneStamps.length,
+              search: {
+                value: phoneSearch,
+                onChange: setPhoneSearch,
+                placeholder: t('Nom du tampon…'),
+                ariaLabel: t('Rechercher un tampon'),
+              },
+              primaryAction: { label: phoneCreateLabel, icon: <Plus className="h-5 w-5" />, onClick: () => setPhoneCreateOpen(true), dataTour: 'tam-import' },
+            }
+          : null,
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [isPhone, stampsLoading, phoneStamps.length, phoneSearch, phoneCreateLabel],
+    ),
+  );
 
   if (userLoading) {
     return <TamponsSkeleton />;
@@ -327,6 +372,9 @@ export default function TamponsSettingsPage() {
       />
 
       {/* Card 1 — element-specs §5 (Material 3 cards: one topic per container). */}
+      {/* PHONE — the same import card inside the « Nouveau tampon » sheet
+          (design 991–998: picker + queue + « Importer »); inline from md up. */}
+      <PhoneCreateHost isPhone={isPhone} open={phoneCreateOpen} onOpenChange={setPhoneCreateOpen} title={phoneCreateLabel} inlineClassName="block">
       <Card data-tour="tam-import">
         <CardHeader className="max-md:p-4 max-md:pb-2">
           <CardTitle className="t-heading">{t('Importer des tampons')}</CardTitle>
@@ -433,10 +481,13 @@ export default function TamponsSettingsPage() {
           )}
         </CardContent>
       </Card>
+      </PhoneCreateHost>
 
-      {/* Card 2 — the registered stamps as a vertical LIST (original layout). */}
-      <Card data-tour="tam-list">
-        <CardHeader className="max-md:p-4 max-md:pb-2">
+      {/* Card 2 — the registered stamps as a vertical LIST (original layout).
+          PHONE: the frame and its header go (the bar names the segment); the
+          rows become cards on the page background. */}
+      <Card data-tour="tam-list" className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+        <CardHeader className="max-md:hidden">
           <CardTitle className="t-heading flex items-center gap-2">
             {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: ONE IconChip beside the
                 section that anchors the page. */}
@@ -447,7 +498,7 @@ export default function TamponsSettingsPage() {
             {t('Activez, désactivez ou supprimez les tampons existants.')}
           </CardDescription>
         </CardHeader>
-        <CardContent className="max-md:p-4 max-md:pt-0">
+        <CardContent className="max-md:p-0">
           {stampsLoading ? (
             // Row-shaped skeleton (§15), not a spinner.
             <div className="divide-y divide-hairline border-t border-hairline">
@@ -470,12 +521,61 @@ export default function TamponsSettingsPage() {
               title={t('Ajouter le premier tampon')}
               description={t("Aucun tampon n'est encore enregistré.")}
               action={
-                <Button type="button" variant="tonal" onClick={openPicker} disabled={isImporting}>
+                // PHONE: open the import sheet (the queue lives there), never
+                // the bare picker.
+                <Button type="button" variant="tonal" onClick={isPhone ? () => setPhoneCreateOpen(true) : openPicker} disabled={isImporting}>
                   {t('Choisir des images')}
                 </Button>
               }
               dashed={false}
             />
+          ) : isPhone ? (
+            // PHONE — dashed « + Nouveau tampon » then one card per stamp
+            // (design 573–581): 8 px image tile · name · import meta ·
+            // Actif (success) / Inactif (danger) · ›. Tap = the row's
+            // actions in an ActionSheet (no edit screen exists).
+            <div className="flex flex-col gap-2 md:hidden">
+              <PhoneCreateButton label={phoneCreateLabel} onClick={() => setPhoneCreateOpen(true)} />
+              {phoneStamps.length === 0 ? (
+                <EmptyState
+                  icon={<StampIcon />}
+                  title={t('Aucun tampon pour cette recherche')}
+                  description={`${t('Aucun nom ne contient')} « ${phoneSearch.trim()} ».`}
+                  action={<Button variant="tonal" onClick={() => setPhoneSearch('')}>{t('Effacer la recherche')}</Button>}
+                  className="bg-transparent"
+                />
+              ) : (
+                <RecordCardList ariaLabel={t('Tampons enregistrés')}>
+                  {phoneStamps.map((stamp) => {
+                    const assignees = assigneesByStampId.get(stamp.id) ?? [];
+                    const name = stamp.name || t('Sans nom');
+                    return (
+                      <PhoneAdminCard
+                        key={stamp.id}
+                        recordId={stamp.id}
+                        name={name}
+                        meta={
+                          <>
+                            <span className="tabular-nums">{importedMeta(stamp)}</span>
+                            {assignees.length > 0 && <span>· {t('Assigné à :')} {assignees.join(', ')}</span>}
+                          </>
+                        }
+                        chip={{ label: stamp.active ? t('Actif') : t('Inactif'), tone: stamp.active ? 'success' : 'danger' }}
+                        avatar={
+                          stamp.url ? (
+                            <img src={stamp.url} alt="" className={cn('h-full w-full object-contain p-0.5', !stamp.active && 'opacity-50')} />
+                          ) : (
+                            <StampIcon className="h-4 w-4 text-ink-3" aria-hidden />
+                          )
+                        }
+                        onClick={() => setPhoneActionStampId(stamp.id)}
+                        ariaLabel={`${name} — ${stamp.active ? t('Actif') : t('Inactif')}`}
+                      />
+                    );
+                  })}
+                </RecordCardList>
+              )}
+            </div>
           ) : (
             // List rows — element-specs §4 (Material 3 lists: leading media,
             // label, supporting text, trailing selection control / icon
@@ -699,6 +799,31 @@ export default function TamponsSettingsPage() {
 
       {/* Confirmation dialog — element-specs §13 (Material 3 dialogs: names
           the object and its consequence, ≤ 2 actions, confirm at the edge). */}
+      {/* PHONE — a stamp card's actions (the desktop row's switch + delete). */}
+      {isPhone && (
+        <ActionSheet
+          open={!!phoneActionStamp}
+          onOpenChange={(open) => !open && setPhoneActionStampId(null)}
+          title={phoneActionStamp?.name || t('Sans nom')}
+          items={[
+            {
+              key: 'toggle',
+              label: phoneActionStamp?.active ? t('Désactiver le tampon') : t('Activer le tampon'),
+              icon: <Power />,
+              onSelect: () => { if (phoneActionStamp) void handleToggleActive(phoneActionStamp, !phoneActionStamp.active); },
+            },
+            {
+              key: 'delete',
+              label: t('Supprimer le tampon'),
+              icon: <Trash2 />,
+              destructive: true,
+              hidden: !canDelete,
+              onSelect: () => { if (phoneActionStamp) setDeleteTarget(phoneActionStamp); },
+            },
+          ]}
+        />
+      )}
+
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

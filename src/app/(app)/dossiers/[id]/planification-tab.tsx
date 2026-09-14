@@ -12,6 +12,9 @@ import { format, isPast } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { RecordCard, RecordCardActions, RecordCardFields, RecordCardList } from '@/components/ui/record-card';
+import { DateBlock } from '@/components/ui/date-block';
 
 type PlanificationTabProps = {
   dossierId: string;
@@ -55,6 +58,10 @@ export default function PlanificationTab({
   // Inert on the live page; tints planifications added/modified by the
   // gestionnaire in the rappel treatment replica.
   const hl = useReplayHighlight();
+  // Phone (mobile redesign 2026-09-14, turn 3 « planifications en cartes »):
+  // the list renders as RecordCards with a DateBlock; one card expands at a time.
+  const isPhone = useIsPhone();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (plansOverride !== undefined) {
@@ -97,6 +104,118 @@ export default function PlanificationTab({
   }
 
   const visiblePlans = typeFilter ? (plans ?? []).filter((p: any) => p.typeMission === typeFilter) : (plans ?? []);
+
+  if (isPhone) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="flex items-center gap-2 text-[12px] text-ink-3">
+            {t('Visites planifiées')}
+            {visiblePlans.length > 0 && <span className="tabular-nums">· {visiblePlans.length}</span>}
+          </h3>
+          {visiblePlans.length > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="-my-1 h-10 gap-1.5 px-2 text-[12px] text-primary hover:text-primary"
+              onClick={() => onNewPlanification(typeFilter)}
+              data-tour={typeFilter === 'Avant' ? 'dosd-planif-new' : undefined}
+            >
+              <Plus className="h-3.5 w-3.5" /> {t('Nouvelle planification')}
+            </Button>
+          )}
+        </div>
+
+        {visiblePlans.length === 0 ? (
+          <EmptyState
+            icon={<CalendarIcon />}
+            title={t('Aucune visite planifiée')}
+            description={
+              typeFilter
+                ? `${t('Programmez la visite')} « ${t(typeFilter).toLowerCase()} » ${t('pour assigner un agent de terrain.')}`
+                : t("Ce dossier n'a pas encore de mission planifiée.")
+            }
+            action={
+              <Button
+                size="sm"
+                className="h-11"
+                onClick={() => onNewPlanification(typeFilter)}
+                data-tour={typeFilter === 'Avant' ? 'dosd-planif-new' : undefined}
+              >
+                {t('Programmer une visite')}
+              </Button>
+            }
+          />
+        ) : (
+          <RecordCardList ariaLabel={t('Visites planifiées')}>
+            {visiblePlans.map((plan: any, index: number) => {
+              const replayStatus = hl.statusForEntry('planifications', plan.id);
+              const rdv = toDate(plan.dateRDV);
+              const past = rdv ? isPast(rdv) : false;
+              // Newest first: the first row that is still ahead is the next visit.
+              const upcoming = index === 0 && !past;
+              const expanded = expandedId === plan.id;
+              const place = [plan.zone, plan.adresse].filter(Boolean).join(' · ');
+              return (
+                <RecordCard
+                  key={plan.id}
+                  recordId={plan.id}
+                  leading={
+                    <DateBlock
+                      time={rdv ? format(rdv, 'HH:mm') : '—'}
+                      day={rdv ? format(rdv, 'EEE d', { locale: dateFnsLocale() }) : undefined}
+                      emphasis={upcoming ? 'next' : past ? 'muted' : 'default'}
+                    />
+                  }
+                  title={plan.agentTerrain || <span className="font-normal text-ink-3">{t('Non assigné')}</span>}
+                  meta={
+                    <>
+                      {place ? <span className="[overflow-wrap:anywhere]">{place}</span> : <span className="text-ink-4">—</span>}
+                      <ChangeBadge status={replayStatus} />
+                    </>
+                  }
+                  trailing={
+                    <Badge variant="neutral">{plan.typeMission ? t(String(plan.typeMission)) : '—'}</Badge>
+                  }
+                  onClick={() => setExpandedId(expanded ? null : plan.id)}
+                  expandable
+                  expanded={expanded}
+                  onToggle={() => setExpandedId(expanded ? null : plan.id)}
+                  className={highlightClass(replayStatus)}
+                >
+                  <RecordCardFields
+                    fields={[
+                      { label: t('Date'), value: rdv ? format(rdv, 'EEEE d MMMM yyyy', { locale: dateFnsLocale() }) : null, full: true },
+                      { label: t("Zone d'intervention"), value: plan.zone },
+                      {
+                        label: t('Téléphone'),
+                        value: plan.telephone ? <a href={`tel:${plan.telephone}`} className="hover:underline">{plan.telephone}</a> : null,
+                        mono: true,
+                      },
+                      { label: t('Adresse complète'), value: plan.adresse, full: true },
+                      { label: t('Observation'), value: plan.observation, full: true },
+                      {
+                        label: t('Créée le'),
+                        value: plan.createdAt
+                          ? `${formatTimestamp(plan.createdAt)}${plan.modifiedByName ? ` · ${t('modifiée par')} ${plan.modifiedByName}` : ''}`
+                          : null,
+                        full: true,
+                      },
+                    ]}
+                  />
+                  <RecordCardActions>
+                    <Button variant="outline" className="flex-1 gap-1.5 text-[13px]" onClick={() => onEditPlanification(plan)}>
+                      <Pencil className="h-3.5 w-3.5" /> {t('Modifier')}
+                    </Button>
+                  </RecordCardActions>
+                </RecordCard>
+              );
+            })}
+          </RecordCardList>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

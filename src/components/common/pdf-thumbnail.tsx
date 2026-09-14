@@ -5,6 +5,9 @@ import { cn } from '@/lib/utils';
 
 // Module-level cache: url → dataUrl. Survives across mounts within the session.
 const thumbnailCache = new Map<string, string>();
+// url → page count, filled alongside the thumbnail so `onDocument` can fire
+// from cache without re-fetching the file.
+const pageCountCache = new Map<string, number>();
 
 let pdfJsPromise: Promise<any> | null = null;
 function loadPdfJs(): Promise<any> {
@@ -31,16 +34,25 @@ export function PdfThumbnail({
   className,
   width = 96,
   lazy = true,
+  onDocument,
 }: {
   url: string;
   className?: string;
   width?: number;
   lazy?: boolean;
+  /** Reports the document's page count once it is known (also from cache). */
+  onDocument?: (meta: { numPages: number }) => void;
 }) {
   const [dataUrl, setDataUrl] = useState<string | null>(thumbnailCache.get(url) || null);
   const [errored, setErrored] = useState(false);
   const [inView, setInView] = useState(!lazy);
   const holderRef = useRef<HTMLDivElement>(null);
+  const onDocumentRef = useRef(onDocument);
+  onDocumentRef.current = onDocument;
+  useEffect(() => {
+    const n = pageCountCache.get(url);
+    if (dataUrl && n) onDocumentRef.current?.({ numPages: n });
+  }, [url, dataUrl]);
 
   // Lazy gate: start the (expensive) fetch + pdfjs render only near viewport.
   useEffect(() => {
@@ -73,6 +85,7 @@ export function PdfThumbnail({
         if (!response.ok) throw new Error(`fetch ${response.status}`);
         const buf = await response.arrayBuffer();
         const pdfDoc = await pdfjs.getDocument({ data: buf }).promise;
+        pageCountCache.set(url, pdfDoc.numPages);
         const page = await pdfDoc.getPage(1);
         const baseViewport = page.getViewport({ scale: 1 });
         const scale = width / baseViewport.width;

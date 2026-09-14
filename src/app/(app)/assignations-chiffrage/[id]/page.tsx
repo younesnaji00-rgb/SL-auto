@@ -9,7 +9,7 @@ import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { IconChip } from '@/components/ui/icon-chip';
-import { ChevronLeft, ChevronRight, FileText, Mail, Scale } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, FolderOpen, Mail, Scale } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { buildDocFamilies } from '@/lib/doc-family';
@@ -52,6 +52,10 @@ import { usePhoneChrome, useRegisterPageTitle } from '@/components/layout/page-c
 import { BottomActionBar, type BottomActionBarSecondary } from '@/components/layout/bottom-action-bar';
 import type { ActionItem } from '@/components/ui/action-sheet';
 import { intlLocale, useT } from '@/i18n';
+// Mobile redesign 2026-09-14 (Phone.dc.html « chiffrage-detail »): facts card,
+// Devis | Photos | Observations facets, the deposited PDF, the amount card.
+import { statusTone } from '@/components/ui/status-chip';
+import { PhoneChiffrageScreen, nextChiffrageSlot, type ChiffrageFacet } from './phone-chiffrage-screen';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -103,6 +107,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   // Lightbox preview state for slot-card / pièces-jointes clicks — the
   // chiffreur enters the editor via the pipeline's Éditer socket (spec B3).
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nom: string } | null>(null);
+  // Phone photo grid: the sibling photos the lightbox pages through.
+  const [previewPages, setPreviewPages] = useState<{ url: string; nom: string }[] | null>(null);
 
   // Task #31 — DocumentsFilterPanel state (mirrors the dossier documents-tab).
   const [selectedType, setSelectedType] = useState<string>(ALL_TYPES_KEY);
@@ -435,22 +441,31 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const isPhone = useIsPhone();
   const assurePhone = assureName(dossier?.assure);
   useRegisterPageTitle(chiffrage?.dossierNom || null);
+  // Mobile redesign 2026-09-14: Devis | Photos | Observations facet of the
+  // phone screen — lifted here so the « ⋯ » Observations row can switch it.
+  const [phoneFacet, setPhoneFacet] = useState<ChiffrageFacet>('devis');
+  const phoneMailable = canSendMail && !!chiffrage?.dossierId && accordDocs.length > 0;
   const phoneSecondary = useMemo<ActionItem[]>(() => {
     const items: ActionItem[] = [];
     if (canEdit && chiffrage?.dossierId) items.push({ key: 'reforme', label: t('Réforme'), icon: <Scale />, onSelect: () => setReformeOpen(true) });
+    if (phoneMailable) items.push({ key: 'mail', label: t('Envoyer par mail'), icon: <Mail />, onSelect: () => setMailDialogOpen(true) });
     items.push({
       key: 'observations',
       label: t('Observations'),
       icon: <FileText />,
-      onSelect: () => document.querySelector('[data-tour="chd-observations"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      onSelect: () => setPhoneFacet('observations'),
     });
+    if (queueCtx) {
+      items.push({ key: 'prev', label: t('Chiffrage précédent'), icon: <ChevronLeft />, disabled: !queueCtx.prevId, onSelect: () => queueCtx.prevId && goToChiffrage(queueCtx.prevId) });
+      items.push({ key: 'next', label: t('Chiffrage suivant'), icon: <ChevronRight />, disabled: !queueCtx.nextId, onSelect: () => queueCtx.nextId && goToChiffrage(queueCtx.nextId) });
+    }
     if (traitement?.active) {
       items.push({ key: 'skip', label: t('Passer'), icon: <ChevronRight />, disabled: !queueCtx?.nextId, onSelect: handleSkip });
       items.push({ key: 'quit', label: t('Quitter le mode'), icon: <ChevronLeft />, onSelect: handleQuitTraitement });
     }
     return items;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canEdit, chiffrage?.dossierId, traitement?.active, queueCtx?.nextId, t]);
+  }, [canEdit, chiffrage?.dossierId, phoneMailable, traitement?.active, queueCtx?.prevId, queueCtx?.nextId, goToChiffrage, t]);
   const phoneChrome = useMemo(
     () =>
       isPhone
@@ -458,11 +473,13 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             upHref: '/assignations-chiffrage',
             upLabel: 'Chiffrage',
             subtitle: assurePhone || null,
+            // The dossier statut with its status pair (one helper app-wide).
+            titleChip: dossier ? { label: t(dossierStatut), tone: statusTone(dossierStatut) } : null,
             secondaryActions: phoneSecondary,
             primaryAction: null,
           }
         : null,
-    [isPhone, assurePhone, phoneSecondary],
+    [isPhone, assurePhone, phoneSecondary, dossier, dossierStatut, t],
   );
   usePhoneChrome(phoneChrome);
 
@@ -499,23 +516,36 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           (success once done, info while open).
           The tour anchor `chd-header` lives on a plain wrapper because
           PageHeader does not forward arbitrary DOM props. */}
-      {/* Phone: the identity lives in the top bar; only the two facts it has
-          no room for stay here as ONE 40 px caption row (E11). */}
-      <div className="flex min-h-10 flex-wrap items-center gap-x-2 gap-y-1 px-4 md:hidden">
-        <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(dossierStatut))}>
-          {t(dossierStatut)}
-        </Badge>
-        <span className="t-caption truncate">
-          {t('Correcteur :')} {chiffrage.assignedChiffreurNom || '—'}
-          {receivedAt && <> · {t('Reçu le')} {receivedAt}</>}
-        </span>
-        {traitementActif && queueCtx && (
-          <span className="t-caption w-full tabular-nums">
-            {t('Mode traitement')} · {queueCtx.index + 1}/{queueCtx.total}
-            {chiffrageDone && <> — {queueCtx.nextId ? t('Chiffrage terminé') : t('File terminée')}</>}
-          </span>
-        )}
-      </div>
+      {/* Phone (mobile redesign 2026-09-14): the identity + statut live in the
+          top bar; the body is the facts card, the Devis | Photos |
+          Observations facets and the amount card — phone-chiffrage-screen.tsx. */}
+      {isPhone && (
+        <>
+          {traitementActif && queueCtx && (
+            <p className="t-caption px-0.5 tabular-nums md:hidden">
+              {t('Mode traitement')} · {queueCtx.index + 1}/{queueCtx.total}
+              {chiffrageDone && <> — {queueCtx.nextId ? t('Chiffrage terminé') : t('File terminée')}</>}
+            </p>
+          )}
+          <PhoneChiffrageScreen
+            chiffrageId={id}
+            dossierId={chiffrage.dossierId}
+            dossier={dossier}
+            chiffrage={chiffrage as any}
+            dossierStatut={dossierStatut}
+            receivedAt={receivedAt}
+            families={orderedFamilies}
+            docsByType={familyDocsByType}
+            photos={dossierPhotos as any[] | null | undefined}
+            facet={phoneFacet}
+            onFacetChange={setPhoneFacet}
+            onPreview={(d, pages) => {
+              setPreviewPages(pages && pages.length > 1 ? pages : null);
+              setPreviewDoc(d);
+            }}
+          />
+        </>
+      )}
 
       <div data-tour="chd-header" className="max-md:hidden">
         <PageHeader
@@ -648,6 +678,9 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         </div>
       )}
 
+      {/* Desktop / tablet body — the phone renders PhoneChiffrageScreen above. */}
+      {!isPhone && (
+      <>
       {/* Devis & factures — accord pipeline (spec B1–B3): the actionable
           object first (B4, fold research), versions as shared columns,
           families as aligned row bands. Plain section: `t-heading` title
@@ -701,6 +734,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       <div data-tour="chd-observations">
         <ObservationsTab dossierId={chiffrage.dossierId} section="assignations-chiffrage" variant="collapsible" />
       </div>
+      </>
+      )}
 
       {/* Réforme Modal */}
       {chiffrage.dossierId && (
@@ -727,8 +762,10 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           in a new tab since this page doesn't have a dedicated downloader. */}
       <DocumentPreviewLightbox
         doc={previewDoc}
-        onClose={() => setPreviewDoc(null)}
+        onClose={() => { setPreviewDoc(null); setPreviewPages(null); }}
         onDownload={(d) => window.open(d.url, '_blank', 'noopener,noreferrer')}
+        pages={previewPages ?? undefined}
+        onPageChange={previewPages ? (d) => setPreviewDoc(d) : undefined}
       />
 
       {/* Bottom action bar (E4/E11): the queue spine moves out of the header
@@ -736,14 +773,24 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           caption rather than silently — « disabled buttons without
           explanation » is the do-not. Phone only: the bar publishes
           `hideBottomNav`, which would reserve 56 px on a desktop page. */}
-      {isPhone && (
-      <BottomActionBar
-        secondary={[
-          queueCtx && { label: t('Chiffrage précédent'), icon: <ChevronLeft />, disabled: !queueCtx.prevId, onClick: () => queueCtx.prevId && goToChiffrage(queueCtx.prevId) },
-          queueCtx && { label: t('Chiffrage suivant'), icon: <ChevronRight />, disabled: !queueCtx.nextId, onClick: () => queueCtx.nextId && goToChiffrage(queueCtx.nextId) },
-        ].filter(Boolean) as BottomActionBarSecondary[]}
-        primary={
-          showMailPrimary
+      {/* Mobile redesign 2026-09-14 (Phone.dc.html): « Ouvrir le dossier »
+          icon + ONE primary. « Valider le chiffrage » IS the existing
+          validation — the devis editor's save (the pipeline's Éditer socket,
+          same route + slot); the editor is desktop-only by owner ruling
+          (E-Q3), so the caption says where the saisie happens. The queue
+          spine ‹ › moved into « ⋯ ». No « Contester » action exists in the
+          app, so none is offered. */}
+      {isPhone && (() => {
+        const target = canEdit
+          ? nextChiffrageSlot(orderedFamilies.find((f) => f.sourceDocType === 'Devis Garage'), familyDocsByType)
+          : null;
+        const primary = target
+          ? {
+              label: t('Valider le chiffrage'),
+              onClick: () => handleEditSlot(target.parent, target.slot),
+              dataTour: 'chd-valider-phone',
+            }
+          : showMailPrimary
             ? {
                 label: t('Envoyer par mail'),
                 icon: <Mail />,
@@ -751,11 +798,24 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
                 disabled: accordDocs.length === 0,
                 dataTour: 'chd-mail-phone',
               }
-            : null
-        }
-        caption={showMailPrimary && accordDocs.length === 0 ? t('Aucun accord à envoyer') : undefined}
-      />
-      )}
+            : null;
+        const caption = target
+          ? t("Saisie ligne par ligne dans l'éditeur de devis — sur ordinateur.")
+          : chiffrageDone
+            ? t('Chiffrage validé')
+            : showMailPrimary && accordDocs.length === 0
+              ? t('Aucun accord à envoyer')
+              : undefined;
+        return (
+          <BottomActionBar
+            secondary={[
+              chiffrage.dossierId && { label: t('Ouvrir le dossier'), icon: <FolderOpen />, href: `/dossiers/${chiffrage.dossierId}` },
+            ].filter(Boolean) as BottomActionBarSecondary[]}
+            primary={primary}
+            caption={caption}
+          />
+        );
+      })()}
     </div>
   );
 }

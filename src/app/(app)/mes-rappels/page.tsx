@@ -37,7 +37,12 @@ import { RappelDetailContent, RappelDetailPlaceholder, PhoneRappelDetailScreen, 
 // pushes `?rappel=<id>` and the detail takes the whole screen with its own
 // top bar and bottom action bar. No sheet for the detail on a phone.
 import { useIsPhone } from '@/hooks/use-viewport-class';
-import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
+// Mobile redesign 2026-09-14 (Claude Design handoff, turns 4b/4c): on phones
+// the Reçus / Envoyés queues are RecordCards under a ScopePills row, and
+// « Voir le traitement » opens a full-screen read-only replay addressed by
+// `?replay=<id>` (Back closes it). Desktop / tablet paths are untouched.
+import PhoneRappelsList, { type PhoneRappelScope } from './phone-rappels-list';
+import PhoneReplayScreen from './phone-replay-screen';
 
 const SESSION_KEY = (dossierId: string) => `rappel-active-session-${dossierId}`;
 
@@ -329,6 +334,41 @@ export default function MesRappelsPage() {
     setSelectedId((prev) => (prev === id ? prev : id));
   });
 
+  // ── Phone replay screen (`?replay=<rappelId>`) — same URL discipline as
+  //    the detail: push on open so the platform Back closes it; popstate and
+  //    the bar's up-link (a Next navigation) both re-sync from the URL. ──
+  const [replayId, setReplayId] = useState<string | null>(null);
+  const [phoneSearch, setPhoneSearch] = useState('');
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('replay');
+    if (id) setReplayId(id);
+  }, []);
+  useEffect(() => {
+    if (!isPhone) return;
+    const sync = () => {
+      const id = new URLSearchParams(window.location.search).get('replay');
+      setReplayId((prev) => (prev === id ? prev : id));
+    };
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
+  }, [isPhone]);
+  useEffect(() => {
+    if (!isPhone) return;
+    const id = new URLSearchParams(window.location.search).get('replay');
+    setReplayId((prev) => (prev === id ? prev : id));
+  });
+  const openPhoneReplay = (r: Rappel) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('replay', r.id);
+    window.history.pushState({ ...window.history.state }, '', url);
+    setReplayId(r.id);
+  };
+  // Received first (own work), then sent (inspecting an assignee's work).
+  const phoneReplayRappel = useMemo(
+    () => (replayId ? rappels.find((r) => r.id === replayId) ?? sentRappels.find((r) => r.id === replayId) ?? null : null),
+    [replayId, rappels, sentRappels],
+  );
+
   const markRead = (r: Rappel) => {
     if (!db || r.read) return;
     updateDoc(doc(db, 'rappels', r.id), {
@@ -495,22 +535,62 @@ export default function MesRappelsPage() {
       </span>
     ) : null;
 
+  // PHONE — the read-only replay is a full screen on this route (`?replay=`).
+  // It sits above the detail so « Voir le traitement » from the detail lands
+  // here too, and its up-link returns to that detail when one was open.
+  if (isPhone && phoneReplayRappel) {
+    const own = rappels.some((r) => r.id === phoneReplayRappel.id);
+    return (
+      <PhoneReplayScreen
+        rappel={phoneReplayRappel}
+        upHref={own && selectedId ? `/mes-rappels?rappel=${encodeURIComponent(selectedId)}` : '/mes-rappels'}
+        onOpenDossier={(r) => (own ? openRappel(r) : router.push(`/dossiers/${r.dossierId}`))}
+      />
+    );
+  }
+
   // PHONE — the detail replaces the list (single pane, M3 list-detail).
   if (isPhone && activeVue === 'recus' && selected) {
     return (
-      <>
-        <PhoneRappelDetailScreen
-          rappel={selected}
-          onOpenDossier={openRappel}
-          onMarkTreated={markTreated}
-          onShowReplay={(r) => setReplayRappel(r)}
-        />
-        <SessionReplayDialog
-          rappel={replayRappel}
-          open={!!replayRappel}
-          onOpenChange={(open) => { if (!open) setReplayRappel(null); }}
-        />
-      </>
+      <PhoneRappelDetailScreen
+        rappel={selected}
+        onOpenDossier={openRappel}
+        onMarkTreated={markTreated}
+        onShowReplay={openPhoneReplay}
+      />
+    );
+  }
+
+  // PHONE — cards under the scope pills; the shell paints the area toggle
+  // (Dossiers | Rappels) and this page's search, so no PageHeader / Tabs.
+  if (isPhone) {
+    const phoneScope: PhoneRappelScope = activeVue === 'envoyes' ? 'envoyes' : segment;
+    const changePhoneScope = (next: PhoneRappelScope) => {
+      if (next === 'envoyes') {
+        changeVue('envoyes');
+        return;
+      }
+      if (activeVue !== 'recus') changeVue('recus');
+      changeSegment(next);
+    };
+    return (
+      <PhoneRappelsList
+        scope={phoneScope}
+        onScopeChange={changePhoneScope}
+        aTraiter={aTraiter}
+        traites={traites}
+        envoyes={sentRappels}
+        loading={loading}
+        sentLoading={sentLoading}
+        recusVisible={recusVisible}
+        envoyesVisible={envoyesVisible}
+        search={phoneSearch}
+        onSearchChange={setPhoneSearch}
+        onSelect={selectRappel}
+        onOpenDossier={openRappel}
+        onOpenSentDossier={(r) => router.push(`/dossiers/${r.dossierId}`)}
+        onShowReplay={openPhoneReplay}
+      />
     );
   }
 
@@ -548,11 +628,7 @@ export default function MesRappelsPage() {
       {recusVisible && (
         <TabsContent value="recus" className="mt-0">
           {loading ? (
-            isPhone ? (
-              <RecordListSkeleton count={6} lines={3} ariaLabel={t('Chargement des rappels')} />
-            ) : (
-              <Card className="overflow-hidden"><TableSkeleton heads={6} /></Card>
-            )
+            <Card className="overflow-hidden"><TableSkeleton heads={6} /></Card>
           ) : rappels.length === 0 ? (
             // Empty state (§12: NN/g — state + reason; Polaris — one line).
             // No action: a rappel can only be sent to you from a dossier.
@@ -623,43 +699,6 @@ export default function MesRappelsPage() {
                       dashed={false}
                     />
                   )
-                ) : isPhone ? (
-                  // PHONE — the same queue as a row list (newest first): réf + date /
-                  // « Aujourd'hui », the observation as the second line (500
-                  // weight while unread), state chip + sender on the third.
-                  // The teal unread bar rides the row primitive.
-                  <RecordList ariaLabel={t('Rappels reçus')}>
-                    {queue.map((r) => {
-                      const state = rappelState(r);
-                      return (
-                        <RecordRow
-                          key={r.id}
-                          recordId={r.id}
-                          dataTour="rap-row-ref"
-                          id={r.dossierRef || r.dossierId}
-                          figure={
-                            isToday(r.createdAt)
-                              ? <Badge variant="time">{t("Aujourd'hui")}</Badge>
-                              : <span className="tabular-nums">{formatDateShort(r.createdAt)}</span>
-                          }
-                          primary={
-                            <span className={state === 'nouveau' ? 'font-medium text-ink' : 'text-ink-2'}>
-                              {r.observation || '—'}
-                            </span>
-                          }
-                          line3={
-                            <>
-                              <StateChip rappel={r} />
-                              {r.senderNom && <span className="truncate text-[12px] text-ink-3">{t('Envoyé par')} {r.senderNom}</span>}
-                            </>
-                          }
-                          unread={state === 'nouveau'}
-                          onClick={() => selectRappel(r)}
-                          ariaLabel={`${r.dossierRef || r.dossierId} — ${r.observation || ''}`.trim()}
-                        />
-                      );
-                    })}
-                  </RecordList>
                 ) : (
                   // Queue table (§3 + addendum bis §B): 6 columns, one-line
                   // grid, newest first. Unread = teal left bar + full-ink ladder; the

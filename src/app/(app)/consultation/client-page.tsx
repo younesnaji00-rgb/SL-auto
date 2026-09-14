@@ -43,8 +43,11 @@ import { dossierLabel } from '@/lib/dossier-label';
 // « Trier » sheet, and « Afficher plus » replaces the desktop footer button.
 import { usePathname } from 'next/navigation';
 import { useIsPhone } from '@/hooks/use-viewport-class';
-import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
-import { SearchRow, type SearchRowHandle } from '@/components/ui/search-row';
+// Mobile redesign 2026-09-14 (Phone.dc.html turn 3): the search (+ « Trier »)
+// and « Filtres » live in the top bar; the rows are RecordCards (réf mono
+// stacked above the assuré, compagnie, age + statut chip trailing).
+import { differenceInCalendarDays } from 'date-fns';
+import { RecordCard, RecordCardList, RecordCardListSkeleton } from '@/components/ui/record-card';
 import {
   FilterSheet,
   FilterSection,
@@ -482,7 +485,6 @@ export default function ConsultationClientPage() {
   const pathname = usePathname() || '/consultation';
   const [phoneFiltersOpen, setPhoneFiltersOpen] = React.useState(false);
   const [phoneSortOpen, setPhoneSortOpen] = React.useState(false);
-  const searchRowRef = React.useRef<SearchRowHandle>(null);
 
   const appliedFilterCount =
     (filters.nature !== 'Toutes' ? 1 : 0) +
@@ -536,21 +538,32 @@ export default function ConsultationClientPage() {
     window.setTimeout(() => setExported(false), 1500);
   };
 
-  // The page header lives in page.tsx, so the phone top bar's search icon, the
-  // count pill and the « ⋯ » sheet (Exporter — the desktop toolbar's quiet
-  // tools are `max-md:hidden`) are registered from here.
+  // The page header lives in page.tsx, so the phone top bar's search field
+  // (with « Trier »), the « Filtres » icon + badge, the count on the
+  // « Consultation » segment and the « ⋯ » sheet (Exporter — the desktop
+  // toolbar's quiet tools are `max-md:hidden`) are registered from here.
+  const phoneSortLabel = phoneSort === 'ancien' ? t('Plus anciens') : t('Plus récents');
   usePhoneChrome(
     React.useMemo(
       () => ({
-        onSearchFocus: () => searchRowRef.current?.focus(),
         count: loading ? null : sortedList.length,
+        search: {
+          value: filters.search,
+          onChange: (v: string) => setFilters({ search: v }),
+          placeholder: t('Réf., assuré, matricule…'),
+          ariaLabel: t('Rechercher un dossier par référence, assuré ou matricule'),
+          sortLabel: phoneSortLabel,
+          onSort: () => setPhoneSortOpen(true),
+          dataTour: 'consult-search',
+        },
+        filters: { count: appliedFilterCount, onOpen: () => setPhoneFiltersOpen(true) },
         secondaryActions:
           sortedList.length > 0
             ? [{ key: 'export', label: t('Exporter'), icon: <Download />, onSelect: handleExport }]
             : [],
       }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [loading, sortedList.length],
+      [loading, sortedList.length, filters.search, appliedFilterCount, phoneSortLabel],
     ),
   );
 
@@ -635,24 +648,9 @@ export default function ConsultationClientPage() {
           cluster live in the « Filtres » sheet, the sort in « Trier ». */}
       {/* Direct children of the page block — a `position: sticky` row only
           travels inside its own containing block. */}
-      {isPhone && (
-        <>
-          <SearchRow
-            ref={searchRowRef}
-            value={filters.search}
-            onChange={(v) => setFilters({ search: v })}
-            placeholder={t('Réf., assuré, matricule…')}
-            ariaLabel={t('Rechercher un dossier par référence, assuré ou matricule')}
-            filterCount={appliedFilterCount}
-            onFilters={() => setPhoneFiltersOpen(true)}
-            sortLabel={phoneSort === 'ancien' ? t('Plus anciens') : t('Plus récents')}
-            onSort={() => setPhoneSortOpen(true)}
-            dataTour="consult-search"
-            className="md:hidden"
-          />
-          <AppliedChips chips={appliedChips} onClearAll={clearChipFilters} className="md:hidden" />
-        </>
-      )}
+      {/* The search row itself moved into the top bar (mobile redesign
+          2026-09-14); the applied-filter chips stay on the page. */}
+      {isPhone && <AppliedChips chips={appliedChips} onClearAll={clearChipFilters} className="md:hidden" />}
 
       <div className="space-y-3 max-md:hidden">
       <div className="flex flex-wrap items-center gap-2" data-tour="consult-filters">
@@ -859,7 +857,7 @@ export default function ConsultationClientPage() {
       {isPhone && (
         <div className="md:hidden">
           {loading ? (
-            <RecordListSkeleton count={6} lines={3} ariaLabel={t('Chargement des dossiers')} />
+            <RecordCardListSkeleton count={6} ariaLabel={t('Chargement des dossiers')} />
           ) : sortedList.length === 0 ? (
             <EmptyState
               icon={<FolderOpen />}
@@ -882,28 +880,34 @@ export default function ConsultationClientPage() {
             />
           ) : (
             <>
-              <RecordList ariaLabel={t('Dossiers en consultation')}>
+              {/* Cards (design turn 3): réf mono stacked above the assuré,
+                  compagnie as meta, trailing column = age since the requête
+                  (« Aujourd'hui » time chip · « 12 j » · the date past 99 d)
+                  over the statut chip. Read-only navigation unchanged. */}
+              <RecordCardList ariaLabel={t('Dossiers en consultation')}>
                 {cap.rows.map((d: any) => {
                   const assureName = renderAssure(d.assure);
                   const requete = d.dateRequete ? (d.dateRequete.toDate ? d.dateRequete.toDate() : new Date(d.dateRequete)) : null;
+                  const validDate = requete && !Number.isNaN(requete.getTime()) ? requete : null;
+                  const ageDays = validDate ? differenceInCalendarDays(new Date(), validDate) : null;
                   return (
-                    <RecordRow
+                    <RecordCard
                       key={d.id}
                       recordId={d.id}
                       id={d.refExpert ? <Highlight text={d.refExpert} query={filters.search} /> : <span className="font-sans font-normal text-ink-4">{t('Sans réf.')}</span>}
-                      figure={
-                        requete && !Number.isNaN(requete.getTime())
-                          ? isToday(requete)
-                            ? <Badge variant="time">{t('Aujourd’hui')}</Badge>
-                            : <span className="tabular-nums">{format(requete, 'dd/MM/yyyy')}</span>
-                          : null
-                      }
-                      primary={assureName ? <Highlight text={assureName} query={filters.search} /> : t('Assuré non renseigné')}
-                      secondary={d.compagnie ? t(d.compagnie) : undefined}
-                      line3={
-                        <span className={cn('inline-flex max-w-full rounded-md', flashIds.has(d.id) && 'animate-value-flash')}>
-                          <StatusChip status={d.statut} />
-                        </span>
+                      title={assureName ? <Highlight text={assureName} query={filters.search} /> : t('Assuré non renseigné')}
+                      meta={d.compagnie ? <span>{t(d.compagnie)}</span> : undefined}
+                      trailing={
+                        <>
+                          {validDate && ageDays !== null && (
+                            isToday(validDate)
+                              ? <Badge variant="time">{t('Aujourd’hui')}</Badge>
+                              : <span className="text-[12px] leading-4 tabular-nums text-ink-3">{ageDays >= 0 && ageDays < 100 ? `${ageDays} ${t('j')}` : format(validDate, 'dd/MM/yyyy')}</span>
+                          )}
+                          <span className={cn('inline-flex max-w-full rounded-md', flashIds.has(d.id) && 'animate-value-flash')}>
+                            <StatusChip status={d.statut} />
+                          </span>
+                        </>
                       }
                       returned={returnedId === d.id}
                       href={`/dossiers/${d.id}`}
@@ -915,7 +919,7 @@ export default function ConsultationClientPage() {
                     />
                   );
                 })}
-              </RecordList>
+              </RecordCardList>
               <LoadMore
                 shown={cap.rows.length}
                 total={cap.total}

@@ -39,7 +39,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
+import { getStatusBadgeStyles, getStatusTone, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { dossierLabel, assureName } from '@/lib/dossier-label';
 import { nextStep, primaryActionForStep, type StepState } from '@/lib/dossier-steps';
 import { useRegisterPageTitle } from '@/components/layout/page-chrome';
@@ -170,12 +170,17 @@ export function RecordBar({
             upHref,
             upLabel,
             subtitle: [assure, dossier?.matricule].filter(Boolean).join(' · ') || null,
+            // The statut beside the ref (mobile redesign 2026-09-14: « SL-25-0412
+            // (statut) »), with its tone from the shared status-colors family.
+            // Only while the title IS the ref — a sub-screen title (« Historique »)
+            // carries no chip.
+            titleChip: phoneTitle ? null : { label: statut, tone: getStatusTone(statut) },
             secondaryActions,
             // The primary lives in the bottom action bar (E4), never in « ⋯ ».
             primaryAction: null,
           }
         : null,
-    [isPhone, upHref, upLabel, assure, dossier?.matricule, secondaryActions],
+    [isPhone, upHref, upLabel, assure, dossier?.matricule, secondaryActions, phoneTitle, statut],
   );
   usePhoneChrome(phoneChrome);
 

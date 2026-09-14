@@ -42,10 +42,9 @@ import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-gr
 import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { usePhoneChrome, useRegisterPageTitle } from '@/components/layout/page-chrome';
-import { BottomActionBar } from '@/components/layout/bottom-action-bar';
-import { PhotoGrid } from '@/components/common/photo-grid';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { GeofenceCheckinBanner, type GeofenceCandidate } from '../mission-geofence-checkin';
+import PhoneMissionScreen from './phone-mission-screen';
 import Loading from './loading';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
@@ -644,12 +643,15 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // as the « ⋯ » sheet. Nothing of it is painted as prose in the body.
   const refLabel = dossier?.refExpert || dossierId;
   const assureForChrome = assureName(dossier?.assure) || assureNom;
+  const plateForChrome: string = dossier?.matricule || dossier?.vehicule?.immatriculation || '';
   const firstAdresse = (filteredPlans[0] as any)?.adresse || '';
   useRegisterPageTitle(dossier ? refLabel : null);
   usePhoneChrome({
     upHref: '/assignations-atg',
     upLabel: 'Missions',
-    subtitle: assureForChrome || null,
+    // « Assuré · plaque » under the ref; the phase rides the title as a chip.
+    subtitle: [assureForChrome, plateForChrome].filter(Boolean).join(' · ') || null,
+    titleChip: { label: activeTab, tone: 'neutral' },
     primaryAction: null,
     secondaryActions: [
       {
@@ -698,7 +700,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const assure = assureName(dossier?.assure) || assureNom;
   const cameraLabel = isUploading ? t('Upload en cours...') : t('Prendre des photos');
   const propositionReforme = !!(dossier as any)?.propositionReforme;
-  const atPhotoCap = filteredPhotos.length >= photoCap;
   const nextPlanId = (() => {
     // The next upcoming RDV of this mission gets the "Prochain" info chip.
     const now = Date.now();
@@ -731,8 +732,35 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         <GeofenceCheckinBanner candidates={geofenceCandidates} />
       )}
 
-      {/* Header stack */}
-      <div data-tour="atgd-header" className="flex items-start gap-4">
+      {/* PHONE (2): header card(s) + phases + photo grid + bottom bar (mobile
+          redesign 2026-09-14). Rendered BEFORE the desktop header stack so the
+          `atgd-header` tour anchor resolves to the visible card on a phone. */}
+      {isPhone && (
+        <PhoneMissionScreen
+          dossierId={dossierId}
+          plans={filteredPlans as any[]}
+          nextPlanId={nextPlanId}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          photos={photos}
+          phasePhotos={filteredPhotos}
+          photoCap={photoCap}
+          canEdit={canEdit}
+          isATG={isATG}
+          isUploading={isUploading}
+          propositionReforme={propositionReforme}
+          reformeDisabled={!dossierRef}
+          onToggleReforme={togglePropositionReforme}
+          onImport={() => galleryInputRef.current?.click()}
+          onCamera={() => setIsCameraOpen(true)}
+          onOpenPhoto={(photo) => setPreviewPhoto(photo)}
+          telephoneRaw={assureTelephoneRaw}
+          telephoneHref={assureTelephoneHref}
+        />
+      )}
+
+      {/* Header stack — desktop / tablet; the phone paints the card above. */}
+      <div data-tour="atgd-header" className="flex items-start gap-4 max-md:hidden">
         <div className="min-w-0 flex-1 space-y-4">
           {/* Page header (element-specs §1: Polaris Page ✓ breadcrumb back to
               the parent, compact t-title on a record page; meta chips §11 —
@@ -755,13 +783,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               </>
             }
           />
-          </div>
-
-          {/* PHONE: the status + plate chips the PageHeader used to carry, on
-              one 32 px line — the only identity prose left in the body. */}
-          <div className="flex flex-wrap items-center gap-2 md:hidden">
-            <Badge variant="outline" className={cn(STATUS_BADGE_CLASS, getStatusBadgeStyles(statut))}>{t(statut)}</Badge>
-            {plate && <Badge variant="neutral" className="font-mono">{plate}</Badge>}
           </div>
 
           {/* Plan facts as a definition list (element-specs §10: GOV.UK summary
@@ -841,81 +862,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           </Badge>
         )}
       </div>
-
-      {/* PHONE (3): the PHOTO SECTION IS THE BODY (E10) — segmented phase,
-          « 12/40 » counter, two explicit capture affordances, 3-column grid.
-          No toggle card in front of it: the agent came here to shoot. */}
-      {isPhone && (
-        <section aria-label={`${t('Photos')} — ${t(activeTab)}`} data-tour="atgd-photos-toggle">
-          {/* Phase segments — 40 px, equal width, preselected from ?mission=. */}
-          <div role="tablist" aria-label={t('Phase de la mission')} className="mb-3 grid grid-cols-3 gap-1 rounded-lg bg-surface-2 p-1">
-            {MISSION_TABS.map((tab) => {
-              const selected = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  onClick={() => setActiveTab(tab.id as 'Avant' | 'En cours' | 'Après')}
-                  className={cn(
-                    'h-10 rounded-md text-[13px] font-medium transition-colors',
-                    selected ? 'bg-card text-ink shadow-rim' : 'text-ink-3',
-                  )}
-                >
-                  {t(tab.label)}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2" data-tour="atgd-photo-actions">
-            <span className="t-caption tabular-nums">
-              {filteredPhotos.length}/{photoCap} {t('photos')}
-            </span>
-            {canEdit && (
-              <div className="flex items-center gap-2">
-                {/* « Importer » — NO `capture` attribute, so the OS sheet still
-                    offers the gallery (MDN: with `capture` the camera REPLACES
-                    the file picker). The camera has its own button and its own
-                    in-app screen; one input can never be both. */}
-                <Button
-                  variant="ghost"
-                  className="h-11 gap-2 px-3 text-[14px]"
-                  disabled={isUploading}
-                  onClick={() => galleryInputRef.current?.click()}
-                >
-                  <Upload className="h-4 w-4" />
-                  {t('Importer')}
-                </Button>
-                {isATG && (
-                  <Button
-                    variant={propositionReforme ? 'tonal' : 'outline'}
-                    aria-pressed={propositionReforme}
-                    className="h-11 px-3 text-[14px]"
-                    disabled={!dossierRef}
-                    onClick={togglePropositionReforme}
-                  >
-                    {propositionReforme ? t('Annuler la réforme') : t('Réforme')}
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {filteredPhotos.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-hairline-strong py-12 text-center">
-              <Camera className="h-10 w-10 text-ink-4" aria-hidden />
-              <p className="t-body-sm font-medium text-ink-2">
-                {`${t('Aucune photo')} ${t(activeTab).toLowerCase()}`}
-              </p>
-              <p className="t-caption">{t('Utilisez « Prendre des photos » en bas de l’écran.')}</p>
-            </div>
-          ) : (
-            <PhotoGrid photos={filteredPhotos} onOpen={(photo) => setPreviewPhoto(photo)} />
-          )}
-        </section>
-      )}
 
       {/* Observations section — scoped to the AT's current mission tab. The
           panel auto-tags new obs with phaseATG=activeTab (round 8 Q-3 → A)
@@ -1274,37 +1220,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         }}
       />
 
-      {/* PHONE: the ONE primary of the page, in the thumb zone. It replaces
-          the navigation bar (E4) and states the cap instead of hiding it. */}
-      {isPhone && canEdit && (
-        <BottomActionBar
-          primary={{
-            // The label never changes (the action is still what it is); the
-            // caption below carries the reason it is closed (E4 — a disabled
-            // primary must say WHY, not rename itself).
-            label: t('Prendre des photos'),
-            icon: <Camera />,
-            onClick: () => setIsCameraOpen(true),
-            disabled: atPhotoCap || isUploading,
-            loading: isUploading,
-            dataTour: 'atgd-camera',
-          }}
-          secondary={[
-            ...(assureTelephoneHref
-              ? [{ label: t('Appeler'), icon: <Phone />, href: `tel:${assureTelephoneHref}` }]
-              : []),
-            ...(filteredPlans[0]?.adresse
-              ? [{
-                  label: t('Itinéraire'),
-                  icon: <Navigation />,
-                  href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(filteredPlans[0].adresse)}`,
-                  external: true,
-                }]
-              : []),
-          ]}
-          caption={atPhotoCap ? `${t('Photos complètes')} (${filteredPhotos.length}/${photoCap})` : undefined}
-        />
-      )}
+      {/* PHONE: the bottom action bar (Itinéraire · Confirmer l’arrivée ·
+          Prendre des photos) is rendered by <PhoneMissionScreen> above. */}
     </div>
   );
 }

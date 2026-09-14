@@ -36,6 +36,15 @@ import { cn } from '@/lib/utils';
 import { useT, dateFnsLocale } from '@/i18n';
 import { JoursFeriesSkeleton } from './loading';
 import { useIsPhone } from '@/hooks/use-viewport-class';
+// Mobile redesign 2026-09-14 (Phone.dc.html 571–583): the holiday list is a
+// column of RecordCards under a dashed « + Nouveau jour férié »; the three
+// « ajouter / importer » cards open as ONE full-screen sheet from the bar's
+// « + »; a card tap offers the row's delete as an ActionSheet.
+import { Plus } from 'lucide-react';
+import { usePhoneChrome } from '@/components/layout/page-chrome';
+import { RecordCardList } from '@/components/ui/record-card';
+import { ActionSheet } from '@/components/ui/action-sheet';
+import { PhoneAdminCard, PhoneCreateButton, PhoneCreateHost } from '@/components/admin/phone-admin-list';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -171,20 +180,44 @@ export default function JoursFeriesSettingsPage() {
     return { items: parsed, nextId: next };
   }, [sorted]);
 
-  // Mobile pass 2026-09-06 (mobile-synthesis §4): below md the pill GRID
-  // becomes ONE grouped list — a sticky 40 px year header per group
-  // (research §9), full-bleed rows, hairlines only.
+  // Below md the pill GRID becomes a column of RecordCards (mobile redesign
+  // 2026-09-14; supersedes the 2026-09-06 year-grouped list).
   const isPhone = useIsPhone();
-  const yearGroups = useMemo(() => {
-    const groups: { year: string; rows: typeof items }[] = [];
-    for (const it of items) {
-      const year = it.date ? String(it.date.getFullYear()) : '—';
-      const last = groups[groups.length - 1];
-      if (last && last.year === year) last.rows.push(it);
-      else groups.push({ year, rows: [it] });
-    }
-    return groups;
-  }, [items]);
+
+  // Mobile redesign 2026-09-14 — phone state (hooks before the early return
+  // below): bar search over the printed date / ISO label, the create sheet,
+  // the tapped card's ActionSheet.
+  const [phoneSearch, setPhoneSearch] = useState('');
+  const [phoneCreateOpen, setPhoneCreateOpen] = useState(false);
+  const [phoneActionId, setPhoneActionId] = useState<string | null>(null);
+  const phoneItems = useMemo(() => {
+    const q = phoneSearch.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((o) => {
+      const printed = o.date ? format(o.date, 'EEEE d MMMM yyyy', { locale: dateFnsLocale() }) : '';
+      return o.label.toLowerCase().includes(q) || printed.toLowerCase().includes(q);
+    });
+  }, [items, phoneSearch]);
+  const phoneCreateLabel = t('Nouveau jour férié');
+  usePhoneChrome(
+    useMemo(
+      () =>
+        isPhone
+          ? {
+              count: loading ? null : phoneItems.length,
+              search: {
+                value: phoneSearch,
+                onChange: setPhoneSearch,
+                placeholder: t('Date, AAAA-MM-JJ…'),
+                ariaLabel: t('Rechercher un jour férié'),
+              },
+              primaryAction: { label: phoneCreateLabel, icon: <Plus className="h-5 w-5" />, onClick: () => setPhoneCreateOpen(true), dataTour: 'jf-add' },
+            }
+          : null,
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [isPhone, loading, phoneItems.length, phoneSearch, phoneCreateLabel],
+    ),
+  );
 
   const router = useRouter();
   React.useEffect(() => {
@@ -452,6 +485,10 @@ export default function JoursFeriesSettingsPage() {
         count={loading ? undefined : options.length}
       />
 
+      {/* PHONE — cards 1–3 (ajouter · importer depuis une image · importer des
+          dates) re-parented into the « Nouveau jour férié » sheet (design
+          991–998); inline from md up with the same 32 px rhythm. */}
+      <PhoneCreateHost isPhone={isPhone} open={phoneCreateOpen} onOpenChange={setPhoneCreateOpen} title={phoneCreateLabel} inlineClassName="space-y-8">
       {/* Card 1 — element-specs §5; inline add row is the original layout. */}
       <Card data-tour="jf-add">
         <CardHeader className="max-md:p-4 max-md:pb-2">
@@ -567,10 +604,13 @@ export default function JoursFeriesSettingsPage() {
           </div>
         </CardContent>
       </Card>
+      </PhoneCreateHost>
 
-      {/* Card 4 — the current list as a pill grid (original layout). */}
-      <Card data-tour="jf-list">
-        <CardHeader className="max-md:p-4 max-md:pb-2">
+      {/* Card 4 — the current list as a pill grid (original layout).
+          PHONE: the frame and its header go (the bar names the segment and
+          carries the count); the rows become cards on the page background. */}
+      <Card data-tour="jf-list" className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+        <CardHeader className="max-md:hidden">
           <CardTitle className="t-heading flex items-center gap-2">
             {/* Section anchor chip (neutral — terracotta = time, 2026-09-02) — addendum 1b: one IconChip beside the section
                 that anchors the page (the calendar list). */}
@@ -582,7 +622,7 @@ export default function JoursFeriesSettingsPage() {
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="max-md:p-4 max-md:pt-0">
+        <CardContent className="max-md:p-0">
           {loading ? (
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -673,24 +713,59 @@ export default function JoursFeriesSettingsPage() {
                 );
               };
 
-              // PHONE — one grouped list: a sticky 40 px year header per group
-              // (bg-surface-2 SOLID, never glass), full-bleed hairline rows.
+              // PHONE (mobile redesign 2026-09-14, design 571–583) — dashed
+              // « + Nouveau jour férié » then one card per date: 8 px tile
+              // with the day number (terracotta = time: solid for THE next
+              // holiday, tint for upcoming, neutral for the past) · the full
+              // French date · « Prochain jour férié » / « Passé » / ISO ·
+              // chip « Prochain » (time) or « 1 j » · ›. Tap = the row's
+              // delete as an ActionSheet (undo-first toast, as on desktop).
               if (isPhone) {
                 return (
-                  <div className="-mx-4">
-                    {yearGroups.map((g) => (
-                      <section key={g.year}>
-                        <h3 className="sticky top-0 z-10 flex h-10 items-center gap-2 border-y border-hairline bg-surface-2 px-4">
-                          <span className="t-label">{g.year}</span>
-                          <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
-                            {g.rows.length}
-                          </span>
-                        </h3>
-                        <ul className="divide-y divide-hairline" aria-label={`${t('Jours fériés')} ${g.year}`}>
-                          {g.rows.map((o) => renderRow(o, true))}
-                        </ul>
-                      </section>
-                    ))}
+                  <div className="flex flex-col gap-2 md:hidden">
+                    <PhoneCreateButton label={phoneCreateLabel} onClick={() => setPhoneCreateOpen(true)} />
+                    {phoneItems.length === 0 ? (
+                      <EmptyState
+                        icon={<CalendarDays />}
+                        title={t('Aucun jour férié pour cette recherche')}
+                        description={`${t('Aucune date ne contient')} « ${phoneSearch.trim()} ».`}
+                        action={<Button variant="tonal" onClick={() => setPhoneSearch('')}>{t('Effacer la recherche')}</Button>}
+                        className="bg-transparent"
+                      />
+                    ) : (
+                      <RecordCardList ariaLabel={t('Jours fériés')}>
+                        {phoneItems.map((o) => {
+                          const upcoming = o.id === nextId;
+                          const printed = o.date ? capitalize(format(o.date, 'EEEE d MMMM yyyy', { locale: dateFnsLocale() })) : o.label;
+                          return (
+                            <PhoneAdminCard
+                              key={o.id}
+                              recordId={o.id}
+                              name={printed}
+                              meta={
+                                upcoming
+                                  ? <span className="font-medium text-tertiary-deep">{t('Prochain jour férié')}</span>
+                                  : o.past
+                                    ? t('Passé')
+                                    : <span className="font-mono tabular-nums">{o.label}</span>
+                              }
+                              chip={upcoming ? { label: t('Prochain'), tone: 'time' } : { label: `1 ${t('j')}`, tone: 'neutral' }}
+                              avatar={<span className="text-[13px] font-semibold tabular-nums">{o.date ? format(o.date, 'd') : '—'}</span>}
+                              avatarClassName={
+                                upcoming
+                                  ? 'bg-tertiary text-tertiary-foreground shadow-rim-filled'
+                                  : o.past
+                                    ? 'text-ink-3'
+                                    : 'bg-tertiary-bg text-tertiary-deep'
+                              }
+                              onClick={canDelete ? () => setPhoneActionId(o.id) : undefined}
+                              disabled={deletingId === o.id}
+                              ariaLabel={printed}
+                            />
+                          );
+                        })}
+                      </RecordCardList>
+                    )}
                   </div>
                 );
               }
@@ -704,6 +779,28 @@ export default function JoursFeriesSettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* PHONE — a holiday card's one action (the desktop row's delete). */}
+      {isPhone && (
+        <ActionSheet
+          open={!!phoneActionId}
+          onOpenChange={(open) => !open && setPhoneActionId(null)}
+          title={(() => {
+            const o = items.find((it) => it.id === phoneActionId);
+            return o ? (o.date ? capitalize(format(o.date, 'EEEE d MMMM yyyy', { locale: dateFnsLocale() })) : o.label) : '';
+          })()}
+          items={[
+            {
+              key: 'delete',
+              label: t('Supprimer le jour férié'),
+              icon: <Trash2 />,
+              destructive: true,
+              hidden: !canDelete,
+              onSelect: () => { if (phoneActionId) void handleDelete(phoneActionId); },
+            },
+          ]}
+        />
+      )}
 
     </div>
   );

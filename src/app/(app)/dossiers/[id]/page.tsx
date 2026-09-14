@@ -3,7 +3,7 @@
 import React, { useState, useMemo, use, useCallback, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Calculator, Camera, CalendarPlus, FileText, MessageSquarePlus, Save, Undo2 } from 'lucide-react';
+import { ArrowLeft, Calculator, Camera, CalendarPlus, FileText, MessageSquarePlus, Phone, Save, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDoc, useFirestore } from '@/firebase';
 import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
@@ -45,7 +45,6 @@ import {
   nextStep as computeNextStep,
   photoCategoryForStep,
   primaryActionForStep,
-  stepPosition,
   visitTypeForStep,
   type StepState,
 } from '@/lib/dossier-steps';
@@ -63,10 +62,12 @@ import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-gr
 import ObservationsTab, { NEW_OBSERVATION_EVENT } from '@/components/observations-tab';
 import PhotosTab from '@/app/(app)/dossiers/[id]/photos-tab';
 
-// ── Phone shells (mobile pass 2026-09-06 — research mobile-record-pages.md) ──
-import { PhoneHub } from './phone/hub';
+// ── Phone shells (mobile redesign 2026-09-14 — Phone.dc.html dossier detail) ──
+// The record lands directly on the current step; the hub (./phone/hub) is
+// retired and no longer routed to.
 import { PhoneStepScreen } from './phone/step-screen';
 import { PhoneHistoriqueScreen } from './phone/historique-screen';
+import { usePhotoCounts } from './phone/use-photo-counts';
 
 // ── Historique (kept for drawer dialog; full drawer in task #17) ─────────────
 import HistoriqueTab from './historique-tab';
@@ -182,6 +183,8 @@ function DossierDetail({ id }: { id: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isPhone = useIsPhone();
+  // Phone only: the « Photos » facet badge (the listener stays off on desktop).
+  const photoCounts = usePhotoCounts(isPhone ? id : null);
 
   // ── URL grammar (E12) ─────────────────────────────────────────────────────
   // `?etape=N&onglet=x` · `?vue=historique`, all on THIS route so the live
@@ -446,6 +449,14 @@ function DossierDetail({ id }: { id: string }) {
   const viewDossier = effectiveDossier ?? dossier;
   // Badges the Informations tab with the number of still-empty required fields.
   const missingFields = getMissingRequiredFields(viewDossier);
+  // Phone only (design: « Photos 12 »): the count, neutral; amber « 0 » while
+  // the visit is planned and its photos are still awaited. Desktop: no badge.
+  const photoBadge = (stepId: number, cat: 'avant' | 'en_cours' | 'apres'): StepTab['badge'] => {
+    if (!isPhone) return undefined;
+    const n = photoCounts[cat];
+    if (n > 0) return { kind: 'progress', label: String(n) };
+    return findStep(stepStates, stepId)?.status === 'in_progress' ? { kind: 'warn', label: '0' } : undefined;
+  };
 
   // ── Facets, declared once ────────────────────────────────────────────────
   // The desktop timeline wraps each list in a <StepTabs>; the phone step
@@ -479,7 +490,7 @@ function DossierDetail({ id }: { id: string }) {
     ],
     4: [
       { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" /> },
-      { value: 'photos', label: t('Photos'), icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="avant" /> },
+      { value: 'photos', label: t('Photos'), icon: <Camera />, badge: photoBadge(4, 'avant'), content: <PhotosTab dossierId={id} onlyCategory="avant" /> },
       // data-tour: the guided tour points at the observations pane here.
       { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <div data-tour="dosd-observations"><ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Avant" /></div> },
     ],
@@ -489,7 +500,7 @@ function DossierDetail({ id }: { id: string }) {
     ],
     9: [
       { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" /> },
-      { value: 'photos', label: t('Photos'), icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="en_cours" /> },
+      { value: 'photos', label: t('Photos'), icon: <Camera />, badge: photoBadge(9, 'en_cours'), content: <PhotosTab dossierId={id} onlyCategory="en_cours" /> },
       { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="En cours" /> },
     ],
     11: [
@@ -500,7 +511,7 @@ function DossierDetail({ id }: { id: string }) {
     ],
     10: [
       { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" /> },
-      { value: 'photos', label: t('Photos'), icon: <Camera />, content: <PhotosTab dossierId={id} onlyCategory="apres" /> },
+      { value: 'photos', label: t('Photos'), icon: <Camera />, badge: photoBadge(10, 'apres'), content: <PhotosTab dossierId={id} onlyCategory="apres" /> },
       { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Après" /> },
     ],
   };
@@ -521,8 +532,12 @@ function DossierDetail({ id }: { id: string }) {
     ...singleSections,
   };
 
-  // ── Phone: hub · step screen · historique screen ─────────────────────────
-  const phoneStep = isPhone ? findStep(stepStates, urlStep) : null;
+  // ── Phone: step screen · historique screen ───────────────────────────────
+  // `/dossiers/[id]` without `?etape` lands on the CURRENT step (in progress,
+  // else the first to do, else the last) — the hub is retired.
+  const phoneStep = isPhone
+    ? findStep(stepStates, urlStep) ?? computeNextStep(stepStates) ?? stepStates[stepStates.length - 1] ?? null
+    : null;
   const phoneTabs = phoneStep ? stepTabs[phoneStep.id] ?? null : null;
   const phoneFacet = phoneStep
     ? (phoneTabs && phoneTabs.some((tab) => tab.value === urlTab) ? urlTab : phoneTabs?.[0]?.value ?? null)
@@ -589,14 +604,16 @@ function DossierDetail({ id }: { id: string }) {
           : t('Dès que les pièces requises sont reçues'))
       : undefined;
 
-  // The phone top bar's title + up-link, resolved for the screen in view (E3).
-  // « ‹ Dossier » from a sub-screen, « ‹ Dossiers » from the hub.
-  const phoneTitle = historiqueView
-    ? t('Historique')
-    : phoneStep
-      ? `${stepPosition(phoneStep.id)} · ${t(phoneStep.label)}`
-      : null;
-  const onSubScreen = historiqueView || !!phoneStep;
+  // The phone top bar's title + up-link, resolved for the screen in view.
+  // Step screens: the mono ref + statut chip (RecordBar's default) and
+  // « ‹ Dossiers »; the historique screen: « Historique » and « ‹ Dossier ».
+  const phoneTitle = historiqueView ? t('Historique') : null;
+
+  // ☏ in the bottom bar when the assuré has a phone number (design: the
+  // dossier's two icon actions are « Appeler » and « Rappel »; there is no
+  // single-dossier rappel flow in the app yet, so only the call ships).
+  const assurePhoneRaw = viewDossier?.assure?.telephone;
+  const assurePhone = typeof assurePhoneRaw === 'string' && assurePhoneRaw.trim() ? assurePhoneRaw.replace(/[\s.]+/g, '') : null;
 
   // A read-only reader never gets a bar — not even the rappel one (the draft
   // buffer is inactive for them, so there would be nothing to save).
@@ -635,6 +652,9 @@ function DossierDetail({ id }: { id: string }) {
           },
         ]
       : [];
+  if (!readOnly && assurePhone) {
+    barSecondary.push({ label: t("Appeler l'assuré"), icon: <Phone />, href: `tel:${assurePhone}` });
+  }
 
   const phoneBar =
     isPhone && !historiqueView && (barPrimary || barSecondary.length > 0) ? (
@@ -678,8 +698,8 @@ function DossierDetail({ id }: { id: string }) {
         onChiffrage={() => setChiffrageModalOpen(true)}
         onGoToStep={goToStep}
         phoneTitle={phoneTitle}
-        upHref={onSubScreen ? hubUrl(id) : '/dossiers'}
-        upLabel={onSubScreen ? 'Dossier' : 'Dossiers'}
+        upHref={historiqueView ? hubUrl(id) : '/dossiers'}
+        upLabel={historiqueView ? 'Dossier' : 'Dossiers'}
       />
 
       {isPhone ? (
@@ -688,25 +708,20 @@ function DossierDetail({ id }: { id: string }) {
         ) : phoneStep ? (
           <PhoneStepScreen
             dossierId={id}
+            dossier={viewDossier}
             steps={stepStates}
             step={phoneStep}
             tabs={phoneTabs}
             content={singleSections[phoneStep.id]}
             activeTab={phoneFacet}
             onTabChange={(tab) => setFacet(phoneStep.id, tab)}
-          />
-        ) : (
-          <PhoneHub
-            dossierId={id}
-            dossier={viewDossier}
-            steps={stepStates}
             requiredDocs={requiredDocs.status}
             readOnly={readOnly}
             onGoToStep={goToStep}
             onPlanifier={(type) => handleNewPlanification(type)}
             onChiffrage={() => setChiffrageModalOpen(true)}
           />
-        )
+        ) : null
       ) : (
         /* TIMELINE CONTENT (+ context column on wide screens) — unchanged. */
         <div

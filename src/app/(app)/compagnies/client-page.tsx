@@ -44,6 +44,13 @@ import { useIsPhone } from '@/hooks/use-viewport-class';
 import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
 import { LoadMore, useRenderCap } from '@/components/ui/load-more';
 import { usePhoneChrome } from '@/components/layout/page-chrome';
+// Mobile redesign 2026-09-14 (Phone.dc.html 571–583): the compagnie grid is a
+// column of RecordCards under a dashed « + Nouvelle compagnie »; the search
+// lives in the top bar. Creation reuses the options manager for `compagnies`
+// (the only place the app creates one) as a full-screen sheet.
+import { RecordCardList } from '@/components/ui/record-card';
+import { PhoneAdminCard, PhoneCreateButton } from '@/components/admin/phone-admin-list';
+import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 
 // ── Status chip (element-specs §11: Carbon tag / dataviz — status colours
 //    reserved, always with a label; one helper per domain). Local stand-in for
@@ -238,6 +245,16 @@ export default function CompagniesClientPage() {
   /* ------------------------------------------------------------------ */
   const isPhone = useIsPhone();
   const cap = useRenderCap(dossiers, 25, { signature: `${selectedId ?? ''}|${dateFrom}|${dateTo}` });
+  // PHONE list (design 845–850): local name search fed by the bar; the bar's
+  // « + » clicks the dashed button, which is the options-manager trigger
+  // (that dialog is uncontrolled) — Admin only, like the manager itself.
+  const [phoneSearch, setPhoneSearch] = useState('');
+  const phoneCreateRef = React.useRef<HTMLButtonElement>(null);
+  const canCreateCompagnie = profile?.role === 'Admin';
+  const phoneCompagnies = useMemo(() => {
+    const q = phoneSearch.trim().toLowerCase();
+    return q ? compagnies.filter((c) => c.nom.toLowerCase().includes(q)) : compagnies;
+  }, [compagnies, phoneSearch]);
   // On a compagnie's dashboard the phone top bar needs its own up-link (the
   // route is `/compagnies?selected=…`, so the crumb parent cannot infer it)
   // and the page primary (« Nouveau dossier » lives in `actions`, ≥ md only).
@@ -250,9 +267,22 @@ export default function CompagniesClientPage() {
               upLabel: 'Compagnies',
               primaryAction: { label: t('Nouveau dossier'), icon: <Plus className="h-5 w-5" />, onClick: () => setCreateOpen(true), dataTour: 'cie-new' },
             }
-          : null,
+          : isPhone
+            ? {
+                count: loadingCompagnies ? null : phoneCompagnies.length,
+                search: {
+                  value: phoneSearch,
+                  onChange: setPhoneSearch,
+                  placeholder: t('Nom de la compagnie…'),
+                  ariaLabel: t('Rechercher une compagnie'),
+                },
+                primaryAction: canCreateCompagnie
+                  ? { label: t('Nouvelle compagnie'), icon: <Plus className="h-5 w-5" />, onClick: () => phoneCreateRef.current?.click() }
+                  : null,
+              }
+            : null,
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [selectedCompagnie?.id],
+      [selectedCompagnie?.id, isPhone, loadingCompagnies, phoneCompagnies.length, phoneSearch, canCreateCompagnie],
     ),
   );
 
@@ -282,7 +312,56 @@ export default function CompagniesClientPage() {
             created here). Title and subtitle come from nav-groups. */}
         <PageHeader title={pageTitle} subtitle={pageSubtitle} count={compagnies.length} />
 
-        {compagnies.length === 0 ? (
+        {isPhone ? (
+          // PHONE — dashed create button (the options-manager trigger, Admin
+          // only) then one card per compagnie: 8 px logo/initials tile ·
+          // name · › (design 573–581). No per-compagnie dossier counts are
+          // loaded on this page, so the meta is the card's own caption.
+          <div className="flex flex-col gap-2 md:hidden">
+            {canCreateCompagnie && (
+              <OptionsManagerModal
+                collectionName="compagnies"
+                title={t('Compagnies')}
+                trigger={<PhoneCreateButton ref={phoneCreateRef} label={t('Nouvelle compagnie')} />}
+              />
+            )}
+            {compagnies.length === 0 ? (
+              <EmptyState
+                icon={<Building2 />}
+                title={t('Aucune compagnie accessible')}
+                description={t("Aucune compagnie partenaire n'est visible avec vos permissions actuelles.")}
+                dashed={false}
+                className="bg-transparent"
+              />
+            ) : phoneCompagnies.length === 0 ? (
+              <EmptyState
+                icon={<Building2 />}
+                title={t('Aucune compagnie pour cette recherche')}
+                description={`${t('Aucun nom ne contient')} « ${phoneSearch.trim()} ».`}
+                action={<Button variant="tonal" onClick={() => setPhoneSearch('')}>{t('Effacer la recherche')}</Button>}
+                className="bg-transparent"
+              />
+            ) : (
+              <RecordCardList ariaLabel={t('Compagnies partenaires')} data-tour="cie-grid">
+                {phoneCompagnies.map((c) => (
+                  <PhoneAdminCard
+                    key={c.id}
+                    recordId={c.id}
+                    name={c.nom}
+                    meta={t("Visualiser l'activité globale")}
+                    avatar={
+                      c.logoUrl && !logoErrors.has(c.id) ? (
+                        <img src={c.logoUrl} alt="" className="h-full w-full object-contain p-0.5" onError={() => markLogoFailed(c.id)} />
+                      ) : undefined
+                    }
+                    href={`/compagnies?selected=${c.id}`}
+                    ariaLabel={`${t('Ouvrir')} ${c.nom}`}
+                  />
+                ))}
+              </RecordCardList>
+            )}
+          </div>
+        ) : compagnies.length === 0 ? (
           // Empty state (§12): state + reason; no action the reader can take
           // (access is granted by an admin on /utilisateurs).
           <EmptyState

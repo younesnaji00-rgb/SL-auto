@@ -28,6 +28,10 @@ import { GestionnaireDashboard } from './gestionnaire-dashboard';
 import { ChiffreurDashboard } from './chiffreur-dashboard';
 import { TerrainDashboard } from './terrain-dashboard';
 import { AdminDashboard } from './admin-dashboard';
+// Phone (mobile redesign 2026-09-14): one column — KPI line + blocks — from the
+// same metric layer; the admin shell handles its own phone branch.
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { PhoneChiffreurDashboard, PhoneGestionnaireDashboard, PhoneTerrainDashboard } from './phone-dashboard';
 
 const ADMIN_ROLES = ['Admin', "Responsable d'équipe"];
 const PERSONAL_ROLES = ['Gestionnaire', 'Chiffreur', 'Agent de Terrain'];
@@ -54,6 +58,7 @@ function DashboardInner({ role }: { role: string }) {
   const t = useT();
   const { profile } = useCurrentUser();
   const isAdmin = ADMIN_ROLES.includes(role);
+  const isPhone = useIsPhone();
   // The workflow logs are the Direction view's « touches par dossier » — admin only.
   const data = useDashboardData({ withUsers: isAdmin, withWorkflow: isAdmin, withRappels: role === 'Gestionnaire' });
   const { dossiers, chiffrages, missions, holidays, loading } = data;
@@ -79,7 +84,7 @@ function DashboardInner({ role }: { role: string }) {
         : t('Ce qui vous attend, ce qui attend un tiers, ce qui n’a pas bougé.');
 
   return (
-    <div className="flex-1 space-y-6">
+    <div className={isPhone ? 'flex-1 space-y-2' : 'flex-1 space-y-6'}>
       {!isAdmin && (
         <PageHeader title={t('Tableau de bord')} subtitle={subtitle} size="compact" meta={<Freshness at={data.updatedAt} />} />
       )}
@@ -97,11 +102,16 @@ function DashboardInner({ role }: { role: string }) {
           updatedAt={data.updatedAt}
         />
       )}
-      {role === 'Gestionnaire' && (
+      {isPhone && role === 'Gestionnaire' && (
+        <PhoneGestionnaireDashboard dossiers={dossiers} chiffrages={chiffrages} sla={sla} rappelsRecus={data.rappelsRecus} holidays={holidays} now={now} person={person} loading={loading} />
+      )}
+      {isPhone && role === 'Chiffreur' && <PhoneChiffreurDashboard chiffrages={chiffrages} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
+      {isPhone && role === 'Agent de Terrain' && <PhoneTerrainDashboard missions={missions} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
+      {!isPhone && role === 'Gestionnaire' && (
         <GestionnaireDashboard dossiers={dossiers} chiffrages={chiffrages} sla={sla} rappelsRecus={data.rappelsRecus} holidays={holidays} now={now} person={person} loading={loading} />
       )}
-      {role === 'Chiffreur' && <ChiffreurDashboard chiffrages={chiffrages} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
-      {role === 'Agent de Terrain' && <TerrainDashboard missions={missions} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
+      {!isPhone && role === 'Chiffreur' && <ChiffreurDashboard chiffrages={chiffrages} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
+      {!isPhone && role === 'Agent de Terrain' && <TerrainDashboard missions={missions} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
     </div>
   );
 }

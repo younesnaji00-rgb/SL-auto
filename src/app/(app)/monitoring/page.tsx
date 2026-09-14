@@ -102,6 +102,10 @@ import {
 
 type DrawerMode = 'realise' | 'nonRealise' | 'horsDelai';
 import { DossierDrawer } from './dossier-drawer';
+// Mobile redesign 2026-09-14: below md the header filters, the headline tiles
+// and the tab list are replaced by scope pills + KPI line + funnel + team
+// cards (phone-suivi.tsx); the compagnie / user tables keep their phone form.
+import { PhoneSuivi, PhoneSuiviPills } from './phone-suivi';
 
 const tabular = { fontVariantNumeric: 'tabular-nums' as const };
 
@@ -291,6 +295,7 @@ export default function MonitoringPage() {
   const db = useFirestore();
   const { profile } = useCurrentUser();
   const { compagnies: allCompagnies } = useCompagnies();
+  const isPhone = useIsPhone();
 
   const [dossiers, setDossiers] = useState<FunnelDossier[]>([]);
   const [workflowLogs, setWorkflowLogs] = useState<WorkflowLog[]>([]);
@@ -605,11 +610,14 @@ export default function MonitoringPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className={cn('space-y-8', isPhone && 'space-y-2')}>
+      {/* Phone: the header is empty (title in the bar, filters → pills) and is
+          taken out of the flow so the sticky pills sit flush under the bar. */}
       <PageHeader
+        className={isPhone ? 'hidden' : undefined}
         title={t("Suivi d'équipe")}
         subtitle={t('Étapes franchies et délais tenus — les délais sont ceux des assignations chiffrage et terrain (24 h ouvrées).')}
-        filters={
+        filters={isPhone ? undefined : (
         <div data-tour="mon-periode" className="flex flex-wrap items-end gap-2">
           {/* Sliding thumb carries the selection (motion-spec addendum ter);
               the buttons stay ghost and only recolour. « Tout » = the all-time
@@ -680,13 +688,22 @@ export default function MonitoringPage() {
             {t('Réinitialiser')}
           </Button>
         </div>
-        }
+        )}
       />
+
+      {isPhone && (
+        <PhoneSuiviPills
+          activePreset={activePreset}
+          onPreset={(p) => (p === 'tout' ? applyTout() : p === 'jour' ? applyJour() : p === 'semaine' ? applySemaine() : applyMois())}
+          vue={vue}
+          onChangeVue={changeVue}
+        />
+      )}
 
       {/* Page summary (Few: summary before detail) — above the tabs so the four
           numbers stay in view while a breakdown is compared against them
           (NN/g tabs: never make the reader switch tabs to compare). */}
-      {loading ? (
+      {isPhone ? null : loading ? (
         <div aria-busy="true" className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="paper space-y-3 p-4">
@@ -702,10 +719,27 @@ export default function MonitoringPage() {
         )
       )}
 
+      {isPhone && vue === 'global' && (
+        <PhoneSuivi
+          onChangeVue={changeVue}
+          periodLabel={periodLabel}
+          headline={headline}
+          counts={globalCounts}
+          horsDelaiCounts={globalHorsDelaiCounts}
+          cycleTimes={cycleTimes}
+          users={dedupedPerUser}
+          totalDossiers={totalDossiersInScope}
+          loading={loading}
+          onSelectStep={openDrawer}
+        />
+      )}
+      {isPhone && vue === 'compagnie' && <CompagnieView rows={perCompagnie} loading={loading} periodLabel={periodLabel} />}
+
+      {(!isPhone || vue === 'user') && (
       <Tabs value={vue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-6">
         {/* Phones: three full-width cells, icons dropped (the French labels
             already exceed the 390 px budget with them). */}
-        <TabsList data-tour="mon-tabs" className="max-md:w-full">
+        <TabsList data-tour="mon-tabs" className={cn('max-md:w-full', isPhone && 'hidden')}>
           <TabsTrigger value="global" data-tour="mon-tab-global" className="gap-2 max-md:flex-1 max-md:px-2">
             <Gauge className="h-4 w-4 max-md:hidden" />
             {t('Global')}
@@ -804,6 +838,7 @@ export default function MonitoringPage() {
           <UserView rows={filteredPerUser} loading={loading} userLookup={userLookup} periodLabel={periodLabel} />
         </TabsContent>
       </Tabs>
+      )}
 
       <DossierDrawer
         open={selectedStep != null}

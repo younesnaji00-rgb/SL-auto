@@ -80,8 +80,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 // moves into ONE « Filtres » sheet, the pager becomes « Afficher 25 de plus »,
 // and « Rappeler » drives the contextual selection bar + bottom action bar.
 import { useIsPhone } from '@/hooks/use-viewport-class';
-import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
-import { SearchRow, type SearchRowHandle } from '@/components/ui/search-row';
+// Mobile redesign 2026-09-14 (docs/mobile-redesign-brief.md): the rows became
+// `RecordCard`s, the search / sort / « Filtres » moved into the phone top bar
+// (`usePhoneChrome`), and a sticky `ScopePills` row replaced the KPI strip +
+// scope tabs. The phone UI itself lives in ./phone-dossier-list.tsx.
+import { RecordCardListSkeleton } from '@/components/ui/record-card';
+import { PhoneDossierList, PhoneDossierScopePills } from './phone-dossier-list';
+import { type SearchRowHandle } from '@/components/ui/search-row';
 import {
   FilterSheet,
   FilterSection,
@@ -718,6 +723,57 @@ export default function DossiersClientPage() {
   const phoneSortLabel =
     phoneSort === 'retard' ? t("En retard d'abord") : phoneSort === 'ancien' ? t('Plus anciens') : t('Plus récents');
 
+  // Bar chrome callbacks — stable identities: `usePhoneChrome` republishes on
+  // its primitive signature only and reads functions by identity.
+  const phoneSearchChange = useCallback((v: string) => { setFilters({ search: v }); setPage(1); }, [setFilters]);
+  const openPhoneFilters = useCallback(() => setPhoneFiltersOpen(true), []);
+  const openPhoneSort = useCallback(() => setPhoneSortOpen(true), []);
+
+  // Scope row: « À traiter · Tous · En retard » mirror the KPI tiles' filter
+  // writes (the strip itself is gone on phones); a status pill toggles the
+  // single-valued status filter.
+  const setPhoneScope = useCallback((scope: 'a-traiter' | 'tous' | 'retard') => {
+    if (scope === 'retard') setFilters({ scope: 'a-traiter', lateOnly: true, sortByCreation: 'asc' });
+    else setFilters({ scope, lateOnly: false });
+    setPage(1);
+  }, [setFilters]);
+  const togglePhoneStatus = useCallback((label: string) => {
+    setFilters((prev) => ({ ...prev, status: prev.status === label ? 'Tous' : label }));
+    setPage(1);
+  }, [setFilters]);
+  // Quick status pills = the statuses PRESENT in the data (faceted on every
+  // other filter, so a count is what the tap yields), canonical order, the 4
+  // largest + the applied one. Labels stay whole (never a family nickname).
+  const phoneStatusPills = useMemo(() => {
+    const present = filterStatuses
+      .map((s) => ({ label: s.label, count: facetCounts.status.get(s.label) ?? 0 }))
+      .filter((s) => s.count > 0 || s.label === filters.status);
+    const keep = new Set(
+      [...present].sort((a, b) => b.count - a.count).slice(0, 4).map((s) => s.label),
+    );
+    if (filters.status !== 'Tous') keep.add(filters.status);
+    return present.filter((s) => keep.has(s.label));
+  }, [filterStatuses, facetCounts.status, filters.status]);
+  const phoneIsLate = (d: any) => {
+    const age = ageDays(d?.createdAt);
+    return isActionNeeded(d?.statut) && age !== null && age >= LATE_AFTER_DAYS;
+  };
+
+  // Card bell → the page's « Envoyer à » rappel flow for ONE dossier: the
+  // send dialog reads `selectedRows`, so seed it with this row. A cancelled
+  // quick rappel must not leave that row pre-ticked for the next « Rappeler ».
+  const phoneQuickRappelRef = React.useRef(false);
+  const phoneQuickRappel = useCallback((d: any) => {
+    phoneQuickRappelRef.current = true;
+    setSelectedRows(new Set([d.id]));
+    setIsSendToOpen(true);
+  }, []);
+  useEffect(() => {
+    if (isSendToOpen || !phoneQuickRappelRef.current) return;
+    phoneQuickRappelRef.current = false;
+    if (!exportMode) setSelectedRows(new Set());
+  }, [isSendToOpen, exportMode]);
+
   // The cap resets whenever the visible set changes (filters / sort / search).
   const capSignature = useMemo(
     () =>
@@ -751,7 +807,26 @@ export default function DossiersClientPage() {
         : null,
     [isPhone, exportMode, selectedRows.size, handleCancelExport, allVisibleSelected, handleSelectAll],
   );
-  usePhoneChrome(useMemo(() => ({ selection: phoneSelection }), [phoneSelection]));
+  // Phone top bar: « Dossiers N » (the à-traiter count), the inline search with
+  // its « Trier : … » button, the « Filtres » icon + badge, and the selection
+  // bar while « Rappeler » is on. « Nouveau dossier » comes from the shell.
+  usePhoneChrome(useMemo(() => isPhone ? {
+    count: loading ? null : kpi.aTraiter,
+    search: {
+      value: filters.search,
+      onChange: phoneSearchChange,
+      placeholder: t('Réf., assuré, plaque…'),
+      ariaLabel: t('Rechercher un dossier'),
+      sortLabel: phoneSortLabel,
+      onSort: openPhoneSort,
+      dataTour: 'dos-search',
+    },
+    filters: { count: appliedFilterCount, onOpen: openPhoneFilters },
+    selection: phoneSelection,
+  } : { selection: phoneSelection }, [
+    isPhone, loading, kpi.aTraiter, filters.search, phoneSearchChange, phoneSortLabel, openPhoneSort,
+    appliedFilterCount, openPhoneFilters, phoneSelection, t,
+  ]));
 
   const handleDeleteDossier = (dossierId: string) => {
     // Optimistic UI: close the dialog and clear the spinner immediately. The
@@ -1048,7 +1123,7 @@ export default function DossiersClientPage() {
       <PageHeader
         title={pageTitle}
         subtitle={pageSubtitle}
-        count={loading ? undefined : dossierList.length}
+        count={loading || isPhone ? undefined : dossierList.length}
         tabs={isPhone ? undefined : scopeTabs}
         onSearchFocus={() => searchRowRef.current?.focus()}
         primaryAction={
@@ -1096,7 +1171,10 @@ export default function DossiersClientPage() {
       )}
 
       {/* KPI strip — actionable counters (each tile SETS a view/filter). The
-          « En retard » value is the page's only exception colour (§6). */}
+          « En retard » value is the page's only exception colour (§6).
+          Desktop/tablet only since the mobile redesign — on a phone the
+          sticky scope pills carry the same three counts. */}
+      {!isPhone && (
       <DossierKpiStrip
         dataTour="dos-kpis"
         loading={loading}
@@ -1139,29 +1217,28 @@ export default function DossiersClientPage() {
           },
         ]}
       />
+      )}
 
-      {/* PHONE — 48 px sticky search row (input + « Filtres » + « Trier »)
-          carrying the scope segments in its `below` slot, then the applied
-          chips. Everything the desktop toolbar and the column-header popovers
-          do lives in the « Filtres » sheet at the end of this file. */}
+      {/* PHONE — sticky scope pills flush under the bar (search, sort and
+          the « Filtres » icon live IN the bar via usePhoneChrome), then the
+          applied chips. Everything the desktop toolbar and the column-header
+          popovers do lives in the « Filtres » sheet at the end of this file. */}
       {/* Both are DIRECT children of the page block: a `position: sticky`
           element only travels inside its own containing block, so wrapping the
-          search row in a short div would unpin it after ~90 px of scroll. */}
+          pills row in a short div would unpin it after ~90 px of scroll. */}
       {isPhone && (
         <>
-          <SearchRow
-            ref={searchRowRef}
-            value={filters.search}
-            onChange={(v) => { setFilters({ search: v }); setPage(1); }}
-            placeholder={t('Réf., assuré, plaque…')}
-            ariaLabel={t('Rechercher un dossier')}
+          <PhoneDossierScopePills
+            scope={filters.scope}
+            lateOnly={filters.lateOnly}
+            statusFilter={filters.status}
+            counts={kpi}
+            statusPills={phoneStatusPills}
             filterCount={appliedFilterCount}
-            onFilters={() => setPhoneFiltersOpen(true)}
-            sortLabel={phoneSortLabel}
-            onSort={() => setPhoneSortOpen(true)}
-            dataTour="dos-search"
-            below={scopeTabs}
-            className="md:hidden"
+            loading={loading}
+            onScope={setPhoneScope}
+            onStatus={togglePhoneStatus}
+            onOpenFilters={openPhoneFilters}
           />
           <AppliedChips
             chips={appliedChips}
@@ -1422,14 +1499,16 @@ export default function DossiersClientPage() {
         </div>
       ) : null}
 
-      {/* PHONE — the 14-column table becomes a `<ul>` of 3-line rows
-          (research §1): réf + ancienneté · assuré · compagnie · statut +
-          observation. `md:hidden` keeps the pre-hydration paint right; the
-          `isPhone` gate keeps the table out of the phone's DOM. */}
+      {/* PHONE — the 14-column table becomes a column of expandable
+          `RecordCard`s (mobile redesign 2026-09-14): réf · assuré · compagnie
+          + observation, age + statut trailing; the chevron unfolds the field
+          grid and « Ouvrir le dossier · ☏ · 🔔 ». `md:hidden` keeps the
+          pre-hydration paint right; the `isPhone` gate keeps the table out of
+          the phone's DOM. */}
       {isPhone && (
         <div className="md:hidden">
           {loading ? (
-            <RecordListSkeleton count={6} lines={3} ariaLabel={t('Chargement des dossiers')} />
+            <RecordCardListSkeleton count={6} ariaLabel={t('Chargement des dossiers')} />
           ) : dossierList.length === 0 ? (
             <EmptyState
               icon={<FolderOpen />}
@@ -1450,70 +1529,34 @@ export default function DossiersClientPage() {
             />
           ) : (
             <>
-              <RecordList ariaLabel={t('Liste des dossiers')}>
-                {cap.rows.map((d: any) => {
-                  const age = ageDays(d.createdAt);
-                  const late = age !== null && isActionNeeded(d.statut) && age >= LATE_AFTER_DAYS;
-                  const created = d.createdAt?.toDate ? d.createdAt.toDate() : d.createdAt ? new Date(d.createdAt) : null;
-                  const isNew = created && !Number.isNaN(created.getTime()) && isToday(created);
-                  const figure = isNew ? (
-                    // Terracotta owns TIME only (element-specs §11).
-                    <Badge variant="time">{t("Aujourd'hui")}</Badge>
-                  ) : age === null ? null : late ? (
-                    <Badge variant="danger" className="tabular-nums">{age} {t('j')}</Badge>
-                  ) : (
-                    <span className="tabular-nums">{age} {t('j')}</span>
-                  );
-                  return (
-                    <RecordRow
-                      key={d.id}
-                      recordId={d.id}
-                      dataTour="dos-row"
-                      id={d.refExpert || <span className="font-sans font-normal text-ink-4">{t('Sans réf.')}</span>}
-                      figure={figure}
-                      primary={renderAssure(d.assure) || t('Assuré non renseigné')}
-                      secondary={d.compagnie || undefined}
-                      // Line 3 is ALWAYS present (owner call B-Q2) so the list
-                      // keeps an 84 px rhythm: the status chip alone when the
-                      // dossier has no open observation.
-                      line3={
-                        <>
-                          <StatusChip status={d.statut} data-tour="dos-statut-pill" />
-                          {d.lastObservation?.text && (
-                            <Badge variant="warning" className="min-w-0">
-                              <span className="truncate">{d.lastObservation.text}</span>
-                            </Badge>
-                          )}
-                        </>
-                      }
-                      leading={
-                        exportMode ? (
-                          <Checkbox
-                            className="pointer-events-none animate-in fade-in-0 zoom-in-75 duration-300 ease-enter motion-reduce:animate-none"
-                            checked={selectedRows.has(d.id)}
-                            tabIndex={-1}
-                            aria-hidden
-                          />
-                        ) : undefined
-                      }
-                      selected={exportMode ? selectedRows.has(d.id) : undefined}
-                      returned={returnedId === d.id}
-                      href={exportMode ? undefined : `/dossiers/${d.id}`}
-                      ariaLabel={`${d.refExpert || t('Sans réf.')} — ${renderAssure(d.assure)}`}
-                      onClick={(e) => {
-                        if (exportMode) {
-                          e.preventDefault();
-                          handleToggleRow(d.id);
-                          return;
-                        }
-                        onRowTap(d.id);
-                        writeDossierListOrder(dossierListRef.current.map((row) => row.id));
-                        openTab(d.id, dossierLabel(d), { preview: true });
-                      }}
-                    />
-                  );
-                })}
-              </RecordList>
+              <PhoneDossierList
+                rows={cap.rows}
+                ariaLabel={t('Liste des dossiers')}
+                exportMode={exportMode}
+                selectedRows={selectedRows}
+                returnedId={returnedId}
+                ageDays={ageDays}
+                isLate={phoneIsLate}
+                assureName={(d) => renderAssure(d.assure)}
+                creatorName={resolveCreatorName}
+                onHeaderTap={(d, e) => {
+                  if (exportMode) {
+                    e.preventDefault();
+                    handleToggleRow(d.id);
+                    return;
+                  }
+                  // The header is a real <Link>: record the scroll anchor and
+                  // the preview tab, let Next navigate.
+                  onRowTap(d.id);
+                  writeDossierListOrder(dossierListRef.current.map((row) => row.id));
+                  openTab(d.id, dossierLabel(d), { preview: true });
+                }}
+                onOpen={(d) => {
+                  onRowTap(d.id);
+                  openDossier(d, { preview: true });
+                }}
+                onRappel={phoneQuickRappel}
+              />
               <LoadMore
                 shown={cap.rows.length}
                 total={cap.total}

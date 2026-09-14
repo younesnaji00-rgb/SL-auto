@@ -74,13 +74,18 @@ import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { useT, t as translate } from '@/i18n';
 // Mobile pass 2026-09-06 (mobile-synthesis §4): below md the 6-column user
-// table becomes a `RecordList` (nom + rôle · zone/compagnies · statut) under a
+// table becomes a card list (nom + rôle · zone/compagnies · statut) under a
 // sticky search row, and the « Ajouter un utilisateur » form moves BELOW the
 // list (a phone opens this page to look someone up, not to create).
 import { useIsPhone } from '@/hooks/use-viewport-class';
-import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/record-row';
-import { SearchRow, type SearchRowHandle } from '@/components/ui/search-row';
 import { FilterSheet, FilterSection, FilterSelect, AppliedChips, type AppliedChip } from '@/components/ui/filter-sheet';
+// Mobile redesign 2026-09-14 (Phone.dc.html 571–583, turn 3 « création en
+// Admin »): the search and the « Filtres » live in the top bar, the list is a
+// column of RecordCards under a dashed « + Nouvel utilisateur » button, and
+// the creation form opens as a full-screen sheet from the bar's « + ».
+import { usePhoneChrome } from '@/components/layout/page-chrome';
+import { RecordCardList, RecordCardListSkeleton } from '@/components/ui/record-card';
+import { PhoneAdminCard, PhoneCreateButton, PhoneCreateHost } from '@/components/admin/phone-admin-list';
 
 // Built lazily (at validation time) so zod error messages follow the active
 // locale — never call t() at module top level.
@@ -172,6 +177,8 @@ export default function UtilisateursClientPage() {
   }, [emailParam]);
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // PHONE — the creation form as a full-screen sheet (closed after a success).
+  const [phoneCreateOpen, setPhoneCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string; self?: boolean } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -289,6 +296,7 @@ export default function UtilisateursClientPage() {
         description: `${data.nom} ${t('a été ajouté avec succès.')}`,
       });
       form.reset();
+      setPhoneCreateOpen(false);
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/email-already-in-use') {
@@ -369,7 +377,6 @@ export default function UtilisateursClientPage() {
   /* ------------------------------------------------------------------ */
   const isPhone = useIsPhone();
   const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
-  const searchRowRef = React.useRef<SearchRowHandle>(null);
   const appliedChips: AppliedChip[] = [];
   if (filters.role !== 'Tous') {
     appliedChips.push({ key: 'role', label: `${t('Rôle :')} ${t(filters.role)}`, onRemove: () => clearFilter('role') });
@@ -384,6 +391,35 @@ export default function UtilisateursClientPage() {
       return nameMatch && (f.role === 'Tous' || user.role === f.role);
     }).length;
 
+  // PHONE top bar (design 845–850): count on the « Utilisateurs » chip, the
+  // search field (« Nom, rôle… » format cue), the « Filtres » icon with its
+  // badge and the filled « + » that opens the creation sheet. The bar paints
+  // « Administration » + the area chips itself — no PageHeader title here.
+  const phoneCreateLabel = t('Nouvel utilisateur');
+  const phoneFilterCount = filters.role !== 'Tous' ? 1 : 0;
+  usePhoneChrome(
+    useMemo(
+      () =>
+        isPhone
+          ? {
+              count: loading ? null : filteredUsers.length,
+              onSearchFocus: null,
+              search: {
+                value: filters.search,
+                onChange: (v: string) => setFilters({ search: v }),
+                placeholder: t('Nom, rôle…'),
+                ariaLabel: t('Rechercher un utilisateur'),
+                dataTour: 'usr-search',
+              },
+              filters: { count: phoneFilterCount, onOpen: () => setPhoneFiltersOpen(true), dataTour: 'usr-filter-role' },
+              primaryAction: { label: phoneCreateLabel, icon: <Plus className="h-5 w-5" />, onClick: () => setPhoneCreateOpen(true), dataTour: 'usr-create' },
+            }
+          : null,
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [isPhone, loading, filteredUsers.length, filters.search, phoneFilterCount, phoneCreateLabel],
+    ),
+  );
+
   // Empty cell = « — » in ink-4 (element-specs §10: empty = "—", never a fake value).
   const emptyCell = <EmptyCell />;
 
@@ -396,13 +432,15 @@ export default function UtilisateursClientPage() {
         title={t('Utilisateurs')}
         subtitle={t('Ajouter, gérer et assigner des rôles aux utilisateurs.')}
         count={loading ? undefined : filteredUsers.length}
-        onSearchFocus={() => searchRowRef.current?.focus()}
       />
 
       {/* Original two-column layout (3d5629a): inline creation form left,
           « Gérer » card right. On a phone the two stack and the ORDER flips —
           the list first (lookup is the phone job), the creation form after. */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        {/* PHONE — the same form re-parented into the « Nouvel utilisateur »
+            full-screen sheet (design 991–998); inline from md up. */}
+        <PhoneCreateHost isPhone={isPhone} open={phoneCreateOpen} onOpenChange={setPhoneCreateOpen} title={phoneCreateLabel}>
         <div className="max-md:order-2 md:col-span-1">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -646,6 +684,7 @@ export default function UtilisateursClientPage() {
             </form>
           </Form>
         </div>
+        </PhoneCreateHost>
 
         <div className="max-md:order-1 md:col-span-2">
           <Card className="overflow-hidden max-md:border-0 max-md:bg-transparent max-md:shadow-none">
@@ -664,17 +703,8 @@ export default function UtilisateursClientPage() {
                   only travels inside its own containing block. */}
               {isPhone && (
                 <>
-                  <SearchRow
-                    ref={searchRowRef}
-                    value={filters.search}
-                    onChange={(v) => setFilters({ search: v })}
-                    placeholder={t('Nom, prénom ou email')}
-                    ariaLabel={t('Rechercher un utilisateur')}
-                    filterCount={filters.role !== 'Tous' ? 1 : 0}
-                    onFilters={() => setPhoneFiltersOpen(true)}
-                    dataTour="usr-search"
-                    className="md:hidden"
-                  />
+                  {/* Dashed « + Nouvel utilisateur » repeats the bar's « + » (design 571). */}
+                  <PhoneCreateButton label={phoneCreateLabel} onClick={() => setPhoneCreateOpen(true)} className="md:hidden" />
                   <AppliedChips chips={appliedChips} onClearAll={() => clearFilter('role')} className="md:hidden" />
                 </>
               )}
@@ -748,19 +778,23 @@ export default function UtilisateursClientPage() {
               {isPhone && (
                 <div className="md:hidden">
                   {loading ? (
-                    <RecordListSkeleton count={6} lines={3} ariaLabel={t('Chargement des utilisateurs')} />
+                    <RecordCardListSkeleton count={6} ariaLabel={t('Chargement des utilisateurs')} />
                   ) : filteredUsers.length === 0 ? (
                     <EmptyState
                       icon={<UserIcon />}
                       title={hasActiveFilters ? t('Aucun utilisateur pour ces filtres') : t('Aucun utilisateur')}
-                      description={hasActiveFilters ? t('Effacez la recherche ou le filtre de rôle.') : t('Le formulaire « Ajouter un utilisateur » crée le compte et son identifiant.')}
+                      description={hasActiveFilters ? t('Effacez la recherche ou le filtre de rôle.') : t('« Nouvel utilisateur » crée le compte et son identifiant.')}
                       action={hasActiveFilters ? (
                         <Button variant="tonal" onClick={clearAllFilters}>{t('Réinitialiser les filtres')}</Button>
-                      ) : undefined}
+                      ) : (
+                        <Button variant="tonal" onClick={() => setPhoneCreateOpen(true)}>{phoneCreateLabel}</Button>
+                      )}
                       className="bg-transparent"
                     />
                   ) : (
-                    <RecordList ariaLabel={t('Utilisateurs')}>
+                    // Cards (design 573–581): round initials · name · « rôle ·
+                    // zone / compagnies » · Actif (success) / Inactif (danger) · ›.
+                    <RecordCardList ariaLabel={t('Utilisateurs')}>
                       {filteredUsers.map((user: any) => {
                         const displayName = `${user.prenom || ''} ${user.nom || ''}`.trim() || t('Sans nom');
                         const statut = user.statut || 'Actif';
@@ -770,26 +804,21 @@ export default function UtilisateursClientPage() {
                           : compagnies.length <= 2
                             ? compagnies.map((c) => t(c)).join(', ')
                             : `${compagnies.length} ${t('compagnies')}`;
+                        const where = user.role === 'Agent de Terrain' && user.zone ? user.zone : compagniesLabel;
                         return (
-                          <RecordRow
+                          <PhoneAdminCard
                             key={user.id}
                             recordId={user.id}
-                            id={displayName}
-                            figure={user.role ? <Badge variant="neutral">{t(user.role)}</Badge> : null}
-                            primary={user.role === 'Agent de Terrain' && user.zone ? user.zone : compagniesLabel}
-                            secondary={user.role === 'Agent de Terrain' && user.zone ? compagniesLabel : undefined}
-                            line3={
-                              <>
-                                <Badge variant={statutVariant(statut)}>{t(statut)}</Badge>
-                                {user.email && <span className="truncate font-mono text-[12px] text-ink-3">{user.email}</span>}
-                              </>
-                            }
+                            round
+                            name={displayName}
+                            meta={[user.role ? t(user.role) : null, where].filter(Boolean).join(' · ')}
+                            chip={{ label: t(statut), tone: statutVariant(statut) }}
                             href={`/utilisateurs/${user.id}`}
                             ariaLabel={`${displayName} — ${t(user.role || '')}`.trim()}
                           />
                         );
                       })}
-                    </RecordList>
+                    </RecordCardList>
                   )}
                 </div>
               )}

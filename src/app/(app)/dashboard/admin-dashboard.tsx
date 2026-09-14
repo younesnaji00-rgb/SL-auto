@@ -32,6 +32,11 @@ import { ChiffreurDashboard } from './chiffreur-dashboard';
 import { TerrainDashboard } from './terrain-dashboard';
 import { TerrainDirection } from './terrain-direction';
 import { DirectionDashboardV2 } from './direction-dashboard-v2';
+// Phone (mobile redesign 2026-09-14): the header line (role tabs + period strip)
+// is desktop/tablet only — PageHeader paints no `actions` below md — so phones
+// get their own scope-pill shell bound to the same vue/user/period state.
+import { useIsPhone } from '@/hooks/use-viewport-class';
+import { PhoneAdminDashboard } from './phone-admin';
 
 /** Period choices shared by the header strip; « tout » spans the whole history. */
 type Period = 30 | 90 | 365 | 'tout';
@@ -85,6 +90,7 @@ export function AdminDashboard(props: AdminDashboardProps) {
   // the header line beside the role tabs, and that line belongs to this shell.
   const [period, setPeriod] = useState<Period>('tout');
   const periodRef = useTabSlopeMorphRef();
+  const isPhone = useIsPhone();
 
   /**
    * « Tout » as a real number of days — the span back to the oldest dossier —
@@ -180,6 +186,29 @@ export function AdminDashboard(props: AdminDashboardProps) {
       })}
     </div>
   );
+
+  if (isPhone) {
+    return (
+      <PhoneAdminDashboard
+        vue={vue}
+        onChangeVue={changeVue}
+        userId={userId}
+        onSelectUser={changeUser}
+        period={period}
+        onChangePeriod={setPeriod}
+        windowDays={windowDays}
+        dossiers={props.dossiers}
+        chiffrages={props.chiffrages}
+        missions={props.missions}
+        users={props.users}
+        workflowLogs={props.workflowLogs}
+        sla={props.sla}
+        holidays={props.holidays}
+        now={props.now}
+        loading={props.loading}
+      />
+    );
+  }
 
   return (
     <Tabs value={vue} onValueChange={(v) => changeVue(v as Vue)} className="space-y-6">

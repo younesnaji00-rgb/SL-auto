@@ -45,10 +45,19 @@ interface ScanState {
 export default function AtScanPlaqueFlow({
   buttonClassName,
   buttonSize = 'default',
+  hideButton = false,
+  triggerRef,
 }: {
   buttonClassName?: string;
   /** `lg` on phones (thumb-sized target); `default` (40 px) in the desktop header. */
   buttonSize?: 'default' | 'lg';
+  /**
+   * Phone shell (mobile redesign 2026-09-14): the « Scanner la plaque » button
+   * lives in the top bar, so the flow renders only its inputs + dialogs and
+   * hands the scan trigger back through `triggerRef`.
+   */
+  hideButton?: boolean;
+  triggerRef?: React.MutableRefObject<(() => void) | null>;
 }) {
   const t = useT();
   const db = useFirestore();
@@ -123,6 +132,18 @@ export default function AtScanPlaqueFlow({
     setPendingPlate(null);
   }, []);
 
+  // Expose the scan trigger to an external button (the phone top bar).
+  useEffect(() => {
+    if (!triggerRef) return;
+    triggerRef.current = () => {
+      setWanted(true);
+      trigger();
+    };
+    return () => {
+      triggerRef.current = null;
+    };
+  }, [triggerRef, trigger]);
+
   const handlePlanifier = (d: any) => {
     closeAll();
     setPlanifTarget(d);
@@ -192,17 +213,19 @@ export default function AtScanPlaqueFlow({
       {/* The ONE filled button of the missions list (element-specs §8: GOV.UK
           "use a default button for the main call to action"; verb + noun,
           leading 16 px icon). Camera-first — the icon is the action. */}
-      <Button
-        type="button"
-        size={buttonSize}
-        onClick={handleScanClick}
-        disabled={scanning}
-        loading={scanning}
-        className={cn('h-12 gap-2 md:h-10', buttonClassName)}
-      >
-        {!scanning && <Camera />}
-        {t('Scanner la plaque')}
-      </Button>
+      {!hideButton && (
+        <Button
+          type="button"
+          size={buttonSize}
+          onClick={handleScanClick}
+          disabled={scanning}
+          loading={scanning}
+          className={cn('h-12 gap-2 md:h-10', buttonClassName)}
+        >
+          {!scanning && <Camera />}
+          {t('Scanner la plaque')}
+        </Button>
+      )}
 
       {/* Dialog (element-specs §13: Material 3 dialogs ✓ brief headline + one
           line, confirmation nearest the edge, ≤ 2 footer actions; bottom sheet
