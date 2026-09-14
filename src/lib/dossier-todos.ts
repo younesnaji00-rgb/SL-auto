@@ -20,7 +20,7 @@
 import { t } from '@/i18n';
 import { getMissingRequiredFields } from './required-fields';
 import type { StepState } from './dossier-steps';
-import type { RequiredDocsStatus } from './required-docs';
+import { isChiffrageGateClosed, type RequiredDocsStatus } from './required-docs';
 
 export type VisitType = 'Avant' | 'En cours' | 'Après';
 
@@ -40,6 +40,13 @@ export interface DossierTodo {
   action: TodoAction;
   /** Waiting on someone else (chiffreur, agent de terrain), not on the reader. */
   waiting?: boolean;
+  /**
+   * The work this row names cannot be started yet (a gate upstream is closed):
+   * the row still leads to what is blocking it, but `runDossierTodo` never
+   * fires its action. Today only the chiffrage row, gated on the required
+   * pièces (item 023).
+   */
+  blocked?: boolean;
 }
 
 const VISIT_STEPS: Record<number, { type: VisitType; word: string }> = {
@@ -101,13 +108,20 @@ function stepTodo(step: StepState, docs: RequiredDocsStatus | null): DossierTodo
       if (step.status === 'in_progress') {
         return { id: 'accord-1', label: t('1er accord attendu'), detail: t('Chiffrage en cours'), target: t('Accord'), action: { kind: 'goto', stepId: 6, tab: 'documents' }, waiting: true };
       }
-      return {
-        id: 'chiffrage-1',
-        label: t('À envoyer au chiffrage'),
-        detail: docs && !docs.allRequiredFilled ? t('Dès que les pièces requises sont reçues') : undefined,
-        target: t('Chiffrage'),
-        action: { kind: 'chiffrage', stepId: 6 },
-      };
+      // Same gate as the « Envoyer vers chiffrage » button on step 1 · Pièces
+      // (lib/required-docs): while a required pièce is missing this row must
+      // NOT open the send modal — it leads to the pièces that hold it back.
+      {
+        const blocked = isChiffrageGateClosed(docs);
+        return {
+          id: 'chiffrage-1',
+          label: t('À envoyer au chiffrage'),
+          detail: blocked && docs ? t('Dès que les pièces requises sont reçues') : undefined,
+          target: blocked ? t('Pièces') : t('Chiffrage'),
+          action: blocked ? { kind: 'goto', stepId: 1, tab: 'documents' } : { kind: 'chiffrage', stepId: 6 },
+          blocked,
+        };
+      }
     case 11:
       if (step.status === 'in_progress') {
         return { id: 'accord-2', label: t('2ème accord attendu'), detail: t('Chiffrage en cours'), target: t('Accord'), action: { kind: 'goto', stepId: 11, tab: 'documents' }, waiting: true };

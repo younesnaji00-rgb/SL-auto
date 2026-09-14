@@ -20,6 +20,7 @@ import { Check, Loader2, Send, ImageIcon, FileText } from 'lucide-react';
 import { sendToChiffrage, ChiffrageFile } from '@/lib/send-to-chiffrage';
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
+import { chiffrageGateReason, computeRequiredDocsStatus, isChiffrageGateClosed, type RequiredDocLike, type RequiredDocsStatus } from '@/lib/required-docs';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useT } from '@/i18n';
@@ -69,11 +70,16 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
   const [availablePhotos, setAvailablePhotos] = useState<FileItem[]>([]);
   const [availableDocs, setAvailableDocs] = useState<FileItem[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
+  // Item 023 — the same required-pièces status the « Envoyer vers chiffrage »
+  // button is gated on, recomputed here from the documents this modal loads:
+  // the send itself refuses, whichever surface opened the dialog.
+  const [requiredStatus, setRequiredStatus] = useState<RequiredDocsStatus | null>(null);
 
   // Load available files when modal opens
   useEffect(() => {
     if (!open || !db || !dossierId) return;
     setLoadingFiles(true);
+    setRequiredStatus(null);
     Promise.all([
       getDocs(collection(db, 'dossiers', dossierId, 'photos')),
       getDocs(collection(db, 'dossiers', dossierId, 'documents')),
@@ -97,12 +103,19 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
       });
       setAvailablePhotos(photos);
       setAvailableDocs(docs);
+      // Computed from the RAW documents: the gate counts only uploaded,
+      // non-pending pièces, and `FileItem` does not carry url/pendingUpload.
+      setRequiredStatus(computeRequiredDocsStatus(docsSnap.docs.map(d => d.data() as RequiredDocLike)));
     }).catch(() => {
       toast({ variant: 'destructive', title: t('Erreur de chargement des fichiers') });
     }).finally(() => setLoadingFiles(false));
   }, [open, db, dossierId]);
 
   const totalFileCount = availablePhotos.length + availableDocs.length;
+  // Closed while the documents load, so no surface can fire before the
+  // pièces are known.
+  const gateClosed = loadingFiles || isChiffrageGateClosed(requiredStatus);
+  const gateReason = chiffrageGateReason(requiredStatus, t);
 
   const handleAssign = async () => {
     if (loadingChiffreurs || isSubmitting || !db || !dossierId) return;
@@ -114,6 +127,15 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
     if (totalFileCount === 0) {
       toast({ variant: 'destructive', title: t('Aucun fichier disponible'), description: t('Ce dossier ne contient aucun fichier à envoyer.') });
+      return;
+    }
+
+    if (gateClosed) {
+      toast({
+        variant: 'destructive',
+        title: t('Documents requis manquants'),
+        description: gateReason ?? t('Dès que les pièces requises sont reçues'),
+      });
       return;
     }
 
@@ -213,7 +235,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
         primary={{
           label: sent ? t('Envoyé') : `${t('Envoyer')} (${totalFileCount})`,
           onClick: handleAssign,
-          disabled: sent || isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0,
+          disabled: sent || isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0 || gateClosed,
           loading: isSubmitting,
         }}
         dirty={!!selectedChiffreurId && !sent}
@@ -268,6 +290,11 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
                 </div>
               )}
             </div>
+            {/* Why the send is closed — printed, not a tooltip: this dialog is
+                reachable from the phone, where a tooltip is dead. */}
+            {gateReason && (
+              <p className="t-caption text-status-warning-fg">{gateReason}</p>
+            )}
           </div>
         </div>
 
@@ -275,7 +302,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
             end of the body as a 48 px full-width button (§2.5). */}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting} className="max-md:hidden">{t('Annuler')}</Button>
-          <Button data-tour="chif-send" className="max-md:h-12 max-md:text-[15px] max-md:font-semibold" onClick={handleAssign} disabled={sent || isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0}>
+          <Button data-tour="chif-send" className="max-md:h-12 max-md:text-[15px] max-md:font-semibold" onClick={handleAssign} disabled={sent || isSubmitting || !selectedChiffreurId || loadingChiffreurs || totalFileCount === 0 || gateClosed}>
             {sent ? <Check className="mr-2 h-4 w-4" /> : isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
             {sent ? t('Envoyé') : `${t('Envoyer')} (${totalFileCount})`}
           </Button>

@@ -97,6 +97,29 @@ export function computeRequiredDocsStatus(docs: ReadonlyArray<RequiredDocLike> |
   };
 }
 
+/**
+ * The chiffrage gate, shared by every surface that can start a send: the
+ * « Envoyer vers chiffrage » button on step 1 · Pièces, the « À faire » row,
+ * the phone action bar and the send modal itself. Closed while the status is
+ * still loading (`null`) so no surface can fire before the pièces are known.
+ */
+export function isChiffrageGateClosed(status: RequiredDocsStatus | null | undefined): boolean {
+  return !status || !status.allRequiredFilled;
+}
+
+/**
+ * Why the gate is closed, as one line — or `null` when it is open (or not yet
+ * known). `translate` runs the labels through the caller's `t`; in French `t`
+ * is the identity, so the default already produces the French sentence.
+ */
+export function chiffrageGateReason(
+  status: RequiredDocsStatus | null | undefined,
+  translate: (s: string) => string = (s) => s,
+): string | null {
+  if (!status || status.allRequiredFilled) return null;
+  return `${translate('Documents requis manquants')}\u00a0: ${status.missingLabels.map(translate).join(', ')}`;
+}
+
 export function isRequiredSourceSlot(type: string): boolean {
   return (REQUIRED_SOURCE_SLOTS as ReadonlyArray<string>).includes(type);
 }

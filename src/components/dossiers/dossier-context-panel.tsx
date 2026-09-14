@@ -91,8 +91,12 @@ export interface TodoHandlers {
  */
 export function runDossierTodo(todo: DossierTodo, { readOnly, onGoToStep, onPlanifier, onChiffrage }: TodoHandlers): void {
   const a = todo.action;
-  if (a.kind === 'planifier' && !readOnly && onPlanifier) return onPlanifier(a.type);
-  if (a.kind === 'chiffrage' && !readOnly && onChiffrage) return onChiffrage();
+  // A blocked row (chiffrage before the required pièces are in) never fires an
+  // action, whatever it carries: it can only lead to what is missing.
+  if (!todo.blocked) {
+    if (a.kind === 'planifier' && !readOnly && onPlanifier) return onPlanifier(a.type);
+    if (a.kind === 'chiffrage' && !readOnly && onChiffrage) return onChiffrage();
+  }
   onGoToStep(a.stepId, a.kind === 'goto' ? a.tab : a.kind === 'planifier' ? 'planification' : 'documents');
 }
 

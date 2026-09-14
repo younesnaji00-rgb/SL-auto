@@ -20,6 +20,7 @@ import { useT } from '@/i18n';
 import { Timeline } from '@/components/dossier-timeline/timeline';
 import { StepTabs, type StepTab } from '@/components/dossier-timeline/step-tabs';
 import { useRequiredDocsStatus } from '@/hooks/use-required-docs-status';
+import { chiffrageGateReason, isChiffrageGateClosed } from '@/lib/required-docs';
 import { getMissingRequiredFields } from '@/lib/required-fields';
 import { useFocusMode } from '@/hooks/use-focus-mode';
 import {
@@ -570,6 +571,24 @@ function DossierDetail({ id }: { id: string }) {
   // the caption — "disabled buttons without explanation" is the do-not.
   const barBlockedReason = phoneStep?.status === 'blocked' ? phoneStep.blockedReason : undefined;
 
+  // « Envoyer au chiffrage » obeys the same required-pièces gate as the button
+  // on step 1 · Pièces (item 023): a phone reader must not be able to send a
+  // dossier the desktop would refuse. Closed while the pièces still load.
+  // Step 11 (« 2ème accord et + ») carries the same primary and the same extra
+  // condition as its tab: a 1er accord / 1ère proposition must be in first.
+  const chiffrageAccordGateClosed =
+    barAction?.kind === 'chiffrage' && barAction.stepId === 11 && !requiredDocs.firstAccordFilled;
+  const chiffrageGateClosed =
+    barAction?.kind === 'chiffrage' && (isChiffrageGateClosed(requiredDocs.status) || chiffrageAccordGateClosed);
+  const barCaption = barBlockedReason
+    ? t(barBlockedReason)
+    : chiffrageGateClosed
+      ? chiffrageGateReason(requiredDocs.status, t) ??
+        (chiffrageAccordGateClosed
+          ? t("Au moins un 1er accord ou une 1ère proposition doit être rempli avant d'assigner.")
+          : t('Dès que les pièces requises sont reçues'))
+      : undefined;
+
   // The phone top bar's title + up-link, resolved for the screen in view (E3).
   // « ‹ Dossier » from a sub-screen, « ‹ Dossiers » from the hub.
   const phoneTitle = historiqueView
@@ -598,7 +617,7 @@ function DossierDetail({ id }: { id: string }) {
           label: t(barAction.label),
           icon: barAction.icon,
           onClick: () => runPhoneAction(barAction),
-          disabled: !!barBlockedReason,
+          disabled: !!barBlockedReason || chiffrageGateClosed,
         }
       : null;
 
@@ -622,7 +641,7 @@ function DossierDetail({ id }: { id: string }) {
       <BottomActionBar
         primary={barPrimary}
         secondary={barSecondary}
-        caption={barBlockedReason ? t(barBlockedReason) : undefined}
+        caption={barCaption}
       />
     ) : null;
 
