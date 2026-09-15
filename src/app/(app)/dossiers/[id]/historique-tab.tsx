@@ -439,7 +439,7 @@ export function DatesCles({ dossierId, dossier, layout = 'grid' }: { dossierId: 
         { phase: 'en cours', demande: dossier?.dateDemandeExpertiseEnCours, expertise: dossier?.datePhotosEnCours },
         { phase: 'après', demande: dossier?.dateDemandeExpertiseApres, expertise: dossier?.datePhotosApres },
       ] as const).map((row) => (
-        <div key={row.phase} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+        <div key={row.phase} className="grid grid-cols-1 gap-y-2">
           {renderDateClesRow({ label: `${t('Date demande expertise')} (${t(row.phase)})`, value: row.demande })}
           {renderDateClesRow({ label: `${t('Date expertise')} (${t(row.phase)})`, value: row.expertise })}
         </div>
