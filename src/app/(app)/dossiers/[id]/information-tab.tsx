@@ -52,6 +52,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import { usePrefillFlash } from '@/hooks/use-prefill-flash';
 import { BRAND } from '@/lib/brand';
+import { validateFields, type ValidatedField } from '@/lib/field-validation';
 import {
   INPUT_ADDRESS,
   INPUT_EMAIL,
@@ -99,7 +100,7 @@ type FieldDef = {
    * adresse opens maps, a plate is mono — §2.9) and nothing else; the edit
    * node already carries the matching keyboard preset.
    */
-  kind?: 'tel' | 'email' | 'address' | 'plate' | 'text';
+  kind?: 'tel' | 'email' | 'address' | 'plate' | 'text' | 'name' | 'cin' | 'numeric';
   /**
    * May share a row with its neighbour in a section sheet. §2.1 allows this
    * for the single-entity pairs ONLY (Nom | Prénom, Date | Heure).
@@ -125,11 +126,14 @@ const FieldRow = ({
   editing,
   cols = 'half',
   className,
+  errors,
 }: {
   fields: FieldDef[];
   editing: boolean;
   cols?: FieldCols;
   className?: string;
+  /** Format errors by dossier path (QA bug 016) — shown under the control. */
+  errors?: Record<string, string>;
 }) => {
   const hl = useReplayHighlight();
   const flash = usePrefillFlash();
@@ -171,7 +175,12 @@ const FieldRow = ({
             </dt>
             <dd className="mt-1 min-h-[20px]">
               {editing && f.edit ? (
-                <div className="w-full">{f.edit}</div>
+                <div className={cn('w-full', f.path && errors?.[f.path] && '[&_input]:border-status-danger-fg [&_input]:ring-1 [&_input]:ring-status-danger-fg')}>
+                  {f.edit}
+                  {f.path && errors?.[f.path] && (
+                    <p role="alert" className="t-caption mt-1 text-status-danger-fg">{errors[f.path]}</p>
+                  )}
+                </div>
               ) : (
                 <span className={cn('t-body break-words', empty ? 'text-ink-4' : 'font-semibold text-ink')}>{f.value || '—'}</span>
               )}
@@ -313,6 +322,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Format errors by dossier path; cleared per field as the user types.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // Phone: which section's edit sheet is open, and the form as it was when it
   // opened (« Annuler » / « Abandonner » restore it).
   const [sheetSection, setSheetSection] = useState<SectionKey | null>(null);
@@ -434,11 +445,15 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     }
   }, [dossier, editing]);
 
+  const clearFieldError = (path: string) =>
+    setFieldErrors((prev) => (prev[path] ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== path)) : prev));
   const handleChange = (field: string, value: any) => {
     setForm((prev: any) => ({ ...prev, [field]: value }));
+    clearFieldError(field);
   };
   const handleNestedChange = (group: string, field: string, value: any) => {
     setForm((prev: any) => ({ ...prev, [group]: { ...prev[group], [field]: value } }));
+    clearFieldError(`${group}.${field}`);
   };
   const handleExpertChange = (role: ExpertRole, field: keyof ExpertInfo, value: string) => {
     setForm((prev: any) => ({
@@ -450,7 +465,52 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     }));
   };
 
+  /**
+   * Every formatted field of the form (QA bug 016). On a phone only the open
+   * section is checked, since the sheet cannot show an error elsewhere.
+   */
+  const VALIDATED_FIELDS: ValidatedField[] = [
+    { path: 'matricule', kind: 'plate', label: t('Matricule') },
+    { path: 'assure.nom', kind: 'name', label: `${t('Assuré')} · ${t('Nom complet')}` },
+    { path: 'assure.telephone', kind: 'tel', label: `${t('Assuré')} · ${t('Téléphone')}` },
+    { path: 'assure.whatsapp', kind: 'tel', label: `${t('Assuré')} · WhatsApp` },
+    { path: 'assure.telephone2', kind: 'tel', label: `${t('Assuré')} · ${t('Téléphone 2')}` },
+    { path: 'assure.email', kind: 'email', label: `${t('Assuré')} · ${t('Email')}` },
+    { path: 'assure.adresse', kind: 'address', label: `${t('Assuré')} · ${t('Adresse')}` },
+    { path: 'assure.cin', kind: 'cin', label: `${t('Assuré')} · ${t('CIN')}` },
+    { path: 'vehicule.immatriculation', kind: 'plate', label: `${t('Véhicule')} · ${t('Immatriculation')}` },
+    { path: 'vehicule.immatriculationAnterieur', kind: 'plate', label: `${t('Véhicule')} · ${t('Immatriculation antérieure')}` },
+    { path: 'vehicule.puissance', kind: 'numeric', label: `${t('Véhicule')} · ${t('Puissance fiscale')}` },
+    { path: 'vehicule.km', kind: 'numeric', label: `${t('Véhicule')} · ${t('Kilométrage')}` },
+    { path: 'intermediaireNom', kind: 'name', label: `${t('Intermédiaire')} · ${t('Nom / Raison sociale')}` },
+    { path: 'intermediairePrenom', kind: 'name', label: `${t('Intermédiaire')} · ${t('Prénom')}` },
+    { path: 'intermediaireTelephone', kind: 'tel', label: `${t('Intermédiaire')} · ${t('Téléphone')}` },
+    { path: 'intermediaireEmail', kind: 'email', label: `${t('Intermédiaire')} · ${t('Email')}` },
+    { path: 'intermediaireAdresse', kind: 'address', label: `${t('Intermédiaire')} · ${t('Adresse')}` },
+    { path: 'adverseNom', kind: 'name', label: `${t('Partie Adverse')} · ${t('Nom')}` },
+    { path: 'adversePrenom', kind: 'name', label: `${t('Partie Adverse')} · ${t('Prénom')}` },
+    { path: 'adverseTelephone', kind: 'tel', label: `${t('Partie Adverse')} · ${t('Téléphone')}` },
+    { path: 'adverseEmail', kind: 'email', label: `${t('Partie Adverse')} · ${t('Email')}` },
+    { path: 'adverseAdresse', kind: 'address', label: `${t('Partie Adverse')} · ${t('Adresse')}` },
+    { path: 'adverseMatricule', kind: 'plate', label: `${t('Partie Adverse')} · ${t('Matricule')}` },
+  ];
+
   const handleSave = async () => {
+    // Format gate (QA bug 016): a malformed phone / e-mail / plate / CIN /
+    // name / number blocks the save with the message under the field.
+    const scopePaths = sheetSection ? new Set((SECTIONS_PATHS[sheetSection] ?? [])) : null;
+    const toCheck = scopePaths ? VALIDATED_FIELDS.filter((f) => scopePaths.has(f.path)) : VALIDATED_FIELDS;
+    const errors = validateFields(form, toCheck);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      const bad = toCheck.filter((f) => errors[f.path]).map((f) => f.label);
+      toast({
+        variant: 'destructive',
+        title: t('Format invalide'),
+        description: `${t('Corrigez')} : ${bad.join(', ')}.`,
+      });
+      return;
+    }
     setSaving(true);
     const userEmail = auth?.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'unknown';
@@ -537,6 +597,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   /** « × » / « Abandonner » / Annuler — put the form back as it was. */
   const closeSection = (restore: boolean) => {
     if (restore && sheetSnapshot) setForm(sheetSnapshot);
+    setFieldErrors({});
     setSheetSection(null);
     setSheetSnapshot(null);
     setEditing(false);
@@ -634,13 +695,13 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   ];
 
   const assureFields: FieldDef[] = [
-    { label: t('Nom complet'), value: form.assure.nom, path: 'assure.nom', edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
+    { label: t('Nom complet'), value: form.assure.nom, path: 'assure.nom', kind: 'name', edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
     { label: t('Téléphone'), value: form.assure.telephone, path: 'assure.telephone', kind: 'tel', edit: <Input {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} className="h-8 max-md:h-12" value={form.assure.telephone} onChange={(e) => handleNestedChange('assure', 'telephone', e.target.value)} /> },
     { label: 'WhatsApp', value: form.assure.whatsapp, path: 'assure.whatsapp', kind: 'tel', edit: <Input {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} className="h-8 max-md:h-12" value={form.assure.whatsapp} onChange={(e) => handleNestedChange('assure', 'whatsapp', e.target.value)} /> },
     { label: t('Téléphone 2'), value: form.assure.telephone2, path: 'assure.telephone2', kind: 'tel', edit: <Input {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} className="h-8 max-md:h-12" value={form.assure.telephone2} onChange={(e) => handleNestedChange('assure', 'telephone2', e.target.value)} /> },
     { label: t('Email'), value: form.assure.email, path: 'assure.email', kind: 'email', edit: <Input {...INPUT_EMAIL} className="h-8 max-md:h-12" value={form.assure.email} onChange={(e) => handleNestedChange('assure', 'email', e.target.value)} /> },
     { label: t('Adresse'), value: form.assure.adresse, path: 'assure.adresse', kind: 'address', edit: <Input {...INPUT_ADDRESS} className="h-8 max-md:h-12" value={form.assure.adresse} onChange={(e) => handleNestedChange('assure', 'adresse', e.target.value)} /> },
-    { label: t('CIN'), value: form.assure.cin, path: 'assure.cin', edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.assure.cin} onChange={(e) => handleNestedChange('assure', 'cin', e.target.value)} /> },
+    { label: t('CIN'), value: form.assure.cin, path: 'assure.cin', kind: 'cin', edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.assure.cin} onChange={(e) => handleNestedChange('assure', 'cin', e.target.value)} /> },
   ];
 
   const vehiculeFields: FieldDef[] = [
@@ -649,15 +710,15 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     { label: t('Immatriculation'), value: form.vehicule.immatriculation, path: 'vehicule.immatriculation', kind: 'plate', edit: <Input {...INPUT_PLATE} className="h-8 max-md:h-12 t-mono" value={form.vehicule.immatriculation} onChange={(e) => handleNestedChange('vehicule', 'immatriculation', e.target.value)} /> },
     { label: t('Numéro de série'), value: form.vehicule.serie, path: 'vehicule.serie', edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.vehicule.serie} onChange={(e) => handleNestedChange('vehicule', 'serie', e.target.value)} /> },
     { label: t('Énergie'), value: form.vehicule.energie, path: 'vehicule.energie', edit: <Input {...INPUT_TEXT} className="h-8 max-md:h-12" value={form.vehicule.energie} onChange={(e) => handleNestedChange('vehicule', 'energie', e.target.value)} /> },
-    { label: t('Puissance fiscale'), value: form.vehicule.puissance, path: 'vehicule.puissance', edit: <Input {...INPUT_NUMERIC} className="h-8 max-md:h-12" value={form.vehicule.puissance} onChange={(e) => handleNestedChange('vehicule', 'puissance', e.target.value)} /> },
+    { label: t('Puissance fiscale'), value: form.vehicule.puissance, path: 'vehicule.puissance', kind: 'numeric', edit: <Input {...INPUT_NUMERIC} className="h-8 max-md:h-12" value={form.vehicule.puissance} onChange={(e) => handleNestedChange('vehicule', 'puissance', e.target.value)} /> },
     { label: t('Mise en circ. (Date)'), value: formatDateDisplay(form.vehicule.mec), path: 'vehicule.mec', edit: <DatePicker horizon="far" label={t('Mise en circ. (Date)')} className="h-8 max-md:h-12" value={form.vehicule.mec} onChange={(d) => handleNestedChange('vehicule', 'mec', d)} /> },
-    { label: t('Kilométrage'), value: form.vehicule.km, path: 'vehicule.km', edit: <Input {...INPUT_NUMERIC} className="h-8 max-md:h-12" value={form.vehicule.km} onChange={(e) => handleNestedChange('vehicule', 'km', e.target.value)} /> },
+    { label: t('Kilométrage'), value: form.vehicule.km, path: 'vehicule.km', kind: 'numeric', edit: <Input {...INPUT_NUMERIC} className="h-8 max-md:h-12" value={form.vehicule.km} onChange={(e) => handleNestedChange('vehicule', 'km', e.target.value)} /> },
     { label: t('Immatriculation antérieure'), value: form.vehicule.immatriculationAnterieur, path: 'vehicule.immatriculationAnterieur', kind: 'plate', edit: <Input {...INPUT_PLATE} className="h-8 max-md:h-12 t-mono" value={form.vehicule.immatriculationAnterieur} onChange={(e) => handleNestedChange('vehicule', 'immatriculationAnterieur', e.target.value)} /> },
   ];
 
   const intermediaireFields: FieldDef[] = [
-    { label: t('Nom / Raison sociale'), value: form.intermediaireNom, path: 'intermediaireNom', pair: true, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.intermediaireNom} onChange={(e) => handleChange('intermediaireNom', e.target.value)} /> },
-    { label: t('Prénom'), value: form.intermediairePrenom, path: 'intermediairePrenom', pair: true, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.intermediairePrenom} onChange={(e) => handleChange('intermediairePrenom', e.target.value)} /> },
+    { label: t('Nom / Raison sociale'), value: form.intermediaireNom, path: 'intermediaireNom', kind: 'name', pair: true, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.intermediaireNom} onChange={(e) => handleChange('intermediaireNom', e.target.value)} /> },
+    { label: t('Prénom'), value: form.intermediairePrenom, path: 'intermediairePrenom', kind: 'name', pair: true, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.intermediairePrenom} onChange={(e) => handleChange('intermediairePrenom', e.target.value)} /> },
     { label: t('Type'), value: form.intermediaireType, path: 'intermediaireType', edit: <Input {...INPUT_TEXT} className="h-8 max-md:h-12" value={form.intermediaireType} onChange={(e) => handleChange('intermediaireType', e.target.value)} /> },
     { label: t('Code Intermédiaire'), value: form.intermediaireCode, path: 'intermediaireCode', edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.intermediaireCode} onChange={(e) => handleChange('intermediaireCode', e.target.value)} /> },
     { label: t('Compagnie'), value: form.intermediaireCompagnie, path: 'intermediaireCompagnie', edit: (
@@ -672,8 +733,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   ];
 
   const adverseFields: FieldDef[] = [
-    { label: t('Nom'), value: form.adverseNom, path: 'adverseNom', pair: true, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.adverseNom} onChange={(e) => handleChange('adverseNom', e.target.value)} /> },
-    { label: t('Prénom'), value: form.adversePrenom, path: 'adversePrenom', pair: true, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.adversePrenom} onChange={(e) => handleChange('adversePrenom', e.target.value)} /> },
+    { label: t('Nom'), value: form.adverseNom, path: 'adverseNom', kind: 'name', pair: true, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.adverseNom} onChange={(e) => handleChange('adverseNom', e.target.value)} /> },
+    { label: t('Prénom'), value: form.adversePrenom, path: 'adversePrenom', kind: 'name', pair: true, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.adversePrenom} onChange={(e) => handleChange('adversePrenom', e.target.value)} /> },
     { label: t('Téléphone'), value: form.adverseTelephone, path: 'adverseTelephone', kind: 'tel', edit: <Input {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} className="h-8 max-md:h-12" value={form.adverseTelephone} onChange={(e) => handleChange('adverseTelephone', e.target.value)} /> },
     { label: t('Email'), value: form.adverseEmail, path: 'adverseEmail', kind: 'email', edit: <Input {...INPUT_EMAIL} className="h-8 max-md:h-12" value={form.adverseEmail} onChange={(e) => handleChange('adverseEmail', e.target.value)} /> },
     { label: t('Adresse'), value: form.adverseAdresse, path: 'adverseAdresse', kind: 'address', edit: <Input {...INPUT_ADDRESS} className="h-8 max-md:h-12" value={form.adverseAdresse} onChange={(e) => handleChange('adverseAdresse', e.target.value)} /> },
@@ -708,6 +769,9 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     intermediaire: { title: t('Intermédiaire'), fields: intermediaireFields },
     adverse: { title: t('Partie Adverse'), fields: adverseFields },
   };
+  const SECTIONS_PATHS: Record<SectionKey, string[]> = Object.fromEntries(
+    (Object.keys(SECTIONS) as SectionKey[]).map((k) => [k, SECTIONS[k].fields.map((f) => f.path).filter(Boolean) as string[]]),
+  ) as Record<SectionKey, string[]>;
 
   /** Phone-only 44 px « Modifier » in a section header. */
   const sectionEdit = (key: SectionKey) =>
@@ -745,7 +809,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
           <PhoneFields fields={fields} />
         </div>
         <div className="hidden md:block">
-          <FieldRow fields={fields} editing={editing} />
+          <FieldRow fields={fields} editing={editing} errors={fieldErrors} />
         </div>
       </Section>
     );
@@ -820,7 +884,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
           <PhoneFields fields={dossierFields} />
         </div>
         <div className="hidden md:block">
-          <FieldRow cols="full" fields={dossierFields} editing={editing} />
+          <FieldRow cols="full" fields={dossierFields} editing={editing} errors={fieldErrors} />
         </div>
 
         <div className="mt-4 border-t border-hairline pt-4">
@@ -900,10 +964,12 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
                       <div className="min-w-0 space-y-1">
                         <p className="t-label">{f.label}</p>
                         {f.edit}
+                        {f.path && fieldErrors[f.path] && <p role="alert" className="t-caption text-status-danger-fg">{fieldErrors[f.path]}</p>}
                       </div>
                       <div className="min-w-0 space-y-1">
                         <p className="t-label">{next.label}</p>
                         {next.edit}
+                        {next.path && fieldErrors[next.path] && <p role="alert" className="t-caption text-status-danger-fg">{fieldErrors[next.path]}</p>}
                       </div>
                     </div>,
                   );
@@ -917,6 +983,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
                       {f.modal}
                     </div>
                     {f.edit}
+                    {f.path && fieldErrors[f.path] && <p role="alert" className="t-caption text-status-danger-fg">{fieldErrors[f.path]}</p>}
                   </div>,
                 );
               }
