@@ -53,6 +53,7 @@ import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/do
 import { usePrefillFlash } from '@/hooks/use-prefill-flash';
 import { BRAND } from '@/lib/brand';
 import { validateFields, type ValidatedField } from '@/lib/field-validation';
+import { findDossierWithRefExpert, DUPLICATE_REF_MESSAGE } from '@/lib/ref-expert-unique';
 import {
   INPUT_ADDRESS,
   INPUT_EMAIL,
@@ -510,6 +511,17 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
         description: `${t('Corrigez')} : ${bad.join(', ')}.`,
       });
       return;
+    }
+    // Uniqueness gate (QA bug 002): a Réf. expert already carried by another
+    // dossier cannot be saved.
+    const nextRef = String(form.refExpert || '').trim();
+    if (db && nextRef && nextRef !== String(dossier?.refExpert || '').trim()) {
+      const dup = await findDossierWithRefExpert(db, nextRef, dossierId);
+      if (dup) {
+        setFieldErrors({ refExpert: t(DUPLICATE_REF_MESSAGE) });
+        toast({ variant: 'destructive', title: t('Réf. expert déjà utilisée'), description: t(DUPLICATE_REF_MESSAGE) });
+        return;
+      }
     }
     setSaving(true);
     const userEmail = auth?.currentUser?.email || 'Admin';

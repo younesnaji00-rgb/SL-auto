@@ -38,6 +38,7 @@ import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 import { useT } from '@/i18n';
 import { BRAND } from '@/lib/brand';
 import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
+import { validateFieldValue } from '@/lib/field-validation';
 
 // Radix Select disallows empty-string values on <SelectItem>.
 const NONE_VALUE = '__none__';
@@ -82,6 +83,13 @@ export function CreateDossierDialog({
   const [experts, setExperts] = useState<ExpertsState>(initialExpertsState);
   const [isCreating, setIsCreating] = useState(false);
   const [primedRole, setPrimedRole] = useState<ExpertRole | null>(null);
+  // QA bug 007 / 016: required-field and format errors, keyed « compagnie »
+  // or « {role}-{field} »; cleared per field as the user types.
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const clearError = (key: string) =>
+    setErrors((prev) => (prev[key] ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key)) : prev));
+  const fieldError = (key: string) =>
+    errors[key] ? <p role="alert" className="t-caption text-status-danger-fg">{errors[key]}</p> : null;
 
   const userName = React.useMemo(() => {
     const fbUser = auth?.currentUser;
@@ -116,6 +124,7 @@ export function CreateDossierDialog({
   }, [open, initialCompagnie]);
 
   const resetForm = () => {
+    setErrors({});
     setCompagnie(initialCompagnie || NONE_VALUE);
     setExpertRole('1er');
     setExperts(initialExpertsState());
@@ -136,6 +145,28 @@ export function CreateDossierDialog({
 
   const updateExpert = (role: ExpertRole, field: keyof ExpertInfo, value: string) => {
     setExperts((prev) => ({ ...prev, [role]: { ...prev[role], [field]: value } }));
+    clearError(`${role}-${field}`);
+  };
+
+  /**
+   * QA bug 007: a dossier needs at least its compagnie and the name of the
+   * expert whose role is selected (the creator). The other experts stay
+   * optional, but any filled téléphone / e-mail / nom must be well-formed.
+   */
+  const validate = (): Record<string, string> => {
+    const next: Record<string, string> = {};
+    if (compagnie === NONE_VALUE || !compagnie.trim()) next.compagnie = t('Choisissez la compagnie du dossier.');
+    for (const role of visibleExpertRoles(expertRole)) {
+      const e = experts[role];
+      if (role === expertRole && !e.nom.trim()) next[`${role}-nom`] = t('Le nom de l’expert est obligatoire.');
+      const nomMsg = validateFieldValue('name', e.nom);
+      if (nomMsg && !next[`${role}-nom`]) next[`${role}-nom`] = t(nomMsg);
+      const telMsg = validateFieldValue('tel', e.telephone);
+      if (telMsg) next[`${role}-telephone`] = t(telMsg);
+      const emailMsg = validateFieldValue('email', e.email);
+      if (emailMsg) next[`${role}-email`] = t(emailMsg);
+    }
+    return next;
   };
 
   // Unsaved work (§2.5): only a typed expert detail or a changed compagnie /
@@ -149,6 +180,16 @@ export function CreateDossierDialog({
     const fbUser = auth?.currentUser;
     if (!fbUser || !db) {
       toast({ variant: 'destructive', title: t('Erreur'), description: t('Utilisateur non connecté.') });
+      return;
+    }
+    const problems = validate();
+    setErrors(problems);
+    if (Object.keys(problems).length > 0) {
+      toast({
+        variant: 'destructive',
+        title: t('Champs obligatoires'),
+        description: t('Renseignez la compagnie et le nom de l’expert, puis corrigez les formats signalés.'),
+      });
       return;
     }
     try {
@@ -221,7 +262,7 @@ export function CreateDossierDialog({
         <DialogHeader>
           <DialogTitle className="t-title">{t('Nouveau dossier')}</DialogTitle>
           <DialogDescription>
-            {t("Choisissez la compagnie et votre rôle d'expert. Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.")}
+            {t("La compagnie et le nom de l'expert sont obligatoires. Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -229,10 +270,10 @@ export function CreateDossierDialog({
             control, rows 16 apart, placeholder only as a format cue). */}
         <div className="grid gap-4 py-2">
           <div className="grid gap-1" data-tour="dos-create-compagnie">
-            <Label htmlFor="create-compagnie">{t('Compagnie')}</Label>
+            <Label htmlFor="create-compagnie">{t('Compagnie')} <span aria-hidden className="text-status-danger-fg">*</span></Label>
             <Select
               value={compagnie}
-              onValueChange={setCompagnie}
+              onValueChange={(v) => { setCompagnie(v); clearError('compagnie'); }}
               disabled={isCreating}
             >
               <SelectTrigger id="create-compagnie">
@@ -247,6 +288,7 @@ export function CreateDossierDialog({
                 ))}
               </SelectContent>
             </Select>
+            {fieldError('compagnie')}
           </div>
 
           <div className="grid gap-1" data-tour="dos-create-role">
@@ -298,14 +340,20 @@ export function CreateDossierDialog({
                   Order per §2.4: Nom → Téléphone → Email → Compagnie. */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-1">
-                  <Label htmlFor={`${role}-nom`}>{t('Nom complet')}</Label>
+                  <Label htmlFor={`${role}-nom`}>
+                    {t('Nom complet')}
+                    {role === expertRole && <span aria-hidden className="text-status-danger-fg"> *</span>}
+                  </Label>
                   <Input
                     id={`${role}-nom`}
                     {...INPUT_NAME}
                     value={experts[role].nom}
                     onChange={(e) => updateExpert(role, 'nom', e.target.value)}
                     disabled={isCreating}
+                    aria-invalid={!!errors[`${role}-nom`] || undefined}
+                    aria-required={role === expertRole || undefined}
                   />
+                  {fieldError(`${role}-nom`)}
                 </div>
                 <div className="grid gap-1">
                   <Label htmlFor={`${role}-telephone`}>{t('Téléphone')}</Label>
@@ -316,7 +364,9 @@ export function CreateDossierDialog({
                     value={experts[role].telephone}
                     onChange={(e) => updateExpert(role, 'telephone', e.target.value)}
                     disabled={isCreating}
+                    aria-invalid={!!errors[`${role}-telephone`] || undefined}
                   />
+                  {fieldError(`${role}-telephone`)}
                 </div>
                 <div className="grid gap-1">
                   <Label htmlFor={`${role}-email`}>{t('Email')}</Label>
@@ -326,7 +376,9 @@ export function CreateDossierDialog({
                     value={experts[role].email}
                     onChange={(e) => updateExpert(role, 'email', e.target.value)}
                     disabled={isCreating}
+                    aria-invalid={!!errors[`${role}-email`] || undefined}
                   />
+                  {fieldError(`${role}-email`)}
                 </div>
                 <div className="grid gap-1">
                   <Label htmlFor={`${role}-compagnie`}>{t('Compagnie')}</Label>

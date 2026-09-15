@@ -19,7 +19,12 @@
  * module load and double-translate at the render site.
  */
 
+import { getMissingRequiredFields } from './required-fields';
+
 export type StepStatus = 'todo' | 'in_progress' | 'done' | 'blocked';
+
+/** Reason shown on every later step while the Création mission is incomplete (QA bug 008). */
+export const REQUIRED_FIELDS_BLOCK_REASON = 'Complétez d’abord les champs obligatoires de la Création mission';
 
 export interface StepDef {
   /** Stable id used by the timeline sections, localStorage keys and anchors. */
@@ -128,14 +133,28 @@ export function getStepStatuses(dossier: any): StepState[] {
   const lastBy: string | null = lastChange.by || null;
   const lastByNom: string | null = lastChange.byNom || null;
   const chiffrageEnCours = statutIs(d, 'chiffrage en cours');
+  // QA bug 008: the workflow must not advance past the Création mission
+  // while its required fields are empty. Step 1 stays « en cours » and every
+  // later step that has not started is blocked with the reason. Steps already
+  // in progress or done (legacy dossiers) keep their state.
+  const requiredMissing = getMissingRequiredFields(d).length > 0;
 
   return DOSSIER_STEP_DEFS.map((def) => {
+    const state = stepStateFor(def);
+    if (requiredMissing && def.id !== 1 && (state.status === 'todo' || state.status === 'blocked')) {
+      return make(def, 'blocked', null, null, null, REQUIRED_FIELDS_BLOCK_REASON);
+    }
+    return state;
+  });
+
+  function stepStateFor(def: StepDef): StepState {
     switch (def.id) {
       case 1: {
         const createdAt = toDate(d.createdAt);
-        return createdAt
-          ? make(def, 'done', createdAt, d.createdBy ?? null, null)
-          : make(def, 'in_progress', null, null, null);
+        if (!createdAt) return make(def, 'in_progress', null, null, null);
+        return requiredMissing
+          ? make(def, 'in_progress', null, null, createdAt)
+          : make(def, 'done', createdAt, d.createdBy ?? null, null);
       }
       case 4:
         return visitStep(def, d, 'datePhotosAvant', 'dateDemandeExpertiseAvant', 'avant');
@@ -177,7 +196,7 @@ export function getStepStatuses(dossier: any): StepState[] {
       default:
         return make(def, 'todo', null, null, null);
     }
-  });
+  }
 }
 
 /** Convenience: the first step that is not done (what to work on next). */

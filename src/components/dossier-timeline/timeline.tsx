@@ -46,7 +46,7 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
   // the standard curve — same gesture as Accordion/Collapsible, owner
   // 2026-09-02); children stay mounted through the collapse so the height
   // has something to animate over, then unmount.
-  const { mounted: contentMounted, shown: contentShown } = usePresence(!collapsed, 250);
+  const { mounted: contentMounted, shown: contentShown } = usePresence(!collapsed && !blocked, 250);
   // The fold wrapper needs `overflow-hidden` only while the grid-rows
   // transition runs; left on permanently it becomes the containing block of
   // every `position: sticky` descendant (the compare pane) and pins them.
@@ -98,11 +98,17 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
         <div className={cn('flex items-center gap-3 transition-[margin] duration-250 ease-standard motion-reduce:transition-none', collapsed ? 'mb-0' : 'mb-4')}>
           <button
             type="button"
-            onClick={onToggle}
-            aria-expanded={!collapsed}
+            // A blocked step is not openable (QA bug 008): the header still
+            // reads, the lock and the reason say why.
+            onClick={blocked ? undefined : onToggle}
+            aria-disabled={blocked || undefined}
+            aria-expanded={!collapsed && !blocked}
             aria-controls={`step-${step.id}-content`}
             data-tour={`dosd-sec-${step.id}`}
-            className="-mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(
+              '-mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              blocked ? 'cursor-not-allowed' : 'hover:bg-muted/50',
+            )}
           >
             <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
               <span className="t-label sr-only">{t('Étape')} {position}</span>

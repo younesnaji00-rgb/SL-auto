@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import SmartInbox from './smart-inbox';
 import { emitPrefillFlash } from '@/hooks/use-prefill-flash';
+import { findDossierWithRefExpert } from '@/lib/ref-expert-unique';
 
 export interface Step1ImportProps {
   dossierId: string;
@@ -247,6 +248,10 @@ export default function Step1Import({
         const updates: Record<string, any> = {};
         const filledFields: string[] = [];
         const overwrittenFields: { field: string; previousValue: any }[] = [];
+        // QA bug 002: a scanned Réf. expert that another dossier already
+        // carries is NOT copied — the same mission letter scanned twice must
+        // not produce two dossiers with one reference.
+        let duplicateRef: string | null = null;
 
         for (const [scanKey, rawValue] of Object.entries(data)) {
           const target = FIELD_MAP[scanKey];
@@ -267,6 +272,14 @@ export default function Step1Import({
             finalValue = rawValue.trim();
           }
 
+          if (target === 'refExpert' && db) {
+            const ref = String(finalValue).trim();
+            const current = String(dossier?.refExpert || '').trim();
+            if (ref && ref !== current && (await findDossierWithRefExpert(db, ref, dossierId))) {
+              duplicateRef = ref;
+              continue;
+            }
+          }
           const existing = readPath(dossier, target);
           updates[target] = finalValue;
           // Mark provenance for the two date fields the Dates clés UI uses to
@@ -329,6 +342,13 @@ export default function Step1Import({
               await logHistorique(db, dossierId, ...(logArgs as [string, string, string, string, string | undefined]));
             }
           }
+        }
+        if (duplicateRef) {
+          toast({
+            variant: 'destructive',
+            title: t('Réf. expert déjà utilisée'),
+            description: `« ${duplicateRef} » ${t('appartient déjà à un autre dossier — la référence n’a pas été reprise.')}`,
+          });
         }
         setLastFilledCount(written);
         // Teal value-change fade on every field the scan just wrote
