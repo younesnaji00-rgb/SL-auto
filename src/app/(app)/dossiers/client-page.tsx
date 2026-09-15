@@ -1371,7 +1371,11 @@ export default function DossiersClientPage() {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
+            {/* Opens downward by default and never taller than 70 % of the
+                viewport (a 17-column list used to flip above the trigger and
+                stretch to the top edge, over the header). The columns sit in
+                two columns so the menu rarely scrolls at all. */}
+            <DropdownMenuContent align="end" side="bottom" collisionPadding={12} className="w-[22rem] max-h-[min(var(--radix-dropdown-menu-content-available-height),70vh)] scrollbar-thin">
               {/* Density — persisted per user ("the right row height is the
                   one each user picked", polish research 2026-09-03 §11). */}
               <DropdownMenuLabel className="t-label font-normal">{t('Densité des lignes')}</DropdownMenuLabel>
@@ -1387,6 +1391,7 @@ export default function DossiersClientPage() {
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="t-label font-normal">{t('Colonnes')}</DropdownMenuLabel>
+              <div className="grid grid-cols-2">
               {HIDEABLE_COLUMNS.map((c) => (
                 <DropdownMenuCheckboxItem
                   key={c.key}
@@ -1404,6 +1409,7 @@ export default function DossiersClientPage() {
                   {t(c.label)}
                 </DropdownMenuCheckboxItem>
               ))}
+              </div>
               {filters.hiddenCols.length > 0 && (
                 <>
                   <DropdownMenuSeparator />
