@@ -171,7 +171,6 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     adresse: '',
     observation: '',
     observationCustomText: '',
-    agentLocationManuel: '',
   });
 
   // Unsaved-work guard (§2.5): « × » / Escape / scrim / Android back on a
@@ -281,10 +280,9 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         adresse: initialData.adresse || '',
         observation: initialData.observation || '',
         observationCustomText: initialData?.observationCustomText || '',
-        agentLocationManuel: initialData.agentLocationManuel || '',
       });
     } else if (open) {
-      setFormData({ agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationCustomText: initialData?.observationCustomText || '', agentLocationManuel: '' });
+      setFormData({ agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationCustomText: initialData?.observationCustomText || '' });
     }
   }, [initialData, open, defaultTypeMission, defaultAgentTerrain]);
 
@@ -303,9 +301,9 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     : demoSelfLocationActive || agentLive.isFresh;
 
   // True when an agent is selected but their fresh GPS position is not
-  // available (denied / no last-known location / no UID match). Drives both
-  // the existing "Position non disponible" alert and the manual fallback
-  // <Input> row that lets the gestionnaire type a location by hand.
+  // available (denied / no last-known location / no UID match). Drives the
+  // "Position non disponible" alert with the « Demander la localisation »
+  // request button.
   // NOT gated on `agentLive.agentUid`: when the dropdown label matches no
   // user account (seeded « Agent 1 », a renamed agent…) the uid stays null
   // and the whole block used to vanish on switching agents. Now it stays and
@@ -435,7 +433,6 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         zone: derivedZone,
         adresse: formData.adresse,
         observation: resolvedObservation,
-        agentLocationManuel: formData.agentLocationManuel,
         modifiedAt: serverTimestamp(),
         modifiedBy: auth?.currentUser?.uid || 'Admin',
         modifiedByName: profile?.nom || userEmail,
@@ -945,23 +942,6 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 )}
               </AlertDescription>
             </Alert>
-          )}
-
-          {!isCurrentUserAT && isAgentLocationUnavailable && (
-            <div className="space-y-2 max-md:order-9">
-              <Label htmlFor="agent-location-manuel">
-                {t("Localisation de l'agent (manuelle)")}
-              </Label>
-              <Input
-                id="agent-location-manuel"
-                placeholder={t('Saisir une localisation à la main (facultatif)…')}
-                className="h-10"
-                value={formData.agentLocationManuel}
-                onChange={(e) =>
-                  setFormData({ ...formData, agentLocationManuel: e.target.value })
-                }
-              />
-            </div>
           )}
 
           {feasibilityUnavailable && (
