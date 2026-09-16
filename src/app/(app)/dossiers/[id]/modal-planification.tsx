@@ -613,10 +613,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 </Select>
               </div>
               <div className="space-y-2 max-md:order-2">
-              <div className="flex items-center justify-between">
-                <Label>{t('Agent de Terrain')}</Label>
-                <OptionsManagerModal collectionName="options_agents" title={t('Agents de terrain')} />
-              </div>
+              <Label>{t('Agent de Terrain')}</Label>
               <Select value={formData.agentTerrain} onValueChange={(v) => setFormData({...formData, agentTerrain: v})}>
                 <SelectTrigger id="plan-agent-select" data-tour="plan-agent" aria-label={t('Agent de Terrain')} {...formErrors.fieldProps('plan-agent-select')}><SelectValue placeholder={t('Choisir un agent')} /></SelectTrigger>
                 <SelectContent>
