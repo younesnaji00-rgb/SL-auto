@@ -595,7 +595,7 @@ export function SlotCard({
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        disabled={isDeleting || !!p.pendingUpload}
+                        disabled={isDeleting}
                         className="text-status-danger-fg focus:text-status-danger-fg"
                         onSelect={() => onDelete(p)}
                       >
@@ -689,7 +689,7 @@ export function SlotCard({
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => onDelete(primary)}
-                disabled={primaryDeleting || !!primary.pendingUpload}
+                disabled={primaryDeleting}
                 title={t('Supprimer')}
                 aria-label={`${t('Supprimer')} — ${primaryName}`}
               >

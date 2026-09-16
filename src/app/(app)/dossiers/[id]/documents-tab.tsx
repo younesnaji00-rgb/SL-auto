@@ -308,20 +308,28 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     setCounterRoundLabel(toOrdinalFr(devisStats.counters + 1) + ' accord');
   }, [uploadType, devisStats.counters, isUploadModalOpen]);
 
-  /** Open the native picker; the typed dialog follows with `type` preselected. */
-  const openImport = (type?: string) => {
+  /** When true, the next file selection uploads straight as 'Autre' with no
+   *  category dialog (owner ruling 2026-09-16: don't force a type for 'Autre'). */
+  const importDirectRef = useRef(false);
+  /** Open the native picker; the typed dialog follows with `type` preselected,
+   *  unless `direct` is set (then the file uploads immediately as 'Autre'). */
+  const openImport = (type?: string, direct = false) => {
     setUploadType(type ?? '');
+    importDirectRef.current = direct;
     fileInputRef.current?.click();
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setSelectedFiles(Array.from(e.target.files));
-      setUploadModalOpen(true);
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (files.length === 0) return;
+    if (importDirectRef.current) {
+      importDirectRef.current = false;
+      void uploadFiles(files, 'Autre');
+      return;
     }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    setSelectedFiles(files);
+    setUploadModalOpen(true);
   };
 
   /**
@@ -901,15 +909,15 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
                 {canEdit && !isSearching && (
                   <button
                     type="button"
-                    onClick={() => openImport()}
+                    onClick={() => openImport('Autre', true)}
                     className={cn(SOCKET_BASE_CLASS, SOCKET_OPEN_CLASS)}
-                    aria-label={t("Ajouter un document d'un autre type")}
+                    aria-label={t('Ajouter un autre document')}
                   >
                     <Plus className="h-5 w-5 text-ink-3 transition-colors duration-150 group-hover/socket:text-ink" aria-hidden />
                     <span className="t-body-sm font-medium text-ink-2 transition-colors duration-150 group-hover/socket:text-ink">
-                      {t('Autre type…')}
+                      {t('Autre document')}
                     </span>
-                    <span className="t-caption">{t('Choisir la catégorie')}</span>
+                    <span className="t-caption">{t('Déposer')}</span>
                   </button>
                 )}
               </div>
