@@ -10,7 +10,7 @@
  */
 import { normalizePlate } from './plate-match';
 
-export type ValidatedKind = 'tel' | 'email' | 'address' | 'plate' | 'name' | 'cin' | 'numeric';
+export type ValidatedKind = 'tel' | 'email' | 'address' | 'plate' | 'name' | 'cin' | 'numeric' | 'ref' | 'vin' | 'label';
 
 export interface ValidatedField {
   /** Dossier dot-path (« assure.telephone »). */
@@ -64,6 +64,21 @@ export function validateFieldValue(kind: ValidatedKind, raw: unknown): string | 
     case 'numeric': {
       if (/^\d+$/.test(value.replace(/\s/g, ''))) return null;
       return 'Nombre entier attendu (chiffres uniquement).';
+    }
+    case 'ref': {
+      // References and identifiers: réf dossier, n° de police, code, permis…
+      if (value.length >= 2 && value.length <= 40 && /^[A-Za-z0-9][A-Za-z0-9\s\-_./]*$/.test(value)) return null;
+      return 'Référence invalide : lettres, chiffres, espaces, - _ . / uniquement (2 à 40 caractères).';
+    }
+    case 'vin': {
+      const compact = value.replace(/[\s-]/g, '').toUpperCase();
+      if (compact.length >= 5 && compact.length <= 17 && /^[A-Z0-9]+$/.test(compact) && !(compact.length === 17 && /[IOQ]/.test(compact))) return null;
+      return 'Numéro de série invalide : 5 à 17 lettres ou chiffres (sans I, O, Q pour un VIN).';
+    }
+    case 'label': {
+      // Marque, modèle, énergie, type : words, digits and light punctuation.
+      if (value.length >= 1 && value.length <= 60 && new RegExp(`^[${LETTERS}0-9][${LETTERS}0-9\\s'’.&()/\\-]*$`).test(value)) return null;
+      return 'Valeur invalide : lettres, chiffres et ponctuation simple uniquement.';
     }
     default:
       return null;

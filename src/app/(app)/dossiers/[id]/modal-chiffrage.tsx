@@ -181,6 +181,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
         assignedChiffreurId: chiffreur.id,
         assignedChiffreurNom: chiffreur.nom,
         assignedChiffreurEmail: chiffreur.email,
+        assignedChiffreurUid: chiffreur.uid,
         files: selectedFiles,
         sentByUid: userId,
         sentByEmail: userEmail,

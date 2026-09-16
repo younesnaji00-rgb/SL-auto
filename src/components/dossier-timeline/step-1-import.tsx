@@ -2,6 +2,7 @@
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
+  collection,
   doc as firestoreDoc,
   deleteDoc,
   deleteField,
@@ -24,7 +25,7 @@ import {
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { useToast } from '@/hooks/use-toast';
 import { useT, dateFnsLocale } from '@/i18n';
-import { useFirestore, useStorage, useAuth, useDoc } from '@/firebase';
+import { useFirestore, useStorage, useAuth, useDoc, useCollection } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
@@ -36,6 +37,8 @@ import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/do
 import SmartInbox from './smart-inbox';
 import { emitPrefillFlash } from '@/hooks/use-prefill-flash';
 import { findDossierWithRefExpert } from '@/lib/ref-expert-unique';
+import { PREFILL_DOC_CLASSES, UNCLASSIFIED_LABEL } from '@/lib/doc-classes';
+import { isChiffrageOutputType } from '@/lib/required-docs';
 
 export interface Step1ImportProps {
   dossierId: string;
@@ -176,6 +179,28 @@ export default function Step1Import({
   // uploads live in Step 4 (Pièces jointes). The reference is stored on the
   // dossier as `importDocId`.
   const importDocId: string | undefined = dossier?.importDocId || undefined;
+
+  // Every stored document, so the pre-fill stays reachable after the drop
+  // queue (local state) is gone — tab switch, fold, reload (QA bug 010).
+  const storedDocsQuery = useMemo(
+    () => (db && dossierId && importDocOverride === undefined ? collection(db, 'dossiers', dossierId, 'documents') : null),
+    [db, dossierId, importDocOverride],
+  );
+  const { data: storedDocs } = useCollection<any>(storedDocsQuery);
+  const prefillCandidate = useMemo(() => {
+    const list = (storedDocs ?? []).filter((d: any) => {
+      const type = String(d?.type || d?.typeDocument || '');
+      return !!d?.url && !d?.pendingUpload && !isChiffrageOutputType(type)
+        && (PREFILL_DOC_CLASSES.includes(type) || type === UNCLASSIFIED_LABEL);
+    });
+    const ms = (d: any) => {
+      const v = d?.dateUpload ?? d?.uploadedAt;
+      return typeof v?.toMillis === 'function' ? v.toMillis() : typeof d?._localCreatedAt === 'number' ? d._localCreatedAt : 0;
+    };
+    list.sort((a: any, b: any) => ms(b) - ms(a));
+    // A mission letter first, else the most recent source document.
+    return list.find((d: any) => String(d?.type || '') === 'Lettre de mission') ?? list[0] ?? null;
+  }, [storedDocs]);
 
   const importDocRef = useMemo(() => {
     if (importDocOverride !== undefined) return null; // replay: frozen data, no live read
@@ -462,10 +487,9 @@ export default function Step1Import({
   // « Pré-remplir les informations » button lives in the drop queue, which is
   // local state — it vanishes on tab switch, step fold or reload, leaving no
   // way back to the scan (QA bug 010).
-  const handleRescanImportDoc = useCallback(async () => {
-    const d: any = importDoc;
+  const scanStoredDoc = useCallback(async (d: any) => {
     const url: string | undefined = d?.url || undefined;
-    if (!url || d?.pendingUpload || !importDocId) return;
+    if (!url || d?.pendingUpload || !d?.id) return;
     const userEmail = auth?.currentUser?.email || 'Admin';
     try {
       const res = await fetch(url);
@@ -473,16 +497,17 @@ export default function Step1Import({
       const blob = await res.blob();
       const name: string = d?.nom || d?.fileName || 'document';
       const file = new File([blob], name, { type: blob.type || d?.contentType || 'application/octet-stream' });
-      await runScanAndMerge([file], userEmail, importDocId);
+      await runScanAndMerge([file], userEmail, d.id);
     } catch (err: any) {
-      console.error('[Step1Import] rescan error:', err);
+      console.error('[Step1Import] stored-doc scan error:', err);
       toast({
         variant: 'destructive',
         title: t('Erreur de scan'),
         description: err?.message || t('Impossible de relire le document source.'),
       });
     }
-  }, [importDoc, importDocId, auth, runScanAndMerge, toast, t]);
+  }, [auth, runScanAndMerge, toast, t]);
+  const handleRescanImportDoc = useCallback(() => scanStoredDoc({ ...(importDoc as any), id: importDocId }), [scanStoredDoc, importDoc, importDocId]);
   const hasImportDoc = Boolean(importDocId);
 
   const lightbox = (
@@ -524,9 +549,26 @@ export default function Step1Import({
           />
         )}
         {!hasImportDoc ? (
-          <span className="t-caption text-ink-3">
-            {t('Déposez la lettre de mission pour pré-remplir les informations.')}
-          </span>
+          prefillCandidate && canEdit ? (
+            // A source document is already stored but was never scanned (the
+            // drop queue vanished before « Pré-remplir »): offer the scan here.
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 max-md:h-11 max-md:text-[14px]"
+              onClick={() => void scanStoredDoc(prefillCandidate)}
+              disabled={busy}
+              title={`${t('Pré-remplir depuis')} ${prefillCandidate.nom || prefillCandidate.fileName || t('le document déposé')}`}
+            >
+              {isScanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanSearch className="h-3.5 w-3.5" />}
+              {t('Pré-remplir depuis')} « {prefillCandidate.nom || prefillCandidate.fileName || t('document')} »
+            </Button>
+          ) : (
+            <span className="t-caption text-ink-3">
+              {t('Déposez la lettre de mission pour pré-remplir les informations.')}
+            </span>
+          )
         ) : importDocLoading ? (
           <Loader2 className="h-4 w-4 animate-spin text-ink-3" aria-label={t('Chargement du document source')} />
         ) : !importDoc ? (

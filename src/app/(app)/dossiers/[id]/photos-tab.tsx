@@ -38,6 +38,8 @@ import {
 import { ref, deleteObject } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { downloadFileFromUrl, ensureImageExtension } from '@/components/documents/typed-doc';
+import { readExifGps } from '@/lib/exif-gps';
+import { apiFetch } from '@/lib/api-fetch';
 import { useFirestore, useAuth, useStorage, useDoc, useCollection } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -403,6 +405,26 @@ export default function PhotosTab({
     setIsUploading(cat);
     try {
       const fileList = Array.from(files).slice(0, available);
+      // QA bug 021: a photo taken with a phone and imported from a computer
+      // carries its position in EXIF; read it and label it (best effort, one
+      // reverse-geocode per distinct spot) so « Par localisation » can group.
+      const labelCache = new Map<string, string | null>();
+      const geoFor = async (file: File): Promise<{ lat?: number; lng?: number; location?: string }> => {
+        const gps = await readExifGps(file);
+        if (!gps) return {};
+        const key = `${gps.lat.toFixed(3)},${gps.lng.toFixed(3)}`;
+        if (!labelCache.has(key)) {
+          try {
+            const res = await apiFetch(`/api/reverse-geocode?lat=${gps.lat}&lng=${gps.lng}`);
+            const data = res.ok ? await res.json() : null;
+            labelCache.set(key, typeof data?.formatted === 'string' && data.formatted ? data.formatted : null);
+          } catch {
+            labelCache.set(key, null);
+          }
+        }
+        const location = labelCache.get(key);
+        return { lat: gps.lat, lng: gps.lng, ...(location ? { location } : {}) };
+      };
       if (files.length > available) {
         toast({
           variant: 'destructive',
@@ -412,10 +434,11 @@ export default function PhotosTab({
       }
       // Fire all uploads in parallel. Use allSettled so one failure doesn't abort the batch.
       const results = await Promise.allSettled(
-        fileList.map((file, idx) => {
+        fileList.map(async (file, idx) => {
           // Jitter the timestamp so parallel uploads don't collide on the same ms.
           const timestamp = Date.now() + idx;
           const storagePath = `dossiers/${dossierId}/photos/${cat}/${timestamp}_${file.name}`;
+          const geo = await geoFor(file);
           return uploadFileWithOfflineSupport({
             storage,
             db,
@@ -430,6 +453,7 @@ export default function PhotosTab({
               uploadedBy: userEmail,
               storagePath,
               _localCreatedAt: timestamp,
+              ...geo,
             },
           });
         }),

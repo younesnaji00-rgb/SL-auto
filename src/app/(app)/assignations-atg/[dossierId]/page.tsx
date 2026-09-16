@@ -887,7 +887,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         >
           <ImageIcon className={cn('h-5 w-5 shrink-0', isPhotosOpen ? 'text-ink' : 'text-ink-3')} aria-hidden />
           <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{t('Photos')}</span>
-          <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">{photos.length}</span>
+          <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">{filteredPhotos.length}</span>
           <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform', isPhotosOpen ? 'rotate-180' : 'rotate-0')} aria-hidden />
         </button>
 

@@ -271,7 +271,12 @@ export default function Step2Information({
         <Card
           variant="outline"
           data-tour="dosd-compare-panel"
-          className="sticky top-[calc(60px+1rem)] flex max-h-[calc(100dvh/var(--app-zoom)-60px-2rem)] flex-col gap-2 overflow-hidden p-3"
+          // Arbitrary calc() values must keep the app's proven shape
+          // `calc((100dvh-Npx)/var(--app-zoom))` — Tailwind silently emitted
+          // NO rule for `100dvh/var(--app-zoom)-60px-2rem`, so the pane had no
+          // height cap: the frame grew with the zoom and never scrolled
+          // vertically (QA 012 / 013 second report).
+          className="sticky top-[76px] flex max-h-[calc((100dvh-92px)/var(--app-zoom))] flex-col gap-2 overflow-hidden p-3"
         >
           {/* Pane header — label + file name · zoom · eye (lightbox) · close. */}
           <div className="flex items-start justify-between gap-2">

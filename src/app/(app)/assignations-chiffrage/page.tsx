@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { collection, onSnapshot, query, orderBy, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
@@ -100,6 +100,10 @@ function formatRemaining(hours: number): string {
 function normalize(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
+/** Letters and digits only, accent- and case-insensitive — for name matching. */
+function compactName(s: string): string {
+  return normalize(s).replace(/[^a-z0-9]/g, '');
+}
 
 export default function AssignationsChiffragePage() {
   const t = useT();
@@ -147,21 +151,44 @@ export default function AssignationsChiffragePage() {
   // « me » through the chiffreurs directory by login email first, then by
   // accent/case-insensitive name — an exact `nom` string equality was the only
   // link before, and one renamed account emptied the whole queue silently.
-  const chiffrages = useMemo(() => {
-    if (profile?.role !== 'Chiffreur') return allChiffrages;
-    const myEmail = (profile.email || '').toLowerCase().trim();
-    const myName = normalize(profile.nom || '').trim();
-    const myIds = new Set(
+  // « Me » in the chiffreurs directory: by stored uid, then login e-mail,
+  // then name compared on letters and digits only (« Chiffreur 1 » ≡
+  // « chiffreur1 »). The directory entry gets my uid written back the first
+  // time, so every later chiffrage is keyed on it (QA bug 029/030).
+  const myUid = profile?.uid || '';
+  const myEmail = (profile?.email || '').toLowerCase().trim();
+  const myName = compactName(profile?.nom || '');
+  const myFullName = compactName(`${profile?.prenom || ''} ${profile?.nom || ''}`);
+  const myDirectoryIds = useMemo(() => {
+    if (profile?.role !== 'Chiffreur') return new Set<string>();
+    return new Set(
       chiffreurDirectory
-        .filter(c => (myEmail && (c.email || '').toLowerCase().trim() === myEmail) || (myName && normalize(c.nom || '').trim() === myName))
+        .filter(c =>
+          (myUid && c.uid === myUid) ||
+          (myEmail && (c.email || '').toLowerCase().trim() === myEmail) ||
+          (myName && [myName, myFullName].includes(compactName(c.nom || ''))),
+        )
         .map(c => c.id),
     );
+  }, [chiffreurDirectory, profile?.role, myUid, myEmail, myName, myFullName]);
+  useEffect(() => {
+    if (!db || profile?.role !== 'Chiffreur' || !myUid) return;
+    const unlinked = chiffreurDirectory.filter(c => myDirectoryIds.has(c.id) && !c.uid);
+    unlinked.forEach(c => {
+      updateDoc(doc(db, 'chiffreurs', c.id), { uid: myUid }).catch(err =>
+        console.warn('[assignations-chiffrage] could not link the chiffreur directory entry:', err),
+      );
+    });
+  }, [db, profile?.role, myUid, chiffreurDirectory, myDirectoryIds]);
+  const chiffrages = useMemo(() => {
+    if (profile?.role !== 'Chiffreur') return allChiffrages;
     return allChiffrages.filter(c =>
-      (c.assignedChiffreurId && myIds.has(c.assignedChiffreurId)) ||
+      (myUid && (c as any).assignedChiffreurUid === myUid) ||
+      (c.assignedChiffreurId && myDirectoryIds.has(c.assignedChiffreurId)) ||
       (myEmail && ((c as any).assignedChiffreurEmail || '').toLowerCase().trim() === myEmail) ||
-      (myName && normalize(c.assignedChiffreurNom || '').trim() === myName),
+      (myName && [myName, myFullName].includes(compactName(c.assignedChiffreurNom || ''))),
     );
-  }, [allChiffrages, chiffreurDirectory, profile?.role, profile?.email, profile?.nom]);
+  }, [allChiffrages, myDirectoryIds, profile?.role, myUid, myEmail, myName, myFullName]);
 
   // Listen to dossier statuts + compagnies + natures for all referenced dossierIds
   const [dossierCompagnies, setDossierCompagnies] = useState<Record<string, string>>({});

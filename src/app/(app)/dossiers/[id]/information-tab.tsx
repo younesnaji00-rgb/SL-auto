@@ -471,7 +471,25 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
    * section is checked, since the sheet cannot show an error elsewhere.
    */
   const VALIDATED_FIELDS: ValidatedField[] = [
+    { path: 'refExpert', kind: 'ref', label: t('Réf Dossier') },
+    { path: 'referenceCompagnie', kind: 'ref', label: t('Référence compagnie') },
+    { path: 'policeNumber', kind: 'ref', label: t('N° de Police') },
     { path: 'matricule', kind: 'plate', label: t('Matricule') },
+    ...(['1er', '2eme', 'arbitre'] as const).flatMap((role): ValidatedField[] => [
+      { path: `experts.${role}.nom`, kind: 'name', label: `${t('Experts')} · ${t('Nom complet')}` },
+      { path: `experts.${role}.telephone`, kind: 'tel', label: `${t('Experts')} · ${t('Téléphone')}` },
+      { path: `experts.${role}.email`, kind: 'email', label: `${t('Experts')} · ${t('Email')}` },
+      { path: `experts.${role}.compagnie`, kind: 'label', label: `${t('Experts')} · ${t('Compagnie')}` },
+    ]),
+    { path: 'vehicule.marque', kind: 'label', label: `${t('Véhicule')} · ${t('Marque')}` },
+    { path: 'vehicule.modele', kind: 'label', label: `${t('Véhicule')} · ${t('Modèle')}` },
+    { path: 'vehicule.serie', kind: 'vin', label: `${t('Véhicule')} · ${t('Numéro de série')}` },
+    { path: 'vehicule.energie', kind: 'label', label: `${t('Véhicule')} · ${t('Énergie')}` },
+    { path: 'intermediaireType', kind: 'label', label: `${t('Intermédiaire')} · ${t('Type')}` },
+    { path: 'intermediaireCode', kind: 'ref', label: `${t('Intermédiaire')} · ${t('Code Intermédiaire')}` },
+    { path: 'intermediaireCompagnie', kind: 'label', label: `${t('Intermédiaire')} · ${t('Compagnie')}` },
+    { path: 'adverseCompagnie', kind: 'label', label: `${t('Partie Adverse')} · ${t('Compagnie')}` },
+    { path: 'adversePermis', kind: 'ref', label: `${t('Partie Adverse')} · ${t('N° Permis')}` },
     { path: 'assure.nom', kind: 'name', label: `${t('Assuré')} · ${t('Nom complet')}` },
     { path: 'assure.telephone', kind: 'tel', label: `${t('Assuré')} · ${t('Téléphone')}` },
     { path: 'assure.whatsapp', kind: 'tel', label: `${t('Assuré')} · WhatsApp` },

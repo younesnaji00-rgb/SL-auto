@@ -18,6 +18,8 @@ export interface Chiffreur {
   id: string;
   nom: string;
   email: string;
+  /** Auth uid of the matching user account, written the first time that chiffreur opens their queue. */
+  uid?: string;
   phone?: string;
   active: boolean;
   createdAt?: any;

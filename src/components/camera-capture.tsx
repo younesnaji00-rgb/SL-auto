@@ -249,6 +249,11 @@ export default function CameraCapture({ open, onClose, onConfirm, maxCaptures = 
         </div>
       )}
 
+      {atCap && (
+        <p role="status" className="shrink-0 bg-black px-4 pt-3 text-center text-[13px] font-medium text-white/90">
+          {t('Limite de photos atteinte pour cette section — supprimez une photo pour en prendre une autre.')}
+        </p>
+      )}
       {/* Bottom controls — flip 44 left · shutter 72 centre · Terminé 44 right
           (Hoober: controls in the lower portion, corners for the edge actions). */}
       <div className="flex shrink-0 items-center justify-between bg-black px-4 py-4 pb-[max(16px,env(safe-area-inset-bottom))]">
