@@ -60,6 +60,7 @@ import { useIsPhone } from '@/hooks/use-viewport-class';
 import { PhotoGrid, PhotoGroup } from '@/components/common/photo-grid';
 import CameraCapture from '@/components/camera-capture';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
+import { logFrontend } from '@/lib/debug-log';
 
 // Re-exported so the field-agent mission page and any other host import the
 // gallery from one place (the grid itself lives in `components/common`).
@@ -423,7 +424,9 @@ export default function PhotosTab({
           }
         }
         const location = labelCache.get(key);
-        return { lat: gps.lat, lng: gps.lng, ...(location ? { location } : {}) };
+        const mapped = { lat: gps.lat, lng: gps.lng, ...(location ? { location } : {}) };
+        logFrontend('photos-tab ← /api/reverse-geocode', mapped);
+        return mapped;
       };
       if (files.length > available) {
         toast({

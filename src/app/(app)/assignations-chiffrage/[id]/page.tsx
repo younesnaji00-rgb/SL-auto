@@ -56,6 +56,7 @@ import { intlLocale, useT } from '@/i18n';
 // Devis | Photos | Observations facets, the deposited PDF, the amount card.
 import { statusTone } from '@/components/ui/status-chip';
 import { PhoneChiffrageScreen, nextChiffrageSlot, type ChiffrageFacet } from './phone-chiffrage-screen';
+import { logFrontend } from '@/lib/debug-log';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -384,6 +385,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
 
       // 2) Transition dossier status to `Accord envoyé`.
       const newStatus = deriveStatus({ kind: 'sendByMail' });
+      logFrontend('assignations-chiffrage ← /api/send-email', { ok: res.ok, newStatus });
       await updateDoc(doc(db, 'dossiers', chiffrage.dossierId), {
         statut: newStatus,
       });

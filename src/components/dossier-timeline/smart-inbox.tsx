@@ -42,6 +42,7 @@ import { DOC_CLASSES, DOC_CLASS_LABELS, PREFILL_DOC_CLASSES, UNCLASSIFIED_LABEL,
 import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { logFrontend } from '@/lib/debug-log';
 
 type ItemStatus = 'uploading' | 'classifying' | 'ready' | 'error';
 
@@ -221,7 +222,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
       });
       if (!res.ok) throw new Error(t('Classification impossible'));
       const data = await res.json();
-      return {
+      const mapped: Partial<InboxItem> = {
         aiType: data.docType,
         confidence: typeof data.confidence === 'number' ? data.confidence : null,
         rationale: data.rationale,
@@ -229,6 +230,8 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
         keyText: data.keyText,
         examplesUsed: data.examplesUsed,
       };
+      logFrontend('smart-inbox ← /api/classify-document', mapped);
+      return mapped;
     },
     [hints, t],
   );

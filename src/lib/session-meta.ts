@@ -1,6 +1,7 @@
 'use client';
 
 import { apiFetch } from './api-fetch';
+import { logFrontend } from './debug-log';
 
 /**
  * Metadata captured when a single-session device claims the session, surfaced
@@ -66,7 +67,9 @@ export async function fetchClientIp(): Promise<string | null> {
       const res = await apiFetch('/api/client-ip', { cache: 'no-store', signal: controller.signal });
       if (!res.ok) return null;
       const data = await res.json();
-      return typeof data?.ip === 'string' && data.ip ? data.ip : null;
+      const ip = typeof data?.ip === 'string' && data.ip ? data.ip : null;
+      logFrontend('session-meta ← /api/client-ip', { ip });
+      return ip;
     } finally {
       clearTimeout(timer);
     }

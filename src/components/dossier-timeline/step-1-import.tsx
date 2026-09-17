@@ -39,6 +39,7 @@ import { emitPrefillFlash } from '@/hooks/use-prefill-flash';
 import { findDossierWithRefExpert } from '@/lib/ref-expert-unique';
 import { PREFILL_DOC_CLASSES, UNCLASSIFIED_LABEL } from '@/lib/doc-classes';
 import { isChiffrageOutputType } from '@/lib/required-docs';
+import { logFrontend } from '@/lib/debug-log';
 
 export interface Step1ImportProps {
   dossierId: string;
@@ -320,6 +321,15 @@ export default function Step1Import({
         }
 
         const written = filledFields.length + overwrittenFields.length;
+
+        logFrontend('step-1-import ← /api/scan-document', {
+          fieldsFound,
+          written,
+          filledFields,
+          overwrittenFields,
+          duplicateRef,
+          ...updates,
+        });
 
         if (overwrittenFields.length > 0) {
           updates.lastImportOverwrites = overwrittenFields;

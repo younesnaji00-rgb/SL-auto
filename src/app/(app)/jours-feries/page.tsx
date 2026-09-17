@@ -45,6 +45,7 @@ import { usePhoneChrome } from '@/components/layout/page-chrome';
 import { RecordCardList } from '@/components/ui/record-card';
 import { ActionSheet } from '@/components/ui/action-sheet';
 import { PhoneAdminCard, PhoneCreateButton, PhoneCreateHost } from '@/components/admin/phone-admin-list';
+import { logFrontend } from '@/lib/debug-log';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -405,6 +406,7 @@ export default function JoursFeriesSettingsPage() {
       const existing = new Set(options.map((o) => o.label));
       const fresh = dates.filter((d) => ISO_DATE.test(d) && !existing.has(d));
       const skipped = dates.length - fresh.length;
+      logFrontend('jours-feries ← /api/scan-holidays', { dates, fresh, skipped });
       if (fresh.length === 0) {
         toast({
           title: t('Rien à ajouter'),

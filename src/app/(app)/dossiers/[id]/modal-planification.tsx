@@ -46,6 +46,7 @@ import { cn } from '@/lib/utils';
 import { INPUT_ADDRESS } from '@/lib/input-attrs';
 import { FormErrorSummary, useFormErrors, type FieldRule } from '@/components/ui/form';
 import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
+import { logFrontend } from '@/lib/debug-log';
 
 /** Narrows a free-form typeMission string to the canonical tri-state, or null. */
 function normalizeTypeMission(
@@ -208,6 +209,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           if (res.ok) {
             const data = await res.json();
             if (data?.formatted) {
+              logFrontend('modal-planification ← /api/reverse-geocode (ma position)', { adresse: data.formatted });
               setFormData((prev) => (prev.adresse === fallback ? { ...prev, adresse: data.formatted } : prev));
             }
           }
@@ -335,6 +337,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       .then((data) => {
         if (cancelled || !data) return;
         if (typeof data.formatted === 'string' && data.formatted) {
+          logFrontend('modal-planification ← /api/reverse-geocode (position agent)', { agentAddress: data.formatted });
           setAgentAddress(data.formatted);
         }
       })
@@ -746,6 +749,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                   if (!res.ok) return;
                   const data = await res.json();
                   if (!data?.formatted) return;
+                  logFrontend('modal-planification ← /api/reverse-geocode (carte)', { adresse: data.formatted });
                   setFormData((prev) => prev.adresse === tempValue ? { ...prev, adresse: data.formatted } : prev);
                 } catch {
                   /* silent — leaves the lat,lng value in place */

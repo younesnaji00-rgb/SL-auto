@@ -6,6 +6,7 @@ import {
   type DevisExtraColumn, type DevisHeader, type DevisRow, type EditableDocType, type StructuredDevis,
 } from './devis-schema';
 import type { ScanDevisCounterOutput } from './scan-devis-counter-schema';
+import { logFrontend } from './debug-log';
 
 export interface ExtractAndPersistParams {
   db: Firestore;
@@ -212,6 +213,7 @@ export async function extractAndPersistChiffrageDevis(
             for (const m of out.matches || []) {
               if (m.counterPrice != null) values[m.rowId] = formatFr(m.counterPrice);
             }
+            logFrontend('devis-extract ← /api/scan-devis-counter', { matches: out.matches, values });
 
             const col: DevisExtraColumn = {
               id: newId(),
@@ -397,6 +399,7 @@ async function scanOriginal(
     }
     const parsed = await r.json();
     const calculationErrors: string[] = Array.isArray(parsed?.calculationErrors) ? parsed.calculationErrors : [];
+    logFrontend('devis-extract ← /api/scan-devis', { parsed, calculationErrors });
     return { ok: true, parsed, calculationErrors };
   } catch (e: any) {
     const msg = String(e?.message || '').toLowerCase();

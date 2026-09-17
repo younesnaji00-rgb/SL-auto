@@ -17,6 +17,7 @@ import {
 import type { AgentLiveLocation } from '@/hooks/use-agent-live-location';
 import { apiFetch } from '@/lib/api-fetch';
 import { format } from 'date-fns';
+import { logFrontend } from '@/lib/debug-log';
 
 interface Args {
   agentName: string;
@@ -180,7 +181,9 @@ export function useAtgFeasibility({
         // Legs Google could not route are passed as NaN so evaluateChain skips
         // them instead of mistaking a failed lookup for a 0-minute drive.
         const legSecs = data.legs.map((l) => (l.status === 'OK' ? l.durationSeconds : NaN));
-        setConflicts(evaluateChain(chain, legSecs));
+        const nextConflicts = evaluateChain(chain, legSecs);
+        logFrontend('use-atg-feasibility ← /api/atg-feasibility', { legSecs, conflicts: nextConflicts });
+        setConflicts(nextConflicts);
         setLoading(false);
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
