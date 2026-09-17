@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, type User } from 'firebase/auth';
-import { doc, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useAuth, useFirestore } from '@/firebase';
 import { ROLES_THAT_CAN_DELETE, SINGLE_SESSION_ROLES, type Role } from '@/lib/dossiers-data';
 import { collectSessionMeta } from '@/lib/session-meta';

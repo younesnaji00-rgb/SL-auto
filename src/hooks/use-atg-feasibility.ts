@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   collectionGroup,
-  getDocs,
   query,
   where,
   Timestamp,
 } from 'firebase/firestore';
+import { getDocs } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 import {
   evaluateChain,

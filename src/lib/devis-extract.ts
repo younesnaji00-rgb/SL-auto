@@ -1,4 +1,5 @@
-import { doc, getDoc, serverTimestamp, updateDoc, type Firestore } from 'firebase/firestore';
+import { doc, serverTimestamp, updateDoc, type Firestore } from 'firebase/firestore';
+import { getDoc } from './firestore-logged';
 import { getDownloadURL, ref as storageRef, type FirebaseStorage } from 'firebase/storage';
 import { apiFetch } from '@/lib/api-fetch';
 import {

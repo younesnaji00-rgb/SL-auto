@@ -12,10 +12,10 @@ import {
   collection,
   addDoc,
   doc,
-  onSnapshot,
   updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

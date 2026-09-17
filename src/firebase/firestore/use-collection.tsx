@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   type Query,
-  onSnapshot,
   type DocumentData,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
 import { subscribe } from './listener-cache';

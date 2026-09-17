@@ -3,7 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { getDoc, getDocs, onSnapshot } from '@/lib/firestore-logged';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import {
   ArrowLeft, Car, CheckCircle2, ChevronDown, ChevronUp, Columns2, FileText, Loader2,
@@ -600,7 +601,6 @@ export function DevisEditor({
   // chiffreur); `scanReviewed` is the post-scan confirmation flag. Both must be
   // true before any row/header affordance is enabled.
   const isEditable = canEdit && scanReviewed;
-
 
   // Totals ───────────────────────────────────────────────────────────────
   // Pre-compute per-row totals (used both in the main tbody and the inline

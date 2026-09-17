@@ -2,8 +2,6 @@ import {
   collection,
   addDoc,
   doc,
-  getDoc,
-  getDocs,
   query,
   serverTimestamp,
   updateDoc,
@@ -11,6 +9,7 @@ import {
   Timestamp,
   Firestore,
 } from "firebase/firestore";
+import { getDoc, getDocs } from './firestore-logged';
 import {
   getDownloadURL,
   ref as storageRef,

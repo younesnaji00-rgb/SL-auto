@@ -10,7 +10,8 @@
  */
 
 import { useCallback, useState } from 'react';
-import { doc, updateDoc, serverTimestamp, collection, query, where, limit, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, collection, query, where, limit } from 'firebase/firestore';
+import { getDocs } from '@/lib/firestore-logged';
 import { MessageCircle, MoreHorizontal, Navigation, Phone, UserCog, MapPin, Car } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';

@@ -29,12 +29,12 @@ import {
   addDoc,
   deleteDoc,
   doc,
-  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { ref, deleteObject } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { downloadFileFromUrl, ensureImageExtension } from '@/components/documents/typed-doc';

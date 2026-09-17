@@ -5,10 +5,10 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   collection,
   collectionGroup,
-  onSnapshot,
   orderBy,
   query,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import {
   Activity,
   Gauge,

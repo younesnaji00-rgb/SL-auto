@@ -5,13 +5,13 @@ import {
   collection,
   doc,
   limit,
-  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
   where,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { Capacitor } from '@capacitor/core';
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';

@@ -22,7 +22,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { AlertCircle, Loader2, Clock } from 'lucide-react';
-import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, Timestamp, getDocs, query, where, limit } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, Timestamp, query, where, limit } from 'firebase/firestore';
+import { getDocs } from '@/lib/firestore-logged';
 import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfToday, formatDistanceToNow } from 'date-fns';

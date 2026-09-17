@@ -15,7 +15,8 @@
  */
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { arrayUnion, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { arrayUnion, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { getDoc } from '@/lib/firestore-logged';
 import {
   AlertTriangle,
   Check,

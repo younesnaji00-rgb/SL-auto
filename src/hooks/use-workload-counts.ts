@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   collectionGroup,
   doc,
-  onSnapshot,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 import { subscribeAllChiffreurOpenCounts } from '@/lib/chiffreur-workload';
 import { isAtgCompletedStatus } from '@/lib/status-machine';

@@ -24,11 +24,11 @@
 
 import {
   collection,
-  getDocs,
   query,
   where,
   type Firestore,
 } from 'firebase/firestore';
+import { getDocs } from './firestore-logged';
 
 import { parseAccordDocType, parseGarageSlot } from './docType-accorde';
 

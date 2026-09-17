@@ -14,7 +14,8 @@
 import { PageHeader } from '@/components/layout/page-header';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { addDoc, collectionGroup, onSnapshot, query, orderBy, limit, doc, getDoc, getDocs, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collectionGroup, query, orderBy, limit, doc, collection, serverTimestamp } from 'firebase/firestore';
+import { getDoc, getDocs, onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 import { Badge } from '@/components/ui/badge';
 import {

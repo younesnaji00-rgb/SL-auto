@@ -62,7 +62,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { ROLE_DESCRIPTIONS } from '@/lib/role-descriptions';
 import { useFirestore, useCollection, useFirebaseApp } from '@/firebase';
-import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, addDoc } from 'firebase/firestore';
+import { getDocs } from '@/lib/firestore-logged';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Check, ChevronsUpDown, Plus } from 'lucide-react';
@@ -129,7 +130,6 @@ function generateEmail(nom: string): string {
 // Status chip helper — element-specs §11 (Carbon tag / dataviz: the same state
 // always maps to the same status pair, text label always, never colour alone).
 const statutVariant = (statut: string) => (statut === 'Actif' ? 'success' : 'danger');
-
 
 export default function UtilisateursClientPage() {
   const t = useT();

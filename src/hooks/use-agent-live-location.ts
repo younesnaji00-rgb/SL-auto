@@ -6,13 +6,12 @@ import {
   addDoc,
   collection,
   doc,
-  getDocs,
   limit,
-  onSnapshot,
   query,
   serverTimestamp,
   where,
 } from 'firebase/firestore';
+import { getDocs, onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 
 const FRESH_MS = 10 * 60 * 1000;

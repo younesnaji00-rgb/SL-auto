@@ -18,7 +18,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Skeleton } from '@/components/ui/skeleton';
 import ReferencePanel from './reference-panel';
 import { useFirestore, useStorage } from '@/firebase';
-import { doc, updateDoc, serverTimestamp, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, collection } from 'firebase/firestore';
+import { getDoc, getDocs } from '@/lib/firestore-logged';
 import { ref, getDownloadURL, uploadBytes } from 'firebase/storage';
 import { enqueueUpload } from '@/lib/offline/upload-queue';
 import { useToast } from '@/hooks/use-toast';

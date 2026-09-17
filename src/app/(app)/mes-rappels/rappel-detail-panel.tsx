@@ -12,7 +12,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ClipboardList, FolderOpen, Inbox, MessageSquare, ScrollText, Workflow } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 import { dateFnsLocale, useT } from '@/i18n';
 import { Badge } from '@/components/ui/badge';

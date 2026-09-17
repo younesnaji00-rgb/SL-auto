@@ -14,11 +14,11 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   collection,
   collectionGroup,
-  onSnapshot,
   orderBy,
   query,
   where,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useHolidays } from '@/hooks/use-holidays';

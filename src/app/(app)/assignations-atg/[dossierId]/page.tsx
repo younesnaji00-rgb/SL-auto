@@ -4,8 +4,15 @@ import { PageHeader } from '@/components/layout/page-header';
 import React, { use, useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  doc, collection, query, orderBy, onSnapshot, updateDoc, serverTimestamp, deleteDoc,
+  doc,
+  collection,
+  query,
+  orderBy,
+  updateDoc,
+  serverTimestamp,
+  deleteDoc,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { ref, getDownloadURL, uploadBytes, deleteObject } from 'firebase/storage';
 import { useFirestore, useStorage, useAuth, useDoc, useCollection } from '@/firebase';
 import { Badge } from '@/components/ui/badge';

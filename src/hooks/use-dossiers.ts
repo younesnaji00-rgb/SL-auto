@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where } from 'firebase/firestore';
+import { collection, query, orderBy, deleteDoc, doc, where } from 'firebase/firestore';
+import { getDocs, onSnapshot } from '@/lib/firestore-logged';
 import { ref, deleteObject, listAll } from 'firebase/storage';
 import { useFirestore, useStorage } from '@/firebase';
 import type { Dossier } from '@/lib/dossiers-data';

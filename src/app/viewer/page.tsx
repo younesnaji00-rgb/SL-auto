@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import ReferencePanel from '../editor/reference-panel';
 import { useFirestore, useStorage } from '@/firebase';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, collection } from 'firebase/firestore';
+import { getDoc, getDocs } from '@/lib/firestore-logged';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/i18n';

@@ -80,10 +80,10 @@ import {
   collection,
   where,
   limit,
-  getDocs,
   collectionGroup,
-  serverTimestamp
+  serverTimestamp,
 } from 'firebase/firestore';
+import { getDocs } from '@/lib/firestore-logged';
 import { roles, isSingleSessionRole, type Role } from '@/lib/dossiers-data';
 import { ROLE_DESCRIPTIONS } from '@/lib/role-descriptions';
 import { isSessionStale, timestampToMillis } from '@/lib/session-meta';

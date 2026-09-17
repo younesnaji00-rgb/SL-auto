@@ -3,8 +3,11 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  doc, onSnapshot, updateDoc, serverTimestamp,
+  doc,
+  updateDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { useFirestore, useStorage, useDoc } from '@/firebase';
 import { Button } from '@/components/ui/button';

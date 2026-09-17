@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Calendar, Camera, Loader2, Upload } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
+import { getDocs } from '@/lib/firestore-logged';
 import { useRouter } from 'next/navigation';
 
 import { Badge } from '@/components/ui/badge';

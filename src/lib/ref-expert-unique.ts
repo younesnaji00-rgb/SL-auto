@@ -7,7 +7,8 @@
  * cannot enforce uniqueness in rules; a single equality query is enough at
  * this volume and needs no composite index.
  */
-import { collection, getDocs, limit, query, where, type Firestore } from 'firebase/firestore';
+import { collection, limit, query, where, type Firestore } from 'firebase/firestore';
+import { getDocs } from './firestore-logged';
 
 export const DUPLICATE_REF_MESSAGE = 'Cette Réf. expert est déjà utilisée par un autre dossier.';
 

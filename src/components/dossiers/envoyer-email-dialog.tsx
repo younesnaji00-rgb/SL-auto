@@ -16,7 +16,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 
 import { useFirestore } from '@/firebase';
-import { setDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { getDoc } from '@/lib/firestore-logged';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {

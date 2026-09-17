@@ -3,7 +3,8 @@
 import { PageHeader } from '@/components/layout/page-header';
 import React, { useCallback, useEffect, useState, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useCollection, useFirestore } from '@/firebase';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { Button } from '@/components/ui/button';

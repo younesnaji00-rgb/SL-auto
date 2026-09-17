@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import {
   collection,
-  onSnapshot,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -12,6 +11,7 @@ import {
   query,
   orderBy,
 } from "firebase/firestore";
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from "@/firebase";
 
 export interface Chiffreur {

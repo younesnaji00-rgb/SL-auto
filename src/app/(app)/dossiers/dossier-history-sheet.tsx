@@ -13,7 +13,8 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, orderBy, query } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 import { Sheet } from '@/components/ui/sheet';
 import { UserNameLink } from '@/components/user-name-link';
