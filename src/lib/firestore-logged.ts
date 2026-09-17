@@ -66,7 +66,7 @@ function describeSnapshot(snap: any): unknown {
 
 function logRead(op: string, ref: unknown, snap: unknown): void {
   try {
-    console.debug(`[firestore] ${op} ${describeRef(ref)}`, describeSnapshot(snap));
+    console.log(`[firestore] ${op} ${describeRef(ref)}`, describeSnapshot(snap));
   } catch {
     // Diagnostics must never break the read they are observing.
   }

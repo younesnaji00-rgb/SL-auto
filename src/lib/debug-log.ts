@@ -13,7 +13,7 @@
  */
 export function logFrontend(source: string, fields: unknown): void {
   try {
-    console.debug(`[frontend] ${source}`, fields);
+    console.log(`[frontend] ${source}`, fields);
 
     // A flat object also prints as one row per field — the quickest way to
     // eyeball every value the UI took against the [apiFetch] payload above it.

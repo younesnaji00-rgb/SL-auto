@@ -31,14 +31,14 @@ async function logResponse(method: string, url: string, res: Response): Promise<
     } catch {
       // Not JSON (HTML error page, plain text, empty body) — keep the raw text.
     }
-    console.debug(`[apiFetch] ${method} ${url}`, {
+    console.log(`[apiFetch] ${method} ${url}`, {
       status: res.status,
       ok: res.ok,
       headers: Object.fromEntries(res.headers.entries()),
       body,
     });
   } catch (e) {
-    console.debug(`[apiFetch] ${method} ${url} — could not read response body`, e);
+    console.log(`[apiFetch] ${method} ${url} — could not read response body`, e);
   }
 }
 
