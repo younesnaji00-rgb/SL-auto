@@ -90,6 +90,25 @@ export function readFieldPath(obj: any, path: string): unknown {
   return path.split('.').reduce((acc: any, key) => (acc == null ? undefined : acc[key]), obj);
 }
 
+/** Empty for the required-field gates: missing, null, or blank text. 0 and dates count as values. */
+export function isBlankFieldValue(v: unknown): boolean {
+  return v === null || v === undefined || (typeof v === 'string' && !v.trim());
+}
+
+/**
+ * Protected fields (owner rulings 2026-09-24, QA bugs 015 / 040): once saved
+ * with a value, a field can be CHANGED but never emptied. Returns the paths
+ * that hold a value in `saved` and are blank in `form` — the save must be
+ * refused for each. A field that was never filled stays optional.
+ */
+export function clearedProtectedPaths(saved: any, form: any, paths: Iterable<string>): string[] {
+  const out: string[] = [];
+  for (const p of paths) {
+    if (!isBlankFieldValue(readFieldPath(saved, p)) && isBlankFieldValue(readFieldPath(form, p))) out.push(p);
+  }
+  return out;
+}
+
 /**
  * Validates every listed field against `form`. Returns `{ path → message }`
  * for the malformed ones only; an empty object means the form may be saved.

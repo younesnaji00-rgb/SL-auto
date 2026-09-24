@@ -22,6 +22,7 @@ import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
 import { chiffrageGateReason, computeRequiredDocsStatus, isChiffrageGateClosed, isChiffrageOutputType, type RequiredDocLike, type RequiredDocsStatus } from '@/lib/required-docs';
 import { useAssignableChiffreurs } from '@/hooks/use-assignable-chiffreurs';
+import { missingIdentification } from '@/lib/required-fields';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -125,8 +126,14 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
   const totalFileCount = availablePhotos.length + availableDocs.length;
   // Closed while the documents load, so no surface can fire before the
   // pièces are known.
-  const gateClosed = loadingFiles || isChiffrageGateClosed(requiredStatus);
-  const gateReason = chiffrageGateReason(requiredStatus, t);
+  // Identification first (QA bug Chiffreur 001): a dossier with no Réf.
+  // expert, assuré or plate reached the chiffreur as a bare random id.
+  const idMissing = missingIdentification(dossier);
+  const idReason = idMissing.length > 0
+    ? `${t('Identification incomplète')} : ${idMissing.map((l) => t(l)).join(', ')}.`
+    : null;
+  const gateClosed = loadingFiles || idMissing.length > 0 || isChiffrageGateClosed(requiredStatus);
+  const gateReason = idReason ?? chiffrageGateReason(requiredStatus, t);
 
   const handleAssign = async () => {
     if (loadingChiffreurs || isSubmitting || !db || !dossierId) return;
@@ -138,6 +145,11 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
 
     if (totalFileCount === 0) {
       toast({ variant: 'destructive', title: t('Aucun fichier disponible'), description: t('Ce dossier ne contient aucun fichier à envoyer.') });
+      return;
+    }
+
+    if (idReason) {
+      toast({ variant: 'destructive', title: t('Identification incomplète'), description: idReason });
       return;
     }
 

@@ -196,8 +196,9 @@ export function photoMissionsForCategory(
 }
 
 /**
- * Raw number of missions planned for a section — 0 when none. The phase goes
- * through the normaliser: the type list is editable.
+ * Raw number of missions planned for a section — 0 when none. Photos may only
+ * be added to a section once a visit is planned for it (QA bug 048). The
+ * phase goes through the normaliser: the type list is editable.
  */
 export function plannedMissionsForCategory(
   category: PhotoCategory,
@@ -208,6 +209,12 @@ export function plannedMissionsForCategory(
     return TYPE_MISSION_TO_CATEGORY[phase] === category;
   }).length;
 }
+
+const CATEGORY_PHASE: Record<PhotoCategory, 'Avant' | 'En cours' | 'Après'> = {
+  avant: 'Avant',
+  en_cours: 'En cours',
+  apres: 'Après',
+};
 
 /**
  * Tooltip for the `n/cap` counter. A tester reading « 30/150 » against the
@@ -233,12 +240,15 @@ export default function PhotosTab({
   initialCategory,
   onlyCategory,
   photosOverride,
+  onNewPlanification,
 }: {
   dossierId: string;
   initialCategory?: PhotoCategory;
   onlyCategory?: PhotoCategory;
   /** Replay: frozen photo list rendered instead of the live subscription. */
   photosOverride?: any[];
+  /** Opens the planification modal for a phase — offered when a section has no visit yet. */
+  onNewPlanification?: (type: 'Avant' | 'En cours' | 'Après') => void;
 }) {
   const visibleCategories = onlyCategory ? CATEGORIES.filter((c) => c.id === onlyCategory) : CATEGORIES;
   // Mounted inside a step facet tab (`onlyCategory` set): the photos already
@@ -268,7 +278,37 @@ export default function PhotosTab({
     () => (db ? query(collection(db, 'dossiers', dossierId, 'planifications')) : null),
     [db, dossierId],
   );
-  const { data: planifications } = useCollection<any>(planificationsQuery as any);
+  const { data: planifications, loading: planificationsLoading, error: planificationsError } = useCollection<any>(planificationsQuery as any);
+  // No visit planned for this section → no photos yet (QA bug 048). Only
+  // once the list has loaded, and never in replay (read-only, frozen data).
+  const noMissionFor = React.useCallback(
+    (cat: PhotoCategory) =>
+      photosOverride === undefined && !planificationsLoading && planifications !== null
+      && plannedMissionsForCategory(cat, planifications) === 0,
+    [photosOverride, planificationsLoading, planifications],
+  );
+  const noMissionMessage = (cat: PhotoCategory) =>
+    `${t('Planifiez d’abord la visite')} « ${t(CATEGORY_PHASE[cat])} » ${t('avant d’ajouter des photos.')}`;
+  // Fail CLOSED (QA bug 048): while the planifications are unknown — still
+  // loading, or their listener failed — a photo cannot be checked against a
+  // visit, so nothing is imported. The old gate let everything through
+  // until the list had arrived.
+  const planifsUnknown = photosOverride === undefined && planifications === null;
+  const uploadBlock = (cat: PhotoCategory): { title: string; description: string } | null =>
+    planifsUnknown
+      ? {
+          title: t('Import impossible pour le moment'),
+          description: planificationsError
+            ? t('Impossible de vérifier la planification de cette section. Rechargez la page.')
+            : t('Vérification des planifications en cours…'),
+        }
+      : noMissionFor(cat)
+        ? { title: t('Aucune planification'), description: noMissionMessage(cat) }
+        : null;
+  const uploadBlockReason = (cat: PhotoCategory) => uploadBlock(cat)?.description ?? null;
+  // The window listener below is subscribed once; it reads the gate live.
+  const uploadBlockRef = React.useRef(uploadBlock);
+  uploadBlockRef.current = uploadBlock;
   const capFor = React.useCallback(
     (cat: PhotoCategory) => photoCapForCategory(cat, planifications, !!dossier?.propositionReforme),
     [planifications, dossier?.propositionReforme],
@@ -372,6 +412,11 @@ export default function PhotosTab({
       const detail = (e as CustomEvent<CapturePhotosEventDetail>).detail;
       const wanted = detail?.category ?? onlyCategory ?? initialCategory ?? 'avant';
       if (!visibleCategories.some((c) => c.id === wanted)) return;
+      const blocked = uploadBlockRef.current(wanted);
+      if (blocked) {
+        toast({ variant: 'destructive', ...blocked });
+        return;
+      }
       fileInputRefs.current[wanted]?.click();
     };
     window.addEventListener(CAPTURE_PHOTOS_EVENT, onCapture as EventListener);
@@ -383,6 +428,12 @@ export default function PhotosTab({
 
   const handleUpload = async (cat: PhotoCategory, files: FileList | File[]) => {
     if (!storage || !db) return;
+    // Every path (import, camera, phone bar) goes through here (QA bug 048).
+    const blocked = uploadBlock(cat);
+    if (blocked) {
+      toast({ variant: 'destructive', ...blocked });
+      return;
+    }
     const userEmail = auth?.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'unknown';
     // Enforce the cap for THIS section, which grows with the number of
@@ -847,7 +898,8 @@ export default function PhotosTab({
                         variant="ghost"
                         size={isPhone ? 'default' : 'sm'}
                         className={isPhone ? 'h-11 gap-2 px-3 text-[14px]' : 'h-8 gap-2 text-xs'}
-                        disabled={isUploading === cat.id}
+                        disabled={isUploading === cat.id || !!uploadBlockReason(cat.id)}
+                        title={uploadBlockReason(cat.id) ?? undefined}
                         onClick={() => fileInputRefs.current[cat.id]?.click()}
                       >
                         {isUploading === cat.id ? (
@@ -869,8 +921,38 @@ export default function PhotosTab({
                 <PartitionTabs value={partitionMode} onChange={setPartitionMode} />
               )}
 
+              {/* No visit planned for this section: say so and offer the
+                  planification instead of a drop zone (QA bug 048). */}
+              {canEdit && noMissionFor(cat.id) && (
+                <div
+                  role="status"
+                  className={cn(
+                    'flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-hairline-strong text-center',
+                    catPhotos.length === 0 ? 'py-12' : 'mb-3 py-4',
+                  )}
+                >
+                  <CalendarDays className="h-10 w-10 text-ink-4" aria-hidden />
+                  <div>
+                    <p className="t-heading">{t('Aucune visite planifiée')}</p>
+                    <p className="t-caption mt-1">{noMissionMessage(cat.id)}</p>
+                  </div>
+                  {onNewPlanification && (
+                    <Button
+                      type="button"
+                      size={isPhone ? 'default' : 'sm'}
+                      variant="outline"
+                      className={isPhone ? 'h-11 gap-2 px-3 text-[14px]' : 'h-8 gap-2 text-xs'}
+                      onClick={() => onNewPlanification(CATEGORY_PHASE[cat.id])}
+                    >
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      {t('Nouvelle planification')}
+                    </Button>
+                  )}
+                </div>
+              )}
+
               {/* Photo grid or empty state */}
-              {catPhotos.length === 0 ? (
+              {catPhotos.length === 0 && canEdit && noMissionFor(cat.id) ? null : catPhotos.length === 0 ? (
                 <div
                   className={cn(
                     'flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-hairline-strong py-16 text-center',
@@ -878,7 +960,7 @@ export default function PhotosTab({
                     // — the explicit button below is the only pathway.
                     canEdit && !isPhone && 'cursor-pointer transition-colors hover:bg-surface-2',
                   )}
-                  onClick={() => canEdit && !isPhone && fileInputRefs.current[cat.id]?.click()}
+                  onClick={() => canEdit && !isPhone && !uploadBlockReason(cat.id) && fileInputRefs.current[cat.id]?.click()}
                 >
                   <ImageIcon className="h-12 w-12 text-ink-4" />
                   <div>
@@ -897,7 +979,8 @@ export default function PhotosTab({
                       size={isPhone ? 'default' : 'sm'}
                       variant="outline"
                       className={isPhone ? 'h-11 gap-2 px-3 text-[14px]' : 'h-8 gap-2 text-xs'}
-                      disabled={isUploading === cat.id}
+                      disabled={isUploading === cat.id || !!uploadBlockReason(cat.id)}
+                      title={uploadBlockReason(cat.id) ?? undefined}
                       onClick={(e) => {
                         e.stopPropagation();
                         fileInputRefs.current[cat.id]?.click();

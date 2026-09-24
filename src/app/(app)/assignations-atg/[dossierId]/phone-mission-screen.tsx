@@ -84,6 +84,8 @@ export interface PhoneMissionScreenProps<TPhoto extends PhonePhoto> {
   onOpenPhoto: (photo: TPhoto) => void;
   telephoneRaw: string;
   telephoneHref: string;
+  /** Set when no mission of the active phase is planned: photo intake is closed, and this says why (QA bug 048). */
+  noMissionReason?: string;
 }
 
 function toDate(ts: any): Date | null {
@@ -113,6 +115,7 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
   onOpenPhoto,
   telephoneRaw,
   telephoneHref,
+  noMissionReason,
 }: PhoneMissionScreenProps<TPhoto>) {
   const t = useT();
   const { checkin, saving: checkinSaving } = useMissionCheckin();
@@ -130,7 +133,8 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
     return counts;
   }, [photos]);
 
-  const atCap = phasePhotos.length >= photoCap;
+  // « Closed » = full, or no mission of this phase planned yet (QA bug 048).
+  const atCap = phasePhotos.length >= photoCap || !!noMissionReason;
   const wa = waHref(telephoneRaw);
   const now = Date.now();
 
@@ -143,7 +147,9 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
   };
 
   const checkinTime = toDate(primaryPlan?.checkinAt);
-  const caption = atCap
+  const caption = noMissionReason
+    ? noMissionReason
+    : atCap
     ? `${t('Photos complètes')} (${phasePhotos.length}/${photoCap})`
     : checkinTime
       ? `${t('Arrivé sur place')} · ${format(checkinTime, 'HH:mm')}`

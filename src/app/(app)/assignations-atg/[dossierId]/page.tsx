@@ -238,6 +238,13 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     () => photoCapForCategory(currentCategory, plans, !!(dossier as any)?.propositionReforme),
     [currentCategory, plans, dossier],
   );
+  // No mission of this phase planned → no photos for it (QA bug 048): the
+  // phase switch shows all three phases, so an agent with only an « Avant »
+  // mission could otherwise fill « Après ».
+  const noMission = !plansLoading && plans !== null && (countByType[activeTab] ?? 0) === 0;
+  const noMissionReason = noMission
+    ? `${t('Aucune mission')} « ${t(activeTab)} » ${t('planifiée — les photos ne peuvent être ajoutées qu’après la planification.')}`
+    : undefined;
 
   // Filtered photos for active tab
   const filteredPhotos = useMemo(
@@ -299,6 +306,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // Upload photos (from camera capture)
   const handleUploadFiles = async (files: File[], fromCamera = false) => {
     if (!db || !storage || files.length === 0) return;
+    if (noMissionReason) {
+      toast({ variant: 'destructive', title: t('Aucune planification'), description: noMissionReason });
+      return;
+    }
     // Capture the statut BEFORE the upload loop so the auto-advance check is
     // race-free with respect to additional snapshots arriving mid-batch.
     const statutBeforeUpload: string | undefined = dossier?.statut;
@@ -706,6 +717,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           onOpenPhoto={(photo) => setPreviewPhoto(photo)}
           telephoneRaw={assureTelephoneRaw}
           telephoneHref={assureTelephoneHref}
+          noMissionReason={noMissionReason}
         />
       )}
 
@@ -915,7 +927,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                   <Button
                     data-tour="atgd-camera"
                     variant="default"
-                    disabled={isUploading}
+                    disabled={isUploading || noMission}
+                    title={noMissionReason}
                     loading={isUploading}
                     onClick={() => setIsCameraOpen(true)}
                   >

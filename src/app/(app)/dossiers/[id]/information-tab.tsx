@@ -53,7 +53,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import { usePrefillFlash } from '@/hooks/use-prefill-flash';
 import { BRAND } from '@/lib/brand';
-import { validateFields, type ValidatedField } from '@/lib/field-validation';
+import { validateFields, readFieldPath, isBlankFieldValue, clearedProtectedPaths, type ValidatedField } from '@/lib/field-validation';
 import { findDossierWithRefExpert, refExpertFields, DUPLICATE_REF_MESSAGE } from '@/lib/ref-expert-unique';
 import {
   INPUT_ADDRESS,
@@ -90,6 +90,9 @@ interface InformationTabProps {
 // body, which meant each keystroke produced a new component → React unmounted
 // the focused `<Input>` and remounted a fresh one, losing focus after a
 // single letter.
+/** Assuré fields that can be changed but never emptied once saved (owner ruling 2026-09-24). */
+const PROTECTED_ASSURE_PATHS: ReadonlySet<string> = new Set(['assure.nom', 'assure.telephone', 'assure.cin', 'assure.adresse']);
+
 type FieldDef = {
   label: string;
   value: string;
@@ -538,13 +541,52 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     const scopePaths = sheetSection ? new Set((SECTIONS_PATHS[sheetSection] ?? [])) : null;
     const toCheck = scopePaths ? VALIDATED_FIELDS.filter((f) => scopePaths.has(f.path)) : VALIDATED_FIELDS;
     const errors = validateFields(form, toCheck);
+    const formatLabels = toCheck.filter((f) => errors[f.path]).map((f) => f.label);
+    // Required gate (QA bugs 015 / 040): what creation demanded stays
+    // demanded on edit, and a Création mission field that was saved with a
+    // value cannot be emptied again. Format validation deliberately lets
+    // empty values through, so this is the only place that blocks a blank.
+    const inScope = (p: string) => !scopePaths || scopePaths.has(p);
+    const missingLabels: string[] = [];
+    const role = (form.expertRank as ExpertRole) || '1er';
+    const requiredAtCreation: Array<[string, string]> = [
+      ['compagnie', t('Compagnie')],
+      [`experts.${role}.nom`, `${t('Experts')} · ${t('Nom complet')}`],
+    ];
+    for (const [p, label] of requiredAtCreation) {
+      if (inScope(p) && isBlankFieldValue(readFieldPath(form, p))) {
+        errors[p] = t('Ce champ est requis.');
+        missingLabels.push(label);
+      }
+    }
+    // Protected fields (owner ruling 2026-09-24): once saved with a value,
+    // they can be CHANGED but never emptied — clearing one without a
+    // replacement blocks the save. Every field of the « Informations
+    // Dossier » card and of « Véhicule », and the assuré's name, phone, CIN
+    // and address. Fields that were never filled stay optional.
+    const labelled = (section: string, defs: FieldDef[]) =>
+      defs.filter((d) => d.path).map((d) => [d.path as string, `${section} · ${d.label}`] as const);
+    const protectedFields = [
+      ...labelled(t('Informations Dossier'), dossierFields),
+      ...labelled(t('Véhicule'), vehiculeFields),
+      ...labelled(t('Assuré'), assureFields.filter((d) => PROTECTED_ASSURE_PATHS.has(d.path ?? ''))),
+    ];
+    const protectedLabel = new Map<string, string>(protectedFields);
+    const checkable = protectedFields.map(([p]) => p).filter((p) => inScope(p) && !errors[p]);
+    for (const p of clearedProtectedPaths(dossier, form, checkable)) {
+      errors[p] = t('Ce champ ne peut pas être vidé.');
+      missingLabels.push(protectedLabel.get(p) ?? p);
+    }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
-      const bad = toCheck.filter((f) => errors[f.path]).map((f) => f.label);
+      const parts = [
+        missingLabels.length > 0 ? `${t('Renseignez')} : ${missingLabels.join(', ')}.` : null,
+        formatLabels.length > 0 ? `${t('Corrigez')} : ${formatLabels.join(', ')}.` : null,
+      ].filter(Boolean);
       toast({
         variant: 'destructive',
-        title: t('Format invalide'),
-        description: `${t('Corrigez')} : ${bad.join(', ')}.`,
+        title: missingLabels.length > 0 ? t('Champs obligatoires') : t('Format invalide'),
+        description: parts.join(' '),
       });
       return;
     }

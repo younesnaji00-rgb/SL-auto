@@ -566,7 +566,7 @@ function DossierDetail({ id }: { id: string }) {
     ],
     4: [
       { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Avant" /> },
-      { value: 'photos', label: t('Photos'), icon: <Camera />, badge: photoBadge(4, 'avant'), content: <PhotosTab dossierId={id} onlyCategory="avant" /> },
+      { value: 'photos', label: t('Photos'), icon: <Camera />, badge: photoBadge(4, 'avant'), content: <PhotosTab dossierId={id} onlyCategory="avant" onNewPlanification={readOnly ? undefined : handleNewPlanification} /> },
       // data-tour: the guided tour points at the observations pane here.
       { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <div data-tour="dosd-observations"><ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Avant" /></div> },
     ],
@@ -576,7 +576,7 @@ function DossierDetail({ id }: { id: string }) {
     ],
     9: [
       { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="En cours" /> },
-      { value: 'photos', label: t('Photos'), icon: <Camera />, badge: photoBadge(9, 'en_cours'), content: <PhotosTab dossierId={id} onlyCategory="en_cours" /> },
+      { value: 'photos', label: t('Photos'), icon: <Camera />, badge: photoBadge(9, 'en_cours'), content: <PhotosTab dossierId={id} onlyCategory="en_cours" onNewPlanification={readOnly ? undefined : handleNewPlanification} /> },
       { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="En cours" /> },
     ],
     11: [
@@ -587,7 +587,7 @@ function DossierDetail({ id }: { id: string }) {
     ],
     10: [
       { value: 'planification', label: t('Planification'), icon: <CalendarDays />, content: <Step3Planification dossierId={id} dossier={viewDossier} dossierRef={dossierRef} readOnly={readOnly} onEditPlanification={handleEditPlanification} onNewPlanification={handleNewPlanification} typeFilter="Après" /> },
-      { value: 'photos', label: t('Photos'), icon: <Camera />, badge: photoBadge(10, 'apres'), content: <PhotosTab dossierId={id} onlyCategory="apres" /> },
+      { value: 'photos', label: t('Photos'), icon: <Camera />, badge: photoBadge(10, 'apres'), content: <PhotosTab dossierId={id} onlyCategory="apres" onNewPlanification={readOnly ? undefined : handleNewPlanification} /> },
       { value: 'observations', label: t('Observations'), icon: <MessageSquare />, content: <ObservationsTab dossierId={id} section="dossiers" variant="tab" contextPhase="Après" /> },
     ],
   };
