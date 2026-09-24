@@ -11,11 +11,11 @@ import {
   doc,
   query,
   orderBy,
-  onSnapshot,
   addDoc,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useDossierDocWrite, applyPendingToDossier } from './rappel-draft';

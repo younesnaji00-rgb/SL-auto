@@ -5,7 +5,8 @@ import { Pencil, Calendar as CalendarIcon, User, MapPin, Plus, Info, Clock, Phon
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useFirestore } from '@/firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { format, isPast } from 'date-fns';

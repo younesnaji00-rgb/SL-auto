@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 import { computeRequiredDocsStatus, REQUIRED_SOURCE_SLOTS, type RequiredDocLike, type RequiredDocsStatus } from '@/lib/required-docs';
 import { parseAccordDocType } from '@/lib/docType-accorde';

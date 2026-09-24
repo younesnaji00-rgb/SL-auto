@@ -1,6 +1,7 @@
 import { doc, serverTimestamp, updateDoc, type Firestore } from 'firebase/firestore';
 import { getDownloadURL, ref as storageRef, type FirebaseStorage } from 'firebase/storage';
 import { apiFetch } from '@/lib/api-fetch';
+import { logFrontend } from '@/lib/debug-log';
 
 /**
  * Carte Grise scanner — fired from the typed-documents grid right after a file
@@ -68,6 +69,12 @@ export async function scanAndPersistCarteGrise({
     if (parsed.previousRegistration) {
       updates['vehicule.immatriculationAnterieur'] = parsed.previousRegistration;
     }
+    logFrontend('scan-carte-grise ← /api/scan-carte-grise', {
+      'parsed.registration': parsed.registration,
+      'parsed.previousRegistration': parsed.previousRegistration,
+      ...updates,
+    });
+
     if (Object.keys(updates).length === 0) return parsed;
 
     updates.updatedAt = serverTimestamp();

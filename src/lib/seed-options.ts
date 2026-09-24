@@ -1,14 +1,13 @@
 import {
   getFirestore,
   collection,
-  getDocs,
   writeBatch,
   doc,
-  getDoc,
   setDoc,
   serverTimestamp,
   type Firestore,
 } from 'firebase/firestore';
+import { getDoc, getDocs } from './firestore-logged';
 import { getApp } from 'firebase/app';
 import { CANONICAL_STATUTS } from './dossiers-data';
 

@@ -28,8 +28,8 @@ import {
   updateDoc,
   serverTimestamp,
   where,
-  getDocs,
 } from 'firebase/firestore';
+import { getDocs } from '@/lib/firestore-logged';
 import {
   ref,
   deleteObject

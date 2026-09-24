@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 
 /**

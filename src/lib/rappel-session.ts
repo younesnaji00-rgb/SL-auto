@@ -14,12 +14,11 @@
 import {
   collection,
   doc,
-  getDoc,
-  getDocs,
   serverTimestamp,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
+import { getDoc, getDocs } from './firestore-logged';
 import {
   classifyDossierChanges,
   diffCollectionById,

@@ -3,7 +3,8 @@
 import { PageHeader } from '@/components/layout/page-header';
 import React, { useCallback, useEffect, useState, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useCollection, useFirestore } from '@/firebase';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,7 @@ import { intlLocale, useT } from '@/i18n';
 // Devis | Photos | Observations facets, the deposited PDF, the amount card.
 import { statusTone } from '@/components/ui/status-chip';
 import { PhoneChiffrageScreen, nextChiffrageSlot, type ChiffrageFacet } from './phone-chiffrage-screen';
+import { logFrontend } from '@/lib/debug-log';
 
 interface ChiffrageFileDoc {
   name: string;
@@ -384,6 +386,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
 
       // 2) Transition dossier status to `Accord envoyé`.
       const newStatus = deriveStatus({ kind: 'sendByMail' });
+      logFrontend('assignations-chiffrage ← /api/send-email', { ok: res.ok, newStatus });
       await updateDoc(doc(db, 'dossiers', chiffrage.dossierId), {
         statut: newStatus,
       });

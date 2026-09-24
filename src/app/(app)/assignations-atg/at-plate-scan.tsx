@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { apiFetch } from '@/lib/api-fetch';
 import { t } from '@/i18n';
+import { logFrontend } from '@/lib/debug-log';
 
 export interface PlateScanResult {
   /** Plate read off the photo (Latin letters, e.g. "12345-B-6"). */
@@ -69,10 +70,12 @@ export function usePlateScan(onPlate: (result: PlateScanResult) => void) {
         setError(t('Plaque illisible sur la photo. Rapprochez-vous et réessayez.'));
         return;
       }
-      onPlate({
+      const mapped: { plate: string; confidence: 'high' | 'low' } = {
         plate: String(data.registration),
         confidence: data.confidence === 'high' ? 'high' : 'low',
-      });
+      };
+      logFrontend('at-plate-scan ← /api/scan-plate', mapped);
+      onPlate(mapped);
     } catch (err: any) {
       console.warn('[at-plate-scan] scan failed', err);
       setError(err?.message || t('Échec de l’analyse de la photo. Réessayez.'));

@@ -29,12 +29,12 @@ import {
   addDoc,
   deleteDoc,
   doc,
-  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { ref, deleteObject } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { downloadFileFromUrl, ensureImageExtension } from '@/components/documents/typed-doc';
@@ -60,6 +60,7 @@ import { useIsPhone } from '@/hooks/use-viewport-class';
 import { PhotoGrid, PhotoGroup } from '@/components/common/photo-grid';
 import { usePhotoLocations, type PhotoLocation } from '@/hooks/use-photo-locations';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
+import { logFrontend } from '@/lib/debug-log';
 
 // Re-exported so the field-agent mission page and any other host import the
 // gallery from one place (the grid itself lives in `components/common`).

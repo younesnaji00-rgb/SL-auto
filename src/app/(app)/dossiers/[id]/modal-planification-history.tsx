@@ -26,7 +26,8 @@ import {
 import { format } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import { useCollection, useFirestore, useAuth } from '@/firebase';
-import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc, getDocs, limit } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc, limit } from 'firebase/firestore';
+import { getDocs } from '@/lib/firestore-logged';
 import { useToast } from '@/hooks/use-toast';
 
 type ModalPlanificationHistoryProps = {

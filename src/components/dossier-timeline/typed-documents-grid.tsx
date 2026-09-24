@@ -3,7 +3,8 @@
 import React, { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth, useCollection, useFirestore, useStorage } from '@/firebase';
-import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, arrayUnion, collection, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { getDoc } from '@/lib/firestore-logged';
 import { deleteObject, ref } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { extractAndPersistChiffrageDevis, extractAndPersistDossierDoc } from '@/lib/devis-extract';

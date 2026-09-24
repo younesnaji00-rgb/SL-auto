@@ -5,8 +5,8 @@ import React, { useEffect, useState, use, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   doc,
-  onSnapshot,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { ref, getDownloadURL } from 'firebase/storage';
 import { useFirestore, useStorage } from '@/firebase';
 import { Button } from '@/components/ui/button';

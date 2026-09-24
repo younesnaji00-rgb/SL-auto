@@ -16,7 +16,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 
 import { useFirestore } from '@/firebase';
-import { setDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { getDoc } from '@/lib/firestore-logged';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -40,6 +41,7 @@ import {
 } from '@/lib/find-latest-chiffrage-docs';
 import { apiFetch } from '@/lib/api-fetch';
 import { useT } from '@/i18n';
+import { logFrontend } from '@/lib/debug-log';
 
 interface EnvoyerEmailDialogProps {
   open: boolean;
@@ -199,6 +201,12 @@ export function EnvoyerEmailDialog({
       } catch {
         // ignore JSON parse failure; handled below
       }
+
+      logFrontend('envoyer-email-dialog ← /api/send-email', {
+        ok: res.ok,
+        success: data?.success ?? null,
+        error: data?.error ?? null,
+      });
 
       if (res.ok && data?.success) {
         if (db && dossierId) {

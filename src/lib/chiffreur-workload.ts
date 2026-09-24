@@ -13,13 +13,12 @@
 import {
   collection,
   getCountFromServer,
-  getDocs,
-  onSnapshot,
   query,
   where,
   type Firestore,
   type Unsubscribe,
 } from 'firebase/firestore';
+import { getDocs, onSnapshot } from './firestore-logged';
 
 /**
  * Top-level chiffrage `status` values considered "closed" / no longer counting

@@ -12,10 +12,10 @@ import {
   collection,
   addDoc,
   doc,
-  onSnapshot,
   updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,6 +54,7 @@ import CarSvgTop from '@/components/car-svg-top';
 import CarSvgBottom from '@/components/car-svg-bottom';
 import { apiFetch } from '@/lib/api-fetch';
 import { useT } from '@/i18n';
+import { logFrontend } from '@/lib/debug-log';
 
 // Browser-tab trigger (owner rulings 2026-09-02 + ter), styled to match
 // components/dossier-timeline/step-tabs.tsx: `.tab-slope` (globals.css)
@@ -222,6 +223,13 @@ export default function RapportTab({
       }
 
       const { data } = await res.json();
+
+      logFrontend('rapport-tab ← /api/scan-rapport', {
+        piecesCount: data.pieces?.length || 0,
+        pieces: data.pieces,
+        pointsChoc: data.pointsChoc,
+        pointsChocDessous: data.pointsChocDessous,
+      });
 
       // Add pieces to Firestore (chiffrage workflow)
       if (data.pieces && data.pieces.length > 0) {

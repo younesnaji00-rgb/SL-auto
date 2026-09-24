@@ -73,7 +73,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { addDoc, collection, doc, updateDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
+import { addDoc, collection, doc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { getDocs } from '@/lib/firestore-logged';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 // Mobile pass 2026-09-06 (docs/research/mobile-synthesis.md §4): below md the
 // 14-column table becomes a `RecordList` of 3-line rows under a sticky search

@@ -10,7 +10,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 
 export type PhotoCounts = Record<'avant' | 'en_cours' | 'apres', number>;

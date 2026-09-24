@@ -22,7 +22,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { AlertCircle, Loader2, Clock } from 'lucide-react';
-import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, Timestamp, getDocs, query, where, limit } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, Timestamp, query, where, limit } from 'firebase/firestore';
+import { getDocs } from '@/lib/firestore-logged';
 import { useFirestore, useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfToday, formatDistanceToNow } from 'date-fns';
@@ -48,6 +49,7 @@ import { INPUT_ADDRESS } from '@/lib/input-attrs';
 import { FormErrorSummary, useFormErrors, type FieldRule } from '@/components/ui/form';
 import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 import { normalizeTypeMission } from '@/lib/type-mission';
+import { logFrontend } from '@/lib/debug-log';
 
 /** If `input` is a Google Maps URL with embedded coordinates, returns {lat,lng}; else null. */
 function parseMapsCoords(input: string): { lat: number; lng: number } | null {
@@ -281,6 +283,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       .then((data) => {
         if (cancelled || !data) return;
         if (typeof data.formatted === 'string' && data.formatted) {
+          logFrontend('modal-planification ← /api/reverse-geocode (position agent)', { agentAddress: data.formatted });
           setAgentAddress(data.formatted);
         }
       })
@@ -700,6 +703,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                   if (!res.ok) return;
                   const data = await res.json();
                   if (!data?.formatted) return;
+                  logFrontend('modal-planification ← /api/reverse-geocode (carte)', { adresse: data.formatted });
                   setFormData((prev) => prev.adresse === tempValue ? { ...prev, adresse: data.formatted } : prev);
                 } catch {
                   /* silent — leaves the lat,lng value in place */

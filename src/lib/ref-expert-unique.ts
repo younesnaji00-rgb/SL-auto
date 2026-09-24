@@ -11,7 +11,8 @@
  * the normalised `refExpertKey` every write now stores beside `refExpert`,
  * so « sl-12 », « SL-12 » and « SL - 12 » count as the same reference.
  */
-import { collection, getDocs, limit, query, where, type Firestore } from 'firebase/firestore';
+import { collection, limit, query, where, type Firestore } from 'firebase/firestore';
+import { getDocs } from './firestore-logged';
 
 export const DUPLICATE_REF_MESSAGE = 'Cette Réf. expert est déjà utilisée par un autre dossier.';
 

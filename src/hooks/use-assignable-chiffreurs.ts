@@ -16,7 +16,8 @@
  * keyed by its uid, which the queue and dashboard also match on.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
+import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
 import { compactName } from '@/lib/chiffreur-identity';

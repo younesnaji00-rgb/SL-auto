@@ -19,7 +19,8 @@
  *   indemnisation = totalTTC - vétusté - franchise
  */
 import { format } from 'date-fns';
-import { getDoc, getDocs, doc, collection, query, where } from 'firebase/firestore';
+import { doc, collection, query, where } from 'firebase/firestore';
+import { getDoc, getDocs } from './firestore-logged';
 import {
   selectLatestAccord,
   fetchImageAsBase64,

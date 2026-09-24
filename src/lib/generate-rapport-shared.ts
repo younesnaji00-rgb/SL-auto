@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
-import { getDocs, collection, Firestore } from 'firebase/firestore';
+import { collection, Firestore } from 'firebase/firestore';
+import { getDocs } from './firestore-logged';
 import type { DevisRow } from './devis-schema';
 
 export type Piece = {
