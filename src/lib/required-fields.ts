@@ -70,3 +70,19 @@ export function getMissingRequiredFields(dossier: any): string[] {
   }
   return missing;
 }
+
+/**
+ * Identification a dossier must carry before it goes to the chiffreur (QA bug
+ * Chiffreur 001): without them the chiffreur received a row named by a random
+ * Firestore id with no assuré or plate. Returns the French labels missing.
+ */
+export function missingIdentification(dossier: any): string[] {
+  const d = dossier || {};
+  const has = (v: unknown) => typeof v === 'string' ? v.trim().length > 0 : v != null && v !== '';
+  const assure = typeof d.assure === 'string' ? d.assure : d.assure?.nom;
+  const out: string[] = [];
+  if (!has(d.refExpert)) out.push('Réf. expert');
+  if (!has(assure)) out.push("Nom de l'assuré");
+  if (!has(d.matricule) && !has(d.vehicule?.immatriculation)) out.push('Matricule');
+  return out;
+}

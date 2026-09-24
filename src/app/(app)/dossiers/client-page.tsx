@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useDossiers } from '@/hooks/use-dossiers';
+import { duplicateRefExpertKeys, normalizeRefExpert } from '@/lib/ref-expert-unique';
 import { useAuth, useFirestore } from '@/firebase';
 import { logWorkflow } from './[id]/log-historique';
 import { useOptions } from '@/hooks/use-options';
@@ -150,6 +151,15 @@ const WIDE_COL_CLASS: Record<string, string> = {
   garageName: 'hidden 2xl:table-cell',
   vehicule: 'hidden 2xl:table-cell',
   policeNumber: 'hidden min-[1920px]:table-cell',
+};
+// The same breakpoints for the « Affichage » menu entries: a column that is
+// CSS-hidden on this screen must not be offered (nor look ticked) in the
+// picker, otherwise header, body and menu disagree (QA bug 001). `max-*`
+// variants win over the item's own `flex` regardless of class order.
+const WIDE_MENU_CLASS: Record<string, string> = {
+  garageName: 'max-2xl:hidden',
+  vehicule: 'max-2xl:hidden',
+  policeNumber: 'max-[1919px]:hidden',
 };
 
 // « À traiter » scope: every status that still needs work. Only « Accord
@@ -409,14 +419,19 @@ export default function DossiersClientPage() {
           d.refExpert,
           typeof d.assure === 'string' ? d.assure : `${d.assure?.nom || ''} ${d.assure?.prenom || ''}`,
           d.matricule,
+          d.vehicule?.immatriculation,
           d.vehicule?.immatriculationAnterieur,
+          d.vehicule?.marque,
+          d.vehicule?.modele,
           d.compagnie,
           d.referenceCompagnie,
           d.nature,
-          (d as any).typeDossier,
-          (d as any).numeroPolice,
-          (d as any).numeroSinistre,
-          typeof (d as any).garage === 'string' ? (d as any).garage : (d as any).garage?.nom,
+          d.typeDossier,
+          // The fields the information form actually writes (QA bug 050):
+          // `policeNumber` / `garageName`, not the legacy `numeroPolice` /
+          // `garage` keys nothing has written for months.
+          d.policeNumber,
+          d.garageName,
           resolveCreatorName(d),
         ].filter(Boolean).join(' '));
         return terms.every(t => hay.includes(t));
@@ -534,6 +549,9 @@ export default function DossiersClientPage() {
     [filters.hiddenCols],
   );
   const colCount = visibleColumns.length + 1; // + checkbox (Rappeler) or actions column
+  // References carried by two or more loaded dossiers — badged « Doublon »
+  // so duplicates that predate the save gate are visible (QA bug 002).
+  const dupRefKeys = useMemo(() => duplicateRefExpertKeys(allDossiers), [allDossiers]);
 
   const pageRows = useMemo(
     () => dossierList.slice((page - 1) * rowsPerPage, page * rowsPerPage),
@@ -921,7 +939,18 @@ export default function DossiersClientPage() {
             key={key}
             className={cn(!exportMode && STICKY_CELL, 't-mono font-semibold', isFocused && '!bg-surface-2')}
           >
-            {d.refExpert || <span className="font-sans font-normal text-ink-4">{t('Sans réf.')}</span>}
+            {d.refExpert ? (
+              <span className="inline-flex items-center gap-1.5">
+                {d.refExpert}
+                {dupRefKeys.has(normalizeRefExpert(d.refExpert)) && (
+                  <Badge variant="warning" className="font-sans font-normal" title={t('Réf. expert partagée avec un autre dossier')}>
+                    {t('Doublon')}
+                  </Badge>
+                )}
+              </span>
+            ) : (
+              <span className="font-sans font-normal text-ink-4">{t('Sans réf.')}</span>
+            )}
           </TableCell>
         );
       case 'assure':
@@ -1022,7 +1051,11 @@ export default function DossiersClientPage() {
       case 'typeDossier':
         return <TableCell key={key}>{cell(d.typeDossier ? t(d.typeDossier) : '')}</TableCell>;
       case 'matricule':
-        return <TableCell key={key} className="t-mono">{cell(d.matricule)}</TableCell>;
+        // The information form carries two plate fields (`matricule` and
+        // `vehicule.immatriculation`); the scan fills only the first. Show
+        // whichever was typed so the column never reads empty for a dossier
+        // whose plate sits in the Véhicule section (QA bug 050).
+        return <TableCell key={key} className="t-mono">{cell(d.matricule || d.vehicule?.immatriculation)}</TableCell>;
       case 'matriculeAnterieur':
         return <TableCell key={key} className="t-mono">{cell(d.vehicule?.immatriculationAnterieur)}</TableCell>;
       case 'dateSinistre':
@@ -1395,6 +1428,7 @@ export default function DossiersClientPage() {
               {HIDEABLE_COLUMNS.map((c) => (
                 <DropdownMenuCheckboxItem
                   key={c.key}
+                  className={WIDE_MENU_CLASS[c.key]}
                   checked={!filters.hiddenCols.includes(c.key)}
                   onCheckedChange={(checked) => {
                     setFilters((prev) => ({
@@ -1950,6 +1984,13 @@ export default function DossiersClientPage() {
                   <TableHead
                     key={col.key}
                     className={cn(
+                      // Wide-monitor columns hide at the SAME breakpoint as
+                      // their body cells — otherwise the header carries three
+                      // labels the rows don't, and every value from « N° police »
+                      // onward sits under the wrong label, with the row's
+                      // Actions « … » landing under « Date sinistre »
+                      // (QA bugs 001, 049, 050).
+                      WIDE_COL_CLASS[col.key],
                       col.key === 'statut' && 'min-w-[200px]',
                       // Frozen identifier column (element-specs §3 + addendum
                       // ter A) — 15 columns pan sideways; the ref stays put.

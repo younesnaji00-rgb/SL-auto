@@ -49,9 +49,11 @@ import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from './replay-highlight';
 import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
+import { useResilientImageSrc } from '@/hooks/use-resilient-image';
 import {
   DOC_DRAG_MIME,
   docDisplayName,
+  docTypeName,
   docMetaLine,
   docPagesMetaLine,
   downloadFileFromUrl,
@@ -59,6 +61,7 @@ import {
   isPdf,
   readDocDragPayload,
   sortPagesAsc,
+  storagePathFromUrl,
   writeDocDragPayload,
   type DocDragPayload,
   type ExtraSlotKind,
@@ -194,10 +197,11 @@ type DragKind = 'file' | 'doc' | null;
 
 /** One page's visual — image cover, first PDF page, or the file glyph. */
 function PageThumb({ doc }: { doc: TypedDoc }) {
-  const name = docDisplayName(doc);
+  const name = docTypeName(doc);
+  const { src, onError } = useResilientImageSrc(doc.url || '');
   if (doc.url && isImage(name)) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={doc.url} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" />;
+    return <img src={src} onError={onError} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" />;
   }
   if (doc.url && isPdf(name)) {
     return <PdfThumbnail url={doc.url} width={320} className="h-full w-full" />;
@@ -296,7 +300,29 @@ export function SlotCard({
   // the one exception: they have no url YET, and the socket must say
   // "En attente…" rather than flip back to "Déposer" behind a success toast.
   // What remains are the PAGES of this slot's document, in upload order.
-  const pages = sortPagesAsc(docs.filter((d) => !!d.url || !!d.pendingUpload));
+  // Two cleanups guard against corruption left by earlier upload-retry bugs:
+  //  • Once a real (uploaded) page exists, drop the "En attente" placeholders
+  //    (pendingUpload, no url). A slot with a received document must not also
+  //    show permanent phantom pages; a genuinely in-flight upload still shows
+  //    "En attente" while it is the ONLY thing in the slot.
+  //  • De-duplicate by Storage path: the same physical file registered twice
+  //    (e.g. a live token + an expired one) collapses to one page.
+  const hasRealPage = docs.some((d) => !!d.url && !d.pendingUpload);
+  const seenPaths = new Set<string>();
+  const pages = sortPagesAsc(
+    docs.filter((d) => {
+      if (!d.url) return !!d.pendingUpload && !hasRealPage;
+      const key = storagePathFromUrl(d.url) ?? d.id;
+      if (seenPaths.has(key)) return false;
+      seenPaths.add(key);
+      return true;
+    }),
+  );
+  // The page a preview click should open: the first one that actually has a
+  // file. A slot can carry stale "En attente" placeholders (no url) ahead of
+  // its real pages — opening on those was a silent no-op (the host guards
+  // pending docs), which read as "the Aperçu does nothing".
+  const firstViewable = pages.find((d) => !!d.url && !d.pendingUpload) ?? pages[0];
   // Base-slot pimple: next to `Devis Garage` / `Facture Garage`, lets the
   // gestionnaire spawn a new numbered slot (first = "… 2", then 3, etc.).
   const baseExtraKind: ExtraSlotKind | null =
@@ -498,6 +524,10 @@ export function SlotCard({
     const n = pages.length;
     const latest = pages[n - 1];
     const meta = docPagesMetaLine(pages);
+    // Show real pages in the 2-up strip: viewable ones first, so a slot whose
+    // first page is a stale "En attente" placeholder still previews an actual
+    // thumbnail instead of a blank file icon.
+    const strip = [firstViewable, ...pages.filter((d) => d !== firstViewable)];
     const anySelectable = pages.some((p) => !!p.url && !p.pendingUpload);
     const chiffreurName =
       parsedAccord && typeof latest.uploadedByName === 'string' ? latest.uploadedByName.trim() : '';
@@ -527,15 +557,15 @@ export function SlotCard({
         >
           <button
             type="button"
-            onClick={() => onPreview(pages[0], pages)}
+            onClick={() => onPreview(firstViewable, pages)}
             className="grid h-full w-full grid-cols-2 gap-px text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={`${t('Aperçu')} — ${t(slot)} (${n} ${t('pages')})`}
           >
             <span className="relative block h-full overflow-hidden bg-surface-2">
-              <PageThumb doc={pages[0]} />
+              <PageThumb doc={strip[0]} />
             </span>
             <span className="relative block h-full overflow-hidden bg-surface-2">
-              <PageThumb doc={pages[1]} />
+              <PageThumb doc={strip[1]} />
               {n > 2 && (
                 <span className="absolute inset-0 flex items-center justify-center bg-ink-solid/60 text-[13px] font-semibold tabular-nums text-on-ink">
                   +{n - 2}
@@ -711,7 +741,16 @@ export function SlotCard({
             <ChangeBadge status={primaryReplay} className="shrink-0" />
           </button>
           {primary.pendingUpload && (
-            <p className="t-caption text-status-warning-fg">{t('En attente…')}</p>
+            // An upload the offline queue gave up on says so — « En attente… »
+            // forever read as « reçu bientôt » while the pièce never arrived
+            // (QA bug AT 003).
+            (primary as any).uploadFailed ? (
+              <p className="t-caption text-status-danger-fg" title={(primary as any).uploadError || undefined}>
+                {t('Échec de l’envoi — déposez le fichier à nouveau.')}
+              </p>
+            ) : (
+              <p className="t-caption text-status-warning-fg">{t('En attente…')}</p>
+            )
           )}
           {meta && <p className="t-caption truncate tabular-nums">{meta}</p>}
           {chiffreurName && (

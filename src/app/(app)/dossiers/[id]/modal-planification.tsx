@@ -29,6 +29,7 @@ import { format, startOfToday, formatDistanceToNow } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import { logHistorique, logWorkflow } from './log-historique';
 import { addObservation } from './log-observation';
+import { PLANIFICATIONS_SAVED_EVENT } from './planification-tab';
 import { useOptions, type Option } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -39,24 +40,14 @@ import { useAtgFeasibility } from '@/hooks/use-atg-feasibility';
 import { useAgentLiveLocation } from '@/hooks/use-agent-live-location';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatDurationFr } from '@/lib/atg-feasibility';
-import { MapPin, LocateFixed } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { apiFetch } from '@/lib/api-fetch';
 import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 import { cn } from '@/lib/utils';
 import { INPUT_ADDRESS } from '@/lib/input-attrs';
 import { FormErrorSummary, useFormErrors, type FieldRule } from '@/components/ui/form';
 import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
-
-/** Narrows a free-form typeMission string to the canonical tri-state, or null. */
-function normalizeTypeMission(
-  typeMission: string,
-): 'Avant' | 'En cours' | 'Après' | null {
-  const t = (typeMission || '').trim().toLowerCase();
-  if (t === 'avant') return 'Avant';
-  if (t === 'en cours') return 'En cours';
-  if (t === 'après' || t === 'apres') return 'Après';
-  return null;
-}
+import { normalizeTypeMission } from '@/lib/type-mission';
 
 /** If `input` is a Google Maps URL with embedded coordinates, returns {lat,lng}; else null. */
 function parseMapsCoords(input: string): { lat: number; lng: number } | null {
@@ -187,56 +178,11 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialData]);
 
-  // « Ma position » on the address field: read the device GPS on demand and
-  // reverse-geocode it into the field (§2.4 / Apple HIG "Get information from
-  // the system whenever possible"). Never on open — the prompt belongs to an
-  // explicit tap.
-  const [addressLocating, setAddressLocating] = useState(false);
-  const fillAddressFromPosition = () => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      toast({ variant: 'destructive', title: t('Localisation indisponible sur cet appareil') });
-      return;
-    }
-    setAddressLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        const fallback = `${lat.toFixed(6)},${lng.toFixed(6)}`;
-        setFormData((prev) => ({ ...prev, adresse: fallback }));
-        try {
-          const res = await apiFetch(`/api/reverse-geocode?lat=${lat}&lng=${lng}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.formatted) {
-              setFormData((prev) => (prev.adresse === fallback ? { ...prev, adresse: data.formatted } : prev));
-            }
-          }
-        } catch {
-          /* keep the lat,lng — it is still a usable destination */
-        } finally {
-          setAddressLocating(false);
-        }
-      },
-      (err) => {
-        setAddressLocating(false);
-        // Say WHICH of the three things went wrong — "refusée ou indisponible"
-        // gave the gestionnaire nothing to act on (owner question 2026-09-09).
-        // PERMISSION_DENIED = 1, POSITION_UNAVAILABLE = 2, TIMEOUT = 3.
-        const detail =
-          err?.code === 1
-            ? t("Autorisez l'accès à la position dans votre navigateur, puis réessayez.")
-            : err?.code === 3
-              ? t('Le relevé GPS a expiré. Réessayez près d’une fenêtre ou activez le Wi-Fi.')
-              : t('Aucun signal de position sur cet appareil. Saisissez l’adresse à la main.');
-        toast({
-          variant: 'destructive',
-          title: t('Position indisponible'),
-          description: detail,
-        });
-      },
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
-    );
-  };
+  // No « ma position » control on the address field any more (QA bug 044):
+  // the rendez-vous address is the INSURED's, typed by the gestionnaire; a
+  // button that swapped it for the gestionnaire's own GPS had no use here and
+  // once overwrote typed addresses silently (QA bug 018). The agent's live
+  // position is read on its own for the feasibility check.
 
   // Agent workload scoped to the RDV date currently selected, so each agent's
   // count reflects only that day's active planifications. Falls back to the
@@ -428,7 +374,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       const payload: Record<string, any> = {
         agentTerrain: formData.agentTerrain,
         agentTerrainUid,
-        typeMission: formData.typeMission,
+        // Stored in its canonical spelling: the type list is editable, and a
+        // « Visite avant » / « avant » variant used to save fine, toast
+        // « créée », then never match the step's exact filter (QA bug 046).
+        typeMission: normalizeTypeMission(formData.typeMission) ?? formData.typeMission,
         dateRDV: finalRDV,
         zone: derivedZone,
         adresse: formData.adresse,
@@ -534,6 +483,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         await addObservation(db, dossierId, resolvedObservation, 'Planification', profile?.nom || userEmail, userEmail, profile?.role || 'Gestionnaire', 'dossiers');
       }
 
+      // The list re-subscribes, so the saved visit is shown for certain.
+      window.dispatchEvent(new CustomEvent(PLANIFICATIONS_SAVED_EVENT, { detail: { dossierId } }));
       onOpenChange(false);
     } catch (error: any) {
       console.error('Planification save error:', error);
@@ -614,7 +565,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
               </div>
               <div className="space-y-2 max-md:order-2">
               <Label>{t('Agent de Terrain')}</Label>
-              <Select value={formData.agentTerrain} onValueChange={(v) => setFormData({...formData, agentTerrain: v})}>
+              <Select value={formData.agentTerrain} onValueChange={(v) => setFormData((prev) => ({ ...prev, agentTerrain: v }))}>
                 <SelectTrigger id="plan-agent-select" data-tour="plan-agent" aria-label={t('Agent de Terrain')} {...formErrors.fieldProps('plan-agent-select')}><SelectValue placeholder={t('Choisir un agent')} /></SelectTrigger>
                 <SelectContent>
                   {filteredAgents.map(agent => {
@@ -666,7 +617,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 </div>
                 {/* 3 types → a segmented control on touch (Select's own tier
                     rule): every option visible, zero taps to see them. */}
-                <Select value={formData.typeMission} onValueChange={(v) => setFormData({...formData, typeMission: v})}>
+                <Select value={formData.typeMission} onValueChange={(v) => setFormData((prev) => ({ ...prev, typeMission: v }))}>
                   <SelectTrigger id="plan-type" aria-label={t('Type de RDV')} {...formErrors.fieldProps('plan-type')}><SelectValue placeholder={t('Choisir un type')} /></SelectTrigger>
                   <SelectContent>
                     {rdvTypes.map(type => (
@@ -691,7 +642,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 id="plan-date-field"
                 label={t('Date RDV')}
                 value={formData.dateRDV}
-                onChange={(d) => setFormData({...formData, dateRDV: d})}
+                // Functional updates throughout (QA bug 047): a late picker
+                // callback closing over an older `formData` could put the
+                // previous hour or address back just before « Enregistrer ».
+                onChange={(d) => setFormData((prev) => ({ ...prev, dateRDV: d }))}
                 disabledDates={(date) => date < startOfToday()}
                 triggerProps={formErrors.fieldProps('plan-date-field')}
               />
@@ -714,7 +668,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                   step={900}
                   className="pl-10 h-10 max-md:h-12"
                   value={formData.timeRDV}
-                  onChange={(e) => setFormData({...formData, timeRDV: e.target.value})}
+                  onChange={(e) => { const v = e.target.value; setFormData((prev) => ({ ...prev, timeRDV: v })); }}
                   {...formErrors.fieldProps('plan-heure')}
                 />
               </div>
@@ -730,9 +684,9 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
               {...INPUT_ADDRESS}
               enterKeyHint="next"
               placeholder={t('Adresse du rendez-vous...')}
-              className="h-10 max-md:h-12 pr-[5.75rem]"
+              className="h-10 max-md:h-12 pr-11"
               value={formData.adresse}
-              onChange={(e) => setFormData({...formData, adresse: e.target.value})}
+              onChange={(e) => { const v = e.target.value; setFormData((prev) => ({ ...prev, adresse: v })); }}
               {...formErrors.fieldProps('plan-adresse')}
               onPaste={async (e) => {
                 const pasted = e.clipboardData.getData('text');
@@ -752,16 +706,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 }
               }}
             />
-            {/* « Ma position » (§2.4 + Smashing "leverage device features"):
-                44 px trailing button that reads the device GPS and reverse-
-                geocodes it into the field. The permission prompt only fires
-                on this explicit tap. */}
-            {/* Two trailing controls, each saying what it does: the map-pin
-                opens the TYPED address in Google Maps (what the gestionnaire
-                reaches for when checking the mission site); the crosshair
-                replaces the field with the device position. The old single
-                MapPin did the latter while looking like the former — one tap
-                silently overwrote the address with the gestionnaire's own GPS. */}
+            {/* One trailing control: the map-pin opens the TYPED address in
+                Google Maps (what the gestionnaire reaches for when checking
+                the mission site). The « remplacer par ma position » crosshair
+                that sat beside it is gone (QA bug 044). */}
             <div className="absolute right-0 top-0 flex h-full items-center">
               <button
                 type="button"
@@ -773,19 +721,9 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                 disabled={!formData.adresse.trim()}
                 aria-label={t('Ouvrir cette adresse dans Google Maps')}
                 title={t('Ouvrir cette adresse dans Google Maps')}
-                className="flex h-full w-11 items-center justify-center text-ink-3 transition-colors hover:text-ink disabled:opacity-40"
+                className="flex h-full w-11 items-center justify-center rounded-r-md text-ink-3 transition-colors hover:text-ink disabled:opacity-40"
               >
                 <MapPin className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={fillAddressFromPosition}
-                disabled={addressLocating}
-                aria-label={t('Remplacer par ma position')}
-                title={t('Remplacer par ma position')}
-                className="flex h-full w-11 items-center justify-center rounded-r-md text-ink-3 transition-colors hover:text-ink disabled:opacity-50"
-              >
-                {addressLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
               </button>
             </div>
             </div>

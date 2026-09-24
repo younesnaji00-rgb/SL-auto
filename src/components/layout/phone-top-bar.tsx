@@ -67,7 +67,7 @@ export default function PhoneTopBar() {
   const pathname = usePathname() || '';
   const { phone, registeredTitle } = usePageChrome();
   const { items } = useVisibleNav();
-  const { canCreateDossier, openCreateDossier } = useShellUi();
+  const { canCreateDossier, openCreateDossier, openPalette } = useShellUi();
   const { rappels } = useRappels();
   const crumbs = useCrumbs();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -219,6 +219,19 @@ export default function PhoneTopBar() {
 
         {/* Trailing group: ⌕ · filtres · primary · ⋯ */}
         <div className="ml-0.5 flex shrink-0 items-center">
+          {/* Global search on every page (QA bug 039): pages with their own
+              list filter register `phone.search` and take this slot instead. */}
+          {!phone.search && (
+            <button
+              type="button"
+              onClick={() => openPalette()}
+              aria-label={t('Rechercher')}
+              data-tour="shell-search-phone"
+              className={ICON_BTN}
+            >
+              <Search className="h-5 w-5" />
+            </button>
+          )}
           {phone.search && (
             <button
               type="button"

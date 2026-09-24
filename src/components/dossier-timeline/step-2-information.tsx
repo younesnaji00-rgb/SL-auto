@@ -83,6 +83,17 @@ export default function Step2Information({
   useEffect(() => {
     setZoom(1);
   }, [selectedScanId]);
+  // Viewer height, set straight on the element (no React state — it follows
+  // page scroll). Two rules (QA bugs 012 / 013, owner report 2026-09-24):
+  //  • never taller than the document at 100 %, so zooming scrolls inside a
+  //    frame that keeps its size instead of growing with the image;
+  //  • never past the bottom of the SCREEN. The old cap (100dvh − 92px)
+  //    ignored the app bar and the sticky offset above the pane, so its last
+  //    ~40–65 px sat below the screen edge — and with the wheel captured by
+  //    the viewer, the bottom lines of a zoomed document could never be
+  //    brought into view (« impossible de glisser verticalement »).
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
   const db = useFirestore();
   const docsQuery = useMemo(
     () => (db ? collection(db, 'dossiers', dossierId, 'documents') : null),
@@ -227,6 +238,47 @@ export default function Step2Information({
     return () => el.removeEventListener('wheel', onWheel);
   }, [paneMounted]);
 
+  useEffect(() => {
+    if (!paneMounted) return;
+    const el = paneRef.current;
+    if (!el) return;
+    const BOTTOM_MARGIN = 16; // breathing room above the screen edge (CSS px)
+    const MIN_HEIGHT = 192; // a usable frame even when the pane starts low
+    let raf = 0;
+    const fit = () => {
+      raf = 0;
+      const appZoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-zoom')) || 1;
+      // Rects and innerHeight are screen pixels; the element's height is in
+      // the zoomed page's CSS pixels.
+      const topCss = el.getBoundingClientRect().top / appZoom;
+      const available = window.innerHeight / appZoom - topCss - BOTTOM_MARGIN;
+      const inner = el.firstElementChild as HTMLElement | null;
+      const docAt100 = inner ? inner.offsetHeight / (zoomRef.current || 1) : available;
+      const h = Math.max(MIN_HEIGHT, Math.min(available, docAt100 > 0 ? docAt100 : available));
+      el.style.height = `${Math.round(h)}px`;
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(fit);
+    };
+    // Panning the viewer itself moves nothing on the page — skip it.
+    const onScroll = (e: Event) => {
+      if (e.target !== el) schedule();
+    };
+    fit();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    // Capture phase: the page scrolls inside <main>, not the window.
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', schedule);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', schedule);
+    };
+  }, [paneMounted, zoom, selectedScanId]);
+
   if (!paneMounted) {
     return (
       <div className="space-y-4">
@@ -337,7 +389,7 @@ export default function Step2Information({
           <div
             ref={paneRef}
             className={cn(
-              'min-h-0 flex-1 overflow-auto overscroll-contain rounded-md border border-hairline bg-surface-2 scrollbar-thin',
+              'min-h-0 flex-none overflow-auto overscroll-contain rounded-md border border-hairline bg-surface-2 scrollbar-thin',
               zoom > 1 && (dragging ? 'cursor-grabbing select-none' : 'cursor-grab'),
             )}
             onPointerDown={(e) => {

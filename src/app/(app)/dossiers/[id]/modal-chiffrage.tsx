@@ -21,7 +21,7 @@ import { sendToChiffrage, ChiffrageFile } from '@/lib/send-to-chiffrage';
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
 import { chiffrageGateReason, computeRequiredDocsStatus, isChiffrageGateClosed, isChiffrageOutputType, type RequiredDocLike, type RequiredDocsStatus } from '@/lib/required-docs';
-import { useChiffreurs } from '@/hooks/use-chiffreurs';
+import { useAssignableChiffreurs } from '@/hooks/use-assignable-chiffreurs';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -52,7 +52,9 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
   const { toast } = useToast();
   const t = useT();
   const { profile } = useCurrentUser();
-  const { chiffreurs, loading: loadingChiffreurs } = useChiffreurs();
+  // Accounts with the Chiffreur role, not the editable directory (QA 029 /
+  // owner 2026-09-24): an assignment must reach someone who can log in.
+  const { chiffreurs, loading: loadingChiffreurs } = useAssignableChiffreurs();
 
   const dossierRef = useMemo(() => (db && dossierId ? doc(db, 'dossiers', dossierId) : null), [db, dossierId]);
   const { data: dossier } = useDoc(dossierRef);
@@ -177,7 +179,7 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
       const chiffrageId = await sendToChiffrage({
         db,
         dossierId,
-        dossierNom: dossier?.refExpert || dossierId,
+        dossierNom: String(dossier?.refExpert || '').trim(),
         assignedChiffreurId: chiffreur.id,
         assignedChiffreurNom: chiffreur.nom,
         assignedChiffreurEmail: chiffreur.email,

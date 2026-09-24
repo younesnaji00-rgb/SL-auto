@@ -221,8 +221,9 @@ export interface PhoneChiffreurDashboardProps {
 }
 
 const refOfEntry = (e: QueueEntry): string => {
-  const raw = (e.dossier as any)?.refExpert ?? e.chiffrage.dossierNom;
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : e.chiffrage.dossierId;
+  // Truthy, not `??`, and never the raw Firestore id (QA bug Chiffreur 001).
+  const raw = (e.dossier as any)?.refExpert || e.chiffrage.dossierNom;
+  return typeof raw === 'string' && raw.trim() && raw.trim() !== e.chiffrage.dossierId ? raw.trim() : 'Sans réf.';
 };
 const whoOfEntry = (e: QueueEntry): string => {
   const d: any = e.dossier;
@@ -312,8 +313,8 @@ export interface PhoneTerrainDashboardProps {
 }
 
 const refOfMission = (v: MissionView): string => {
-  const raw = (v.dossier as any)?.refExpert ?? v.mission.dossierNom;
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : v.mission.dossierId;
+  const raw = (v.dossier as any)?.refExpert || v.mission.dossierNom;
+  return typeof raw === 'string' && raw.trim() && raw.trim() !== v.mission.dossierId ? raw.trim() : 'Sans réf.';
 };
 const whoOfMission = (v: MissionView): string => assureName((v.dossier as any)?.assure) || (v.dossier as any)?.compagnie || '';
 const phoneOfMission = (v: MissionView): string | null => {
@@ -461,16 +462,17 @@ export function PhoneTerrainDashboard({ missions, dossiers, holidays, now, perso
         </PhoneBlock>
       )}
 
+      {/* Every mission from tomorrow on, not just tomorrow's (QA bug AT 010). */}
       <PhoneBlock
-        title={t('Demain')}
-        count={view.tomorrow.length}
-        caption={view.laterCount > 0 ? `${view.laterCount} ${t('ensuite')}` : undefined}
-        moreHref={view.tomorrow.length > ROWS ? '/assignations-atg' : undefined}
-        emptyText={t('Rien de planifié demain')}
+        title={t('Prochaines missions')}
+        count={view.tomorrow.length + view.laterCount}
+        caption={view.tomorrow.length > 0 ? `${view.tomorrow.length} ${t('demain')}` : undefined}
+        moreHref={view.tomorrow.length + view.laterCount > ROWS ? '/assignations-atg' : undefined}
+        emptyText={t('Aucune mission planifiée à venir')}
         loading={loading}
       >
-        {view.tomorrow.slice(0, ROWS).map((v) => (
-          <PhoneBlockRow key={`${v.mission.dossierId}-${v.mission.id}`} href={hrefOfMission(v)} id={refOfMission(v)} who={whoOfMission(v)} chip={typeChip(v)} time={fmtTime(v.rdv)} />
+        {view.upcoming.slice(0, ROWS).map((v) => (
+          <PhoneBlockRow key={`${v.mission.dossierId}-${v.mission.id}`} href={hrefOfMission(v)} id={refOfMission(v)} who={whoOfMission(v)} chip={typeChip(v)} time={`${fmtDay(v.rdv)} ${fmtTime(v.rdv)}`} />
         ))}
       </PhoneBlock>
     </div>

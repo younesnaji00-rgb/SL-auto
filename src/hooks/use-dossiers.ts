@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where } from 'firebase/firestore';
 import { ref, deleteObject, listAll } from 'firebase/storage';
 import { useFirestore, useStorage } from '@/firebase';
+import { useListenerEpoch } from '@/hooks/use-listener-epoch';
 import type { Dossier } from '@/lib/dossiers-data';
 
 export function useDossiers(allowedCompagnies?: string[]) {
@@ -11,6 +12,9 @@ export function useDossiers(allowedCompagnies?: string[]) {
     const [dossiers, setDossiers] = useState<Dossier[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    // Re-subscribes after a refusal caused by a missing/refreshing login
+    // token instead of freezing on cached rows (owner report 2026-09-24).
+    const { epoch, onDenied } = useListenerEpoch();
 
     // Stabilize the array reference to avoid re-subscribing on every render
     const compagniesKey = allowedCompagnies ? JSON.stringify(allowedCompagnies.map(c => c.toLowerCase().trim()).sort()) : '';
@@ -43,13 +47,18 @@ export function useDossiers(allowedCompagnies?: string[]) {
             },
             (err) => {
                 console.error('useDossiers error:', err);
+                // Retrying: keep the error out of sight — it is almost always
+                // a token that was not ready yet, and the next subscription
+                // clears it. Only a refusal that survives the retries shows.
+                if (err.code === 'permission-denied' && onDenied()) return;
                 setError(err.message);
                 setLoading(false);
             }
         );
 
         return () => unsub();
-    }, [db, allowed]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [db, allowed, epoch]);
 
   const deleteDossier = async (dossierId: string): Promise<void> => {
     if (!db) throw new Error('DB not initialized');

@@ -278,16 +278,28 @@ export default function UtilisateursClientPage() {
       }
 
       if (data.role === 'Chiffreur') {
+        // The directory entry carries the account's uid and login e-mail
+        // from the start (QA bug 029): chiffrages name their chiffreur by
+        // directory id, and without this link the new chiffreur's queue and
+        // dashboard could only match on the name. An entry of the same name
+        // is linked instead of being skipped.
+        const { addDoc, updateDoc: updateDirectory } = await import('firebase/firestore');
         const existingChiffreurs = await getDocs(query(collection(db, 'chiffreurs'), where('nom', '==', data.nom)));
         if (existingChiffreurs.empty) {
-          const { addDoc } = await import('firebase/firestore');
           await addDoc(collection(db, 'chiffreurs'), {
             nom: data.nom,
-            email: email,
+            email: email.toLowerCase().trim(),
+            uid,
             phone: '',
             active: true,
             createdAt: serverTimestamp(),
           });
+        } else {
+          await Promise.all(
+            existingChiffreurs.docs
+              .filter((d) => !d.data().uid || d.data().uid === uid)
+              .map((d) => updateDirectory(d.ref, { uid, email: email.toLowerCase().trim(), updatedAt: serverTimestamp() })),
+          );
         }
       }
 

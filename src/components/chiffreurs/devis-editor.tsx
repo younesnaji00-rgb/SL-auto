@@ -50,7 +50,7 @@ import {
   REF_OPTIONS, TYPE_OPTIONS, OBSERVATION_OPTIONS, OBSERVATION_LABELS, toBaseEditableDocType,
 } from '@/lib/devis-schema';
 import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
-import { saveGestionnaireDevisAsPieceJointe } from '@/lib/send-to-chiffrage';
+import { saveGestionnaireDevisAsPieceJointe, markFirstAccordReached } from '@/lib/send-to-chiffrage';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
 import { deriveStatus } from '@/lib/status-machine';
 import { BRAND } from '@/lib/brand';
@@ -481,11 +481,27 @@ export function DevisEditor({
   // Always keep an accord column in the chiffreur's table. Default kind is
   // 'accord'; the lightbox / column popover can flip to 'proposition-accord'.
   // Skip for the gestionnaire path (their editor is the source devis).
+  // The kind of the slot the chiffreur opened wins (QA bug 035): opening
+  // « 1ère proposition d'accord (devis) » used to seed an ACCORD column, so
+  // the save landed in « Devis accordé » and the proposition card the
+  // gestionnaire watches stayed « En attente de chiffrage ».
+  const slotAccordKind = useMemo(() => {
+    const parsed = accordSlot ? parseAccordDocType(accordSlot) : null;
+    return parsed && parsed.parent === docType ? parsed.kind : null;
+  }, [accordSlot, docType]);
   useEffect(() => {
     if (isGestionnaire) return;
     if (loading || !dossier) return;
     setExtraColumns((cols) => {
-      if (cols.some((c) => c.kind === 'accord' || c.kind === 'proposition-accord')) return cols;
+      const existing = cols.find((c) => c.kind === 'accord' || c.kind === 'proposition-accord');
+      if (existing) {
+        if (!slotAccordKind || existing.kind === slotAccordKind || existing.locked) return cols;
+        return cols.map((c) =>
+          c === existing
+            ? { ...c, kind: slotAccordKind, label: slotAccordKind === 'accord' ? 'PUHT accordé' : 'PUHT proposé' }
+            : c,
+        );
+      }
       const newId = typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
         : Math.random().toString(36).slice(2);
@@ -495,14 +511,14 @@ export function DevisEditor({
       }
       const newCol: DevisExtraColumn = {
         id: newId,
-        label: 'PUHT accordé',
+        label: slotAccordKind === 'proposition-accord' ? 'PUHT proposé' : 'PUHT accordé',
         values: seededValues,
-        kind: 'accord',
+        kind: slotAccordKind ?? 'accord',
         locked: false,
       };
       return [...cols, newCol];
     });
-  }, [extraColumns, dossier, loading, isGestionnaire, rows]);
+  }, [extraColumns, dossier, loading, isGestionnaire, rows, slotAccordKind]);
 
   // Row helpers ──────────────────────────────────────────────────────────
   const updateRow = (id: string, patch: Partial<DevisRow>) => {
@@ -1051,6 +1067,12 @@ export function DevisEditor({
         } catch (e) {
           console.warn('[devis-editor] statut update failed (non-fatal)', e);
         }
+        // Closes « 1er accord » and opens « 2ème accord et + » once BOTH the
+        // devis and the facture are answered. Outside the accord-column
+        // branch: a save without that column still files « Devis accordé ».
+        // The helper checks the documents, so calling it after every save is
+        // safe (QA bug 036).
+        await markFirstAccordReached(db, activeDossierId);
       }
 
       setVersions((v) => [newVersion, ...v]);

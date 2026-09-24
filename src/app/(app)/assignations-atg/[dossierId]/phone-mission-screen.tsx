@@ -79,8 +79,6 @@ export interface PhoneMissionScreenProps<TPhoto extends PhonePhoto> {
   propositionReforme: boolean;
   reformeDisabled?: boolean;
   onToggleReforme: () => void;
-  /** « Importer » — the gallery input (no `capture`). */
-  onImport: () => void;
   /** « Prendre des photos » / the « + » tile — the in-app camera. */
   onCamera: () => void;
   onOpenPhoto: (photo: TPhoto) => void;
@@ -111,7 +109,6 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
   propositionReforme,
   reformeDisabled,
   onToggleReforme,
-  onImport,
   onCamera,
   onOpenPhoto,
   telephoneRaw,
@@ -277,18 +274,8 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
           </span>
           {canEdit && (
             <div className="flex items-center gap-3">
-              {/* « Importer » — NO `capture` attribute on its input, so the OS
-                  sheet still offers the gallery; the camera has its own path. */}
-              <button
-                type="button"
-                data-tour="atgd-import"
-                disabled={isUploading || atCap}
-                onClick={onImport}
-                className="flex h-10 items-center gap-1 rounded-md px-2 text-[12px] font-medium text-primary transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              >
-                <Upload className="h-4 w-4" aria-hidden />
-                {t('Importer')}
-              </button>
+              {/* No gallery import (owner ruling 2026-09-24): photos come
+                  from the in-app camera only (the « + » tile and the bar). */}
               {/* Proposition réforme (item 021): AT-only, reversible toggle that
                   lifts the per-mission cap — pressed = tonal, never destructive.
                   The label is FIXED; `aria-pressed` + the fill carry the state. */}

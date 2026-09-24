@@ -52,7 +52,7 @@ export const sidebarIntroTutorial: PageTutorial = {
     {
       title: 'Le clavier, si vous aimez ça',
       body:
-        "Ctrl+K (⌘K sur Mac) ou la touche « / » ouvrent la recherche universelle : une référence, une plaque, un assuré, une page, une action.\nLe menu de gauche s’ouvre au survol, et Ctrl+B le garde ouvert. Maj+D bascule le thème, C crée un dossier depuis la page Dossiers.\nTout reste faisable à la souris — ces raccourcis ne font que gagner du temps.",
+        "Le menu de gauche s’ouvre au survol, et Ctrl+B le garde ouvert. Maj+D bascule le thème, C crée un dossier depuis la page Dossiers.\nTout reste faisable à la souris — ces raccourcis ne font que gagner du temps.",
     },
 
     // ── The menu, top to bottom ─────────────────────────────────────────

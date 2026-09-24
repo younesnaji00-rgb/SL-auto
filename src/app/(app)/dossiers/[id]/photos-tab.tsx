@@ -38,8 +38,8 @@ import {
 import { ref, deleteObject } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { downloadFileFromUrl, ensureImageExtension } from '@/components/documents/typed-doc';
-import { readExifGps } from '@/lib/exif-gps';
-import { apiFetch } from '@/lib/api-fetch';
+import { resolvePhotoGeo, photoGeoFields } from '@/lib/photo-geo';
+import { normalizeTypeMission } from '@/lib/type-mission';
 import { useFirestore, useAuth, useStorage, useDoc, useCollection } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -58,7 +58,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { PhotoGrid, PhotoGroup } from '@/components/common/photo-grid';
-import CameraCapture from '@/components/camera-capture';
+import { usePhotoLocations, type PhotoLocation } from '@/hooks/use-photo-locations';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 
 // Re-exported so the field-agent mission page and any other host import the
@@ -88,11 +88,10 @@ interface Photo {
   storagePath: string;
   pendingUpload?: boolean;
   /**
-   * Optional location metadata. Photos uploaded by the Agent de Terrain
-   * may eventually carry a free-text location label and/or raw GPS
-   * coordinates. Today only a watermark is burned into the image, so
-   * these fields are usually undefined — when that happens the photo is
-   * grouped under "Sans localisation" in the location-partition view.
+   * Where the photo was taken (QA bug 021), from `resolvePhotoGeo`: the
+   * file's EXIF GPS, else — for a camera capture — the device position,
+   * plus a reverse-geocoded label. Photos with neither land in « Sans
+   * localisation » in the location-partition view.
    */
   location?: string;
   lat?: number;
@@ -150,25 +149,6 @@ function PartitionTabs({ value, onChange }: { value: PartitionMode; onChange: (m
   );
 }
 
-/**
- * Bucket key + display label used when grouping photos by location.
- * - Prefers an explicit `location` text field if present (option a).
- * - Falls back to a rounded lat/lng coordinate bucket (~100 m precision,
- *   option c) — keeps groups cohesive without needing a network call.
- * - Photos with neither land in the "Sans localisation" bucket (option d).
- */
-function locationBucket(photo: Photo): { key: string; label: string } {
-  const txt = typeof photo.location === 'string' ? photo.location.trim() : '';
-  if (txt) return { key: `t:${txt.toLowerCase()}`, label: txt };
-  const { lat, lng } = photo;
-  if (typeof lat === 'number' && typeof lng === 'number' && isFinite(lat) && isFinite(lng)) {
-    const rLat = lat.toFixed(3);
-    const rLng = lng.toFixed(3);
-    return { key: `c:${rLat},${rLng}`, label: `${rLat}, ${rLng}` };
-  }
-  return { key: '__unknown__', label: 'Sans localisation' };
-}
-
 const CATEGORIES: { id: PhotoCategory; label: string; fullLabel: string }[] = [
   { id: 'avant', label: 'Photos avant', fullLabel: 'Photos avant' },
   { id: 'en_cours', label: 'Photos en cours', fullLabel: 'Photos en cours' },
@@ -212,10 +192,21 @@ export function photoMissionsForCategory(
   category: PhotoCategory,
   planifications: { typeMission?: unknown }[] | null | undefined,
 ): number {
-  const missions = (planifications ?? []).filter(
-    (plan) => TYPE_MISSION_TO_CATEGORY[String(plan?.typeMission ?? '')] === category,
-  ).length;
-  return Math.max(1, missions);
+  return Math.max(1, plannedMissionsForCategory(category, planifications));
+}
+
+/**
+ * Raw number of missions planned for a section — 0 when none. The phase goes
+ * through the normaliser: the type list is editable.
+ */
+export function plannedMissionsForCategory(
+  category: PhotoCategory,
+  planifications: { typeMission?: unknown }[] | null | undefined,
+): number {
+  return (planifications ?? []).filter((plan) => {
+    const phase = normalizeTypeMission(plan?.typeMission) ?? String(plan?.typeMission ?? '');
+    return TYPE_MISSION_TO_CATEGORY[phase] === category;
+  }).length;
 }
 
 /**
@@ -318,12 +309,14 @@ export default function PhotosTab({
     return () => { alive = false; };
   }, [previewPhoto?.url]);
   // How photos are partitioned in the planification view. "date" (default)
-  // keeps the historical per-day grouping; "location" groups by an explicit
-  // `location` field if available, otherwise by a ~100 m lat/lng bucket, and
-  // photos without location fall under "Sans localisation".
+  // keeps the historical per-day grouping; "location" groups by where each
+  // photo was taken — its GPS, else the address of its visit
+  // (use-photo-locations.ts).
   const [partitionMode, setPartitionMode] = useState<PartitionMode>('date');
-  // Phone: the section that the in-app camera is currently shooting into.
-  const [cameraCategory, setCameraCategory] = useState<PhotoCategory | null>(null);
+  const locationOf = usePhotoLocations(allPhotos, planifications, {
+    unknown: t('Sans localisation'),
+    rdv: t('adresse du RDV'),
+  });
   // Phone: collapsed/expanded state of the day / location groups.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
@@ -367,16 +360,19 @@ export default function PhotosTab({
         return tB - tA;
       });
 
-  // The record page's bottom action bar (phone) asks this facet to open the
-  // camera. Only the facet that actually shows that section answers, so the
-  // event is safe to broadcast on `window`.
+  // The record page's bottom action bar (phone) asks this facet to add photos.
+  // The gestionnaire imports only (owner ruling 2026-09-24: « Prendre des
+  // photos » is the agent de terrain's job), so it opens the file picker.
+  // Only the facet that actually shows that section answers, so the event is
+  // safe to broadcast on `window`; it is dispatched inside the tap, so the
+  // browser still treats the picker as user-initiated.
   useEffect(() => {
     if (!canEdit) return;
     const onCapture = (e: Event) => {
       const detail = (e as CustomEvent<CapturePhotosEventDetail>).detail;
       const wanted = detail?.category ?? onlyCategory ?? initialCategory ?? 'avant';
       if (!visibleCategories.some((c) => c.id === wanted)) return;
-      setCameraCategory(wanted);
+      fileInputRefs.current[wanted]?.click();
     };
     window.addEventListener(CAPTURE_PHOTOS_EVENT, onCapture as EventListener);
     return () => window.removeEventListener(CAPTURE_PHOTOS_EVENT, onCapture as EventListener);
@@ -405,26 +401,11 @@ export default function PhotosTab({
     setIsUploading(cat);
     try {
       const fileList = Array.from(files).slice(0, available);
-      // QA bug 021: a photo taken with a phone and imported from a computer
-      // carries its position in EXIF; read it and label it (best effort, one
-      // reverse-geocode per distinct spot) so « Par localisation » can group.
-      const labelCache = new Map<string, string | null>();
-      const geoFor = async (file: File): Promise<{ lat?: number; lng?: number; location?: string }> => {
-        const gps = await readExifGps(file);
-        if (!gps) return {};
-        const key = `${gps.lat.toFixed(3)},${gps.lng.toFixed(3)}`;
-        if (!labelCache.has(key)) {
-          try {
-            const res = await apiFetch(`/api/reverse-geocode?lat=${gps.lat}&lng=${gps.lng}`);
-            const data = res.ok ? await res.json() : null;
-            labelCache.set(key, typeof data?.formatted === 'string' && data.formatted ? data.formatted : null);
-          } catch {
-            labelCache.set(key, null);
-          }
-        }
-        const location = labelCache.get(key);
-        return { lat: gps.lat, lng: gps.lng, ...(location ? { location } : {}) };
-      };
+      // QA bug 021: position from the file's EXIF (a phone photo imported
+      // from a computer). The gestionnaire's device position says nothing
+      // about where an imported photo was taken, so it is never used here;
+      // photos without EXIF are placed at their visit's address on display.
+      const geoFor = async (file: File) => photoGeoFields(await resolvePhotoGeo(file));
       if (files.length > available) {
         toast({
           variant: 'destructive',
@@ -742,8 +723,8 @@ export default function PhotosTab({
     };
     if (partitionMode === 'location') {
       catPhotos.forEach((photo) => {
-        const { key, label } = locationBucket(photo);
-        push(key, key === '__unknown__' ? t('Sans localisation') : label, photo);
+        const { key, label } = locationOf(photo);
+        push(key, label, photo);
       });
       groups.sort((a, b) => {
         if (a.key === '__unknown__') return 1;
@@ -844,13 +825,10 @@ export default function PhotosTab({
                 )}
                 <div className="flex items-center gap-2">
                   {/*
-                    TWO EXPLICIT AFFORDANCES (mobile-forms-inputs §2.8; MDN on
-                    `capture`): « Prendre des photos » goes to the in-app
-                    camera, « Importer » to the OS sheet. This input carries NO
-                    `capture` attribute on purpose — with it, Android drops the
-                    gallery and only offers the camera, which is exactly the
-                    ambiguity this pass removes. The old single « Ajouter »
-                    button that used to sit on this input is gone.
+                    « Importer » only (owner ruling 2026-09-24): taking photos
+                    on site is the agent de terrain's job, from the mission
+                    screen. This input carries NO `capture` attribute, so the
+                    OS sheet offers the gallery and the files app (MDN).
                   */}
                   <input
                     type="file"
@@ -879,21 +857,6 @@ export default function PhotosTab({
                         )}
                         {t('Importer')}
                       </Button>
-                      {/* Phone: no filled camera button in the header (the
-                          bottom action bar owns the primary); « Importer »
-                          stays. */}
-                      {!isPhone && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="h-8 gap-2 text-xs"
-                          disabled={isUploading === cat.id || catPhotos.length >= capFor(cat.id)}
-                          onClick={() => setCameraCategory(cat.id)}
-                        >
-                          <Camera className="h-3.5 w-3.5" />
-                          {t('Prendre des photos')}
-                        </Button>
-                      )}
                     </>
                   )}
                 </div>
@@ -917,13 +880,13 @@ export default function PhotosTab({
                   )}
                   onClick={() => canEdit && !isPhone && fileInputRefs.current[cat.id]?.click()}
                 >
-                  {isPhone ? <Camera className="h-12 w-12 text-ink-4" /> : <ImageIcon className="h-12 w-12 text-ink-4" />}
+                  <ImageIcon className="h-12 w-12 text-ink-4" />
                   <div>
                     <p className="t-heading">{t('Aucune photo')}</p>
                     {canEdit && (
                       <p className="t-caption mt-1">
                         {isPhone
-                          ? t('Prenez la première photo de cette section.')
+                          ? t('Importez les photos de cette section.')
                           : t('Déposez ou sélectionnez des photos pour cette section.')}
                       </p>
                     )}
@@ -937,18 +900,15 @@ export default function PhotosTab({
                       disabled={isUploading === cat.id}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isPhone) setCameraCategory(cat.id);
-                        else fileInputRefs.current[cat.id]?.click();
+                        fileInputRefs.current[cat.id]?.click();
                       }}
                     >
                       {isUploading === cat.id ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : isPhone ? (
-                        <Camera className="h-3.5 w-3.5" />
                       ) : (
                         <Upload className="h-3 w-3" />
                       )}
-                      {isPhone ? t('Prendre des photos') : t('Ajouter')}
+                      {isPhone ? t('Importer') : t('Ajouter')}
                     </Button>
                   )}
                 </div>
@@ -957,6 +917,7 @@ export default function PhotosTab({
               ) : partitionMode === 'location' ? (
                 <PhotosByLocation
                   photos={catPhotos}
+                  locationOf={locationOf}
                   renderPhoto={renderPhotoCard}
                   defaultExpanded={defaultGroupsOpen}
                 />
@@ -1012,22 +973,6 @@ export default function PhotosTab({
           />
         );
       })()}
-
-      {/* In-app camera (E7). `maxCaptures` is the remaining room in the
-          section, so the shutter hard-stops instead of the uploader silently
-          dropping the excess. */}
-      {cameraCategory && (
-        <CameraCapture
-          open
-          onClose={() => setCameraCategory(null)}
-          onConfirm={(files) => {
-            const cat = cameraCategory;
-            setCameraCategory(null);
-            if (cat && files.length > 0) void handleUpload(cat, files);
-          }}
-          maxCaptures={Math.max(0, capFor(cameraCategory) - photosForCategory(cameraCategory).length)}
-        />
-      )}
 
       {!isPhone && previewPhoto && (previewMeasured || previewWasOpenRef.current) && (() => {
         previewWasOpenRef.current = true;
@@ -1192,16 +1137,19 @@ export default function PhotosTab({
 /**
  * Per-location photo grouping. Mirrors {@link CollapsedByDayList} visually
  * (collapsible day-style headers, same grid layout) but buckets by
- * {@link locationBucket} instead of upload date. The "Sans localisation"
+ * {@link usePhotoLocations} instead of upload date. The "Sans localisation"
  * bucket — for photos without a `location` field or lat/lng coords — sorts
  * last so located groups stay on top.
  */
 function PhotosByLocation({
   photos,
+  locationOf,
   renderPhoto,
   defaultExpanded = false,
 }: {
   photos: Photo[];
+  /** Where each photo was taken — GPS, else its visit's address (use-photo-locations.ts). */
+  locationOf: (photo: Photo) => PhotoLocation;
   renderPhoto: (photo: Photo) => React.ReactNode;
   /** Groups open by default (used when the photos live in their own step tab). */
   defaultExpanded?: boolean;
@@ -1210,7 +1158,7 @@ function PhotosByLocation({
   const groups = React.useMemo(() => {
     const map = new Map<string, { key: string; label: string; items: Photo[] }>();
     photos.forEach((photo) => {
-      const { key, label } = locationBucket(photo);
+      const { key, label } = locationOf(photo);
       let group = map.get(key);
       if (!group) {
         group = { key, label, items: [] };
@@ -1227,7 +1175,7 @@ function PhotosByLocation({
       return a.label.localeCompare(b.label, 'fr');
     });
     return arr;
-  }, [photos]);
+  }, [photos, locationOf]);
 
   const [expanded, setExpanded] = useState<Map<string, boolean>>(new Map());
   const isExpanded = (key: string) => expanded.get(key) ?? defaultExpanded;

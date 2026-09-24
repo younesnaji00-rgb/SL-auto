@@ -9,12 +9,15 @@ import {
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
 import { subscribe } from './listener-cache';
+import { useListenerEpoch } from '@/hooks/use-listener-epoch';
 
 export function useDoc<T = DocumentData>(ref: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const pathRef = useRef<string>('');
+  // Same self-healing as useCollection: a dead listener re-subscribes.
+  const { epoch, onDenied, onHealthy } = useListenerEpoch();
 
   useEffect(() => {
     if (!ref) {
@@ -47,9 +50,12 @@ export function useDoc<T = DocumentData>(ref: DocumentReference<T> | null) {
         ),
       (d) => {
         setData(d);
+        setError(null);
         setLoading(false);
+        onHealthy();
       },
       (err) => {
+        if (onDenied()) return;
         setError(err);
         setLoading(false);
       }
@@ -62,7 +68,9 @@ export function useDoc<T = DocumentData>(ref: DocumentReference<T> | null) {
     }
 
     return () => unsubscribe();
-  }, [ref]);
+    // onDenied / onHealthy are stable (useCallback).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ref, epoch]);
 
   return { data, loading, error };
 }

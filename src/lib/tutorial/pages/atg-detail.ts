@@ -35,11 +35,12 @@ export const atgDetailTutorial: PageTutorial = {
       interact: 'click',
     },
     {
-      // The whole actions row: camera + (demo) gallery import stay clickable.
+      // The photo actions row (camera only — no gallery import since the
+      // owner ruling of 2026-09-24).
       anchor: 'atgd-photo-actions',
       title: 'Prendre des photos',
       body:
-        "L'agent photographie directement depuis son téléphone : chaque photo est horodatée, signée à son nom et part dans le dossier en temps réel.\nPour la démo, « Importer des photos » permet aussi de déposer des images depuis vos fichiers.",
+        "L'agent photographie directement depuis son téléphone : chaque photo est horodatée, signée à son nom et part dans le dossier en temps réel.",
       side: 'bottom',
       dynamic: true,
     },

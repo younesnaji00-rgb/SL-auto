@@ -27,8 +27,10 @@ import { Block, DoneLine, StatTile, WorkRow, fmtHours } from './ui';
 import { fmtPct } from '@/components/viz';
 
 const refOf = (v: MissionView): string => {
-  const raw = (v.dossier as any)?.refExpert ?? v.mission.dossierNom;
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : v.mission.dossierId;
+  // Truthy, not `??`: an empty Réf. expert used to fall through to the raw
+  // Firestore id.
+  const raw = (v.dossier as any)?.refExpert || v.mission.dossierNom;
+  return typeof raw === 'string' && raw.trim() && raw.trim() !== v.mission.dossierId ? raw.trim() : 'Sans réf.';
 };
 const whoOf = (v: MissionView): string => assureName((v.dossier as any)?.assure) || (v.dossier as any)?.compagnie || '';
 const phoneOf = (v: MissionView): string | null => {
@@ -212,6 +214,25 @@ export function TerrainDashboard({ missions, dossiers, holidays, now, person, lo
           ))
         )}
       </Block>
+
+      {/* 3b — Next missions after today (QA bug AT 010): the hero shows one
+          mission and « Demain » only a count, so later planned missions
+          appeared nowhere on the dashboard. */}
+      {view.upcoming.length > 0 && (
+        <Block title={t('Prochaines missions')} count={view.upcoming.length} caption={t('À partir de demain, dans l’ordre des rendez-vous')} moreHref="/assignations-atg" moreLabel={t('Toutes les missions')}>
+          {view.upcoming.map((v) => (
+            <WorkRow
+              key={`${v.mission.dossierId}-${v.mission.id}`}
+              href={hrefOf(v)}
+              id={refOf(v)}
+              who={[whoOf(v), placeOf(v)].filter(Boolean).join(' · ')}
+              label={v.type ? t(v.type) : undefined}
+              time={`${fmtDay(v.rdv)} ${fmtTime(v.rdv)}`}
+              tall
+            />
+          ))}
+        </Block>
+      )}
 
       {/* 4 — Photos to send: only when non-empty. */}
       {view.photosAEnvoyer.length > 0 && (

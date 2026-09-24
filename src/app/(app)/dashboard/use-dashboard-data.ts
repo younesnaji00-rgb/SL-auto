@@ -20,6 +20,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
+import { useListenerEpoch } from '@/hooks/use-listener-epoch';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useHolidays } from '@/hooks/use-holidays';
 import type { Rappel } from '@/hooks/use-rappels';
@@ -46,6 +47,8 @@ export interface DashboardMission extends TerrainMission {
   checkinLat?: number;
   checkinLng?: number;
   agentTerrainUid?: string | null;
+  /** Stamped by the AT screen when the photos of this mission were sent (QA bug AT 008). */
+  photosSentAt?: any;
 }
 
 export interface DashboardUser {
@@ -106,6 +109,12 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
   const touch = () => setUpdatedAt(new Date());
 
   const { withUsers = false, withWorkflow = false, withRappels = false } = opts;
+  // A listener refused while the login token was missing or refreshing is
+  // re-subscribed instead of freezing the dashboard on cached data.
+  const { epoch, onDenied } = useListenerEpoch();
+  const denied = (err: unknown) => {
+    if ((err as { code?: string } | null)?.code === 'permission-denied') onDenied();
+  };
 
   useEffect(() => {
     if (!db) return;
@@ -118,7 +127,10 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
         (snap) => {
           let data: FunnelDossier[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
           if (scope.length > 0) {
-            data = data.filter((d) => scope.includes((d.compagnie || '').toLowerCase().trim()));
+            // Same rule as the dossiers list (use-dossiers.ts): a dossier with no
+            // compagnie yet belongs to everyone's scope, so the dashboard and the
+            // list never disagree on the count.
+            data = data.filter((d) => { const c = (d.compagnie || '').toLowerCase().trim(); return !c || scope.includes(c); });
           }
           setDossiers(data);
           setDossiersLoaded(true);
@@ -126,6 +138,7 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
         },
         (err) => {
           console.error('Dashboard dossiers sync error:', err);
+          denied(err);
           setDossiersLoaded(true);
         },
       ),
@@ -141,6 +154,7 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
         },
         (err) => {
           console.warn('Dashboard chiffrages sync error:', err);
+          denied(err);
           setChiffragesLoaded(true);
         },
       ),
@@ -162,6 +176,7 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
         },
         (err) => {
           console.warn('Dashboard planifications sync error:', err);
+          denied(err);
           setMissionsLoaded(true);
         },
       ),
@@ -172,7 +187,7 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
         onSnapshot(
           collection(db, 'users'),
           (snap) => setUsers(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))),
-          (err) => console.warn('Dashboard users sync error:', err),
+          (err) => { console.warn('Dashboard users sync error:', err); denied(err); },
         ),
       );
     }
@@ -189,13 +204,14 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
                 _dossierId: d.ref.parent.parent?.id || '',
               })),
             ),
-          (err) => console.warn('Dashboard workflow sync error:', err),
+          (err) => { console.warn('Dashboard workflow sync error:', err); denied(err); },
         ),
       );
     }
 
     return () => unsubs.forEach((u) => u());
-  }, [db, compagnieScope, withUsers, withWorkflow]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, compagnieScope, withUsers, withWorkflow, epoch]);
 
   useEffect(() => {
     if (!db || !uid || !withRappels) return;
@@ -205,18 +221,19 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
         setRappelsRecus(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
         touch();
       },
-      (err) => console.warn('Dashboard rappels reçus sync error:', err),
+      (err) => { console.warn('Dashboard rappels reçus sync error:', err); denied(err); },
     );
     const unsubEnvoyes = onSnapshot(
       query(collection(db, 'rappels'), where('senderUid', '==', uid)),
       (snap) => setRappelsEnvoyes(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))),
-      (err) => console.warn('Dashboard rappels envoyés sync error:', err),
+      (err) => { console.warn('Dashboard rappels envoyés sync error:', err); denied(err); },
     );
     return () => {
       unsubRecus();
       unsubEnvoyes();
     };
-  }, [db, uid, withRappels]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, uid, withRappels, epoch]);
 
   return {
     dossiers,

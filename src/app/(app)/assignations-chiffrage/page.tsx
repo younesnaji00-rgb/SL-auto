@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Calculator, MessageSquare, Search } from 'lucide-react';
+import { AlertTriangle, Calculator, MessageSquare, Search } from 'lucide-react';
 import { DeadlineBar } from '@/components/deadline-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonRow } from '@/components/ui/skeleton';
@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { dateFnsLocale, useT, t as tGlobal } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
+import { useListenerEpoch } from '@/hooks/use-listener-epoch';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { useHotkeys } from '@/hooks/use-hotkeys';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
@@ -132,19 +133,28 @@ export default function AssignationsChiffragePage() {
   // reopens on what still needs the chiffreur (its default working set).
   const [queueScope, setQueueScope] = useState<'a-traiter' | 'tous'>('a-traiter');
 
-  // Listen to chiffrages
+  // Listen to chiffrages. A failed listener used to leave an EMPTY queue with
+  // no message — to the chiffreur, « nothing was sent to me » (owner report
+  // 2026-09-24). It now re-subscribes after a token refusal, and says so if
+  // the list really cannot be loaded.
+  const { epoch: listenEpoch, onDenied } = useListenerEpoch();
+  const [listenError, setListenError] = useState<string | null>(null);
   useEffect(() => {
     if (!db) return;
     const qy = query(collection(db, 'chiffrages'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(qy, (snap) => {
       setAllChiffrages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChiffrageItem)).filter(c => c.files && c.files.length > 0));
+      setListenError(null);
       setLoading(false);
     }, (err) => {
       console.error('[assignations-chiffrage] listener failed:', err);
+      if (err.code === 'permission-denied' && onDenied()) return;
+      setListenError(err.message);
       setLoading(false);
     });
     return () => unsub();
-  }, [db]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, listenEpoch]);
 
   // A chiffreur sees the chiffrages assigned to them. The assignment stores a
   // `chiffreurs/{id}` (not an auth uid) plus a display name, so we resolve
@@ -180,15 +190,26 @@ export default function AssignationsChiffragePage() {
       );
     });
   }, [db, profile?.role, myUid, chiffreurDirectory, myDirectoryIds]);
+  // Live Réf. expert per dossier (QA bug Chiffreur 001): the chiffrage keeps
+  // the reference copied at send time — or, before the fix, the raw Firestore
+  // id when the dossier had none — and a later correction never reached it.
+  const [dossierRefs, setDossierRefs] = useState<Record<string, string>>({});
   const chiffrages = useMemo(() => {
-    if (profile?.role !== 'Chiffreur') return allChiffrages;
-    return allChiffrages.filter(c =>
+    const live = allChiffrages.map((c) => {
+      const ref = dossierRefs[c.dossierId];
+      const stale = !c.dossierNom || c.dossierNom === c.dossierId;
+      if (ref && ref !== c.dossierNom) return { ...c, dossierNom: ref };
+      if (!ref && stale && c.dossierNom) return { ...c, dossierNom: '' };
+      return c;
+    });
+    if (profile?.role !== 'Chiffreur') return live;
+    return live.filter(c =>
       (myUid && (c as any).assignedChiffreurUid === myUid) ||
       (c.assignedChiffreurId && myDirectoryIds.has(c.assignedChiffreurId)) ||
       (myEmail && ((c as any).assignedChiffreurEmail || '').toLowerCase().trim() === myEmail) ||
       (myName && [myName, myFullName].includes(compactName(c.assignedChiffreurNom || ''))),
     );
-  }, [allChiffrages, myDirectoryIds, profile?.role, myUid, myEmail, myName, myFullName]);
+  }, [allChiffrages, dossierRefs, myDirectoryIds, profile?.role, myUid, myEmail, myName, myFullName]);
 
   // Listen to dossier statuts + compagnies + natures for all referenced dossierIds
   const [dossierCompagnies, setDossierCompagnies] = useState<Record<string, string>>({});
@@ -208,7 +229,8 @@ export default function AssignationsChiffragePage() {
           setDossierNatures(prev => ({ ...prev, [did]: data.nature || '' }));
           setDossierReformeTypes(prev => ({ ...prev, [did]: data.reforme?.typeReforme || '' }));
           setDossierAssure(prev => ({ ...prev, [did]: data.assure }));
-          setDossierMatricule(prev => ({ ...prev, [did]: data.matricule || '' }));
+          setDossierMatricule(prev => ({ ...prev, [did]: data.matricule || data.vehicule?.immatriculation || '' }));
+          setDossierRefs(prev => (prev[did] === String(data.refExpert || '').trim() ? prev : { ...prev, [did]: String(data.refExpert || '').trim() }));
         }
       })
     );
@@ -770,6 +792,14 @@ export default function AssignationsChiffragePage() {
       {/* PHONE — « À traiter | Tous » pills, then the queue as RecordCards
           grouped by the SAME urgency bands; search · sort · filters are in the
           top bar (mobile redesign 2026-09-14). */}
+      {listenError && (
+        <div role="alert" className="mb-3 flex items-start gap-2 rounded-lg border border-status-danger-fg/30 bg-status-danger-bg px-4 py-3 text-status-danger-fg">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <p className="t-body-sm">
+            {t('Les assignations n’ont pas pu être chargées — la liste ci-dessous peut être incomplète. Rechargez la page.')}
+          </p>
+        </div>
+      )}
       {isPhone && (
         <PhoneChiffrageQueue
           loading={loading}
@@ -913,6 +943,11 @@ export default function AssignationsChiffragePage() {
                       >
                         {c.dossierNom || t('Sans réf.')}
                       </Link>
+                      {c.dossierId in dossierRefs && (!c.dossierNom || !renderAssure(dossierAssure[c.dossierId]) || !dossierMatricule[c.dossierId]) && (
+                        <Badge variant="warning" className="ml-1.5 align-middle font-sans font-normal" title={t('Réf. expert, assuré ou matricule manquant sur le dossier')}>
+                          {t('Identification incomplète')}
+                        </Badge>
+                      )}
                     </TableCell>
                     {/* A2 — deadline: countdown text, chip only at threshold. */}
                     <TableCell>{renderDelai(entry)}</TableCell>

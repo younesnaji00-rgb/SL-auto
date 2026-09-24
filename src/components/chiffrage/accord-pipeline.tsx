@@ -121,6 +121,18 @@ function buildFamilyPipeline(
   // exists yet, « + 2ème accord » afterwards). An entirely empty family gets
   // no ghost — a dead family should not carry an invitation to edit nothing.
   const anythingReal = received > 0;
+  // The first-round proposition is a slot the gestionnaire's grid always
+  // shows (« 1ère proposition d'accord (devis) », « En attente de
+  // chiffrage »). Offer it here as an editable socket too, so the chiffreur
+  // can fill it instead of only « + 2ème accord » (QA bug 035).
+  if (anythingReal) {
+    for (const slot of group.slots) {
+      const parsed = slot === group.parent ? null : parseAccordDocType(slot);
+      if (!parsed || parsed.kind !== 'proposition-accord' || parsed.ordinal !== 1) continue;
+      const key = stageKey({ kind: parsed.kind, ordinal: parsed.ordinal });
+      if (!cells.has(key)) cells.set(key, { slot, state: 'awaiting' });
+    }
+  }
   const ghost: Stage | null = anythingReal
     ? { kind: 'accord', ordinal: maxFilledAccord + 1 }
     : null;

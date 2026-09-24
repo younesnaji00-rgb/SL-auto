@@ -124,11 +124,16 @@ function TimelineSection({ step, position, children, collapsed, onToggle, active
         </div>
         <div
           className={cn(
-            'grid transition-[grid-template-rows] duration-250 ease-standard motion-reduce:transition-none',
+            // `minmax(0,1fr)` + `min-w-0` below: once the fold drops
+            // `overflow-hidden` (so the compare pane can stick), the implicit
+            // column would otherwise grow to its content's min-content width —
+            // a long file name or an unbreakable button pushed the whole step
+            // under the « À faire » / « Observations » column (QA 034).
+            'grid grid-cols-[minmax(0,1fr)] transition-[grid-template-rows] duration-250 ease-standard motion-reduce:transition-none',
             contentShown ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
           )}
         >
-          <div className={cn('min-h-0', !(contentShown && foldSettled) && 'overflow-hidden')}>
+          <div className={cn('min-h-0 min-w-0', !(contentShown && foldSettled) && 'overflow-hidden')}>
             <div id={`step-${step.id}-content`} hidden={!contentMounted} className="space-y-4">
               {contentMounted && children}
             </div>

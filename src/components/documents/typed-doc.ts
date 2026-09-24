@@ -52,6 +52,56 @@ export const isPdf = (name: string) => /\.pdf$/i.test(name || '');
 export const docDisplayName = (d: Pick<TypedDoc, 'nom' | 'fileName'>) =>
   d.nom || d.fileName || 'document';
 
+/** True when a string ends in a plausible file extension (`.pdf`, `.jpg`…). */
+const hasExtension = (s: string) => /\.[a-z0-9]{2,5}$/i.test((s || '').trim());
+
+/**
+ * Recover the original file name (with its extension) from a Firebase Storage
+ * download URL — the path segment after `/o/` is URL-encoded and ends in the
+ * uploaded file name, e.g. `…/o/dossiers%2F…%2F1699_devis.pdf?alt=media`.
+ */
+export function fileNameFromUrl(url: string): string {
+  if (!url) return '';
+  try {
+    const m = url.match(/\/o\/([^?]+)/);
+    const path = m ? decodeURIComponent(m[1]) : url.split('?')[0].split('#')[0];
+    return path.split('/').pop() || '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The Storage object path a download URL points at (`dossiers/…/1699_devis.jpg`),
+ * decoded from the segment after `/o/`. Identifies the physical file — two doc
+ * records with the SAME path are duplicates of one upload (e.g. one carries a
+ * live token, the other an expired one), left behind by earlier retry bugs.
+ */
+export function storagePathFromUrl(url: string): string | null {
+  if (!url) return null;
+  try {
+    const m = url.match(/\/o\/([^?]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extension-bearing name for TYPE detection — never for display. A typed
+ * document's `nom` is a human label ("Devis Garage") that usually has no
+ * extension, so `isImage`/`isPdf` on it silently fail (generic icon, "Aperçu
+ * indisponible"). Prefer the real `fileName`, then a `nom` that happens to
+ * carry an extension, then the file name recovered from the storage URL.
+ */
+export function docTypeName(d: Pick<TypedDoc, 'nom' | 'fileName' | 'url'>): string {
+  const fileName = (d.fileName || '').trim();
+  if (hasExtension(fileName)) return fileName;
+  const nom = (d.nom || '').trim();
+  if (hasExtension(nom)) return nom;
+  return fileNameFromUrl(d.url || '') || nom || fileName;
+}
+
 export const docTypeLabel = (d: Pick<TypedDoc, 'type' | 'typeDocument'>) =>
   (d.type || d.typeDocument || '').toString().trim();
 

@@ -1,6 +1,7 @@
 import {
   collection,
   addDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -25,6 +26,7 @@ import type {
   StructuredDevis,
 } from "./devis-schema";
 import { mapToAccorde } from "./docType-accorde";
+import { firstAccordState } from "./first-accord";
 import { logHistorique, logWorkflow } from "@/app/(app)/dossiers/[id]/log-historique";
 import { deriveStatus, isAccordStatus } from "@/lib/status-machine";
 
@@ -157,8 +159,15 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
           })),
           assignedChiffreurId,
           assignedChiffreurNom,
-          ...(assignedChiffreurEmail ? { assignedChiffreurEmail: assignedChiffreurEmail.toLowerCase().trim() } : {}),
-          ...(assignedChiffreurUid ? { assignedChiffreurUid } : {}),
+          // Always overwritten (QA bug 029): keeping the previous chiffreur's
+          // uid/e-mail left the dossier in THEIR queue after a reassignment.
+          assignedChiffreurEmail: assignedChiffreurEmail ? assignedChiffreurEmail.toLowerCase().trim() : deleteField(),
+          assignedChiffreurUid: assignedChiffreurUid || deleteField(),
+          // A re-send is a new assignment: fresh date so it sorts and ages as
+          // one (« Aujourd'hui »), and the current reference, never an id.
+          dossierNom,
+          assignedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
           status: "pending",
           completedAt: null,
           sentByUid,
@@ -468,14 +477,8 @@ export async function saveGestionnaireDevisAsPieceJointe(
           author.nom,
         ).catch(() => {});
       }
-      if (cardinalOrdinal === 1) {
-        const firstAccordExists = freshSnap.exists()
-          ? Boolean((freshSnap.data() as Record<string, unknown>).firstAccordReachedAt)
-          : false;
-        if (!firstAccordExists) {
-          await updateDoc(dossierRef, { firstAccordReachedAt: serverTimestamp() });
-        }
-      }
+      // Checks the documents: stamps only once devis AND facture are answered.
+      await markFirstAccordReached(db, dossierId);
     } catch (err) {
       console.warn('[send-to-chiffrage] cardinal statut bump failed (non-fatal)', err);
     }
@@ -525,4 +528,29 @@ export async function saveGestionnaireDevisAsPieceJointe(
     dossierDocId,
     version,
   };
+}
+/**
+ * Stamp `firstAccordReachedAt` once the dossier's first round is COMPLETE:
+ * every garage source (devis, facture) has its 1er accord or proposition
+ * (lib/first-accord.ts — owner ruling 2026-09-24). Call it after every accord
+ * or proposition save; it reads the documents and stamps only when the rule
+ * holds, so the first of the two answers no longer unlocks « 2ème accord et
+ * + » on its own, and the second one always does (QA bug 036). The dossier
+ * page also decides from the documents, so a missed stamp cannot lock a
+ * dossier. Idempotent; never throws.
+ */
+export async function markFirstAccordReached(db: Firestore, dossierId: string): Promise<void> {
+  try {
+    const dossierRef = doc(db, "dossiers", dossierId);
+    const snap = await getDoc(dossierRef);
+    if (snap.exists() && (snap.data() as Record<string, unknown>).firstAccordReachedAt) return;
+    const docsSnap = await getDocs(collection(db, "dossiers", dossierId, "documents"));
+    const state = firstAccordState(docsSnap.docs.map((d) => d.data()));
+    if (!state.complete) return;
+    await updateDoc(dossierRef, {
+      firstAccordReachedAt: state.at ? Timestamp.fromDate(state.at) : serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn("[send-to-chiffrage] firstAccordReachedAt stamp failed (non-fatal)", err);
+  }
 }

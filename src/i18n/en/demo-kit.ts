@@ -224,8 +224,8 @@ export const DEMO_KIT_EN: Record<string, string> = {
   'Votre mission est déjà là': 'Your mission is already here',
   'La planification créée il y a un instant est arrivée en direct.\nCliquez dessus pour l’ouvrir.':
     'The schedule you created a moment ago arrived live.\nClick it to open it.',
-  "L'agent photographie directement depuis son téléphone : chaque photo est horodatée, signée à son nom et part dans le dossier en temps réel.\nPour la démo, « Importer des photos » permet aussi de déposer des images depuis vos fichiers.":
-    'The agent shoots straight from their phone: every photo is timestamped, signed with their name and lands in the file in real time.\nFor the demo, “Import photos” also lets you drop in images from your files.',
+  "L'agent photographie directement depuis son téléphone : chaque photo est horodatée, signée à son nom et part dans le dossier en temps réel.":
+    'The agent shoots straight from their phone: every photo is timestamped, signed with their name and lands in the file in real time.',
   "C'est ici que l'agent dépose les pièces du dossier, directement sur le terrain.\nTouchez pour ouvrir le panneau documents.":
     'This is where the agent drops the file’s documents, right in the field.\nTap to open the documents panel.',
   'Les 5 pièces du dossier': 'The file’s 5 documents',

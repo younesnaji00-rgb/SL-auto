@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import React, { use, useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  doc, collection, query, orderBy, onSnapshot, updateDoc, serverTimestamp, deleteDoc,
+  doc, collection, query, orderBy, onSnapshot, updateDoc, serverTimestamp, deleteDoc, setDoc,
 } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytes, deleteObject } from 'firebase/storage';
 import { useFirestore, useStorage, useAuth, useDoc, useCollection } from '@/firebase';
@@ -15,8 +15,8 @@ import {
   Dialog, DialogContent, DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Loader2, Eye, ImageIcon, Camera, Trash2, FileText, ChevronDown, MapPin, Upload,
-  Navigation, Phone, MessageSquare, Paperclip,
+  Loader2, Eye, ImageIcon, Camera, Trash2, FileText, ChevronDown, MapPin,
+  Navigation, Phone, MessageSquare, Paperclip, Download,
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconChip } from '@/components/ui/icon-chip';
@@ -25,7 +25,10 @@ import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
-import { watermarkAtgPhotoWithGeo } from '@/lib/photo-watermark';
+import { watermarkAtgPhotoWithGeo, getCurrentGeo } from '@/lib/photo-watermark';
+import { resolvePhotoGeo, photoGeoFields } from '@/lib/photo-geo';
+import { normalizeTypeMission } from '@/lib/type-mission';
+import { downloadFileFromUrl, ensureImageExtension } from '@/components/documents/typed-doc';
 import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
 import { addObservation } from '../../dossiers/[id]/log-observation';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -91,7 +94,15 @@ interface Photo {
   uploadedAt: any;
   uploadedBy: string;
   storagePath: string;
+  pendingUpload?: boolean;
 }
+
+/** Dossier field the gestionnaire side reads as « photos de la phase envoyées ». */
+const PHOTOS_SENT_FIELD: Record<PhotoCategory, string> = {
+  avant: 'datePhotosAvant',
+  en_cours: 'datePhotosEnCours',
+  apres: 'datePhotosApres',
+};
 
 const MISSION_TABS = [
   { id: 'Avant', label: 'Avant', category: 'avant' as PhotoCategory },
@@ -100,10 +111,8 @@ const MISSION_TABS = [
 ];
 
 function normalizeType(type: string): string {
-  if (type === 'Apres' || type === 'Après') return 'Après';
-  if (type === 'En cours') return 'En cours';
-  if (type === 'Avant') return 'Avant';
-  return type;
+  // Shared normaliser: the type list is editable (« avant », « Visite avant »).
+  return normalizeTypeMission(type) ?? type;
 }
 
 export default function ATGDossierDetailPage({ params }: { params: Promise<{ dossierId: string }> }) {
@@ -146,11 +155,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const [editObservation, setEditObservation] = useState('');
   const [uploadingPreuveId, setUploadingPreuveId] = useState<string | null>(null);
   const [previewPreuvePhotos, setPreviewPreuvePhotos] = useState<{ urls: string[]; index: number } | null>(null);
-  // Document upload state
-  const [isDocUploading, setIsDocUploading] = useState(false);
-  const [isDocUploadModalOpen, setDocUploadModalOpen] = useState(false);
-  const [selectedDocFile, setSelectedDocFile] = useState<File | null>(null);
-  const [docUploadType, setDocUploadType] = useState<string>('');
   const [documents, setDocuments] = useState<any[]>([]);
   // Section toggles (mutually exclusive)
   const [isPhotosOpen, setIsPhotosOpen] = useState(false);
@@ -163,12 +167,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   const [deletingPreuve, setDeletingPreuve] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Demo brand: gallery import next to the camera — prospects demo from a
-  // desktop, where "take photos" has no camera to talk to.
-  const galleryInputRef = useRef<HTMLInputElement>(null);
   const preuveInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const docFileInputRef = useRef<HTMLInputElement>(null);
-  const docCameraInputRef = useRef<HTMLInputElement>(null);
 
   // Dossier data
   const dossierRef = useMemo(() => (db ? doc(db, 'dossiers', dossierId) : null), [db, dossierId]);
@@ -298,7 +297,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   };
 
   // Upload photos (from camera capture)
-  const handleUploadFiles = async (files: File[]) => {
+  const handleUploadFiles = async (files: File[], fromCamera = false) => {
     if (!db || !storage || files.length === 0) return;
     // Capture the statut BEFORE the upload loop so the auto-advance check is
     // race-free with respect to additional snapshots arriving mid-batch.
@@ -333,10 +332,17 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         .filter(Boolean)
         .join(' ')
         .trim() || userEmail || 'Agent de Terrain';
+      // Where each photo was taken (QA bug 021): the file's own EXIF first —
+      // an imported phone photo knows its spot, and the canvas re-encode of
+      // the watermark would strip it — else the device position, asked ONCE
+      // for the batch, not per file.
+      const live = await getCurrentGeo().catch(() => null);
       for (const file of files) {
         const timestamp = Date.now();
+        const exifOrLive = await resolvePhotoGeo(file, { liveFallback: true, live });
         // Stamp BEFORE queuing so the watermark survives offline uploads too.
-        const { file: stamped, geo } = await watermarkAtgPhotoWithGeo(file, watermarkName);
+        const { file: stamped, geo: stampedGeo } = await watermarkAtgPhotoWithGeo(file, watermarkName, exifOrLive);
+        const geo = exifOrLive ?? (stampedGeo ? { lat: stampedGeo.lat, lng: stampedGeo.lng } : null);
         const storagePath = `dossiers/${dossierId}/photos/${categoryAtUpload}/${timestamp}_${stamped.name}`;
         await uploadFileWithOfflineSupport({
           storage,
@@ -352,7 +358,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             uploadedBy: userEmail,
             storagePath,
             // Feeds the gestionnaire's « Par localisation » grouping.
-            ...(geo ? { lat: geo.lat, lng: geo.lng } : {}),
+            ...photoGeoFields(geo),
           },
         });
         await logHistorique(db, dossierId, 'Upload photo Agent de Terrain', userEmail, `Photo "${stamped.name}" uploadée (${categoryAtUpload}).`, 'photo', profile?.nom);
@@ -365,6 +371,18 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       // Idempotent — re-uploads in the same category are no-ops because the
       // helper early-returns when currentStatut already equals the target.
       void maybeAdvanceToExpertise(db, dossierId, statutBeforeUpload, categoryAtUpload, userEmail);
+      // « Photos envoyées » (QA bugs AT 008 / 009 / 010): the dashboards read
+      // the dossier's datePhotos<Phase> and, per mission, `photosSentAt`.
+      // Only the gestionnaire's tab used to stamp them, so AT-completed
+      // missions stayed « Photos pas encore envoyées » and never counted as
+      // done. Fire-and-forget like the statut advance.
+      void setDoc(doc(db, 'dossiers', dossierId), { [PHOTOS_SENT_FIELD[categoryAtUpload]]: serverTimestamp() }, { merge: true })
+        .catch((e) => console.warn('[atg] photos-sent stamp:', e));
+      for (const plan of filteredPlans as any[]) {
+        if (!plan?.id) continue;
+        void updateDoc(doc(db, 'dossiers', dossierId, 'planifications', plan.id), { photosSentAt: serverTimestamp() })
+          .catch((e) => console.warn('[atg] mission photos-sent stamp:', e));
+      }
       toast({ title: `${files.length} ${files.length > 1 ? t('photos uploadées avec succès') : t('photo uploadée avec succès')}` });
     } catch {
       toast({ variant: 'destructive', title: t("Erreur lors de l'upload") });
@@ -376,7 +394,21 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
   // Handle camera confirm — close camera then upload
   const handleCameraConfirm = (files: File[]) => {
     setIsCameraOpen(false);
-    handleUploadFiles(files);
+    handleUploadFiles(files, true);
+  };
+
+  // Download one photo (QA bug AT 005) — same helper as the gestionnaire tab,
+  // so the saved file keeps a real image extension.
+  const handleDownloadPhoto = async (photo: Photo) => {
+    if (!photo.url || photo.pendingUpload) {
+      toast({ variant: 'destructive', title: t('Photo pas encore envoyée'), description: t('Réessayez une fois l’envoi terminé.') });
+      return;
+    }
+    try {
+      await downloadFileFromUrl(photo.url, ensureImageExtension(photo.name, photo.url));
+    } catch {
+      toast({ variant: 'destructive', title: t('Erreur lors du téléchargement') });
+    }
   };
 
   // Delete photo
@@ -517,77 +549,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     }
   };
 
-  // Shared uploader — used by direct (per-slot) and modal-confirmed paths, and by multi-select batches.
-  const uploadDocument = async (file: File, type: string) => {
-    if (!file || !type || !db || !storage) return;
-    const timestamp = Date.now();
-    const storagePath = `dossiers/${dossierId}/documents/${timestamp}_${file.name}`;
-    await uploadFileWithOfflineSupport({
-      storage,
-      db,
-      file,
-      fileName: file.name,
-      storagePath,
-      firestoreDocPath: `dossiers/${dossierId}/documents`,
-      firestoreMetadata: {
-        nom: file.name,
-        type,
-        taille: file.size,
-        uploadePar: userEmail,
-        storagePath,
-        _localCreatedAt: timestamp,
-        uploadSource: 'ATG',
-      },
-    });
-    await logHistorique(db, dossierId, 'Upload document Agent de Terrain', userEmail, `Document "${file.name}" uploadé (type: ${type}).`, 'document', profile?.nom);
-    const userId = auth?.currentUser?.uid || 'unknown';
-    await logWorkflow(db, dossierId, 'Agent de Terrain : document ajouté', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `Document "${file.name}" ajouté par Agent de Terrain (${type})` }, profile?.nom);
-  };
-
-  // Document files picked — skip the type modal if docUploadType is already set
-  // (per-slot "Ajouter" button), else open the modal so the user can choose.
-  // Supports multi-select: all files in a batch share the same type.
-  const handleDocFilesSelect = async (files: FileList) => {
-    const list = Array.from(files);
-    if (list.length === 0) return;
-    if (docUploadType) {
-      setIsDocUploading(true);
-      try {
-        for (const f of list) {
-          await uploadDocument(f, docUploadType);
-        }
-        toast({ title: list.length === 1 ? t('Document uploadé avec succès') : `${list.length} ${t('documents uploadés')}` });
-      } catch (error: any) {
-        console.error('Document upload error:', error);
-        toast({ variant: 'destructive', title: t("Erreur lors de l'upload du document"), description: error.message || t('Une erreur est survenue.') });
-      } finally {
-        setIsDocUploading(false);
-        setDocUploadType('');
-      }
-      return;
-    }
-    // No pre-set type: fall back to modal (single file — modal flow doesn't batch).
-    setSelectedDocFile(list[0]);
-    setDocUploadModalOpen(true);
-  };
-
-  // Modal confirm — only reached when user opened the generic add path (no slot context).
-  const handleDocUpload = async () => {
-    if (!selectedDocFile || !docUploadType) return;
-    setIsDocUploading(true);
-    try {
-      await uploadDocument(selectedDocFile, docUploadType);
-      toast({ title: t('Document uploadé avec succès') });
-      setDocUploadModalOpen(false);
-      setSelectedDocFile(null);
-      setDocUploadType('');
-    } catch (error: any) {
-      console.error('Document upload error:', error);
-      toast({ variant: 'destructive', title: t("Erreur lors de l'upload du document"), description: error.message || t('Une erreur est survenue.') });
-    } finally {
-      setIsDocUploading(false);
-    }
-  };
+  // Documents are uploaded through the shared <TypedDocumentsGrid> below. The
+  // old per-page handlers (the only AT code that toasted « Document uploadé
+  // avec succès ») were unreachable and are gone (QA bug AT 003).
 
   const assureNom = dossier ? `${dossier.assure?.nom || ''} ${dossier.assure?.prenom || ''}`.trim() : '';
   const assureTelephoneRaw = (dossier?.assure?.telephone || dossier?.assure?.telephone2 || '').trim();
@@ -738,7 +702,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           propositionReforme={propositionReforme}
           reformeDisabled={!dossierRef}
           onToggleReforme={togglePropositionReforme}
-          onImport={() => galleryInputRef.current?.click()}
           onCamera={() => setIsCameraOpen(true)}
           onOpenPhoto={(photo) => setPreviewPhoto(photo)}
           telephoneRaw={assureTelephoneRaw}
@@ -945,22 +908,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                     {propositionReforme ? t('Annuler la réforme proposée') : t('Proposer une réforme')}
                   </Button>
                 )}
-                {/* Gallery import next to the camera. Was tutorial-only, which left
-                    the production agent with no way to add photos already taken
-                    with the phone's own camera app before opening the mission. */}
-                {canEdit && (
-                  <>
-                    <Button
-                      data-tour="atgd-import"
-                      variant="outline"
-                      disabled={isUploading}
-                      onClick={() => galleryInputRef.current?.click()}
-                    >
-                      <Upload />
-                      {t('Importer des photos')}
-                    </Button>
-                  </>
-                )}
+                {/* No gallery import (owner ruling 2026-09-24): the agent's
+                    photos are taken on site with the in-app camera, which
+                    stamps time, position and name on each one. */}
                 {canEdit && (
                   <Button
                     data-tour="atgd-camera"
@@ -1018,23 +968,42 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                         <Eye className="h-5 w-5 text-on-ink" aria-hidden />
                       </span>
                     </button>
-                    {canDeletePhoto(photo) && (
+                    {/* Hover actions: Télécharger for every viewer (QA bug
+                        AT 005), Supprimer for the uploader. */}
+                    <div className="absolute right-1 top-1 z-10 flex flex-col gap-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute right-1 top-1 z-10 h-8 w-8 bg-card/90 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
+                        className="h-8 w-8 bg-card/90"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (window.confirm(t('Supprimer cette photo ?'))) handleDeletePhoto(photo);
+                          void handleDownloadPhoto(photo);
                         }}
-                        disabled={isDeletingPhoto === photo.id}
-                        aria-label={t('Supprimer la photo')}
+                        disabled={!photo.url || !!photo.pendingUpload}
+                        aria-label={t('Télécharger la photo')}
+                        title={t('Télécharger')}
                       >
-                        {isDeletingPhoto === photo.id
-                          ? <Loader2 className="animate-spin" />
-                          : <Trash2 />}
+                        <Download />
                       </Button>
-                    )}
+                      {canDeletePhoto(photo) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 bg-card/90"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(t('Supprimer cette photo ?'))) handleDeletePhoto(photo);
+                          }}
+                          disabled={isDeletingPhoto === photo.id}
+                          aria-label={t('Supprimer la photo')}
+                          title={t('Supprimer')}
+                        >
+                          {isDeletingPhoto === photo.id
+                            ? <Loader2 className="animate-spin" />
+                            : <Trash2 />}
+                        </Button>
+                      )}
+                    </div>
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-ink-solid/60 p-1.5">
                       <p className="truncate text-[11px] text-on-ink">{photo.name}</p>
                     </div>
@@ -1111,6 +1080,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
               if (next) setPreviewPhoto(next);
             }}
             onClose={() => setPreviewPhoto(null)}
+            onDownload={() => void handleDownloadPhoto(previewPhoto)}
             actions={
               canDeletePhoto(previewPhoto)
                 ? [
@@ -1139,8 +1109,19 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         <Dialog open onOpenChange={() => setPreviewPhoto(null)}>
           <DialogContent className="flex h-[calc(60vh/var(--app-zoom))] flex-col p-0 lg:max-w-2xl">
             <DialogTitle className="sr-only">{previewPhoto.name}</DialogTitle>
-            <div className="flex flex-1 items-center justify-center overflow-hidden bg-ink-solid">
+            <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-ink-solid">
               <img src={previewPhoto.url} className="max-h-full max-w-full object-contain" alt={previewPhoto.name} />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute bottom-3 right-3 gap-1.5 bg-card/90"
+                onClick={() => void handleDownloadPhoto(previewPhoto)}
+                disabled={!previewPhoto.url || !!previewPhoto.pendingUpload}
+              >
+                <Download className="h-4 w-4" />
+                {t('Télécharger')}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -1190,22 +1171,6 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         onClose={() => setIsCameraOpen(false)}
         onConfirm={handleCameraConfirm}
         maxCaptures={Math.max(0, photoCap - filteredPhotos.length)}
-      />
-
-      {/* « Importer » target — ONE input, no `capture` attribute, so the OS
-          sheet keeps offering the gallery and the files app (MDN). Shared by
-          the phone body and the desktop demo button. */}
-      <input
-        ref={galleryInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={(e) => {
-          const files = Array.from(e.target.files || []);
-          if (files.length > 0) void handleUploadFiles(files);
-          e.target.value = '';
-        }}
       />
 
       {/* PHONE: the bottom action bar (Itinéraire · Confirmer l’arrivée ·

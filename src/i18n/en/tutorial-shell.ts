@@ -47,8 +47,8 @@ export const TUTORIAL_SHELL_EN: Record<string, string> = {
     "Correcting a detail",
   "Créer, depuis n’importe où":
     "Create from anywhere",
-  "Ctrl+K (⌘K sur Mac) ou la touche « / » ouvrent la recherche universelle : une référence, une plaque, un assuré, une page, une action.\nCtrl+B replie le menu, Maj+D bascule le thème, C crée un dossier.\nTout reste faisable à la souris — ces raccourcis ne font que gagner du temps.":
-    "Ctrl+K (⌘K on Mac) or the “/” key opens universal search: a reference, a plate, a policyholder, a page, an action.\nCtrl+B collapses the menu, Shift+D switches the theme, C creates a file.\nEverything still works with the mouse — these only save time.",
+  "Le menu de gauche s’ouvre au survol, et Ctrl+B le garde ouvert. Maj+D bascule le thème, C crée un dossier depuis la page Dossiers.\nTout reste faisable à la souris — ces raccourcis ne font que gagner du temps.":
+    "The left menu opens on hover, and Ctrl+B keeps it open. Shift+D switches the theme, C creates a file from the Files page.\nEverything still works with the mouse — these only save time.",
   "Dans la chaîne, une case en attente porte un bouton « Éditer ».\nCliquez dessus : le devis lu par l'IA devient un tableau intelligent.":
     "In the chain, a pending cell carries an “Edit” button.\nClick it: the quote the AI read becomes a smart table.",
   "Des bandes, pas des couleurs partout":

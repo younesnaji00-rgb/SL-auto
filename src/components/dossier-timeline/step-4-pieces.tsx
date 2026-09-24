@@ -13,9 +13,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { useAuth, useCollection, useFirestore } from '@/firebase';
-import { parseAccordDocType } from '@/lib/docType-accorde';
 import { materializeMissing2emeSlots } from '@/lib/cardinal-materialize';
 import { computeRequiredDocsStatus } from '@/lib/required-docs';
+import { firstAccordState } from '@/lib/first-accord';
 import SmartInbox from './smart-inbox';
 
 /**
@@ -122,16 +122,10 @@ export default function Step4Pieces({ dossierId, dossier, readOnly, onSendToChif
   const firstRoundFilled = useMemo(() => {
     if (!requireFirstAccordFilled) return true;
     if (!docs) return false;
-    // Any single 1er accord OR 1er proposition (across either family) is
-    // enough to enable the button.
-    for (const d of docs) {
-      if (!d?.url || d.pendingUpload) continue;
-      const type = (d.type || d.typeDocument || '').trim();
-      const parsed = parseAccordDocType(type);
-      if (!parsed || parsed.ordinal !== 1) continue;
-      if (parsed.kind === 'accord' || parsed.kind === 'proposition-accord') return true;
-    }
-    return false;
+    // Same rule as the step unlock (lib/first-accord.ts): the devis AND the
+    // facture each need their 1er accord or proposition — one of the two used
+    // to be enough here while the step itself stayed locked.
+    return firstAccordState(docs).complete;
   }, [docs, requireFirstAccordFilled]);
   // Item 023 — shared predicate with the documents browser (`lib/required-docs`).
   const { missingRequired, garageFilled, allRequiredFilled } = useMemo(

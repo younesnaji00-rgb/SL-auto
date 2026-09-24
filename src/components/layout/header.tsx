@@ -19,6 +19,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { Search } from 'lucide-react';
 import Breadcrumb from '@/components/breadcrumb';
 import Logo from '@/components/logo';
 import Notifications from '@/components/layout/notifications';
@@ -26,6 +27,29 @@ import UserMenu from '@/components/layout/user-menu';
 import PhoneTopBar from '@/components/layout/phone-top-bar';
 import { useShellUi } from '@/components/layout/shell-ui';
 import { useT } from '@/i18n';
+
+/**
+ * Header search field — the ONLY entry point to the command palette (QA bug
+ * 039; owner ruling 2026-09-24: the Ctrl+K and « / » shortcuts are gone).
+ * Styled as an input so it reads as « rechercher », not as one more button.
+ */
+function SearchTrigger() {
+  const t = useT();
+  const { openPalette } = useShellUi();
+  return (
+    <button
+      type="button"
+      onClick={() => openPalette()}
+      data-tour="shell-search"
+      title={t('Rechercher')}
+      aria-label={t('Rechercher')}
+      className="flex h-9 w-44 items-center gap-2 rounded-md border border-hairline bg-card px-3 text-left text-sm text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:w-64"
+    >
+      <Search className="h-4 w-4 shrink-0" aria-hidden />
+      <span className="truncate">{t('Réf., plaque, assuré, page ou action…')}</span>
+    </button>
+  );
+}
 
 const Header = () => {
   const t = useT();
@@ -52,6 +76,7 @@ const Header = () => {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
+          <SearchTrigger />
           <Notifications />
           <UserMenu />
         </div>

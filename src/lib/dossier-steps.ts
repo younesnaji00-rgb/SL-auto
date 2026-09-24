@@ -20,6 +20,7 @@
  */
 
 import { getMissingRequiredFields } from './required-fields';
+import { firstAccordBlockedReason, type FirstAccordState } from './first-accord';
 
 export type StepStatus = 'todo' | 'in_progress' | 'done' | 'blocked';
 
@@ -123,10 +124,25 @@ function make(
  * Status of every workflow step for a dossier document (the top-level
  * `dossiers/{id}` doc — subcollections are not needed).
  */
-export function getStepStatuses(dossier: any): StepState[] {
+export function getStepStatuses(
+  dossier: any,
+  opts: {
+    /**
+     * The first-round answer state computed from the dossier's documents
+     * (`firstAccordState`, lib/first-accord.ts). When given it decides the
+     * « 1er accord » step and the « 2ème accord et + » unlock: both the devis
+     * and the facture need their 1er accord or proposition (owner ruling
+     * 2026-09-24). Without it only the stored stamp counts.
+     */
+    accord?: FirstAccordState | null;
+  } = {},
+): StepState[] {
   const d = dossier || {};
-  const firstAccordAt = toDate(d.firstAccordReachedAt);
   const chiffrageAt = toDate(d.dateChiffrage);
+  const accord = opts.accord ?? null;
+  const firstAccordAt =
+    toDate(d.firstAccordReachedAt) ??
+    (accord?.complete ? (accord.at ?? chiffrageAt ?? new Date()) : null);
   const lastChange = d.lastStatusChange || {};
   const lastStatus: string = lastChange.status || d.statut || '';
   const lastAt = toDate(lastChange.at);
@@ -171,7 +187,7 @@ export function getStepStatuses(dossier: any): StepState[] {
         return make(def, 'todo', null, null, null);
       }
       case 11: {
-        if (!firstAccordAt) return make(def, 'blocked', null, null, null, "Nécessite le 1er accord");
+        if (!firstAccordAt) return make(def, 'blocked', null, null, null, firstAccordBlockedReason(accord));
         const isLaterRound = ACCORD_LIKE.test(lastStatus) && !FIRST_ROUND.has(lastStatus);
         if (isLaterRound && lastAt) return make(def, 'done', lastAt, lastBy, chiffrageAt, undefined, lastByNom);
         if (chiffrageEnCours && chiffrageAt && firstAccordAt && chiffrageAt > firstAccordAt) {

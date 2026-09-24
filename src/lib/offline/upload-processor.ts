@@ -23,6 +23,10 @@ class UploadProcessor {
 
   async processQueue(storage: FirebaseStorage, db: Firestore): Promise<void> {
     if (this.processing) return;
+    // Nothing to gain while offline — and every attempt used to count toward
+    // MAX_RETRIES, so five quick tries on a dead connection abandoned the
+    // file for good (QA bug AT 003).
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     this.processing = true;
 
     try {
@@ -63,10 +67,18 @@ class UploadProcessor {
           notifyListeners();
         } catch (err) {
           console.warn(`[UploadProcessor] Failed to process ${item.fileName}:`, err);
-          await updateQueueItem(item.id, {
-            status: 'failed',
-            retryCount: item.retryCount + 1,
-          });
+          const offline = typeof navigator !== 'undefined' && !navigator.onLine;
+          const retryCount = offline ? item.retryCount : item.retryCount + 1;
+          await updateQueueItem(item.id, { status: 'failed', retryCount });
+          // Out of retries: say so on the placeholder instead of leaving it
+          // « En attente… » forever with the pièce silently missing.
+          if (retryCount >= MAX_RETRIES && item.firestoreMetadata._placeholderDocId) {
+            const docRef = doc(db, item.firestoreDocPath, item.firestoreMetadata._placeholderDocId);
+            await updateDoc(docRef, {
+              uploadFailed: true,
+              uploadError: err instanceof Error ? err.message : String(err),
+            }).catch(() => {});
+          }
         }
       }
     } finally {

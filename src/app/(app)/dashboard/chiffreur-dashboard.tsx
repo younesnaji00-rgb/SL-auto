@@ -43,8 +43,9 @@ const BAND_LABEL: Record<QueueBand, string> = {
 };
 
 const refOf = (e: QueueEntry): string => {
-  const raw = (e.dossier as any)?.refExpert ?? e.chiffrage.dossierNom;
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : e.chiffrage.dossierId;
+  // Truthy, not `??`, and never the raw Firestore id (QA bug Chiffreur 001).
+  const raw = (e.dossier as any)?.refExpert || e.chiffrage.dossierNom;
+  return typeof raw === 'string' && raw.trim() && raw.trim() !== e.chiffrage.dossierId ? raw.trim() : 'Sans réf.';
 };
 const whoOf = (e: QueueEntry): string => {
   const d: any = e.dossier;

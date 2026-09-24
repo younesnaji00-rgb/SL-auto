@@ -8,6 +8,7 @@ import {
   deleteField,
   serverTimestamp,
   Timestamp,
+  updateDoc,
   type DocumentReference,
 } from 'firebase/firestore';
 import { Check, Eye, FileIcon, FileText, Loader2, RefreshCw, ScanSearch, Trash2, Upload } from 'lucide-react';
@@ -36,7 +37,7 @@ import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import SmartInbox from './smart-inbox';
 import { emitPrefillFlash } from '@/hooks/use-prefill-flash';
-import { findDossierWithRefExpert } from '@/lib/ref-expert-unique';
+import { findDossierWithRefExpert, normalizeRefExpert } from '@/lib/ref-expert-unique';
 import { PREFILL_DOC_CLASSES, UNCLASSIFIED_LABEL } from '@/lib/doc-classes';
 import { isChiffrageOutputType } from '@/lib/required-docs';
 
@@ -187,10 +188,50 @@ export default function Step1Import({
     [db, dossierId, importDocOverride],
   );
   const { data: storedDocs } = useCollection<any>(storedDocsQuery);
+  const storedDocIds = useMemo(
+    () => (storedDocs ? new Set<string>(storedDocs.map((d: any) => String(d.id))) : null),
+    [storedDocs],
+  );
+  // Documents the user took out of the drop queue with ✕ (« Retirer »): they
+  // stay among the pièces but are no longer offered as a pre-fill source — a
+  // button naming the document that was just removed read as a bug (QA 041 /
+  // 043). The choice is stored ON the document (`prefillDismissed`), so it
+  // holds after a reload, in another tab and on another device; the session
+  // copy makes it instant and covers a write that has not landed yet.
+  const dismissedKey = `sl:prefill-dismissed:${dossierId}`;
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
+    try {
+      return new Set<string>(JSON.parse(sessionStorage.getItem(dismissedKey) || '[]'));
+    } catch {
+      return new Set<string>();
+    }
+  });
+  const dismissPrefillSource = useCallback(
+    (docId: string) => {
+      setDismissedIds((prev) => {
+        const next = new Set(prev);
+        next.add(docId);
+        try { sessionStorage.setItem(dismissedKey, JSON.stringify([...next])); } catch { /* private mode */ }
+        return next;
+      });
+      if (db && dossierId && docId) {
+        updateDoc(firestoreDoc(db, 'dossiers', dossierId, 'documents', docId), { prefillDismissed: true }).catch((err) =>
+          console.warn('[Step1Import] could not store the pre-fill dismissal:', err),
+        );
+      }
+    },
+    [db, dossierId, dismissedKey],
+  );
   const prefillCandidate = useMemo(() => {
     const list = (storedDocs ?? []).filter((d: any) => {
       const type = String(d?.type || d?.typeDocument || '');
+      // A document the AI is still classifying (`classifiedBy: 'pending'`)
+      // is not offered yet: it would flash a « Pré-remplir depuis « X » »
+      // button beside the queue's own spinner (QA 042).
       return !!d?.url && !d?.pendingUpload && !isChiffrageOutputType(type)
+        && d?.classifiedBy !== 'pending'
+        && d?.prefillDismissed !== true
+        && !dismissedIds.has(String(d?.id))
         && (PREFILL_DOC_CLASSES.includes(type) || type === UNCLASSIFIED_LABEL);
     });
     const ms = (d: any) => {
@@ -200,7 +241,7 @@ export default function Step1Import({
     list.sort((a: any, b: any) => ms(b) - ms(a));
     // A mission letter first, else the most recent source document.
     return list.find((d: any) => String(d?.type || '') === 'Lettre de mission') ?? list[0] ?? null;
-  }, [storedDocs]);
+  }, [storedDocs, dismissedIds]);
 
   const importDocRef = useMemo(() => {
     if (importDocOverride !== undefined) return null; // replay: frozen data, no live read
@@ -307,6 +348,8 @@ export default function Step1Import({
           }
           const existing = readPath(dossier, target);
           updates[target] = finalValue;
+          // The reference travels with its normalised key (QA bug 002).
+          if (target === 'refExpert') updates.refExpertKey = normalizeRefExpert(finalValue);
           // Mark provenance for the two date fields the Dates clés UI uses to
           // gate read-only display (see historique-tab.tsx AI_SOURCED_DATE_FIELDS).
           if (target === 'dateSinistre' || target === 'dateRequete') {
@@ -364,7 +407,11 @@ export default function Step1Import({
             if (buffered) {
               draft.bufferLog({ kind: 'historique', args: logArgs });
             } else {
-              await logHistorique(db, dossierId, ...(logArgs as [string, string, string, string, string | undefined]));
+              // Not awaited: the fields are already on screen, and holding
+              // the spinner for the audit entry's acknowledgement read as a
+              // scan that never finished (QA 042).
+              logHistorique(db, dossierId, ...(logArgs as [string, string, string, string, string | undefined]))
+                .catch((e) => console.error('[Step1Import] historique:', e));
             }
           }
         }
@@ -542,6 +589,8 @@ export default function Step1Import({
             buttonLabel={t('Pré-remplir depuis un document')}
             emphasis={isPhone || hasImportDoc ? 'tonal' : 'primary'}
             icon={null}
+            storedDocIds={storedDocIds}
+            onDismiss={dismissPrefillSource}
             onPrefill={async (files, sourceDocId) => {
               const userEmail = auth?.currentUser?.email || 'Admin';
               await runScanAndMerge(files, userEmail, sourceDocId);
@@ -556,13 +605,18 @@ export default function Step1Import({
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 gap-1.5 max-md:h-11 max-md:text-[14px]"
+              // `max-w-full` + a truncating label: a long file name used to
+              // widen the whole step past the paper and under the context
+              // column (QA 034).
+              className="h-8 max-w-full min-w-0 gap-1.5 max-md:h-11 max-md:text-[14px]"
               onClick={() => void scanStoredDoc(prefillCandidate)}
               disabled={busy}
               title={`${t('Pré-remplir depuis')} ${prefillCandidate.nom || prefillCandidate.fileName || t('le document déposé')}`}
             >
-              {isScanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanSearch className="h-3.5 w-3.5" />}
-              {t('Pré-remplir depuis')} « {prefillCandidate.nom || prefillCandidate.fileName || t('document')} »
+              {isScanning ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <ScanSearch className="h-3.5 w-3.5 shrink-0" />}
+              <span className="min-w-0 truncate">
+                {t('Pré-remplir depuis')} « {prefillCandidate.nom || prefillCandidate.fileName || t('document')} »
+              </span>
             </Button>
           ) : (
             <span className="t-caption text-ink-3">

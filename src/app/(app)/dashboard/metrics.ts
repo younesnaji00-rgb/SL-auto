@@ -26,6 +26,7 @@ import type { Rappel } from '@/hooks/use-rappels';
 import { STEP_DEFS, type FunnelDossier } from '../monitoring/funnel';
 import { buildSlaItems, normalizeMissionType, SLA_BUSINESS_HOURS, type SlaItem } from '../monitoring/metrics';
 import type { DashboardChiffrage, DashboardMission, DashboardUser } from './use-dashboard-data';
+import { isChiffrageMine } from '@/lib/chiffreur-identity';
 
 export { SLA_BUSINESS_HOURS };
 
@@ -44,12 +45,18 @@ export const toDate = (v: any): Date | null => {
 };
 
 const norm = (s: unknown): string => (typeof s === 'string' ? s.trim().toLowerCase() : '');
+/** Name comparison key: case, accents and spacing ignored. */
+const nameKey = (s: unknown): string =>
+  typeof s === 'string' ? s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '').toLowerCase() : '';
 
 /** Who a dashboard is about — the signed-in user, or the person an admin picked. */
 export interface PersonRef {
   uid: string;
   nom?: string;
+  prenom?: string;
   email?: string;
+  /** The person's entries in the `chiffreurs` directory (chiffrages name their chiffreur by directory id). */
+  chiffreurDirectoryIds?: ReadonlySet<string>;
 }
 
 /** A dossier belongs to the gestionnaire who created it (`createdBy` = uid; legacy `createdByName` = nom or email). */
@@ -62,14 +69,22 @@ export function dossierOwnedBy(d: FunnelDossier & { createdByName?: string }, p:
 
 /** Same rule as the Chiffrage queue: by id when present, else by name. */
 export function chiffrageOwnedBy(c: DashboardChiffrage, p: PersonRef): boolean {
-  if (p.uid && c.assignedChiffreurId && c.assignedChiffreurId === p.uid) return true;
-  return !!p.nom && norm(c.assignedChiffreurNom) === norm(p.nom);
+  // Shared with the queue page (QA bug 029): uid, directory id, e-mail, then
+  // an accent/space-insensitive name — the old directory-id-vs-uid compare
+  // could never match, so the dashboard's « Ma file » stayed empty.
+  return isChiffrageMine(c as any, p, p.chiffreurDirectoryIds);
 }
 
 /** Same rule as the Terrain queue: by uid when present, else by name. */
 export function missionOwnedBy(m: DashboardMission, p: PersonRef): boolean {
   if (p.uid && m.agentTerrainUid && m.agentTerrainUid === p.uid) return true;
-  return !!p.nom && norm(m.agentTerrain) === norm(p.nom);
+  // Tolerant name match (QA bug AT 009): the planification stores the agent
+  // option's label, which may carry the prénom or differ in accents/spacing
+  // from `users.nom` — an exact compare silently dropped the agent's missions.
+  const agent = nameKey(m.agentTerrain);
+  if (!agent || !p.nom) return false;
+  const candidates = [p.nom, `${p.prenom ?? ''} ${p.nom}`, `${p.nom} ${p.prenom ?? ''}`].map(nameKey);
+  return candidates.includes(agent);
 }
 
 /** Open = no rapport déposé (the same "en attente" definition as Suivi d'équipe). */
@@ -534,6 +549,8 @@ export interface TerrainTiles {
 
 export interface TerrainView {
   next: MissionView | null;
+  /** Open missions from tomorrow on, in RDV order (capped) — « Prochaines missions » (QA bug AT 010). */
+  upcoming: MissionView[];
   today: MissionView[];
   late: MissionView[];
   tomorrow: MissionView[];
@@ -565,7 +582,11 @@ export function missionViews(
     const rdv = toDate(m.dateRDV);
     const start = toDate(m.createdAt) ?? rdv;
     const photos = type && dossier ? toDate((dossier as any)[PHOTO_FIELD[type]]) : null;
-    const doneAt = photos && start && photos >= start ? photos : null;
+    // Per-mission truth first: the AT screen stamps `photosSentAt` on the
+    // missions whose photos it sent (QA bugs AT 008 / 009). The dossier-level
+    // stamp stays as the fallback for photos imported by the gestionnaire.
+    const sentAt = toDate((m as any).photosSentAt);
+    const doneAt = sentAt ?? (photos && start && photos >= start ? photos : null);
     const done = !!doneAt;
     const ageHours = start && !done ? businessHoursBetween(start, now, holidays) : 0;
     const rdvPast = !!rdv && rdv < today;
@@ -611,6 +632,7 @@ export function computeTerrainView(
   // Next = the earliest mission from today onwards that is not done (a past
   // RDV of today still counts: it is the place to go now).
   const next = open.filter((v) => v.rdv && v.rdv >= today).sort(byRdv)[0] ?? null;
+  const upcoming = open.filter((v) => v.rdv && v.rdv >= tomorrow).sort(byRdv).slice(0, 8);
   const photosAEnvoyer = open.filter((v) => v.checkedIn).sort(byRdv);
 
   const weekStart = startOfWeek(now, { locale: fr });
@@ -620,6 +642,7 @@ export function computeTerrainView(
 
   return {
     next,
+    upcoming,
     today: todayList,
     late,
     tomorrow: tomorrowList,

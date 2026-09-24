@@ -27,7 +27,8 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Pencil, Check, X, User, Car, Users, PenLine, FileText, Clock } from 'lucide-react';
+import Link from 'next/link';
+import { Pencil, Check, X, User, Car, Users, PenLine, FileText, Clock, AlertTriangle } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -53,7 +54,7 @@ import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/do
 import { usePrefillFlash } from '@/hooks/use-prefill-flash';
 import { BRAND } from '@/lib/brand';
 import { validateFields, type ValidatedField } from '@/lib/field-validation';
-import { findDossierWithRefExpert, DUPLICATE_REF_MESSAGE } from '@/lib/ref-expert-unique';
+import { findDossierWithRefExpert, refExpertFields, DUPLICATE_REF_MESSAGE } from '@/lib/ref-expert-unique';
 import {
   INPUT_ADDRESS,
   INPUT_EMAIL,
@@ -176,7 +177,7 @@ const FieldRow = ({
             </dt>
             <dd className="mt-1 min-h-[20px]">
               {editing && f.edit ? (
-                <div className={cn('w-full', f.path && errors?.[f.path] && '[&_input]:border-status-danger-fg [&_input]:ring-1 [&_input]:ring-status-danger-fg')}>
+                <div className={cn('w-full', f.path && errors?.[f.path] && '[&_input]:border-status-danger-fg [&_input]:ring-1 [&_input]:ring-status-danger-fg [&_[role=combobox]]:border-status-danger-fg [&_[role=combobox]]:ring-1 [&_[role=combobox]]:ring-status-danger-fg')}>
                   {f.edit}
                   {f.path && errors?.[f.path] && (
                     <p role="alert" className="t-caption mt-1 text-status-danger-fg">{errors[f.path]}</p>
@@ -325,6 +326,23 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   const [saving, setSaving] = useState(false);
   // Format errors by dossier path; cleared per field as the user types.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // A reference shared with another dossier (duplicated before the gate
+  // existed, or by two scans of the same mission letter) is flagged here:
+  // the save gate only runs when the value CHANGES, so an old duplicate
+  // would otherwise stay silent on both dossiers (QA bug 002).
+  const [refDuplicateOf, setRefDuplicateOf] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const ref = String(dossier?.refExpert || '').trim();
+    if (!db || !ref) {
+      setRefDuplicateOf(null);
+      return;
+    }
+    findDossierWithRefExpert(db, ref, dossierId)
+      .then((id) => { if (alive) setRefDuplicateOf(id); })
+      .catch(() => { /* lookup is advisory */ });
+    return () => { alive = false; };
+  }, [db, dossier?.refExpert, dossierId]);
   // Phone: which section's edit sheet is open, and the form as it was when it
   // opened (« Annuler » / « Abandonner » restore it).
   const [sheetSection, setSheetSection] = useState<SectionKey | null>(null);
@@ -547,6 +565,10 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
 
     const payload: any = {
       ...form,
+      // Trimmed reference + normalised key: the uniqueness lookup is an
+      // exact match, so a stored « SL-12 » with a trailing space used to be
+      // invisible to it (QA bug 002).
+      ...refExpertFields(nextRef),
       dateSinistre: form.dateSinistre ? Timestamp.fromDate(form.dateSinistre) : null,
       dateRequete: form.dateRequete ? Timestamp.fromDate(form.dateRequete) : null,
       vehicule: {
@@ -910,6 +932,17 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
           ) : undefined
         }
       >
+        {refDuplicateOf && (
+          <p role="status" className="t-caption mb-3 flex items-start gap-2 rounded-md border border-status-warning-fg/30 bg-status-warning-bg px-3 py-2 text-status-warning-fg">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>
+              {t('Cette Réf. expert est aussi portée par un autre dossier — corrigez l’une des deux.')}{' '}
+              <Link href={`/dossiers/${refDuplicateOf}`} className="font-semibold underline underline-offset-2">
+                {t('Ouvrir l’autre dossier')}
+              </Link>
+            </span>
+          </p>
+        )}
         <div className="md:hidden">
           <PhoneFields fields={dossierFields} />
         </div>
@@ -938,6 +971,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
                     className="lg:grid-cols-[minmax(0,0.7fr)_repeat(4,minmax(0,1fr))]"
                     fields={expertFields(role)}
                     editing={editing}
+                    errors={fieldErrors}
                   />
                 </div>
               </React.Fragment>

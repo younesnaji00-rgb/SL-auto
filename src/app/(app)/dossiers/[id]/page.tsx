@@ -3,10 +3,11 @@
 import React, { useState, useMemo, use, useCallback, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Calculator, Camera, CalendarPlus, FileText, MessageSquarePlus, Phone, Save, Undo2 } from 'lucide-react';
+import { ArrowLeft, Calculator, Camera, CalendarPlus, FileText, MessageSquarePlus, Phone, Save, Undo2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useDoc, useFirestore } from '@/firebase';
-import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
+import { useCollection, useDoc, useFirestore } from '@/firebase';
+import { collection, doc, getDocs, query, Timestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { firstAccordState } from '@/lib/first-accord';
 import { ensureSnapshotBefore, captureSnapshotAfter, markTreatmentResolved } from '@/lib/rappel-session';
 import { RappelDraftContext, useRappelDraftStore, applyPendingToDossier } from './rappel-draft';
 import { useToast } from '@/hooks/use-toast';
@@ -158,7 +159,9 @@ interface PhoneAction {
  */
 function facetAction(step: StepState, tab: string | null): PhoneAction | null {
   if (!tab) return null;
-  if (tab === 'photos') return { label: 'Prendre des photos', kind: 'photos', icon: <Camera />, stepId: step.id };
+  // The gestionnaire imports photos; taking them on site is the agent de
+  // terrain's job (owner ruling 2026-09-24).
+  if (tab === 'photos') return { label: 'Importer des photos', kind: 'photos', icon: <Upload />, stepId: step.id };
   if (tab === 'planification') return { label: 'Nouvelle planification', kind: 'planifier', icon: <CalendarPlus />, stepId: step.id };
   if (tab === 'observations') return { label: 'Nouvelle observation', kind: 'observation', icon: <MessageSquarePlus />, stepId: step.id };
   return null;
@@ -426,7 +429,26 @@ function DossierDetail({ id }: { id: string }) {
     }
   };
 
-  const stepStates = useMemo(() => getStepStatuses(effectiveDossier ?? dossier), [effectiveDossier, dossier]);
+  // « 2ème accord et + » opens once BOTH the devis and the facture have their
+  // 1er accord or proposition — read from the documents themselves, so a
+  // dossier never stays locked for want of a flag (owner ruling 2026-09-24).
+  const accordDocsQuery = useMemo(() => (db ? collection(db, 'dossiers', id, 'documents') : null), [db, id]);
+  const { data: accordDocs } = useCollection<any>(accordDocsQuery);
+  const accordState = useMemo(() => (accordDocs ? firstAccordState(accordDocs) : null), [accordDocs]);
+  const stepStates = useMemo(
+    () => getStepStatuses(effectiveDossier ?? dossier, { accord: accordState }),
+    [effectiveDossier, dossier, accordState],
+  );
+  // Backfill the stamp the funnel and the dashboards read, once, for dossiers
+  // whose accords were saved before it was written reliably.
+  const accordStampTried = useRef(false);
+  useEffect(() => {
+    if (readOnly || !dossier || accordStampTried.current) return;
+    if (!accordState?.complete || (dossier as any).firstAccordReachedAt) return;
+    accordStampTried.current = true;
+    updateDoc(dossierRef, { firstAccordReachedAt: Timestamp.fromDate(accordState.at ?? new Date()) })
+      .catch((e) => console.warn('[dossier] firstAccordReachedAt backfill failed:', e));
+  }, [readOnly, dossier, accordState, dossierRef]);
 
   // Modal states
   const [isPlanificationModalOpen, setPlanificationModalOpen] = useState(false);
@@ -622,7 +644,7 @@ function DossierDetail({ id }: { id: string }) {
         return tile?.scrollIntoView({ block: 'center' });
       }
       case 'photos':
-        // The mounted Photos facet owns the camera (photos-tab.tsx listens).
+        // The mounted Photos facet owns the file picker (photos-tab.tsx listens).
         return window.dispatchEvent(
           new CustomEvent(CAPTURE_PHOTOS_EVENT, { detail: { category: photoCategoryForStep(action.stepId) ?? undefined } }),
         );

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Pencil, Calendar as CalendarIcon, User, MapPin, Plus, Info, Clock, Phone } from 'lucide-react';
+import { Pencil, Calendar as CalendarIcon, User, MapPin, Plus, Info, Clock, Phone, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useFirestore } from '@/firebase';
@@ -15,6 +15,17 @@ import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/do
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { RecordCard, RecordCardActions, RecordCardFields, RecordCardList } from '@/components/ui/record-card';
 import { DateBlock } from '@/components/ui/date-block';
+import { sameTypeMission } from '@/lib/type-mission';
+import { useListenerEpoch } from '@/hooks/use-listener-epoch';
+
+/**
+ * Fired by the planification modal after a successful create / update
+ * (`detail.dossierId`). The list re-subscribes on it: a fresh listener's first
+ * snapshot is read from the local cache, which already holds the write, so
+ * the saved visit is on screen even if the previous listener had stopped
+ * receiving (QA bugs 046 / 047).
+ */
+export const PLANIFICATIONS_SAVED_EVENT = 'sl:planifications-saved';
 
 type PlanificationTabProps = {
   dossierId: string;
@@ -55,6 +66,15 @@ export default function PlanificationTab({
   const db = useFirestore();
   const [plans, setPlans] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
+  // A listener that dies is NOT an empty list (QA bugs 046 / 047): the old
+  // handler logged the error and fell through to « Aucune visite planifiée »
+  // while writes kept succeeding and toasting. Keep the error and offer a
+  // re-subscribe instead.
+  const [listenError, setListenError] = useState<string | null>(null);
+  const [listenAttempt, setListenAttempt] = useState(0);
+  // Auto-recovery: a dead listener re-subscribes with a fresh token, and
+  // again when the account signed in under this tab changes.
+  const { epoch, onDenied, onHealthy } = useListenerEpoch();
   // Inert on the live page; tints planifications added/modified by the
   // gestionnaire in the rappel treatment replica.
   const hl = useReplayHighlight();
@@ -74,20 +94,36 @@ export default function PlanificationTab({
       setLoading(false);
       return;
     }
+    setListenError(null);
     const q = query(collection(db, 'dossiers', dossierId, 'planifications'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(
       q,
       (snap) => {
         setPlans(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setListenError(null);
         setLoading(false);
+        onHealthy();
       },
       (err) => {
         console.warn('[planification-tab] listener error', err);
+        if (onDenied()) return; // re-subscribes on the next epoch
+        setListenError(err?.message || String(err));
         setLoading(false);
       },
     );
     return () => unsub();
-  }, [db, dossierId, plansOverride]);
+    // onDenied / onHealthy are stable (useCallback).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, dossierId, plansOverride, listenAttempt, epoch]);
+
+  useEffect(() => {
+    if (plansOverride !== undefined) return;
+    const onSaved = (e: Event) => {
+      if ((e as CustomEvent<{ dossierId?: string }>).detail?.dossierId === dossierId) setListenAttempt((n) => n + 1);
+    };
+    window.addEventListener(PLANIFICATIONS_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(PLANIFICATIONS_SAVED_EVENT, onSaved);
+  }, [dossierId, plansOverride]);
 
   const formatTimestamp = (ts: any) => {
     const d = toDate(ts);
@@ -103,11 +139,33 @@ export default function PlanificationTab({
     );
   }
 
-  const visiblePlans = typeFilter ? (plans ?? []).filter((p: any) => p.typeMission === typeFilter) : (plans ?? []);
+  // Rows already on screen stay, but never silently: once the listener is
+  // dead they may be out of date, and the banner says so.
+  const listenAlert = listenError ? (
+    <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-status-danger-fg/30 bg-status-danger-bg px-4 py-3 text-status-danger-fg">
+      <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+      <p className="t-body-sm min-w-0 flex-1">
+        {plans === null
+          ? t('Les visites planifiées n’ont pas pu être chargées.')
+          : t('La liste des visites n’est plus mise à jour et peut être incomplète.')}
+      </p>
+      <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => { if (plans === null) setLoading(true); setListenAttempt((n) => n + 1); }}>
+        <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+        {t('Réessayer')}
+      </Button>
+    </div>
+  ) : null;
+
+  if (listenError && plans === null) return listenAlert;
+
+  // Phase match goes through the normaliser: the type list is editable and
+  // the stored value may read « avant » or « Visite avant » (QA bug 046).
+  const visiblePlans = typeFilter ? (plans ?? []).filter((p: any) => sameTypeMission(p.typeMission, typeFilter)) : (plans ?? []);
 
   if (isPhone) {
     return (
       <div className="space-y-3">
+        {listenAlert}
         <div className="flex items-center justify-between gap-3">
           {/* No « Nouvelle planification » here once the list has rows: the
               page's bottom action bar owns « Planifier la visite … ». The
@@ -211,6 +269,7 @@ export default function PlanificationTab({
 
   return (
     <div className="space-y-4">
+      {listenAlert}
       <div className="flex items-center justify-between gap-3">
         <h3 className="t-heading flex items-center gap-2">
           {t('Visites planifiées')}

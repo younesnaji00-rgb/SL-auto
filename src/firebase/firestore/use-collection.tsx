@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   type Query,
   onSnapshot,
@@ -9,14 +9,26 @@ import {
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
 import { subscribe } from './listener-cache';
+import { useListenerEpoch } from '@/hooks/use-listener-epoch';
 
-// Build a stable key from a Firestore query
-function queryKey(q: Query<any>): string {
-  // Use the query's internal representation for dedup
-  // Firestore query objects have a stable _query property,
-  // but we use the converter-aware toString approach
+// Stable dedup key for a Firestore query. Everything that changes the result
+// is in it: path OR collection group, filters, ORDER, LIMIT and cursors. The
+// old key held only path + filters, so every collection-group query shared
+// « col:unknown » and an ordered / limited query shared the unordered
+// listener of the same collection.
+export function queryKey(q: Query<any>): string {
   try {
-    return `col:${(q as any)._query?.path?.toString?.() || 'unknown'}_${JSON.stringify((q as any)._query?.filters || [])}`;
+    const iq = (q as any)._query;
+    return `col:${JSON.stringify({
+      p: iq?.path?.canonicalString?.() ?? iq?.path?.toString?.() ?? null,
+      g: iq?.collectionGroup ?? null,
+      f: iq?.filters ?? [],
+      o: iq?.explicitOrderBy ?? [],
+      l: iq?.limit ?? null,
+      t: iq?.limitType ?? null,
+      s: iq?.startAt ?? null,
+      e: iq?.endAt ?? null,
+    })}`;
   } catch {
     return `col:${Math.random()}`;
   }
@@ -26,6 +38,10 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // A failed listener is dead: re-subscribe (fresh token, new listener)
+  // instead of leaving the last rows frozen on screen, and again whenever the
+  // signed-in account changes under this tab.
+  const { epoch, onDenied, onHealthy } = useListenerEpoch();
 
   useEffect(() => {
     if (!query) {
@@ -58,9 +74,13 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
         ),
       (d) => {
         setData(d);
+        setError(null);
         setLoading(false);
+        onHealthy();
       },
       (err) => {
+        // Retry budget left: keep what is shown, the epoch re-subscribes.
+        if (onDenied()) return;
         setError(err);
         setLoading(false);
       }
@@ -72,7 +92,9 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
     }
 
     return () => unsubscribe();
-  }, [query]);
+    // onDenied / onHealthy are stable (useCallback).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, epoch]);
 
   return { data, loading, error };
 }

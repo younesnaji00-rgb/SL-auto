@@ -15,13 +15,15 @@
  * split) live on Suivi d'équipe.
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import { useT } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { landingPathFor } from '@/lib/role-landing';
 import { useDashboardData } from './use-dashboard-data';
+import { useChiffreurs } from '@/hooks/use-chiffreurs';
+import { directoryIdsFor } from '@/lib/chiffreur-identity';
 import { buildDashboardSla } from './metrics';
 import { Freshness } from './ui';
 import { GestionnaireDashboard } from './gestionnaire-dashboard';
@@ -63,14 +65,25 @@ function DashboardInner({ role }: { role: string }) {
   const data = useDashboardData({ withUsers: isAdmin, withWorkflow: isAdmin, withRappels: role === 'Gestionnaire' });
   const { dossiers, chiffrages, missions, holidays, loading } = data;
 
-  // One "now" per data change so every « maintenant » figure agrees.
+  // One "now" per data change so every « maintenant » figure agrees — plus a
+  // minute tick, so a dashboard left open overnight does not keep yesterday
+  // as « aujourd'hui » (QA bug AT 010).
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const now = useMemo(() => new Date(), [dossiers, chiffrages, missions]);
+  const now = useMemo(() => new Date(), [dossiers, chiffrages, missions, tick]);
   const sla = useMemo(() => buildDashboardSla(dossiers, chiffrages, missions, holidays, now), [dossiers, chiffrages, missions, holidays, now]);
-  const person = useMemo(
-    () => (profile ? { uid: profile.uid, nom: profile.nom, email: profile.email } : null),
-    [profile],
-  );
+  // The chiffrages name their chiffreur by `chiffreurs` directory id: resolve
+  // mine the same way the queue page does (QA bug 029).
+  const { chiffreurs: chiffreurDirectory } = useChiffreurs();
+  const person = useMemo(() => {
+    if (!profile) return null;
+    const base = { uid: profile.uid, nom: profile.nom, prenom: (profile as any).prenom, email: profile.email };
+    return { ...base, chiffreurDirectoryIds: directoryIdsFor(chiffreurDirectory, base) };
+  }, [profile, chiffreurDirectory]);
 
   // Admin has no subtitle (owner 2026-09-08): its header is ONE line — title,
   // freshness, the cohort window, the role tabs and the period strip — so

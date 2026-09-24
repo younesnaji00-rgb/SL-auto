@@ -168,10 +168,12 @@ export async function watermarkAtgPhoto(
 export async function watermarkAtgPhotoWithGeo(
   file: File,
   displayName: string,
+  /** A position already known for this photo (its EXIF) — stamped instead of the live one (QA bug 021). */
+  presetGeo?: GeoCoords | null,
 ): Promise<{ file: File; geo: GeoCoords | null }> {
-  let geo: GeoCoords | null = null;
+  let geo: GeoCoords | null = presetGeo ?? null;
   try {
-    geo = await getCurrentGeo();
+    if (!geo) geo = await getCurrentGeo();
     const lines = [
       'SL auto',
       formatStamp(),

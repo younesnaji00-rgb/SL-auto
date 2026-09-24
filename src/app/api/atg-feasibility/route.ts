@@ -11,6 +11,24 @@ interface LegResult {
   status: string;
 }
 
+/** `lat,lng` pairs are sent as-is; anything else is a typed address. */
+const COORDS_RE = /^\s*-?\d{1,2}(?:\.\d+)?\s*,\s*-?\d{1,3}(?:\.\d+)?\s*$/;
+/** A leg longer than this is a geocoding miss, not a drive (Tanger → Dakhla ≈ 1 900 km). */
+const MAX_PLAUSIBLE_METERS = 600_000;
+const MAX_PLAUSIBLE_SECONDS = 8 * 3600;
+
+/**
+ * Tie a typed address to Morocco. `region=ma` is only a bias: a short or
+ * country-less string (« Maarif, rue X », or the « ville, quartier, rue »
+ * that reverse-geocoding produces) resolved to France or Spain, and a
+ * 2 000 km leg became a 25-hour « conflit de planning » (QA bug 045).
+ */
+function anchorToMorocco(address: string): string {
+  if (COORDS_RE.test(address)) return address;
+  if (/\b(maroc|morocco|marruecos)\b|المغرب/i.test(address)) return address;
+  return `${address}, Maroc`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     await requireAuth(req);
@@ -38,8 +56,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ legs: [], error: 'unavailable' });
     }
 
-    const origins = cleaned.slice(0, -1).join('|');
-    const destinations = cleaned.slice(1).join('|');
+    const anchored = cleaned.map(anchorToMorocco);
+    const origins = anchored.slice(0, -1).join('|');
+    const destinations = anchored.slice(1).join('|');
 
     // Departure time anchors traffic-aware durations. Use the RDV of the
     // first destination if it's in the future; otherwise omit (the Distance
@@ -83,6 +102,20 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const seconds: number = cell.duration_in_traffic?.value ?? cell.duration?.value ?? 0;
+      const meters: number = cell.distance?.value ?? 0;
+      // A leg no field agent drives in a day is a geocoding miss: report it
+      // as unroutable so the client skips it instead of announcing a
+      // day-long delay (QA bug 045).
+      if (meters > MAX_PLAUSIBLE_METERS || seconds > MAX_PLAUSIBLE_SECONDS) {
+        console.warn('[atg-feasibility] implausible leg skipped', {
+          from: data.origin_addresses?.[i],
+          to: data.destination_addresses?.[i],
+          meters,
+          seconds,
+        });
+        legs.push({ durationSeconds: 0, status: 'IMPLAUSIBLE' });
+        continue;
+      }
       legs.push({ durationSeconds: seconds, status: 'OK' });
     }
 

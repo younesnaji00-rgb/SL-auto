@@ -5,7 +5,7 @@
  * dossier, docs/research/terrain-*.md; owner: "do everything except C and D").
  * Structure = Option A + B: two-line triage rows (~7 slots, audit metadata in
  * the peek panel), En retard group FIRST (triage order), click-to-filter
- * triage strip, list ⇄ carte lens, Ctrl+K palette, in-row quick actions
+ * triage strip, list ⇄ carte lens, in-row quick actions
  * (appeler / WhatsApp / itinéraire / réassigner), bulk reassign with undo,
  * photo-progress chips, per-user density. Deadline chips ramp by LIGHTNESS
  * (outline → warning tint → danger tint → the page's only solid fill).
@@ -28,7 +28,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Kbd } from '@/components/ui/kbd';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
@@ -58,7 +57,6 @@ import { useToast } from '@/hooks/use-toast';
 import { titleForRoute } from '@/lib/nav-groups';
 import AtScanPlaqueFlow from './at-scan-plaque-flow';
 import MissionMapView, { type MapMission } from './mission-map-view';
-import MissionCommandPalette, { type PaletteAction } from './mission-command-palette';
 import MissionPeekPanel from './mission-peek-panel';
 import {
   CheckinButton, EnRouteButton, MissionRowActions, ReassignPopover, mapsSearchUrl, telHref, waHref,
@@ -590,8 +588,12 @@ export default function AssignationsATGPage() {
       items.forEach(item => {
         const dd = dossierData[item.dossierId];
         if (!dd) return;
-        if (!item.dossierNom) item.dossierNom = dd.refExpert;
-        item.assureNom = item.assureNom || dd.assureNom;
+        // The live dossier wins over the copy stored on the planification at
+        // creation: a gestionnaire's later edit of the assuré or the
+        // reference must reach the agent (QA bug AT 007).
+        if (dd.refExpert && dd.refExpert !== item.dossierId) item.dossierNom = dd.refExpert;
+        else if (!item.dossierNom) item.dossierNom = dd.refExpert;
+        item.assureNom = dd.assureNom || item.assureNom;
         item.assureTelephone = item.assureTelephone || dd.assureTelephone;
         item.compagnie = item.compagnie || dd.compagnie;
         item.expertRank = item.expertRank || dd.expertRank;
@@ -647,7 +649,28 @@ export default function AssignationsATGPage() {
       const u1 = onSnapshot(doc(db, 'dossiers', dId), (snap) => {
         const data: any = snap.exists() ? snap.data() : {};
         const tel = (data.assure?.telephone || data.assure?.telephone2 || '').trim();
-        const matricule = (data.vehicule?.immatriculation || data.matricule || '').toString().trim();
+        // Same order as the mission screen and the dossier form: the « Matricule »
+        // field first. Reading the Véhicule plate first kept showing the old
+        // value after the gestionnaire corrected « Matricule » (QA bug AT 007).
+        const matricule = (data.matricule || data.vehicule?.immatriculation || '').toString().trim();
+        const liveAssure = `${data.assure?.nom || ''} ${data.assure?.prenom || ''}`.trim();
+        const liveRef = String(data.refExpert || '').trim();
+        // Push the live identity onto the rows so the table, cards, peek and
+        // palette never show the planification's creation-time copy.
+        if (snap.exists()) {
+          setPlanifications((prev) => {
+            let changed = false;
+            const next = prev.map((p) => {
+              if (p.dossierId !== dId) return p;
+              const assureNom = liveAssure || p.assureNom;
+              const dossierNom = liveRef || p.dossierNom;
+              if (assureNom === p.assureNom && dossierNom === p.dossierNom) return p;
+              changed = true;
+              return { ...p, assureNom, dossierNom };
+            });
+            return changed ? next : prev;
+          });
+        }
         setDossierLive(prev => ({
           ...prev,
           [dId]: {
@@ -1193,8 +1216,19 @@ export default function AssignationsATGPage() {
         {/* Zone ⏎ adresse — subdued location slot; single-line ellipsis +
             title (PatternFly truncate: tooltip on hover, ≥ 4 visible chars). */}
         <TableCell className="min-w-[160px] max-w-[240px]">
-          <span className="block truncate text-ink-2">{p.zone || emptyCell}</span>
-          {p.adresse ? <span className="block truncate text-xs text-ink-3" title={p.adresse}>{p.adresse}</span> : null}
+          {/* One dash only when BOTH are empty: zone is usually blank now
+              (manual entry removed), which used to stack « — » above the
+              address (QA bug AT 006). */}
+          {p.zone || p.adresse ? (
+            <>
+              {p.zone && <span className="block truncate text-ink-2">{p.zone}</span>}
+              {p.adresse && (
+                <span className={cn('block truncate', p.zone ? 'text-xs text-ink-3' : 'text-ink-2')} title={p.adresse}>
+                  {p.adresse}
+                </span>
+              )}
+            </>
+          ) : emptyCell}
         </TableCell>
         <TableCell className="text-right">
           <MissionRowActions
@@ -1266,8 +1300,8 @@ export default function AssignationsATGPage() {
           </div>
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
             <div className="min-w-0">
-              <dt className="t-label">{t('Zone')}</dt>
-              <dd className="mt-0.5 truncate text-sm font-semibold text-ink">{p.zone || <span className="font-normal text-ink-4">—</span>}</dd>
+              <dt className="t-label">{t('Lieu')}</dt>
+              <dd className="mt-0.5 truncate text-sm font-semibold text-ink" title={p.adresse || undefined}>{p.zone || p.adresse || <span className="font-normal text-ink-4">—</span>}</dd>
             </div>
             <div className="min-w-0">
               <dt className="t-label">{t('Adresse')}</dt>
@@ -1337,34 +1371,6 @@ export default function AssignationsATGPage() {
       onJumpNext={nextMission ? () => openMission(nextMission) : null}
     />
   );
-
-  const paletteMissions = useMemo(
-    () => filteredPlanifications.map((p) => {
-      const g = groupOfItem.get(`${p.dossierId}-${p.id}`);
-      return {
-        key: `${p.dossierId}-${p.id}`,
-        refLabel: p.dossierNom || p.dossierId,
-        assureNom: p.assureNom,
-        matricule: dossierLive[p.dossierId]?.matricule,
-        agentTerrain: p.agentTerrain,
-        adresse: p.adresse,
-        compagnie: p.compagnie,
-        groupLabel: (g === 'expired' ? 'En retard' : g === 'future' ? 'À venir' : "Aujourd'hui") as 'En retard' | "Aujourd'hui" | 'À venir',
-      };
-    }),
-    [filteredPlanifications, groupOfItem, dossierLive]
-  );
-
-  const paletteActions = useMemo<PaletteAction[]>(() => [
-    { id: 'late', label: t('Voir les missions en retard'), hint: `${lateCount}`, run: () => jumpToGroup('expired') },
-    { id: 'today', label: t("Voir les missions d'aujourd'hui"), hint: `${todayCount}`, run: () => jumpToGroup('today') },
-    { id: 'lens', label: lens === 'carte' ? t('Afficher la liste') : t('Afficher la carte'), run: () => setFilters({ lens: lens === 'carte' ? 'liste' : 'carte' }) },
-    { id: 'tab-avant', label: `${t('Onglet')} ${t('Avant')}`, hint: `${countByType['Avant'] || 0}`, run: () => setFilters({ activeTab: 'Avant' }) },
-    { id: 'tab-encours', label: `${t('Onglet')} ${t('En cours')}`, hint: `${countByType['En cours'] || 0}`, run: () => setFilters({ activeTab: 'En cours' }) },
-    { id: 'tab-apres', label: `${t('Onglet')} ${t('Après')}`, hint: `${countByType['Après'] || 0}`, run: () => setFilters({ activeTab: 'Après' }) },
-    { id: 'reset', label: t('Réinitialiser les filtres'), run: () => { clearFilter('keyword'); resetFilters(); } },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [lateCount, todayCount, lens, countByType]);
 
   const mapMissions = useMemo<MapMission[]>(
     () => filteredPlanifications
@@ -1809,11 +1815,6 @@ export default function AssignationsATGPage() {
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <span className="hidden items-center gap-1 text-xs text-ink-3 xl:inline-flex" aria-hidden>
-                <Kbd>Ctrl</Kbd>
-                <Kbd>K</Kbd>
-                {t('rechercher')}
-              </span>
             </div>
           </div>
         }
@@ -1894,12 +1895,6 @@ export default function AssignationsATGPage() {
       )}
 
       {peekPanel}
-
-      <MissionCommandPalette
-        missions={paletteMissions}
-        actions={paletteActions}
-        onOpenMission={openMissionByKey}
-      />
     </div>
   );
 }

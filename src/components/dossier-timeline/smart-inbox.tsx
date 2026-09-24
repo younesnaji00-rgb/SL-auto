@@ -14,7 +14,7 @@
  * feeds /api/classify-feedback → ai_examples, which the classifier reads back.
  */
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { arrayUnion, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import {
   AlertTriangle,
@@ -83,9 +83,21 @@ export interface SmartInboxProps {
   emphasis?: 'primary' | 'tonal';
   /** Leading icon — defaults to an upload arrow; pass `null` for none. */
   icon?: React.ReactNode;
+  /**
+   * Ids of the documents currently stored in the dossier. When given, a
+   * queued row whose document has since been deleted (« Retirer » on the
+   * source document, delete in Pièces) drops out of the queue instead of
+   * keeping « Pré-remplir les informations » enabled on a file that is gone
+   * (QA bug 041).
+   */
+  storedDocIds?: ReadonlySet<string> | null;
+  /** Called when the user takes an uploaded row out of the queue with ✕. */
+  onDismiss?: (docId: string) => void;
 }
 
 const MAX_BYTES = 15 * 1024 * 1024;
+/** The classifier is one AI call; past this the row falls back to « À classer ». */
+const CLASSIFY_TIMEOUT_MS = 45_000;
 const CONCURRENCY = 3;
 const DRAG_MIME = 'application/x-sl-inbox-item';
 
@@ -119,7 +131,7 @@ async function runPool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
   );
 }
 
-export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className, buttonLabel, emphasis = 'tonal', icon }: SmartInboxProps) {
+export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className, buttonLabel, emphasis = 'tonal', icon, storedDocIds, onDismiss }: SmartInboxProps) {
   const t = useT();
   const pickerLabel = buttonLabel ?? t('Choisir des fichiers');
   const db = useFirestore();
@@ -137,6 +149,27 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
   const [chipOver, setChipOver] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Rows taken out with ✕ before their upload finished: their document id is
+  // not known yet, so the dismissal is sent once the upload returns one —
+  // otherwise the file landed anyway and came back as « Pré-remplir depuis
+  // « … » » (QA 043).
+  const removedIdsRef = useRef<Set<string>>(new Set());
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
+  // Follow the stored documents: a finished row whose document no longer
+  // exists leaves the queue (see `storedDocIds`). Rows still uploading or
+  // classifying are left alone — their document may not have reached the
+  // snapshot yet.
+  useEffect(() => {
+    if (!storedDocIds) return;
+    setItems((prev) => {
+      const next = prev.filter(
+        (it) => !it.docId || (it.status !== 'ready' && it.status !== 'error') || storedDocIds.has(it.docId),
+      );
+      return next.length === prev.length ? prev : next;
+    });
+  }, [storedDocIds]);
 
   const userEmail = auth?.currentUser?.email || profile?.email || 'Admin';
   const userId = auth?.currentUser?.uid || 'unknown';
@@ -214,11 +247,21 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
   const classify = useCallback(
     async (file: File): Promise<Partial<InboxItem>> => {
       const fileBase64 = await fileToBase64(file);
-      const res = await apiFetch('/api/classify-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileBase64, contentType: file.type || 'application/pdf', fileName: file.name, hints }),
-      });
+      // Bounded: a hung call used to keep the row on « classifying » — and
+      // the picker on « Analyse en cours… » — forever (QA 042).
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), CLASSIFY_TIMEOUT_MS);
+      let res: Response;
+      try {
+        res = await apiFetch('/api/classify-document', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileBase64, contentType: file.type || 'application/pdf', fileName: file.name, hints }),
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
       if (!res.ok) throw new Error(t('Classification impossible'));
       const data = await res.json();
       return {
@@ -276,6 +319,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
             },
           });
           const docId = result.docId as string | undefined;
+          if (docId && removedIdsRef.current.has(it.id)) onDismissRef.current?.(docId);
           patch(it.id, { status: forcedType ? 'ready' : 'classifying', docId, storagePath });
 
           // Always ask the AI for a summary (needed as a learning example), even
@@ -287,18 +331,22 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
             if (!forcedType) throw err;
           }
           const finalType = forcedType ?? (ai.aiType as string) ?? UNCLASSIFIED_LABEL;
+          // The row is done for the user as soon as the AI answered: flip it
+          // to « ready » now and let the metadata write settle on its own.
+          // Waiting for the server acknowledgement kept the picker on
+          // « Analyse en cours… » long after the fields were filled (QA 042).
+          const merged: InboxItem = { ...it, ...ai, docId, storagePath, type: finalType, status: 'ready' };
+          patch(it.id, { ...ai, type: finalType, status: 'ready' });
           if (docId) {
-            await updateDoc(doc(db, 'dossiers', dossierId, 'documents', docId), {
+            updateDoc(doc(db, 'dossiers', dossierId, 'documents', docId), {
               type: finalType,
               aiSuggestedType: ai.aiType ?? null,
               aiConfidence: ai.confidence ?? null,
               aiSummary: ai.summary ?? null,
               classifiedBy: forcedType ? 'user' : 'ai',
               classifiedAt: serverTimestamp(),
-            });
+            }).catch((err) => console.error('[SmartInbox] classification metadata:', err));
           }
-          const merged: InboxItem = { ...it, ...ai, docId, storagePath, type: finalType, status: 'ready' };
-          patch(it.id, { ...ai, type: finalType, status: 'ready' });
           if (forcedType) void sendFeedback(merged, forcedType, 'manual');
           if (finalType !== UNCLASSIFIED_LABEL) await postProcess(finalType, storagePath, it.file);
           okCount++;
@@ -363,7 +411,12 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
     await onPrefill(prefillCandidates.map((it) => it.file), mission.docId);
   }, [onPrefill, prefillCandidates]);
 
-  const removeFromList = (id: string) => setItems((prev) => prev.filter((it) => it.id !== id));
+  const removeFromList = (id: string) => {
+    const it = items.find((x) => x.id === id);
+    removedIdsRef.current.add(id);
+    if (it?.docId) onDismiss?.(it.docId);
+    setItems((prev) => prev.filter((x) => x.id !== id));
+  };
 
   // ── Drag & drop plumbing ─────────────────────────────────────────────
   const onZoneDrop = (e: React.DragEvent) => {
@@ -391,6 +444,9 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
   };
 
   const busy = items.some((it) => it.status === 'uploading' || it.status === 'classifying');
+  // The picker only reports the UPLOAD: classification shows per row, so a
+  // slow AI answer no longer reads as the button being stuck (QA 042).
+  const uploading = items.some((it) => it.status === 'uploading');
   const ready = items.filter((it) => it.status === 'ready');
   const unconfirmed = ready.filter((it) => !it.confirmed && !it.corrected && it.aiType && it.type === it.aiType).length;
 
@@ -407,14 +463,14 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           type="button"
           variant={emphasis === 'primary' ? 'default' : 'tonal'}
           className={cn('h-11 gap-2 px-4 font-semibold md:h-10', dragging && 'ring-2 ring-primary/50')}
-          disabled={busy}
+          disabled={uploading}
           onClick={() => inputRef.current?.click()}
           onDragOver={(e) => { e.preventDefault(); if (!draggingItemId) setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={onZoneDrop}
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : (icon === undefined ? <Upload className="h-4 w-4" /> : icon)}
-          {busy ? t('Analyse en cours…') : pickerLabel}
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : (icon === undefined ? <Upload className="h-4 w-4" /> : icon)}
+          {uploading ? t('Envoi en cours…') : pickerLabel}
         </Button>
         <input
           ref={inputRef}

@@ -524,6 +524,57 @@ html {
   html { zoom: 1; }
 }
 
+/* ── Floating layers under the density zoom (owner report 2026-09-24) ──
+   Radix positions menus, selects, popovers and tooltips with floating-ui,
+   which MEASURES in on-screen pixels but WRITES its translate() into the
+   zoomed <html> space — so every offset came out ×zoom. At 1.1 (1440p) a
+   menu opened from the table's right-hand « ⋯ » landed ~10 % further right,
+   past the screen edge; at 0.9 it drifted left over its own trigger
+   (reproduced in headless Chrome: right edge 1071 px on a 984 px viewport).
+   The wrapper is brought back to zoom 1 so its coordinates are screen
+   pixels, and the content re-applies the density scale so the menu still
+   looks like the rest of the app. The size variables Radix hands down are
+   screen pixels too, so they are converted back into the content's space
+   (`!important` beats the inline aliases Radix writes on the content). */
+[data-radix-popper-content-wrapper] {
+  zoom: calc(1 / var(--app-zoom));
+}
+[data-radix-popper-content-wrapper] > * {
+  zoom: var(--app-zoom);
+  --radix-dropdown-menu-content-available-height: calc(var(--radix-popper-available-height) / var(--app-zoom)) !important;
+  --radix-dropdown-menu-content-available-width: calc(var(--radix-popper-available-width) / var(--app-zoom)) !important;
+  --radix-dropdown-menu-trigger-width: calc(var(--radix-popper-anchor-width) / var(--app-zoom)) !important;
+  --radix-dropdown-menu-trigger-height: calc(var(--radix-popper-anchor-height) / var(--app-zoom)) !important;
+  --radix-context-menu-content-available-height: calc(var(--radix-popper-available-height) / var(--app-zoom)) !important;
+  --radix-select-content-available-height: calc(var(--radix-popper-available-height) / var(--app-zoom)) !important;
+  --radix-select-content-available-width: calc(var(--radix-popper-available-width) / var(--app-zoom)) !important;
+  --radix-select-trigger-width: calc(var(--radix-popper-anchor-width) / var(--app-zoom)) !important;
+  --radix-select-trigger-height: calc(var(--radix-popper-anchor-height) / var(--app-zoom)) !important;
+  --radix-popover-content-available-height: calc(var(--radix-popper-available-height) / var(--app-zoom)) !important;
+  --radix-popover-content-available-width: calc(var(--radix-popper-available-width) / var(--app-zoom)) !important;
+  --radix-popover-trigger-width: calc(var(--radix-popper-anchor-width) / var(--app-zoom)) !important;
+  --radix-popover-trigger-height: calc(var(--radix-popper-anchor-height) / var(--app-zoom)) !important;
+  --radix-hover-card-content-available-height: calc(var(--radix-popper-available-height) / var(--app-zoom)) !important;
+  --radix-tooltip-content-available-height: calc(var(--radix-popper-available-height) / var(--app-zoom)) !important;
+}
+/* Same trap for the guided tour: driver.js and the pointing hand (tour.ts)
+   write getBoundingClientRect() pixels into `left`/`top` of elements that
+   live in the zoomed <html>. Measured: at 1.1 the popover sat 55 px right of
+   its target and overlapped it; at 0.9, 63 px left and 40 px low. The
+   overlay cutout is an SVG scaled to the viewport and is already right. */
+.driver-popover,
+.sl-tour-cursor {
+  zoom: calc(1 / var(--app-zoom));
+}
+.driver-popover > *,
+.sl-tour-cursor > * {
+  zoom: var(--app-zoom);
+}
+@media print {
+  [data-radix-popper-content-wrapper],
+  [data-radix-popper-content-wrapper] > * { zoom: 1; }
+}
+
 @layer utilities {
   .tabular {
     font-variant-numeric: tabular-nums;

@@ -19,8 +19,10 @@ export function isNetworkFailure(err: unknown): boolean {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
   const code = (err as { code?: string } | null)?.code;
   if (code && NETWORK_STORAGE_CODES.has(code)) return true;
-  // fetch()/XHR transport errors surface as a TypeError with no code.
-  if (err instanceof TypeError) return true;
+  // No blanket `TypeError` rule any more (QA bug AT 003): any programming
+  // error is a TypeError too, and treating it as « offline » queued a
+  // placeholder and toasted success for an upload that could never happen.
+  // Real transport failures still match on their message below.
   const msg = err instanceof Error ? err.message.toLowerCase() : '';
   return msg.includes('network') || msg.includes('failed to fetch');
 }

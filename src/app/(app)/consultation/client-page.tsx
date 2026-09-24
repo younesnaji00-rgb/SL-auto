@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useDossiers } from '@/hooks/use-dossiers';
+import { duplicateRefExpertKeys, normalizeRefExpert } from '@/lib/ref-expert-unique';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import { useOptions } from '@/hooks/use-options';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
@@ -173,6 +174,9 @@ export default function ConsultationClientPage() {
 
   // Fetch ALL dossiers — no company restriction
   const { dossiers: allDossiers, loading, error: fetchError } = useDossiers();
+  // References carried by two or more dossiers — badged « Doublon » so
+  // duplicates that predate the save gate are visible here too (QA bug 002).
+  const dupRefKeys = useMemo(() => duplicateRefExpertKeys(allDossiers), [allDossiers]);
 
   // Union the seeded option lists with values present on real dossiers, so
   // dropdowns expose any value live data has but the seed lacks (e.g.,
@@ -290,8 +294,9 @@ export default function ConsultationClientPage() {
     const qp = normalizePlate(searchQuery);
     if (fold(d.refExpert || '').includes(qf)) return true;
     if (fold(renderAssure(d.assure) || '').includes(qf)) return true;
-    if (fold(d.matricule || '').includes(qf)) return true;
-    if (qp.length >= 3 && normalizePlate(d.matricule).includes(qp)) return true;
+    const plate = d.matricule || d.vehicule?.immatriculation || '';
+    if (fold(plate).includes(qf)) return true;
+    if (qp.length >= 3 && normalizePlate(plate).includes(qp)) return true;
     return false;
   }, [searchActive, searchQuery]);
 
@@ -1048,6 +1053,11 @@ export default function ConsultationClientPage() {
                         <Highlight text={d.refExpert} query={filters.search} />
                       </Link>
                     ) : <EmptyCell />}
+                    {d.refExpert && dupRefKeys.has(normalizeRefExpert(d.refExpert)) && (
+                      <Badge variant="warning" className="ml-1.5 align-middle font-sans font-normal" title={t('Réf. expert partagée avec un autre dossier')}>
+                        {t('Doublon')}
+                      </Badge>
+                    )}
                   </TableCell>
                   {/* Data cells are values → full ink (addendum §3: darker
                       values; half the columns in ink-2 read as one gray sheet).
@@ -1064,7 +1074,7 @@ export default function ConsultationClientPage() {
                   )}
                   {isVisible('matricule') && (
                     <TableCell className="t-mono">
-                      {d.matricule ? <Highlight text={d.matricule} query={filters.search} /> : <EmptyCell />}
+                      {(d.matricule || d.vehicule?.immatriculation) ? <Highlight text={d.matricule || d.vehicule?.immatriculation} query={filters.search} /> : <EmptyCell />}
                     </TableCell>
                   )}
                   {isVisible('statut') && (

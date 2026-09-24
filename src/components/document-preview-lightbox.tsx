@@ -40,6 +40,7 @@ import { ActionSheet, type ActionItem } from '@/components/ui/action-sheet';
 import { PdfPagesViewer } from '@/components/common/pdf-pages-viewer';
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { useOverlayHistory } from '@/hooks/use-overlay-history';
+import { useResilientImageSrc } from '@/hooks/use-resilient-image';
 
 /**
  * Zoom toolbar rendered inside the TransformWrapper (hooks need its context):
@@ -116,6 +117,24 @@ function isPdfName(name: string): boolean {
   return /\.pdf$/i.test(name || '');
 }
 
+/**
+ * The name used for TYPE detection. `doc.nom` is a human label ("Devis
+ * Garage") that often lacks an extension, so image/PDF detection on it fails
+ * ("Aperçu indisponible"). When `nom` carries no extension, recover the real
+ * file name from the Firebase Storage URL path (segment after `/o/`).
+ */
+function typeName(doc: DocumentPreviewLightboxDoc): string {
+  if (/\.[a-z0-9]{2,5}$/i.test((doc.nom || '').trim())) return doc.nom;
+  const url = doc.url || '';
+  try {
+    const m = url.match(/\/o\/([^?]+)/);
+    const path = m ? decodeURIComponent(m[1]) : url.split('?')[0].split('#')[0];
+    return path.split('/').pop() || doc.nom;
+  } catch {
+    return doc.nom;
+  }
+}
+
 /** Reports the live zoom scale out of the TransformWrapper context. */
 function ScaleProbe({ onScale }: { onScale: (s: number) => void }) {
   const ref = React.useRef(onScale);
@@ -146,8 +165,9 @@ function PhoneLightbox({
   actions,
 }: DocumentPreviewLightboxProps & { doc: DocumentPreviewLightboxDoc }) {
   const t = useT();
-  const isImage = isImageName(doc.nom);
-  const isPdf = isPdfName(doc.nom);
+  const heal = useResilientImageSrc(doc.url || '');
+  const isImage = isImageName(typeName(doc));
+  const isPdf = isPdfName(typeName(doc));
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [pdfPage, setPdfPage] = React.useState<{ page: number; total: number } | null>(null);
 
@@ -259,7 +279,7 @@ function PhoneLightbox({
                   contentClass="!w-full !h-full flex items-center justify-center"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={doc.url} alt={doc.nom} draggable={false} className="max-h-full max-w-full select-none object-contain" />
+                  <img src={heal.src} onError={heal.onError} alt={doc.nom} draggable={false} className="max-h-full max-w-full select-none object-contain" />
                 </TransformComponent>
               </TransformWrapper>
             ) : isPdf ? (
@@ -289,7 +309,8 @@ function PhoneLightbox({
 export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pages, onPageChange, dataTour, actions }: DocumentPreviewLightboxProps) {
   const t = useT();
   const isPhone = useIsPhone();
-  const isImage = doc ? isImageName(doc.nom) : false;
+  const heal = useResilientImageSrc(doc?.url || '');
+  const isImage = doc ? isImageName(typeName(doc)) : false;
   // width / height of the media. Owner ruling 2026-09-02: the window must
   // open AT its final size — no zoom-past-and-snap-back. So the ratio is
   // measured by PRELOADING the image (usually instant: the thumbnail the
@@ -306,7 +327,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
   if (!doc) wasOpenRef.current = false;
   React.useEffect(() => {
     if (!doc?.url) { setImgRatio(null); setMeasured(false); return; }
-    if (!isImageName(doc.nom)) { setImgRatio(null); setMeasured(true); return; }
+    if (!isImageName(typeName(doc))) { setImgRatio(null); setMeasured(true); return; }
     setMeasured(false);
     let alive = true;
     const probe = new Image();
@@ -498,7 +519,8 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={doc.url}
+                  src={heal.src}
+                  onError={heal.onError}
                   className="max-h-full max-w-full select-none object-contain"
                   alt={doc.nom}
                   draggable={false}

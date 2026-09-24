@@ -190,7 +190,12 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
     }
   };
 
-  const nothing = !showRecents && navMatches.length === 0 && actions.length === 0;
+  // Below two characters the palette answers « Aucun résultat. » (documented
+  // behaviour, QA bug 038): a single letter is a subsequence of almost every
+  // page and action label, so without this the groups showed and the message
+  // never did.
+  const tooShort = q.length > 0 && q.length < 2;
+  const nothing = !showRecents && (tooShort || (navMatches.length === 0 && actions.length === 0));
   // Precomputed: the `openTabs`/`recents` maps below bind their own `t`
   // (the tab), which shadows the translator inside those callbacks.
   const ouvertLabel = t('ouvert');
@@ -239,7 +244,7 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
 
             {open && <DossierResults query={query} onPick={pickDossier} />}
 
-            {navMatches.length > 0 && (
+            {!tooShort && navMatches.length > 0 && (
               <CommandGroup heading={t('Aller à')}>
                 {navMatches.map((i) => {
                   const Icon = i.icon;
@@ -260,7 +265,7 @@ export function CommandPalette({ open, onOpenChange, initialQuery = '', onOpenSh
               </CommandGroup>
             )}
 
-            {actions.length > 0 && (
+            {!tooShort && actions.length > 0 && (
               <CommandGroup heading={t('Actions')}>
                 {actions.map((a) => {
                   const Icon = a.icon;

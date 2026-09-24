@@ -64,6 +64,8 @@ export function ShellUiProvider({ children }: { children: React.ReactNode }) {
 
   // Global bindings. The chords still work for those who know them, but the
   // UI no longer advertises them (owner ruling 2026-09-03: no shortcut hints).
+  // Search has NO shortcut (owner ruling 2026-09-24: Ctrl+K and « / » removed);
+  // it opens from the header search field only.
   const hotkeys = useMemo<Hotkey[]>(() => {
     const nav: Hotkey[] = items
       .filter((i) => i.hotkey)
@@ -75,8 +77,6 @@ export function ShellUiProvider({ children }: { children: React.ReactNode }) {
         handler: () => router.push(i.href),
       }));
     const general: Hotkey[] = [
-      { keys: 'mod+k', label: t('Rechercher / palette de commandes'), group: t('Général'), handler: () => openPalette(), allowInInput: true },
-      { keys: '/', label: t('Rechercher'), group: t('Général'), handler: () => openPalette() },
       { keys: 'mod+b', label: t('Réduire / agrandir la barre latérale'), group: t('Général'), handler: () => toggleSidebar(), allowInInput: true },
       { keys: 'shift+d', label: t('Basculer le mode sombre'), group: t('Général'), handler: () => setTheme(theme === 'dark' ? 'light' : 'dark') },
     ];
