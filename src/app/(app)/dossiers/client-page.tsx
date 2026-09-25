@@ -1405,17 +1405,21 @@ export default function DossiersClientPage() {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            {/* Opens downward by default and never taller than 70 % of the
-                viewport (a 17-column list used to flip above the trigger and
-                stretch to the top edge, over the header). The columns sit in
-                two columns so the menu rarely scrolls at all. */}
-            <DropdownMenuContent align="end" side="bottom" collisionPadding={12} className="w-[22rem] max-h-[min(var(--radix-dropdown-menu-content-available-height),70vh)] scrollbar-thin">
+            {/* Opens downward and shows the WHOLE list at once (owner report
+                2026-09-25: at 1440p the two-column list was taller than the
+                room below « Affichage », flipped over the header and cut
+                off). With a mouse the density choices share one row and the
+                columns sit in three, which fits below the trigger; the height
+                cap and inner scroll remain for a short window, and the page
+                itself still scrolls while the menu is open. */}
+            <DropdownMenuContent align="end" side="bottom" collisionPadding={12} className="w-[34rem] max-w-[var(--radix-dropdown-menu-content-available-width)] max-h-[min(var(--radix-dropdown-menu-content-available-height),70vh)] scrollbar-thin">
               {/* Density — persisted per user ("the right row height is the
                   one each user picked", polish research 2026-09-03 §11). */}
               <DropdownMenuLabel className="t-label font-normal">{t('Densité des lignes')}</DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={filters.density}
                 onValueChange={(v) => setFilters({ density: v as 'compacte' | 'normale' | 'confortable' })}
+                className="[@media(pointer:fine)]:grid [@media(pointer:fine)]:grid-cols-3"
               >
                 {([['compacte', 'Compacte'], ['normale', 'Normale'], ['confortable', 'Confortable']] as const).map(([value, label]) => (
                   <DropdownMenuRadioItem key={value} value={value} onSelect={(e) => e.preventDefault()}>
@@ -1425,7 +1429,7 @@ export default function DossiersClientPage() {
               </DropdownMenuRadioGroup>
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="t-label font-normal">{t('Colonnes')}</DropdownMenuLabel>
-              <div className="grid grid-cols-2">
+              <div className="grid grid-cols-2 [@media(pointer:fine)]:grid-cols-3">
               {HIDEABLE_COLUMNS.map((c) => (
                 <DropdownMenuCheckboxItem
                   key={c.key}

@@ -54,24 +54,51 @@ export type ResponsiveMenuProps = React.ComponentPropsWithoutRef<typeof Dropdown
  * state (so a coarse pointer can drive a sheet) and hands the Radix root a
  * permanently-closed `open` on touch — the popover simply never mounts.
  */
+/**
+ * A scroll lock is already active (a dialog, sheet or other modal layer
+ * holds it): react-remove-scroll-bar marks <body> while any lock is held.
+ */
+const pageScrollLocked = () =>
+  typeof document !== 'undefined' && document.body.hasAttribute('data-scroll-locked');
+
 export function ResponsiveMenu({
   children,
   open: openProp,
   defaultOpen,
   onOpenChange,
+  modal: modalProp,
   ...rest
 }: ResponsiveMenuProps) {
   const coarse = useIsCoarsePointer();
   const [internal, setInternal] = React.useState(!!defaultOpen);
   const open = openProp ?? internal;
+  // NOT modal by default (owner report 2026-09-25). A modal Radix menu locks
+  // the page's scroll and every click outside it, so a menu taller than the
+  // room around its trigger (« Affichage », a row « ⋯ » near the fold) could
+  // never be brought fully into view: what showed depended on where the page
+  // happened to be. Now the page keeps scrolling while a menu is open and the
+  // menu follows its trigger. A menu opened on top of a dialog or sheet stays
+  // modal: that layer already locks the page, and its lock would swallow the
+  // wheel over the (portaled) menu unless the menu holds the topmost lock.
+  const [lockedAtOpen, setLockedAtOpen] = React.useState(false);
 
   const setOpen = React.useCallback(
     (next: boolean) => {
+      if (next) setLockedAtOpen(pageScrollLocked());
       if (openProp === undefined) setInternal(next);
       onOpenChange?.(next);
     },
     [openProp, onOpenChange],
   );
+  // Opened from code (a controlled `open`) rather than by its trigger.
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    const locked = pageScrollLocked();
+    if (locked !== lockedAtOpen) setLockedAtOpen(locked);
+    // Only on opening: the menu's own lock (when modal) must not flip it back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  const modal = modalProp ?? lockedAtOpen;
 
   const value = React.useMemo<ResponsiveMenuState>(
     () => ({ coarse, open, setOpen }),
@@ -82,7 +109,7 @@ export function ResponsiveMenu({
     <ResponsiveMenuContext.Provider value={value}>
       {/* Always controlled, so flipping `coarse` after mount never trips
           Radix's uncontrolled → controlled warning. */}
-      <DropdownMenuPrimitive.Root {...rest} open={coarse ? false : open} onOpenChange={setOpen}>
+      <DropdownMenuPrimitive.Root {...rest} modal={modal} open={coarse ? false : open} onOpenChange={setOpen}>
         {children}
       </DropdownMenuPrimitive.Root>
     </ResponsiveMenuContext.Provider>
