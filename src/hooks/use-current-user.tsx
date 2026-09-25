@@ -80,6 +80,8 @@ interface UserProfile {
   email: string;
   role: Role;
   compagnies: string[];
+  /** Cities the account covers (Utilisateurs → « Sites »); empty = none set. */
+  sites: string[];
   statut: string;
   password?: string;
   assignedStampIds: string[];
@@ -433,6 +435,9 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
               email: data.email || user.email || '',
               role: data.role || 'Gestionnaire',
               compagnies: data.compagnies || [],
+              sites: Array.isArray(data.sites)
+                ? data.sites.filter((v: unknown): v is string => typeof v === 'string' && v.trim() !== '')
+                : [],
               statut: data.statut || 'Actif',
               password: data.password || '',
               assignedStampIds: Array.isArray(data.assignedStampIds)

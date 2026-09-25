@@ -475,14 +475,14 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
   const applyZoom = (next: number) => {
     const clamped = Math.min(IMG_ZOOM_MAX, Math.max(IMG_ZOOM_MIN, +next.toFixed(3)));
     setZoom(clamped);
-    if (clamped === 1) setPan({ x: 0, y: 0 });
+    if (clamped <= 1) setPan({ x: 0, y: 0 });
   };
 
   // Wheel notch gate — shared with the PDF pane (C2).
   useWheelZoomNotch(wrapRef, (direction) => {
     setZoom((prev) => {
       const next = Math.min(IMG_ZOOM_MAX, Math.max(IMG_ZOOM_MIN, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3)));
-      if (next === 1) setPan({ x: 0, y: 0 });
+      if (next <= 1) setPan({ x: 0, y: 0 });
       return next;
     });
   });
@@ -498,7 +498,8 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (zoom === 1) return;
+    // Panning is for an image larger than the pane.
+    if (zoom <= 1) return;
     draggingRef.current = true;
     lastRef.current = { x: e.clientX, y: e.clientY };
   };

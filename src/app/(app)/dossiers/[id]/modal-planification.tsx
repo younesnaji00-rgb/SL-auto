@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { AlertCircle, Loader2, Clock } from 'lucide-react';
+import { AlertCircle, Loader2, Clock, TriangleAlert } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc, setDoc, serverTimestamp, Timestamp, query, where, limit } from 'firebase/firestore';
 import { getDocs } from '@/lib/firestore-logged';
 import { useFirestore, useAuth } from '@/firebase';
@@ -39,6 +39,7 @@ import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
 import { deriveStatus } from '@/lib/status-machine';
 import { useAtgFeasibility } from '@/hooks/use-atg-feasibility';
 import { useAgentLiveLocation } from '@/hooks/use-agent-live-location';
+import { useDestinationCity } from '@/hooks/use-destination-city';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatDurationFr } from '@/lib/atg-feasibility';
 import { MapPin } from 'lucide-react';
@@ -306,6 +307,14 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     agentLiveLocation: effectiveLocation,
   });
 
+  // « Destination hors de Casablanca / hors de Fès » (owner request
+  // 2026-09-25): the account's sites (Utilisateurs → « Sites ») against the
+  // city Google resolves the address to. A warning only — saving stays
+  // possible — and an account with no site set sees nothing.
+  const accountSites = profile?.sites ?? [];
+  const destinationCity = useDestinationCity(formData.adresse, accountSites);
+  const outsideSites = !!destinationCity && destinationCity.insideSites.length === 0;
+
   // Validation timing (§2.6): required-empty errors ONLY on submit, then per
   // keystroke on the fields that failed; a summary at the top of the body with
   // links that move focus (GOV.UK error summary); the primary is never
@@ -323,7 +332,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     list.push({ id: 'plan-adresse', label: t('Adresse complète'), validate: (v) => (v.adresse.trim() ? null : t("Renseignez l'adresse du rendez-vous.")) });
     return list;
   }, [defaultTypeMission, isCurrentUserAT, t]);
-  const formErrors = useFormErrors(formData, rules);
+  const formErrors = useFormErrors(formData, rules, { open });
 
   /** Inline message under a field — icon + 13 px danger text (§2.6). */
   const fieldError = (id: string) =>
@@ -732,6 +741,21 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </div>
             </div>
             {fieldError('plan-adresse')}
+            {outsideSites && destinationCity && (
+              <p role="status" className="flex items-start gap-1.5 rounded-md bg-status-warning-bg px-2.5 py-1.5 text-[13px] font-medium leading-snug text-status-warning-fg">
+                <TriangleAlert aria-hidden className="mt-px h-4 w-4 shrink-0" />
+                <span className="min-w-0">
+                  {accountSites.length === 1
+                    ? `${t('Destination hors de')} ${accountSites[0]}`
+                    : `${t('Destination hors de vos sites')} (${accountSites.join(', ')})`}
+                  {' — '}{t('l’adresse se situe à')} {destinationCity.locality}
+                  {destinationCity.nearest
+                    ? `, ${t('à')} ${Math.max(1, Math.round(destinationCity.nearest.meters / 1000))} km ${t('de')} ${destinationCity.nearest.site}`
+                    : ''}
+                  .
+                </span>
+              </p>
+            )}
           </div>
 
           <div className="space-y-2 max-md:order-7" data-tour="plan-observation">

@@ -227,9 +227,30 @@ export interface FormErrorsApi<V> {
   summary: { id: string; label: string; message: string }[]
 }
 
-export function useFormErrors<V>(values: V, rules: FieldRule<V>[]): FormErrorsApi<V> {
+/**
+ * `options.open` — pass the dialog's `open` when the form lives in a dialog
+ * that stays mounted between openings: each opening then starts clean.
+ */
+export function useFormErrors<V>(
+  values: V,
+  rules: FieldRule<V>[],
+  options?: { open?: boolean }
+): FormErrorsApi<V> {
   const [errors, setErrors] = React.useState<Record<string, string>>({})
   const [submitted, setSubmitted] = React.useState(false)
+  // The errors of an abandoned attempt used to greet the next opening before
+  // anything was typed: « submitted » survived the close, so the empty fields
+  // of the fresh form failed at once (owner report 2026-09-25, « Nouvelle
+  // Planification »). Reset while rendering, so no frame shows them.
+  const open = options?.open
+  const [prevOpen, setPrevOpen] = React.useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    if (open) {
+      setErrors({})
+      setSubmitted(false)
+    }
+  }
   const rulesRef = React.useRef(rules)
   rulesRef.current = rules
   const valuesRef = React.useRef(values)

@@ -1130,7 +1130,8 @@ export default function PhotosTab({
                 <TransformWrapper
                   key={previewPhoto.id /* reset zoom on photo change */}
                   initialScale={1}
-                  minScale={1}
+                  // Zooms out below « fit » as well (owner report 2026-09-25).
+                  minScale={0.25}
                   maxScale={8}
                   centerOnInit
                   wheel={{ step: 0.2 }}

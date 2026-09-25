@@ -15,7 +15,8 @@ import { Button } from '@/components/ui/button';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 
-export const VIEWER_ZOOM_MIN = 1;
+/** Below 1 (= fit) the page shrinks, centred (owner report 2026-09-25). */
+export const VIEWER_ZOOM_MIN = 0.25;
 export const VIEWER_ZOOM_MAX = 4;
 
 /**
@@ -229,13 +230,13 @@ export default function PdfCanvas({ src, title, fallback }: PdfCanvasProps) {
   const applyZoom = (next: number) => {
     const clamped = Math.min(VIEWER_ZOOM_MAX, Math.max(VIEWER_ZOOM_MIN, +next.toFixed(3)));
     setZoom(clamped);
-    if (clamped === 1) setPan({ x: 0, y: 0 });
+    if (clamped <= 1) setPan({ x: 0, y: 0 });
   };
 
   useWheelZoomNotch(wrapRef, (direction) => {
     setZoom((prev) => {
       const next = Math.min(VIEWER_ZOOM_MAX, Math.max(VIEWER_ZOOM_MIN, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3)));
-      if (next === 1) setPan({ x: 0, y: 0 });
+      if (next <= 1) setPan({ x: 0, y: 0 });
       return next;
     });
   });
@@ -257,7 +258,8 @@ export default function PdfCanvas({ src, title, fallback }: PdfCanvasProps) {
     }
   };
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (zoom === 1) return;
+    // Panning is for a page larger than the pane.
+    if (zoom <= 1) return;
     draggingRef.current = true;
     lastRef.current = { x: e.clientX, y: e.clientY };
   };

@@ -160,6 +160,8 @@ export function EnvoyerEmailDialog({
       ],
       [t],
     ),
+    // Mounted for the page's lifetime: each opening starts without errors.
+    { open },
   );
 
   const toggle = (sourceId: string) => {

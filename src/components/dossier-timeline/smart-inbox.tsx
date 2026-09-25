@@ -24,6 +24,7 @@ import {
   ImageIcon,
   Loader2,
   ScanSearch,
+  Trash2,
   Upload,
   X,
 } from 'lucide-react';
@@ -93,8 +94,14 @@ export interface SmartInboxProps {
    * (QA bug 041).
    */
   storedDocIds?: ReadonlySet<string> | null;
-  /** Called when the user takes an uploaded row out of the queue with ✕. */
-  onDismiss?: (docId: string) => void;
+  /**
+   * When given, ✕ DELETES the uploaded document from the dossier instead of
+   * only taking the row off the list (Informations — owner ruling
+   * 2026-09-25: a removed source document is gone altogether, with no
+   * « Pré-remplir depuis « … » » left behind). Pièces jointes passes nothing:
+   * there ✕ only clears the list and the document stays filed.
+   */
+  onRemove?: (row: { docId: string; storagePath?: string; name: string }) => void | Promise<void>;
 }
 
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -133,7 +140,7 @@ async function runPool<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
   );
 }
 
-export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className, buttonLabel, emphasis = 'tonal', icon, storedDocIds, onDismiss }: SmartInboxProps) {
+export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, prefilling, className, buttonLabel, emphasis = 'tonal', icon, storedDocIds, onRemove }: SmartInboxProps) {
   const t = useT();
   const pickerLabel = buttonLabel ?? t('Choisir des fichiers');
   const db = useFirestore();
@@ -152,12 +159,12 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
   const [validating, setValidating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   // Rows taken out with ✕ before their upload finished: their document id is
-  // not known yet, so the dismissal is sent once the upload returns one —
+  // not known yet, so the removal is applied once the upload returns one —
   // otherwise the file landed anyway and came back as « Pré-remplir depuis
   // « … » » (QA 043).
   const removedIdsRef = useRef<Set<string>>(new Set());
-  const onDismissRef = useRef(onDismiss);
-  onDismissRef.current = onDismiss;
+  const onRemoveRef = useRef(onRemove);
+  onRemoveRef.current = onRemove;
 
   // Follow the stored documents: a finished row whose document no longer
   // exists leaves the queue (see `storedDocIds`). Rows still uploading or
@@ -323,7 +330,12 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
             },
           });
           const docId = result.docId as string | undefined;
-          if (docId && removedIdsRef.current.has(it.id)) onDismissRef.current?.(docId);
+          // Deleted while it uploaded: delete it now, and neither classify
+          // nor post-process a document that is gone.
+          if (docId && removedIdsRef.current.has(it.id) && onRemoveRef.current) {
+            await onRemoveRef.current({ docId, storagePath, name: it.file.name });
+            return;
+          }
           patch(it.id, { status: forcedType ? 'ready' : 'classifying', docId, storagePath });
 
           // Always ask the AI for a summary (needed as a learning example), even
@@ -334,6 +346,8 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           } catch (err) {
             if (!forcedType) throw err;
           }
+          // Deleted while the AI classified it: ✕ already deleted the document.
+          if (onRemoveRef.current && removedIdsRef.current.has(it.id)) return;
           const finalType = forcedType ?? (ai.aiType as string) ?? UNCLASSIFIED_LABEL;
           // The row is done for the user as soon as the AI answered: flip it
           // to « ready » now and let the metadata write settle on its own.
@@ -418,7 +432,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
   const removeFromList = (id: string) => {
     const it = items.find((x) => x.id === id);
     removedIdsRef.current.add(id);
-    if (it?.docId) onDismiss?.(it.docId);
+    if (it?.docId && onRemove) void onRemove({ docId: it.docId, storagePath: it.storagePath, name: it.file.name });
     setItems((prev) => prev.filter((x) => x.id !== id));
   };
 
@@ -593,8 +607,16 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
                     </>
                   )}
                   {(it.status === 'uploading' || it.status === 'classifying') && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />}
-                  <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground md:h-7 md:w-7" onClick={() => removeFromList(it.id)} aria-label={t('Retirer de la liste')} title={t('Retirer de la liste (le document reste dans le dossier)')}>
-                    <X className="h-3.5 w-3.5" />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={cn('h-11 w-11 shrink-0 text-muted-foreground md:h-7 md:w-7', onRemove && 'hover:text-destructive')}
+                    onClick={() => removeFromList(it.id)}
+                    aria-label={onRemove ? t('Supprimer le document') : t('Retirer de la liste')}
+                    title={onRemove ? t('Supprimer ce document du dossier') : t('Retirer de la liste (le document reste dans le dossier)')}
+                  >
+                    {onRemove ? <Trash2 className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
                   </Button>
                 </li>
               );

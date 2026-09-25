@@ -203,7 +203,7 @@ export default function Step2Information({
 
   // Wheel zoom (Ctrl/⌘ + wheel; a plain wheel scrolls the document), anchored
   // under the cursor: one notch (≈100 px of deltaY, accumulated so multi-event
-  // wheels and trackpads count once) = ×1.3 / ÷1.3, clamped to 50–400 %.
+  // wheels and trackpads count once) = ×1.3 / ÷1.3, clamped to 25–400 %.
   // Native listener because React's wheel events are passive (no
   // preventDefault → the browser would zoom the whole page).
   useEffect(() => {
@@ -224,7 +224,7 @@ export default function Step2Information({
       const px = cx + el.scrollLeft;
       const py = cy + el.scrollTop;
       setZoom((prev) => {
-        const next = Math.min(4, Math.max(0.5, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3)));
+        const next = Math.min(4, Math.max(0.25, +(direction > 0 ? prev * 1.3 : prev / 1.3).toFixed(3)));
         if (next === prev) return prev;
         const k = next / prev;
         requestAnimationFrame(() => {
@@ -339,7 +339,7 @@ export default function Step2Information({
               )}
             </div>
             <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label={t('Zoom')} title={t('Ctrl + molette pour zoomer progressivement')}>
-              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-ink-3 hover:text-ink" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} disabled={!selectedUrl || zoom <= 0.5} aria-label={t('Zoom arrière')}>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-ink-3 hover:text-ink" onClick={() => setZoom((z) => Math.max(0.25, +(z - 0.25).toFixed(2)))} disabled={!selectedUrl || zoom <= 0.25} aria-label={t('Zoom arrière')}>
                 <ZoomOut className="h-3.5 w-3.5" />
               </Button>
               <button type="button" className="t-caption min-w-[3rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => setZoom(1)} title={t('Ajuster à la largeur')} aria-label={`${t('Zoom')} ${Math.round(zoom * 100)} % — ${t('ajuster à la largeur')}`}>
@@ -420,9 +420,12 @@ export default function Step2Information({
           >
             {selectedUrl ? (
               // Inline viewer. Zoom 100 % = fit to the pane width; beyond it
-              // the document overflows and scrolls on both axes. Clicking the
-              // document does nothing — the eye icon opens the lightbox.
-              <div style={{ width: `${zoom * 100}%` }} className="min-w-full">
+              // the document overflows and scrolls on both axes; below it the
+              // page shrinks, centred. (A `min-w-full` here kept it at full
+              // width: « 50 % » showed and nothing moved — owner report
+              // 2026-09-25.) Clicking the document does nothing — the eye
+              // icon opens the lightbox.
+              <div style={{ width: `${zoom * 100}%` }} className="mx-auto">
                 {isImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -436,7 +439,7 @@ export default function Step2Information({
                     url={selectedUrl}
                     // Bucketed to 100 px so a zoom step re-rasterises the page
                     // at a useful resolution without a render per pixel.
-                    width={Math.max(100, Math.round((paneWidth * zoom) / 100) * 100)}
+                    width={Math.max(100, Math.ceil((paneWidth * zoom) / 100) * 100)}
                     lazy={false}
                     className="block h-auto min-h-[12rem] w-full object-contain"
                   />

@@ -45,8 +45,10 @@ import { useResilientImageSrc } from '@/hooks/use-resilient-image';
 /**
  * Zoom toolbar rendered inside the TransformWrapper (hooks need its context):
  * − / percentage / + / fit. Buttons step 25 %; the wheel is configured on the
- * wrapper to zoom gradually (a few % per notch) instead of jumping.
+ * wrapper to zoom gradually (a few % per notch) instead of jumping. Zooming
+ * out goes below 100 % (= fit), down to LIGHTBOX_MIN_SCALE.
  */
+const LIGHTBOX_MIN_SCALE = 0.25;
 function ZoomControls() {
   const t = useT();
   const { zoomIn, zoomOut, resetTransform } = useControls();
@@ -61,7 +63,7 @@ function ZoomControls() {
       aria-label={t('Zoom')}
       title={t('Molette pour zoomer progressivement, double-clic pour agrandir')}
     >
-      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomOut(0.3, 150)} aria-label={t('Zoom arrière')} disabled={scale <= 1}>
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => zoomOut(0.3, 150)} aria-label={t('Zoom arrière')} disabled={scale <= LIGHTBOX_MIN_SCALE + 0.001}>
         <ZoomOut className="h-4 w-4" />
       </Button>
       <button type="button" className="t-caption min-w-[3.25rem] rounded px-1 text-center tabular-nums hover:bg-surface-2" onClick={() => resetTransform(150)} aria-label={`${t('Zoom')} ${Math.round(scale * 100)} % — ${t('réinitialiser')}`}>
@@ -500,7 +502,9 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
         >
           {isImage ? (
             <TransformWrapper
-              minScale={1}
+              // Below 100 % too (owner report 2026-09-25): the page shrinks,
+              // centred, instead of stopping at « fit ».
+              minScale={LIGHTBOX_MIN_SCALE}
               maxScale={8}
               doubleClick={{ mode: 'zoomIn', step: 0.5, animationTime: 200 }}
               // One wheel notch = +30 %. `smooth` MUST be off: with it on the

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authErrorResponse } from '@/lib/require-auth';
+import { anchorToMorocco } from '@/lib/moroccan-address';
 
 interface Stop {
   address: string;
@@ -11,23 +12,9 @@ interface LegResult {
   status: string;
 }
 
-/** `lat,lng` pairs are sent as-is; anything else is a typed address. */
-const COORDS_RE = /^\s*-?\d{1,2}(?:\.\d+)?\s*,\s*-?\d{1,3}(?:\.\d+)?\s*$/;
 /** A leg longer than this is a geocoding miss, not a drive (Tanger → Dakhla ≈ 1 900 km). */
 const MAX_PLAUSIBLE_METERS = 600_000;
 const MAX_PLAUSIBLE_SECONDS = 8 * 3600;
-
-/**
- * Tie a typed address to Morocco. `region=ma` is only a bias: a short or
- * country-less string (« Maarif, rue X », or the « ville, quartier, rue »
- * that reverse-geocoding produces) resolved to France or Spain, and a
- * 2 000 km leg became a 25-hour « conflit de planning » (QA bug 045).
- */
-function anchorToMorocco(address: string): string {
-  if (COORDS_RE.test(address)) return address;
-  if (/\b(maroc|morocco|marruecos)\b|المغرب/i.test(address)) return address;
-  return `${address}, Maroc`;
-}
 
 export async function POST(req: NextRequest) {
   try {

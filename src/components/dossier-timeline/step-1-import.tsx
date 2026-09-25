@@ -8,9 +8,9 @@ import {
   deleteField,
   serverTimestamp,
   Timestamp,
-  updateDoc,
   type DocumentReference,
 } from 'firebase/firestore';
+import { deleteObject, ref as storageRef } from 'firebase/storage';
 import { Check, Eye, FileIcon, FileText, Loader2, RefreshCw, ScanSearch, Trash2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -193,36 +193,6 @@ export default function Step1Import({
     () => (storedDocs ? new Set<string>(storedDocs.map((d: any) => String(d.id))) : null),
     [storedDocs],
   );
-  // Documents the user took out of the drop queue with ✕ (« Retirer »): they
-  // stay among the pièces but are no longer offered as a pre-fill source — a
-  // button naming the document that was just removed read as a bug (QA 041 /
-  // 043). The choice is stored ON the document (`prefillDismissed`), so it
-  // holds after a reload, in another tab and on another device; the session
-  // copy makes it instant and covers a write that has not landed yet.
-  const dismissedKey = `sl:prefill-dismissed:${dossierId}`;
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
-    try {
-      return new Set<string>(JSON.parse(sessionStorage.getItem(dismissedKey) || '[]'));
-    } catch {
-      return new Set<string>();
-    }
-  });
-  const dismissPrefillSource = useCallback(
-    (docId: string) => {
-      setDismissedIds((prev) => {
-        const next = new Set(prev);
-        next.add(docId);
-        try { sessionStorage.setItem(dismissedKey, JSON.stringify([...next])); } catch { /* private mode */ }
-        return next;
-      });
-      if (db && dossierId && docId) {
-        updateDoc(firestoreDoc(db, 'dossiers', dossierId, 'documents', docId), { prefillDismissed: true }).catch((err) =>
-          console.warn('[Step1Import] could not store the pre-fill dismissal:', err),
-        );
-      }
-    },
-    [db, dossierId, dismissedKey],
-  );
   const prefillCandidate = useMemo(() => {
     const list = (storedDocs ?? []).filter((d: any) => {
       const type = String(d?.type || d?.typeDocument || '');
@@ -231,8 +201,9 @@ export default function Step1Import({
       // button beside the queue's own spinner (QA 042).
       return !!d?.url && !d?.pendingUpload && !isChiffrageOutputType(type)
         && d?.classifiedBy !== 'pending'
+        // Taken off the drop list before ✕ deleted documents (QA 041 / 043):
+        // still among the pièces, never offered again.
         && d?.prefillDismissed !== true
-        && !dismissedIds.has(String(d?.id))
         && (PREFILL_DOC_CLASSES.includes(type) || type === UNCLASSIFIED_LABEL);
     });
     const ms = (d: any) => {
@@ -242,7 +213,7 @@ export default function Step1Import({
     list.sort((a: any, b: any) => ms(b) - ms(a));
     // A mission letter first, else the most recent source document.
     return list.find((d: any) => String(d?.type || '') === 'Lettre de mission') ?? list[0] ?? null;
-  }, [storedDocs, dismissedIds]);
+  }, [storedDocs]);
 
   const importDocRef = useMemo(() => {
     if (importDocOverride !== undefined) return null; // replay: frozen data, no live read
@@ -479,6 +450,13 @@ export default function Step1Import({
     const userEmail = auth?.currentUser?.email || 'Utilisateur';
     setIsDeletingImport(true);
     try {
+      // The file goes too: « Retirer » removes the source altogether.
+      const sourcePath: string | undefined = (importDoc as any)?.storagePath || undefined;
+      if (sourcePath && storage) {
+        await deleteObject(storageRef(storage, sourcePath)).catch((err) =>
+          console.warn('[Step1Import] source file already missing or blocked by rules:', err),
+        );
+      }
       await deleteDoc(importDocRef);
       // Undo what the scan wrote: values it overwrote go back to their
       // previous state, values it created are cleared. Removing the source
@@ -536,7 +514,48 @@ export default function Step1Import({
     } finally {
       setIsDeletingImport(false);
     }
-  }, [db, dossierId, dossierRef, importDocRef, toast, auth, writeDossierDoc, buffered, draft, profile?.nom, t]);
+  }, [db, storage, dossierId, dossierRef, importDocRef, importDoc, toast, auth, writeDossierDoc, buffered, draft, profile?.nom, t]);
+
+  // ✕ in the drop list deletes the document altogether (owner ruling
+  // 2026-09-25): the file and its record — and, for the document the pre-fill
+  // ran from, the values the scan wrote (the « Retirer » path above). No
+  // « Pré-remplir depuis « … » » is left pointing at it.
+  const deleteDroppedDoc = useCallback(
+    async ({ docId, storagePath, name }: { docId: string; storagePath?: string; name: string }) => {
+      if (!db || !dossierId || !docId) return;
+      if (docId === importDocId) {
+        await handleDeleteImportDoc();
+        return;
+      }
+      const userEmail = auth?.currentUser?.email || 'Utilisateur';
+      try {
+        if (storagePath && storage) {
+          await deleteObject(storageRef(storage, storagePath)).catch((err) =>
+            console.warn('[Step1Import] file already missing or blocked by rules:', err),
+          );
+        }
+        await deleteDoc(firestoreDoc(db, 'dossiers', dossierId, 'documents', docId));
+      } catch (err: any) {
+        console.error('[Step1Import] delete dropped doc error:', err);
+        toast({
+          variant: 'destructive',
+          title: t('Erreur lors de la suppression'),
+          description: err?.message || t('Impossible de supprimer le document.'),
+        });
+        return;
+      }
+      toast({ title: t('Document supprimé'), description: name });
+      const details = `Document "${name}" supprimé.`;
+      if (buffered) {
+        draft.bufferLog({ kind: 'historique', args: ['Suppression document', userEmail, details, 'document', profile?.nom] });
+      } else {
+        await logHistorique(db, dossierId, 'Suppression document', userEmail, details, 'document', profile?.nom).catch((err) =>
+          console.warn('[Step1Import] history log failed (non-fatal):', err),
+        );
+      }
+    },
+    [db, storage, dossierId, importDocId, handleDeleteImportDoc, auth, buffered, draft, profile?.nom, toast, t],
+  );
 
   const busy = isUploading || isScanning;
 
@@ -600,7 +619,7 @@ export default function Step1Import({
             emphasis={isPhone || hasImportDoc ? 'tonal' : 'primary'}
             icon={null}
             storedDocIds={storedDocIds}
-            onDismiss={dismissPrefillSource}
+            onRemove={deleteDroppedDoc}
             onPrefill={async (files, sourceDocId) => {
               const userEmail = auth?.currentUser?.email || 'Admin';
               await runScanAndMerge(files, userEmail, sourceDocId);
@@ -704,6 +723,8 @@ export default function Step1Import({
             dossier={dossier}
             readOnly={readOnly}
             prefilling={isScanning}
+            storedDocIds={storedDocIds}
+            onRemove={deleteDroppedDoc}
             onPrefill={async (files, sourceDocId) => {
               const userEmail = auth?.currentUser?.email || 'Admin';
               await runScanAndMerge(files, userEmail, sourceDocId);
