@@ -71,8 +71,19 @@ export function useDossiers(allowedCompagnies?: string[]) {
     await deleteDoc(doc(db, 'dossiers', dossierId));
 
     void (async () => {
+      // The chiffrages FIRST: they are the only leftovers that show in a list
+      // (the chiffrage queue, the dashboards), so they must not wait behind
+      // the subcollections — a tab closed mid-cleanup left six chiffrages of a
+      // deleted dossier in the queue (owner report 2026-09-25).
+      try {
+        const chiffragesSnap = await getDocs(query(collection(db, 'chiffrages'), where('dossierId', '==', dossierId)));
+        await Promise.allSettled(chiffragesSnap.docs.map(d => deleteDoc(d.ref)));
+      } catch (err) {
+        console.warn('[deleteDossier] chiffrages cleanup failed:', err);
+      }
+
       const subcollections = [
-        'documents', 'photos', 'commentaires', 'chiffrage',
+        'documents', 'photos', 'commentaires', 'chiffrage', 'observations',
         'missions', 'reclamations', 'planifications',
         'planificationHistory', 'historique', 'rapport_pieces', 'workflow',
       ];
@@ -86,13 +97,6 @@ export function useDossiers(allowedCompagnies?: string[]) {
         } catch (err) {
           console.warn(`[deleteDossier] ${sub} listing failed:`, err);
         }
-      }
-
-      try {
-        const chiffragesSnap = await getDocs(query(collection(db, 'chiffrages'), where('dossierId', '==', dossierId)));
-        await Promise.allSettled(chiffragesSnap.docs.map(d => deleteDoc(d.ref)));
-      } catch (err) {
-        console.warn('[deleteDossier] chiffrages cleanup failed:', err);
       }
 
       if (storage) {

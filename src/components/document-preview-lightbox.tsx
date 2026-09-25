@@ -41,6 +41,7 @@ import { PdfPagesViewer } from '@/components/common/pdf-pages-viewer';
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { useOverlayHistory } from '@/hooks/use-overlay-history';
 import { useResilientImageSrc } from '@/hooks/use-resilient-image';
+import { useCanDownload } from '@/hooks/use-can-download';
 
 /**
  * Zoom toolbar rendered inside the TransformWrapper (hooks need its context):
@@ -165,7 +166,8 @@ function PhoneLightbox({
   onPageChange,
   dataTour,
   actions,
-}: DocumentPreviewLightboxProps & { doc: DocumentPreviewLightboxDoc }) {
+  canOpen = true,
+}: DocumentPreviewLightboxProps & { doc: DocumentPreviewLightboxDoc; canOpen?: boolean }) {
   const t = useT();
   const heal = useResilientImageSrc(doc.url || '');
   const isImage = isImageName(typeName(doc));
@@ -208,7 +210,7 @@ function PhoneLightbox({
   // ⋯ rows: the host's own first, then the built-ins the props imply.
   const sheetItems: ActionItem[] = [
     ...(actions ?? []),
-    ...(isPdf ? [{ key: 'open', label: t('Ouvrir'), icon: <ExternalLink />, href: doc.url, external: true }] : []),
+    ...(isPdf && canOpen ? [{ key: 'open', label: t('Ouvrir'), icon: <ExternalLink />, href: doc.url, external: true }] : []),
     ...(onDownload ? [{ key: 'download', label: t('Télécharger'), icon: <Download />, onSelect: () => onDownload(doc) }] : []),
     ...(onDelete ? [{ key: 'delete', label: t('Supprimer'), icon: <Trash2 />, destructive: true, onSelect: () => onDelete(doc) }] : []),
   ];
@@ -281,7 +283,15 @@ function PhoneLightbox({
                   contentClass="!w-full !h-full flex items-center justify-center"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={heal.src} onError={heal.onError} alt={doc.nom} draggable={false} className="max-h-full max-w-full select-none object-contain" />
+                  <img
+                    src={heal.src}
+                    onError={heal.onError}
+                    alt={doc.nom}
+                    draggable={false}
+                    // No long-press « save image » where downloads are closed.
+                    onContextMenu={canOpen ? undefined : (e) => e.preventDefault()}
+                    className={cn('max-h-full max-w-full select-none object-contain', !canOpen && '[-webkit-touch-callout:none]')}
+                  />
                 </TransformComponent>
               </TransformWrapper>
             ) : isPdf ? (
@@ -289,14 +299,16 @@ function PhoneLightbox({
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center">
                 <p className="text-[15px] text-white/80">{t('Aperçu indisponible pour ce type de fichier.')}</p>
-                <a
-                  href={doc.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex h-11 items-center rounded-md bg-white/10 px-4 text-[15px] font-semibold text-white"
-                >
-                  {t('Ouvrir')}
-                </a>
+                {canOpen && (
+                  <a
+                    href={doc.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-11 items-center rounded-md bg-white/10 px-4 text-[15px] font-semibold text-white"
+                  >
+                    {t('Ouvrir')}
+                  </a>
+                )}
               </div>
             )}
           </div>
@@ -308,9 +320,13 @@ function PhoneLightbox({
   );
 }
 
-export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pages, onPageChange, dataTour, actions }: DocumentPreviewLightboxProps) {
+export function DocumentPreviewLightbox({ doc, onClose, onDownload: onDownloadProp, onDelete, pages, onPageChange, dataTour, actions }: DocumentPreviewLightboxProps) {
   const t = useT();
   const isPhone = useIsPhone();
+  // The Agent de terrain never downloads (owner ruling 2026-09-25): every
+  // host's « Télécharger » and « Ouvrir » close here, in one place.
+  const canDownload = useCanDownload();
+  const onDownload = canDownload ? onDownloadProp : undefined;
   const heal = useResilientImageSrc(doc?.url || '');
   const isImage = doc ? isImageName(typeName(doc)) : false;
   // width / height of the media. Owner ruling 2026-09-02: the window must
@@ -402,6 +418,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload, onDelete, pa
         onPageChange={onPageChange}
         dataTour={dataTour}
         actions={actions}
+        canOpen={canDownload}
       />
     );
   }

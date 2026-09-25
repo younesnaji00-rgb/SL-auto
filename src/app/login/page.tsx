@@ -14,6 +14,7 @@ import { getDocs } from '@/lib/firestore-logged';
 import { useAuth, useFirestore } from '@/firebase';
 import { SINGLE_SESSION_ROLES } from '@/lib/dossiers-data';
 import { landingPathFor } from '@/lib/role-landing';
+import { isPhoneDevice, isPhoneOnlyRole, PHONE_ONLY_FLAG_KEY, PHONE_ONLY_MESSAGE } from '@/lib/phone-device';
 import { collectSessionMeta, isSessionClaimable, timestampToMillis } from '@/lib/session-meta';
 import { trialStatus } from '@/lib/trial';
 import { Button } from '@/components/ui/button';
@@ -113,6 +114,14 @@ export default function LoginPage() {
   // because another device claimed the session, show one informational toast.
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    // An Agent de terrain session found open on a computer or a tablet was
+    // closed (phone only, owner ruling 2026-09-25): say why, not just « fermée ».
+    if (window.localStorage.getItem(PHONE_ONLY_FLAG_KEY) === '1') {
+      window.localStorage.removeItem(PHONE_ONLY_FLAG_KEY);
+      window.localStorage.removeItem(EVICTED_FLAG_KEY);
+      toast({ title: t('Session fermée'), description: t(PHONE_ONLY_MESSAGE), variant: 'destructive' });
+      return;
+    }
     if (window.localStorage.getItem(EVICTED_FLAG_KEY) === '1') {
       window.localStorage.removeItem(EVICTED_FLAG_KEY);
       // Neutral wording: this flag is raised for several causes (admin
@@ -335,6 +344,15 @@ export default function LoginPage() {
       // src/lib/trial.ts).
       if (trialStatus(userData).expired) {
         setError(t('Votre période d’essai est terminée. Contactez-nous pour continuer.'));
+        setLoading(false);
+        return;
+      }
+
+      // Agent de terrain: phone only (owner ruling 2026-09-25). Refused HERE,
+      // before signIn like the trial: no single-session claim is made, so the
+      // agent's phone can still log in right after.
+      if (isPhoneOnlyRole(userData.role) && !isPhoneDevice()) {
+        setError(t(PHONE_ONLY_MESSAGE));
         setLoading(false);
         return;
       }

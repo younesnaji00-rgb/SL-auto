@@ -38,8 +38,6 @@ import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/do
 import SmartInbox from './smart-inbox';
 import { emitPrefillFlash } from '@/hooks/use-prefill-flash';
 import { findDossierWithRefExpert, normalizeRefExpert } from '@/lib/ref-expert-unique';
-import { PREFILL_DOC_CLASSES, UNCLASSIFIED_LABEL } from '@/lib/doc-classes';
-import { isChiffrageOutputType } from '@/lib/required-docs';
 import { logFrontend } from '@/lib/debug-log';
 
 export interface Step1ImportProps {
@@ -182,8 +180,8 @@ export default function Step1Import({
   // dossier as `importDocId`.
   const importDocId: string | undefined = dossier?.importDocId || undefined;
 
-  // Every stored document, so the pre-fill stays reachable after the drop
-  // queue (local state) is gone — tab switch, fold, reload (QA bug 010).
+  // Every stored document: a drop-list row whose document was deleted
+  // elsewhere leaves the list (SmartInbox `storedDocIds`, QA bug 041).
   const storedDocsQuery = useMemo(
     () => (db && dossierId && importDocOverride === undefined ? collection(db, 'dossiers', dossierId, 'documents') : null),
     [db, dossierId, importDocOverride],
@@ -193,28 +191,6 @@ export default function Step1Import({
     () => (storedDocs ? new Set<string>(storedDocs.map((d: any) => String(d.id))) : null),
     [storedDocs],
   );
-  const prefillCandidate = useMemo(() => {
-    const list = (storedDocs ?? []).filter((d: any) => {
-      const type = String(d?.type || d?.typeDocument || '');
-      // A document the AI is still classifying (`classifiedBy: 'pending'`)
-      // is not offered yet: it would flash a « Pré-remplir depuis « X » »
-      // button beside the queue's own spinner (QA 042).
-      return !!d?.url && !d?.pendingUpload && !isChiffrageOutputType(type)
-        && d?.classifiedBy !== 'pending'
-        // Taken off the drop list before ✕ deleted documents (QA 041 / 043):
-        // still among the pièces, never offered again.
-        && d?.prefillDismissed !== true
-        && (PREFILL_DOC_CLASSES.includes(type) || type === UNCLASSIFIED_LABEL);
-    });
-    const ms = (d: any) => {
-      const v = d?.dateUpload ?? d?.uploadedAt;
-      return typeof v?.toMillis === 'function' ? v.toMillis() : typeof d?._localCreatedAt === 'number' ? d._localCreatedAt : 0;
-    };
-    list.sort((a: any, b: any) => ms(b) - ms(a));
-    // A mission letter first, else the most recent source document.
-    return list.find((d: any) => String(d?.type || '') === 'Lettre de mission') ?? list[0] ?? null;
-  }, [storedDocs]);
-
   const importDocRef = useMemo(() => {
     if (importDocOverride !== undefined) return null; // replay: frozen data, no live read
     if (!db || !dossierId || !importDocId) return null;
@@ -559,10 +535,8 @@ export default function Step1Import({
 
   const busy = isUploading || isScanning;
 
-  // Re-run the AI pre-fill from the source document already in Storage. The
-  // « Pré-remplir les informations » button lives in the drop queue, which is
-  // local state — it vanishes on tab switch, step fold or reload, leaving no
-  // way back to the scan (QA bug 010).
+  // Re-run the AI pre-fill from the source document already in Storage
+  // (« Pré-remplir à nouveau »).
   const scanStoredDoc = useCallback(async (d: any) => {
     const url: string | undefined = d?.url || undefined;
     if (!url || d?.pendingUpload || !d?.id) return;
@@ -627,31 +601,12 @@ export default function Step1Import({
           />
         )}
         {!hasImportDoc ? (
-          prefillCandidate && canEdit ? (
-            // A source document is already stored but was never scanned (the
-            // drop queue vanished before « Pré-remplir »): offer the scan here.
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              // `max-w-full` + a truncating label: a long file name used to
-              // widen the whole step past the paper and under the context
-              // column (QA 034).
-              className="h-8 max-w-full min-w-0 gap-1.5 max-md:h-11 max-md:text-[14px]"
-              onClick={() => void scanStoredDoc(prefillCandidate)}
-              disabled={busy}
-              title={`${t('Pré-remplir depuis')} ${prefillCandidate.nom || prefillCandidate.fileName || t('le document déposé')}`}
-            >
-              {isScanning ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <ScanSearch className="h-3.5 w-3.5 shrink-0" />}
-              <span className="min-w-0 truncate">
-                {t('Pré-remplir depuis')} « {prefillCandidate.nom || prefillCandidate.fileName || t('document')} »
-              </span>
-            </Button>
-          ) : (
-            <span className="t-caption text-ink-3">
-              {t('Déposez la lettre de mission pour pré-remplir les informations.')}
-            </span>
-          )
+          // Only the drop list pre-fills (owner ruling 2026-09-25): a document
+          // already stored — a pièce, or a source removed from the list — is
+          // never offered here as « Pré-remplir depuis « … » ».
+          <span className="t-caption text-ink-3">
+            {t('Déposez la lettre de mission pour pré-remplir les informations.')}
+          </span>
         ) : importDocLoading ? (
           <Loader2 className="h-4 w-4 animate-spin text-ink-3" aria-label={t('Chargement du document source')} />
         ) : !importDoc ? (

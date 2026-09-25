@@ -20,7 +20,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet';
 import {
-  CheckinButton, EnRouteButton, ReassignPopover, mapsSearchUrl, telHref, waHref,
+  EnRouteButton, ReassignPopover, mapsSearchUrl, telHref, waHref,
 } from './mission-quick-actions';
 import { useT, dateFnsLocale } from '@/i18n';
 
@@ -255,11 +255,10 @@ export default function MissionPeekPanel({
                   <a href={tel}><Phone className="h-4 w-4" />{t('Appeler')}</a>
                 </Button>
               )}
+              {/* The arrival is stamped automatically at the address (owner
+                  ruling 2026-09-25) — no check-in button. */}
               {isATG && (
-                <>
-                  <EnRouteButton telephone={telephone} rdvTime={rdv ? format(rdv, 'HH:mm') : null} />
-                  <CheckinButton dossierId={m.dossierId} planifId={m.id} checkedIn={!!m.checkinAt} />
-                </>
+                <EnRouteButton telephone={telephone} rdvTime={rdv ? format(rdv, 'HH:mm') : null} />
               )}
               {canReassign && (
                 <ReassignPopover

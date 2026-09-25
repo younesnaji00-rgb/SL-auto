@@ -160,8 +160,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
   const inputRef = useRef<HTMLInputElement>(null);
   // Rows taken out with ✕ before their upload finished: their document id is
   // not known yet, so the removal is applied once the upload returns one —
-  // otherwise the file landed anyway and came back as « Pré-remplir depuis
-  // « … » » (QA 043).
+  // otherwise the file landed anyway and stayed in the dossier (QA 043).
   const removedIdsRef = useRef<Set<string>>(new Set());
   const onRemoveRef = useRef(onRemove);
   onRemoveRef.current = onRemove;

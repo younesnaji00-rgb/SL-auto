@@ -124,14 +124,6 @@ export const assignationsAtgTutorial: PageTutorial = {
       dynamic: true,
     },
     {
-      anchor: 'atg-checkin',
-      title: 'Arrivé sur place',
-      body:
-        "Quand le téléphone de l'agent le situe à l'adresse d'une mission, cette bannière propose l'arrivée en un geste — l'heure de check-in part dans le dossier.\nElle ne s'affiche que sur place ; on peut toujours l'écarter.",
-      side: 'top',
-      dynamic: true,
-    },
-    {
       anchor: 'atg-route',
       title: 'Itinéraire du jour',
       body: "« Start » ouvre Google Maps avec toutes les adresses de la journée, dans l'ordre.",

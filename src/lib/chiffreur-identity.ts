@@ -80,3 +80,23 @@ export function isChiffrageMine(
   const names = nameKeys(p);
   return names.length > 0 && names.includes(compactName(c.assignedChiffreurNom));
 }
+
+/** An active chiffreur account, as `useAssignableChiffreurs` lists it. */
+export interface ChiffreurAccountRef {
+  /** Directory id when the account has an entry, else the account uid. */
+  id: string;
+  uid: string;
+  nom: string;
+  email: string;
+}
+
+/**
+ * True when no active chiffreur ACCOUNT is behind the assignment: its
+ * chiffreur was deleted, it went to a directory entry that never had an
+ * account (« test2 », sent before the 2026-09-24 picker fix), or it names no
+ * one. Such a chiffrage sat in nobody's queue, so every chiffreur sees it
+ * (owner request 2026-09-25: « make sure everything shows »).
+ */
+export function isChiffrageUnowned(c: AssignedChiffrage, accounts: ReadonlyArray<ChiffreurAccountRef>): boolean {
+  return !accounts.some((a) => isChiffrageMine(c, { uid: a.uid, email: a.email, nom: a.nom }, new Set([a.id])));
+}

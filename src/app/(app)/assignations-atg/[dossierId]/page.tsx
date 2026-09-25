@@ -53,7 +53,7 @@ import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-gr
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { usePhoneChrome, useRegisterPageTitle } from '@/components/layout/page-chrome';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
-import { GeofenceCheckinBanner, type GeofenceCandidate } from '../mission-geofence-checkin';
+import { GeofenceAutoCheckin, type GeofenceCandidate } from '../mission-geofence-checkin';
 import PhoneMissionScreen from './phone-mission-screen';
 import Loading from './loading';
 
@@ -616,6 +616,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           planifId: p.id,
           refLabel: (dossier as any)?.refExpert || dossierId,
           adresse: p.adresse as string,
+          rdvMs: toDate(p.dateRDV)?.getTime() ?? null,
         })),
     [filteredPlans, dossierId, dossier],
   );
@@ -696,11 +697,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
 
   return (
     <div className={cn('space-y-6', isPhone && 'space-y-4 pb-24')}>
-      {/* (1) Arrival / geofence banner — the queue's thumb-zone rule, kept on
-          the mission the agent has actually opened (E10). */}
-      {isPhone && isATG && geofenceCandidates.length > 0 && (
-        <GeofenceCheckinBanner candidates={geofenceCandidates} />
-      )}
+      {/* (1) Automatic arrival (owner ruling 2026-09-25): stamped when the
+          agent's phone is at the address — no button. Shows a notice only
+          when location is refused. */}
+      {isATG && <GeofenceAutoCheckin candidates={geofenceCandidates} />}
 
       {/* PHONE (2): header card(s) + phases + photo grid + bottom bar (mobile
           redesign 2026-09-14). Rendered BEFORE the desktop header stack so the
@@ -726,6 +726,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           telephoneRaw={assureTelephoneRaw}
           telephoneHref={assureTelephoneHref}
           noMissionReason={noMissionReason}
+          allPlans={(plans || []) as any[]}
         />
       )}
 
@@ -989,23 +990,26 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                         <Eye className="h-5 w-5 text-on-ink" aria-hidden />
                       </span>
                     </button>
-                    {/* Hover actions: Télécharger for every viewer (QA bug
-                        AT 005), Supprimer for the uploader. */}
+                    {/* Hover actions: Télécharger for every viewer but the
+                        agent (QA bug AT 005; owner ruling 2026-09-25: the
+                        agent never downloads), Supprimer for the uploader. */}
                     <div className="absolute right-1 top-1 z-10 flex flex-col gap-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 bg-card/90"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleDownloadPhoto(photo);
-                        }}
-                        disabled={!photo.url || !!photo.pendingUpload}
-                        aria-label={t('Télécharger la photo')}
-                        title={t('Télécharger')}
-                      >
-                        <Download />
-                      </Button>
+                      {!isATG && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 bg-card/90"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleDownloadPhoto(photo);
+                          }}
+                          disabled={!photo.url || !!photo.pendingUpload}
+                          aria-label={t('Télécharger la photo')}
+                          title={t('Télécharger')}
+                        >
+                          <Download />
+                        </Button>
+                      )}
                       {canDeletePhoto(photo) && (
                         <Button
                           variant="ghost"
@@ -1132,17 +1136,19 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             <DialogTitle className="sr-only">{previewPhoto.name}</DialogTitle>
             <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-ink-solid">
               <img src={previewPhoto.url} className="max-h-full max-w-full object-contain" alt={previewPhoto.name} />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute bottom-3 right-3 gap-1.5 bg-card/90"
-                onClick={() => void handleDownloadPhoto(previewPhoto)}
-                disabled={!previewPhoto.url || !!previewPhoto.pendingUpload}
-              >
-                <Download className="h-4 w-4" />
-                {t('Télécharger')}
-              </Button>
+              {!isATG && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute bottom-3 right-3 gap-1.5 bg-card/90"
+                  onClick={() => void handleDownloadPhoto(previewPhoto)}
+                  disabled={!previewPhoto.url || !!previewPhoto.pendingUpload}
+                >
+                  <Download className="h-4 w-4" />
+                  {t('Télécharger')}
+                </Button>
+              )}
             </div>
           </DialogContent>
         </Dialog>

@@ -153,6 +153,9 @@ export default function ObservationsTab({
   const auth = useAuth();
   const storage = useStorage();
   const { canWrite, profile } = useCurrentUser();
+  // A proof opens in a new tab — a download — which the Agent de terrain
+  // never gets (owner ruling 2026-09-25): they see its name only.
+  const canDownload = profile?.role !== 'Agent de Terrain';
   const hl = useReplayHighlight();
   const { toast } = useToast();
   // Q-5 → B: gestionnaire + admin + directeur family can validate.
@@ -857,20 +860,32 @@ export default function ObservationsTab({
                   {/* Proofs list */}
                   {proofs.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {proofs.map((p, i) => (
-                        <a
-                          key={i}
-                          href={p.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded-md border border-hairline bg-card px-1.5 py-0.5 text-[11px] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
-                          title={`${p.name} — ${p.uploadedByNom || p.uploadedBy}${p.uploadedAt?.toDate ? ` (${format(p.uploadedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() })})` : ''}`}
-                        >
-                          <Paperclip className="h-3 w-3 text-ink-3" />
-                          <span className="max-w-[140px] truncate">{p.name}</span>
-                          <ExternalLink className="h-3 w-3 text-ink-4" />
-                        </a>
-                      ))}
+                      {proofs.map((p, i) => {
+                        const title = `${p.name} — ${p.uploadedByNom || p.uploadedBy}${p.uploadedAt?.toDate ? ` (${format(p.uploadedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: dateFnsLocale() })})` : ''}`;
+                        return canDownload ? (
+                          <a
+                            key={i}
+                            href={p.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border border-hairline bg-card px-1.5 py-0.5 text-[11px] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
+                            title={title}
+                          >
+                            <Paperclip className="h-3 w-3 text-ink-3" />
+                            <span className="max-w-[140px] truncate">{p.name}</span>
+                            <ExternalLink className="h-3 w-3 text-ink-4" />
+                          </a>
+                        ) : (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 rounded-md border border-hairline bg-card px-1.5 py-0.5 text-[11px] text-ink-2"
+                            title={title}
+                          >
+                            <Paperclip className="h-3 w-3 text-ink-3" />
+                            <span className="max-w-[140px] truncate">{p.name}</span>
+                          </span>
+                        );
+                      })}
                     </div>
                   )}
 

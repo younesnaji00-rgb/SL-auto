@@ -9,6 +9,7 @@ import { OfflineIndicator } from '@/components/offline-indicator';
 import { TrialBanner } from '@/components/trial-banner';
 import { GpsPublisherHost } from '@/components/gps-publisher-host';
 import { CurrentUserProvider, useCurrentUser } from '@/hooks/use-current-user';
+import { useVisibleNav } from '@/hooks/use-visible-nav';
 import { WorkspaceTabsProvider } from '@/hooks/use-workspace-tabs';
 import { PageChromeProvider, SkipToContent } from '@/components/layout/page-chrome';
 import { ShellUiProvider } from '@/components/layout/shell-ui';
@@ -31,7 +32,9 @@ const FLUSH_ROUTE_PATTERNS = [/^\/dossiers\/[^/]+$/];
 const UNCAPPED_ROUTES = ['/dossiers'];
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { firebaseUser, loading } = useCurrentUser();
+  const { firebaseUser, loading, profile } = useCurrentUser();
+  const { items: navItems } = useVisibleNav();
+  const pathname = usePathname() || '';
   const router = useRouter();
   const t = useT();
 
@@ -41,7 +44,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [loading, firebaseUser, router]);
 
-  if (loading) {
+  // Agent de terrain: the pages of their own navigation only — missions and
+  // their dashboard (owner ruling 2026-09-25: no image or document leaves
+  // the app through them). A typed URL to a dossier, the documents or the
+  // consultation lands back on the missions instead of rendering.
+  const offLimits =
+    profile?.role === 'Agent de Terrain' &&
+    !navItems.some((i) => pathname === i.href || pathname.startsWith(`${i.href}/`));
+  React.useEffect(() => {
+    if (offLimits) router.replace('/assignations-atg');
+  }, [offLimits, router]);
+
+  if (loading || offLimits) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <PageLoader label={t('Chargement...')} />

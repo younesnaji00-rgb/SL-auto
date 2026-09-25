@@ -2,12 +2,13 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, type User } from 'firebase/auth';
-import { doc, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, updateDoc, type Firestore } from 'firebase/firestore';
 import { onSnapshot } from '@/lib/firestore-logged';
 import { useAuth, useFirestore } from '@/firebase';
 import { ROLES_THAT_CAN_DELETE, SINGLE_SESSION_ROLES, type Role } from '@/lib/dossiers-data';
 import { collectSessionMeta } from '@/lib/session-meta';
 import { trialStatus } from '@/lib/trial';
+import { isPhoneDevice, isPhoneOnlyRole, PHONE_ONLY_FLAG_KEY } from '@/lib/phone-device';
 
 // Single-session enforcement (BLOCK model): the FIRST device to log in claims
 // `currentSessionId` on the user doc and holds it. A SECOND device is blocked
@@ -71,6 +72,26 @@ function newSessionId(): string {
     return crypto.randomUUID();
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Release this device's single-session claim — only while it still holds it
+ * (guarded transaction), so a session that has moved to another device is
+ * never clobbered. Must run while still authenticated (owner-only write).
+ */
+async function releaseSessionClaim(db: Firestore, uid: string, localId: string): Promise<void> {
+  try {
+    await runTransaction(db, async (tx) => {
+      const ref = doc(db, 'users', uid);
+      const snap = await tx.get(ref);
+      if (snap.exists() && (snap.data() as any).currentSessionId === localId) {
+        tx.update(ref, { currentSessionId: null, currentSessionSeenAt: null });
+        tx.delete(doc(db, 'users', uid, 'session_meta', 'current'));
+      }
+    });
+  } catch (e) {
+    console.warn('Session release failed (non-fatal):', e);
+  }
 }
 
 interface UserProfile {
@@ -342,6 +363,19 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
               }
             };
 
+            // Agent de terrain on a computer or a tablet (owner ruling
+            // 2026-09-25: phone only). A session opened before the rule, or
+            // restored from storage, is closed — its single-session claim
+            // released first: left in place it would refuse the agent's phone
+            // at login until it went stale.
+            if (fromServer && !loginInFlight && isPhoneOnlyRole(data.role) && !isPhoneDevice()) {
+              console.warn('[phone-only] closing an Agent de terrain session on a non-phone device');
+              if (localSessionId) await releaseSessionClaim(db, user.uid, localSessionId);
+              if (typeof window !== 'undefined') window.localStorage.setItem(PHONE_ONLY_FLAG_KEY, '1');
+              await evictThisDevice();
+              return;
+            }
+
             // Account-based free trial (white-label demo): a session that
             // outlives its trial window is evicted here. Login already blocks
             // expired accounts up front; this catches mid-session expiry.
@@ -485,20 +519,7 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
     // Runs while we are still authenticated (rules require owner auth to write).
     const uid = auth.currentUser?.uid;
     const localId = readLocalSessionId();
-    if (uid && db && localId) {
-      try {
-        await runTransaction(db, async (tx) => {
-          const ref = doc(db, 'users', uid);
-          const snap = await tx.get(ref);
-          if (snap.exists() && (snap.data() as any).currentSessionId === localId) {
-            tx.update(ref, { currentSessionId: null, currentSessionSeenAt: null });
-            tx.delete(doc(db, 'users', uid, 'session_meta', 'current'));
-          }
-        });
-      } catch (e) {
-        console.warn('Session release on sign-out failed (non-fatal):', e);
-      }
-    }
+    if (uid && db && localId) await releaseSessionClaim(db, uid, localId);
     if (typeof window !== 'undefined') {
       window.sessionStorage.removeItem(EXPECTED_UID_KEY);
       window.sessionStorage.removeItem(SESSION_STORAGE_KEY);

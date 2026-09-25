@@ -12,7 +12,7 @@
 import { useCallback, useState } from 'react';
 import { doc, updateDoc, serverTimestamp, collection, query, where, limit } from 'firebase/firestore';
 import { getDocs } from '@/lib/firestore-logged';
-import { MessageCircle, MoreHorizontal, Navigation, Phone, UserCog, MapPin, Car } from 'lucide-react';
+import { MessageCircle, MoreHorizontal, Navigation, Phone, UserCog, Car } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ActionSheet, type ActionItem } from '@/components/ui/action-sheet';
@@ -450,40 +450,3 @@ export function useMissionCheckin() {
   return { checkin, saving };
 }
 
-export function CheckinButton({
-  dossierId,
-  planifId,
-  checkedIn,
-  className,
-}: {
-  dossierId: string;
-  planifId: string;
-  checkedIn: boolean;
-  className?: string;
-}) {
-  const t = useT();
-  const { checkin: runCheckin, saving } = useMissionCheckin();
-
-  if (checkedIn) return null;
-
-  const checkin = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    void runCheckin(dossierId, planifId);
-  };
-
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className={cn('gap-1.5', className)}
-      onClick={checkin}
-      loading={saving}
-      title={t("Horodater l'arrivée sur place (heure + GPS)")}
-    >
-      <MapPin className="h-4 w-4" />
-      {t('Arrivé sur place')}
-    </Button>
-  );
-}

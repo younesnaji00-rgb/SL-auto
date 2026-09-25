@@ -50,6 +50,7 @@ import { cn } from '@/lib/utils';
 import { useReplayHighlight, highlightClass, ChangeBadge } from './replay-highlight';
 import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 import { useResilientImageSrc } from '@/hooks/use-resilient-image';
+import { useCanDownload } from '@/hooks/use-can-download';
 import {
   DOC_DRAG_MIME,
   docDisplayName,
@@ -255,6 +256,7 @@ export function SlotCard({
   onToggleSelect,
 }: SlotCardProps) {
   const t = useT();
+  const canDownload = useCanDownload();
   void userRole; // accepted for prop compatibility; roles gate via callbacks
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -617,10 +619,12 @@ export function SlotCard({
                     <Eye className="h-3.5 w-3.5" />
                     {t('Aperçu')}
                   </DropdownMenuItem>
-                  <DropdownMenuItem disabled={!clickable} onSelect={() => { if (p.url) downloadFileFromUrl(p.url, name); }}>
-                    <Download className="h-3.5 w-3.5" />
-                    {t('Télécharger')}
-                  </DropdownMenuItem>
+                  {canDownload && (
+                    <DropdownMenuItem disabled={!clickable} onSelect={() => { if (p.url) downloadFileFromUrl(p.url, name); }}>
+                      <Download className="h-3.5 w-3.5" />
+                      {t('Télécharger')}
+                    </DropdownMenuItem>
+                  )}
                   {canDeleteDoc(p) && (
                     <>
                       <DropdownMenuSeparator />
@@ -700,18 +704,20 @@ export function SlotCard({
             >
               <Eye className="h-3.5 w-3.5" />
             </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => primary.url && downloadFileFromUrl(primary.url, primaryName)}
-              disabled={!primaryClickable}
-              title={t('Télécharger')}
-              aria-label={`${t('Télécharger')} — ${primaryName}`}
-            >
-              <Download className="h-3.5 w-3.5" />
-            </Button>
+            {canDownload && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => primary.url && downloadFileFromUrl(primary.url, primaryName)}
+                disabled={!primaryClickable}
+                title={t('Télécharger')}
+                aria-label={`${t('Télécharger')} — ${primaryName}`}
+              >
+                <Download className="h-3.5 w-3.5" />
+              </Button>
+            )}
             {canDeleteDoc(primary) && (
               <Button
                 type="button"

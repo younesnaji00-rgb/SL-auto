@@ -60,9 +60,9 @@ import AtScanPlaqueFlow from './at-scan-plaque-flow';
 import MissionMapView, { type MapMission } from './mission-map-view';
 import MissionPeekPanel from './mission-peek-panel';
 import {
-  CheckinButton, EnRouteButton, MissionRowActions, ReassignPopover, mapsSearchUrl, telHref, waHref,
+  EnRouteButton, MissionRowActions, ReassignPopover, mapsSearchUrl, telHref, waHref,
 } from './mission-quick-actions';
-import { GeofenceCheckinBanner } from './mission-geofence-checkin';
+import { GeofenceAutoCheckin } from './mission-geofence-checkin';
 import PhoneMissionsList, { type PhoneMissionSort } from './phone-missions-list';
 import { MessageCircle } from 'lucide-react';
 
@@ -1335,12 +1335,12 @@ export default function AssignationsATGPage() {
               <DeadlineChip dateRDV={p.dateRDV} createdAt={p.createdAt} calm={groupKey === 'expired'} />
             </span>
           </div>
-          {/* Field-agent actions: on-the-way WhatsApp + GPS check-in
-              (ServiceM8's on-the-way + check-in pattern; 44 px targets). */}
+          {/* Field-agent actions: on-the-way WhatsApp (ServiceM8's on-the-way
+              pattern; 44 px targets). The arrival is stamped automatically
+              at the address (owner ruling 2026-09-25) — no button. */}
           {isATG && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <EnRouteButton telephone={telephone} rdvTime={rdv ? format(rdv, 'HH:mm') : null} className="h-11" />
-              <CheckinButton dossierId={p.dossierId} planifId={p.id} checkedIn={!!p.checkinAt} className="h-11" />
               {checkinTime && (
                 <Badge variant="success">{t('Arrivé')} · {format(checkinTime, 'HH:mm')}</Badge>
               )}
@@ -1496,8 +1496,8 @@ export default function AssignationsATGPage() {
             greetingName={profile?.prenom || profile?.nom || t('agent')}
             emptyState={emptyState}
           />
-          {/* Geofenced arrival suggestion — thumb-zone banner (ATG only). */}
-          {isATG && <GeofenceCheckinBanner candidates={geofenceCandidates} />}
+          {/* Automatic arrival at the address (ATG only; a notice only when location is refused). */}
+          {isATG && <GeofenceAutoCheckin candidates={geofenceCandidates} className="fixed inset-x-3 bottom-20 z-40" />}
         </>
       );
     }
@@ -1679,8 +1679,8 @@ export default function AssignationsATGPage() {
           </div>
         )}
 
-        {/* Geofenced arrival suggestion — thumb-zone banner (ATG only). */}
-        {isATG && <GeofenceCheckinBanner candidates={geofenceCandidates} />}
+        {/* Automatic arrival at the address (ATG only; a notice only when location is refused). */}
+        {isATG && <GeofenceAutoCheckin candidates={geofenceCandidates} className="fixed inset-x-3 bottom-20 z-40" />}
       </div>
     );
   }

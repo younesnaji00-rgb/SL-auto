@@ -26,7 +26,7 @@ import type { Rappel } from '@/hooks/use-rappels';
 import { STEP_DEFS, type FunnelDossier } from '../monitoring/funnel';
 import { buildSlaItems, normalizeMissionType, SLA_BUSINESS_HOURS, type SlaItem } from '../monitoring/metrics';
 import type { DashboardChiffrage, DashboardMission, DashboardUser } from './use-dashboard-data';
-import { isChiffrageMine } from '@/lib/chiffreur-identity';
+import { isChiffrageMine, isChiffrageUnowned, type ChiffreurAccountRef } from '@/lib/chiffreur-identity';
 
 export { SLA_BUSINESS_HOURS };
 
@@ -57,6 +57,11 @@ export interface PersonRef {
   email?: string;
   /** The person's entries in the `chiffreurs` directory (chiffrages name their chiffreur by directory id). */
   chiffreurDirectoryIds?: ReadonlySet<string>;
+  /**
+   * The active chiffreur accounts — set on a chiffreur's own dashboard: a
+   * chiffrage no account owns is in their « Ma file » too, as in the queue.
+   */
+  chiffreurAccounts?: ReadonlyArray<ChiffreurAccountRef>;
 }
 
 /** A dossier belongs to the gestionnaire who created it (`createdBy` = uid; legacy `createdByName` = nom or email). */
@@ -72,7 +77,8 @@ export function chiffrageOwnedBy(c: DashboardChiffrage, p: PersonRef): boolean {
   // Shared with the queue page (QA bug 029): uid, directory id, e-mail, then
   // an accent/space-insensitive name — the old directory-id-vs-uid compare
   // could never match, so the dashboard's « Ma file » stayed empty.
-  return isChiffrageMine(c as any, p, p.chiffreurDirectoryIds);
+  return isChiffrageMine(c as any, p, p.chiffreurDirectoryIds)
+    || (!!p.chiffreurAccounts && isChiffrageUnowned(c as any, p.chiffreurAccounts));
 }
 
 /** Same rule as the Terrain queue: by uid when present, else by name. */

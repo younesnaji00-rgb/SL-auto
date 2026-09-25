@@ -24,6 +24,7 @@ import * as React from 'react';
 import { ChevronDown, ChevronRight, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
+import { useCanDownload } from '@/hooks/use-can-download';
 
 export interface PhotoGridItem {
   id: string;
@@ -49,6 +50,8 @@ const GRID_CLASS = 'grid grid-cols-3 gap-2 md:grid-cols-4 lg:grid-cols-6';
 
 export function PhotoGrid<T extends PhotoGridItem>({ photos, onOpen, renderBadge, dataTour, className }: PhotoGridProps<T>) {
   const t = useT();
+  // No long-press « save image » where downloads are closed (Agent de terrain).
+  const canDownload = useCanDownload();
   if (photos.length === 0) return null;
   return (
     <ul className={cn(GRID_CLASS, className)} data-tour={dataTour}>
@@ -72,7 +75,9 @@ export function PhotoGrid<T extends PhotoGridItem>({ photos, onOpen, renderBadge
                 alt={photo.name}
                 loading="lazy"
                 decoding="async"
-                className="h-full w-full object-cover"
+                draggable={false}
+                onContextMenu={canDownload ? undefined : (e) => e.preventDefault()}
+                className={cn('h-full w-full object-cover', !canDownload && 'select-none [-webkit-touch-callout:none]')}
               />
             </button>
           )}

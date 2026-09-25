@@ -29,6 +29,8 @@ import { cn } from '@/lib/utils';
 import { dateFnsLocale, useT, t as tGlobal } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
+import { useAssignableChiffreurs } from '@/hooks/use-assignable-chiffreurs';
+import { isChiffrageUnowned } from '@/lib/chiffreur-identity';
 import { useListenerEpoch } from '@/hooks/use-listener-epoch';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { useHotkeys } from '@/hooks/use-hotkeys';
@@ -113,6 +115,9 @@ export default function AssignationsChiffragePage() {
   const router = useRouter();
   const { profile } = useCurrentUser();
   const { chiffreurs: chiffreurDirectory } = useChiffreurs();
+  // The active chiffreur ACCOUNTS: a chiffrage none of them owns is shown to
+  // every chiffreur (see isChiffrageUnowned).
+  const { chiffreurs: chiffreurAccounts, loading: chiffreurAccountsLoading } = useAssignableChiffreurs();
   const { openTab } = useChiffrageTabs();
   const chiffreurWorkload = useChiffreurWorkload();
   const [allChiffrages, setAllChiffrages] = useState<ChiffrageItem[]>([]);
@@ -195,7 +200,11 @@ export default function AssignationsChiffragePage() {
   // the reference copied at send time — or, before the fix, the raw Firestore
   // id when the dossier had none — and a later correction never reached it.
   const [dossierRefs, setDossierRefs] = useState<Record<string, string>>({});
-  const chiffrages = useMemo(() => {
+  // Dossiers the server says no longer exist. Their chiffrages are leftovers
+  // of a deletion whose cleanup did not finish (the six « EXP-2026-003 » rows,
+  // owner report 2026-09-25): hidden from everyone.
+  const [missingDossierIds, setMissingDossierIds] = useState<ReadonlySet<string>>(() => new Set());
+  const roleChiffrages = useMemo(() => {
     const live = allChiffrages.map((c) => {
       const ref = dossierRefs[c.dossierId];
       const stale = !c.dossierNom || c.dossierNom === c.dossierId;
@@ -208,21 +217,34 @@ export default function AssignationsChiffragePage() {
       (myUid && (c as any).assignedChiffreurUid === myUid) ||
       (c.assignedChiffreurId && myDirectoryIds.has(c.assignedChiffreurId)) ||
       (myEmail && ((c as any).assignedChiffreurEmail || '').toLowerCase().trim() === myEmail) ||
-      (myName && [myName, myFullName].includes(compactName(c.assignedChiffreurNom || ''))),
+      (myName && [myName, myFullName].includes(compactName(c.assignedChiffreurNom || ''))) ||
+      // Assigned to no current chiffreur (deleted account, « test2 »): in
+      // nobody's queue otherwise. Decided once the accounts have loaded, so
+      // the list never flashes the whole collection.
+      (!chiffreurAccountsLoading && isChiffrageUnowned(c as any, chiffreurAccounts)),
     );
-  }, [allChiffrages, dossierRefs, myDirectoryIds, profile?.role, myUid, myEmail, myName, myFullName]);
+  }, [allChiffrages, dossierRefs, myDirectoryIds, profile?.role, myUid, myEmail, myName, myFullName, chiffreurAccounts, chiffreurAccountsLoading]);
+  const chiffrages = useMemo(
+    () => roleChiffrages.filter(c => !!c.dossierId && !missingDossierIds.has(c.dossierId)),
+    [roleChiffrages, missingDossierIds],
+  );
 
   // Listen to dossier statuts + compagnies + natures for all referenced dossierIds
   const [dossierCompagnies, setDossierCompagnies] = useState<Record<string, string>>({});
   const [dossierNatures, setDossierNatures] = useState<Record<string, string>>({});
   const [dossierAssure, setDossierAssure] = useState<Record<string, any>>({});
   const [dossierMatricule, setDossierMatricule] = useState<Record<string, string>>({});
-  const dossierIds = useMemo(() => [...new Set(chiffrages.map(c => c.dossierId).filter(Boolean))], [chiffrages]);
+  const dossierIds = useMemo(() => [...new Set(roleChiffrages.map(c => c.dossierId).filter(Boolean))], [roleChiffrages]);
 
   useEffect(() => {
     if (!db || dossierIds.length === 0) return;
     const unsubs = dossierIds.map(did =>
       onSnapshot(doc(db, 'dossiers', did), (snap) => {
+        // Only the server can say a dossier is gone — a cold cache says the
+        // same of a dossier it simply has not loaded yet.
+        if (!snap.exists() && !snap.metadata.fromCache) {
+          setMissingDossierIds(prev => (prev.has(did) ? prev : new Set(prev).add(did)));
+        }
         if (snap.exists()) {
           const data = snap.data();
           setDossierStatuts(prev => ({ ...prev, [did]: data.statut || 'Nouveau' }));
@@ -944,11 +966,6 @@ export default function AssignationsChiffragePage() {
                       >
                         {c.dossierNom || t('Sans réf.')}
                       </Link>
-                      {c.dossierId in dossierRefs && (!c.dossierNom || !renderAssure(dossierAssure[c.dossierId]) || !dossierMatricule[c.dossierId]) && (
-                        <Badge variant="warning" className="ml-1.5 align-middle font-sans font-normal" title={t('Réf. expert, assuré ou matricule manquant sur le dossier')}>
-                          {t('Identification incomplète')}
-                        </Badge>
-                      )}
                     </TableCell>
                     {/* A2 — deadline: countdown text, chip only at threshold. */}
                     <TableCell>{renderDelai(entry)}</TableCell>

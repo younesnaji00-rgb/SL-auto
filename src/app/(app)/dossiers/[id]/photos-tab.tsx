@@ -99,12 +99,12 @@ interface Photo {
   lng?: number;
 }
 
-type PartitionMode = 'date' | 'location';
+export type PartitionMode = 'date' | 'location';
 
 /** Grouping-mode tablist — its own component so the symbiote morph hook can
  *  attach per strip (owner 2026-09-02: every tab strip animates; this one
  *  renders once per category section). */
-function PartitionTabs({ value, onChange }: { value: PartitionMode; onChange: (m: PartitionMode) => void }) {
+export function PartitionTabs({ value, onChange }: { value: PartitionMode; onChange: (m: PartitionMode) => void }) {
   const t = useT();
   const morphRef = useTabSlopeMorphRef();
   return (
@@ -262,6 +262,8 @@ export default function PhotosTab({
   const storage = useStorage();
   const { toast } = useToast();
   const { canWrite, profile } = useCurrentUser();
+  // No download for the Agent de terrain (owner ruling 2026-09-25).
+  const canDownload = profile?.role !== 'Agent de Terrain';
   const hl = useReplayHighlight();
   const canEdit = canWrite('dossiers');
   // Reads the propositionReforme flag (item 021). When true, the per-section
@@ -662,16 +664,18 @@ export default function PhotosTab({
             // Hover-revealed on a mouse, permanently visible on a coarse
             // pointer (mobile-synthesis §3: no hover-only controls on touch).
             <div className="absolute top-2 right-2 flex flex-col gap-1.5 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity z-10">
-              <Button
-                size="icon"
-                variant="secondary"
-                className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
-                onClick={() => handleDownload(photo)}
-                disabled={!photo.url || !!photo.pendingUpload}
-                title={t('Telecharger')}
-              >
-                <Download className="h-3.5 w-3.5" />
-              </Button>
+              {canDownload && (
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="h-7 w-7 rounded-full shadow-lg bg-background/90 hover:bg-background"
+                  onClick={() => handleDownload(photo)}
+                  disabled={!photo.url || !!photo.pendingUpload}
+                  title={t('Telecharger')}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+              )}
               <Button
                 size="icon"
                 variant="secondary"

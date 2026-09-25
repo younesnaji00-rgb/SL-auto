@@ -18,14 +18,20 @@
  *
  * One header card per planification of the phase (usually one); the
  * contact row (Itinéraire · téléphone · WhatsApp) sits on the primary card
- * only — the next upcoming RDV, else the most recent plan. The bottom bar's
- * « Confirmer l’arrivée » is the queue's check-in write (useMissionCheckin)
- * on that primary plan; it disappears once the plan carries `checkinAt`.
+ * only — the next upcoming RDV, else the most recent plan. The agent's
+ * arrival is stamped automatically at the address (GeofenceAutoCheckin, owner
+ * ruling 2026-09-25); only another editor (Admin) still has the bottom bar's
+ * « Confirmer l’arrivée » (useMissionCheckin), until the plan carries
+ * `checkinAt`.
+ *
+ * Photos: « Par date / Par localisation » over one disclosure row per day or
+ * place — the same gallery as the dossier's Photos on a phone (owner request
+ * 2026-09-25).
  */
 
-import React, { useMemo } from 'react';
-import { Camera, MapPin, MessageCircle, Navigation, Phone, Plus, Upload } from 'lucide-react';
-import { format } from 'date-fns';
+import React, { useMemo, useState } from 'react';
+import { Camera, MapPin, MessageCircle, Navigation, Phone, Plus } from 'lucide-react';
+import { format, startOfDay } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { DateBlock } from '@/components/ui/date-block';
 import { Segmented } from '@/components/ui/segmented';
@@ -33,6 +39,9 @@ import { BottomActionBar, type BottomActionBarSecondary } from '@/components/lay
 import { useT, dateFnsLocale } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { mapsSearchUrl, useMissionCheckin, waHref } from '../mission-quick-actions';
+import { PhotoGrid, PhotoGroup } from '@/components/common/photo-grid';
+import { usePhotoLocations } from '@/hooks/use-photo-locations';
+import { PartitionTabs, type PartitionMode } from '@/app/(app)/dossiers/[id]/photos-tab';
 
 export type MissionPhase = 'Avant' | 'En cours' | 'Après';
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
@@ -58,6 +67,12 @@ export interface PhonePhoto {
   name: string;
   category: PhotoCategory | string;
   pendingUpload?: boolean;
+  /** For the « Par date / Par localisation » groups. */
+  uploadedAt?: any;
+  _localCreatedAt?: unknown;
+  lat?: unknown;
+  lng?: unknown;
+  location?: unknown;
 }
 
 export interface PhoneMissionScreenProps<TPhoto extends PhonePhoto> {
@@ -86,6 +101,8 @@ export interface PhoneMissionScreenProps<TPhoto extends PhonePhoto> {
   telephoneHref: string;
   /** Set when no mission of the active phase is planned: photo intake is closed, and this says why (QA bug 048). */
   noMissionReason?: string;
+  /** Every planification of the dossier — a photo without GPS is placed at its visit's address. */
+  allPlans?: ReadonlyArray<{ typeMission?: unknown; adresse?: unknown; dateRDV?: any }>;
 }
 
 function toDate(ts: any): Date | null {
@@ -116,9 +133,51 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
   telephoneRaw,
   telephoneHref,
   noMissionReason,
+  allPlans,
 }: PhoneMissionScreenProps<TPhoto>) {
   const t = useT();
   const { checkin, saving: checkinSaving } = useMissionCheckin();
+
+  // « Par date » (default) or « Par localisation », as on the dossier's Photos.
+  const [partitionMode, setPartitionMode] = useState<PartitionMode>('date');
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const locationOf = usePhotoLocations(photos, allPlans ?? [], {
+    unknown: t('Sans localisation'),
+    rdv: t('adresse du RDV'),
+  });
+  const groups = useMemo(() => {
+    type Group = { key: string; label: string; items: TPhoto[] };
+    const list: Group[] = [];
+    const byKey = new Map<string, Group>();
+    const push = (key: string, label: string, photo: TPhoto) => {
+      let g = byKey.get(key);
+      if (!g) {
+        g = { key, label, items: [] };
+        byKey.set(key, g);
+        list.push(g);
+      }
+      g.items.push(photo);
+    };
+    if (partitionMode === 'location') {
+      for (const photo of phasePhotos) {
+        const { key, label } = locationOf(photo);
+        push(key, label, photo);
+      }
+      list.sort((a, b) => (a.key === '__unknown__' ? 1 : b.key === '__unknown__' ? -1 : a.label.localeCompare(b.label, 'fr')));
+    } else {
+      for (const photo of phasePhotos) {
+        const d = toDate(photo.uploadedAt);
+        if (!d || Number.isNaN(d.getTime())) {
+          push('__undated__', t('Sans date'), photo);
+          continue;
+        }
+        const day = startOfDay(d);
+        push(String(day.getTime()), format(day, 'd MMMM yyyy', { locale: dateFnsLocale() }), photo);
+      }
+      list.sort((a, b) => (a.key === '__undated__' ? 1 : b.key === '__undated__' ? -1 : Number(b.key) - Number(a.key)));
+    }
+    return list;
+  }, [phasePhotos, partitionMode, locationOf, t]);
 
   // Primary plan first (the next RDV, else the newest), the others after it.
   const orderedPlans = useMemo(() => {
@@ -159,8 +218,9 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
     ...(primaryPlan?.adresse?.trim()
       ? [{ label: t('Itinéraire'), icon: <Navigation />, href: mapsSearchUrl(primaryPlan.adresse.trim()), external: true }]
       : []),
-    // The check-in write stays an editor's action (the bar itself always shows).
-    ...(canEdit && primaryPlan && !primaryPlan.checkinAt
+    // The check-in write stays an editor's action (the bar itself always
+    // shows) — never the agent's: their arrival is detected automatically.
+    ...(canEdit && !isATG && primaryPlan && !primaryPlan.checkinAt
       ? [{
           label: t('Confirmer l’arrivée'),
           icon: <MapPin />,
@@ -304,42 +364,33 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
           )}
         </div>
 
-        {/* 3-column grid: the phase's photos, then the dashed add tile. */}
+        {/* The phase's photos: « Par date / Par localisation », one disclosure
+            row per day or place over a 3-column grid (the dossier's Photos
+            gallery on a phone), then the dashed add tile. */}
         {phasePhotos.length === 0 && !(canEdit && !atCap) ? (
           <p className="py-8 text-center text-[13px] text-ink-3">{`${t('Aucune photo')} ${t(activeTab).toLowerCase()}`}</p>
         ) : (
-          <ul className="grid grid-cols-3 gap-1.5">
-            {phasePhotos.map((photo) => (
-              <li key={photo.id} className="relative">
-                {photo.pendingUpload ? (
-                  <div className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-lg bg-status-warning-bg text-status-warning-fg">
-                    <Upload className="h-5 w-5" aria-hidden />
-                    <span className="text-[11px] font-medium">{t('En attente')}</span>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => onOpenPhoto(photo)}
-                    aria-label={`${t('Agrandir')} ${photo.name}`}
-                    className="block aspect-square w-full overflow-hidden rounded-lg bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo.url} alt={photo.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-                  </button>
-                )}
-                {/* Name pill, bottom-left of every tile (the handoff's tile label). */}
-                {photo.name && (
-                  <span
-                    aria-hidden
-                    className="pointer-events-none absolute bottom-1.5 left-1.5 max-w-[calc(100%-12px)] truncate rounded-sm bg-card/85 px-1.5 py-0.5 text-[11px] font-medium leading-[14px] text-ink"
-                  >
-                    {photo.name}
-                  </span>
-                )}
-              </li>
-            ))}
+          <>
+            {phasePhotos.length > 0 && (
+              <>
+                <PartitionTabs value={partitionMode} onChange={setPartitionMode} />
+                <div className="-mx-1">
+                  {groups.map((g) => (
+                    <PhotoGroup
+                      key={g.key}
+                      label={g.label}
+                      count={g.items.length}
+                      open={openGroups[g.key] ?? true}
+                      onToggle={() => setOpenGroups((prev) => ({ ...prev, [g.key]: !(prev[g.key] ?? true) }))}
+                    >
+                      <PhotoGrid photos={g.items} onOpen={(photo) => onOpenPhoto(photo)} />
+                    </PhotoGroup>
+                  ))}
+                </div>
+              </>
+            )}
             {canEdit && !atCap && (
-              <li>
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={onCamera}
@@ -351,9 +402,9 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
                     {phasePhotos.length > 0 ? t('Ajouter') : t('Prendre une photo')}
                   </span>
                 </button>
-              </li>
+              </div>
             )}
-          </ul>
+          </>
         )}
       </section>
 

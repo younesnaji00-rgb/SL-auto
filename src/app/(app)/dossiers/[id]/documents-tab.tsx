@@ -138,6 +138,8 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
   const t = useT();
   const db = useFirestore();
   const { canWrite, profile } = useCurrentUser();
+  // No download for the Agent de terrain (owner ruling 2026-09-25).
+  const canDownload = profile?.role !== 'Agent de Terrain';
   const canEdit = canWrite('dossiers');
   const auth = useAuth();
   const storage = useStorage();
@@ -795,10 +797,12 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
         </div>
         {!selectionMode && (
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
-            <Button variant="ghost" size="sm" onClick={() => setSelectionMode(true)}>
-              <CheckSquare className="h-4 w-4" />
-              {t('Sélectionner')}
-            </Button>
+            {canDownload && (
+              <Button variant="ghost" size="sm" onClick={() => setSelectionMode(true)}>
+                <CheckSquare className="h-4 w-4" />
+                {t('Sélectionner')}
+              </Button>
+            )}
             <OptionsManagerModal
               collectionName="options_types_documents"
               title={t('Types de documents')}

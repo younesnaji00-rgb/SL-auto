@@ -23,6 +23,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { landingPathFor } from '@/lib/role-landing';
 import { useDashboardData } from './use-dashboard-data';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
+import { useAssignableChiffreurs } from '@/hooks/use-assignable-chiffreurs';
 import { directoryIdsFor } from '@/lib/chiffreur-identity';
 import { buildDashboardSla } from './metrics';
 import { Freshness } from './ui';
@@ -79,11 +80,17 @@ function DashboardInner({ role }: { role: string }) {
   // The chiffrages name their chiffreur by `chiffreurs` directory id: resolve
   // mine the same way the queue page does (QA bug 029).
   const { chiffreurs: chiffreurDirectory } = useChiffreurs();
+  const { chiffreurs: chiffreurAccounts, loading: chiffreurAccountsLoading } = useAssignableChiffreurs();
   const person = useMemo(() => {
     if (!profile) return null;
     const base = { uid: profile.uid, nom: profile.nom, prenom: (profile as any).prenom, email: profile.email };
-    return { ...base, chiffreurDirectoryIds: directoryIdsFor(chiffreurDirectory, base) };
-  }, [profile, chiffreurDirectory]);
+    return {
+      ...base,
+      chiffreurDirectoryIds: directoryIdsFor(chiffreurDirectory, base),
+      // What no chiffreur account owns is in a chiffreur's « Ma file » too.
+      ...(profile.role === 'Chiffreur' && !chiffreurAccountsLoading ? { chiffreurAccounts } : {}),
+    };
+  }, [profile, chiffreurDirectory, chiffreurAccounts, chiffreurAccountsLoading]);
 
   // Admin has no subtitle (owner 2026-09-08): its header is ONE line — title,
   // freshness, the cohort window, the role tabs and the period strip — so

@@ -160,8 +160,15 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   const currentUid = auth?.currentUser?.uid || '';
   // Anyone who can edit the dossier may delete a document (owner ruling
   // 2026-09-16: 'some documents cannot be deleted' — the role/owner
-  // restriction blocked gestionnaires and agents from removing pièces).
-  const canDeleteDoc = (_d: TypedDoc): boolean => canEdit;
+  // restriction blocked gestionnaires from removing pièces). The Agent de
+  // terrain deletes only what they imported themselves, never a
+  // gestionnaire's pièce (owner ruling 2026-09-25).
+  const canDeleteDoc = (d: TypedDoc): boolean => {
+    if (!canEdit) return false;
+    if (!isATG) return true;
+    const upload = d as TypedDoc & { uploadedBy?: string; uploadePar?: string };
+    return (!!currentUid && upload.uploadedBy === currentUid) || (!!currentEmail && upload.uploadePar === currentEmail);
+  };
 
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
