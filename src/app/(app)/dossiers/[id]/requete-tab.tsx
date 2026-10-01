@@ -218,7 +218,6 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                     <Field
                       label={t('Compagnie')}
                       value={formValues.compagnie}
-                      managerModal={<OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />}
                     >
                         <Select value={formValues.compagnie} onValueChange={(v) => handleFormChange('compagnie', v)}>
                             <SelectTrigger className="h-9"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>

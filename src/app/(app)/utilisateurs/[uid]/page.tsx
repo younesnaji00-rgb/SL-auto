@@ -67,8 +67,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useToast } from '@/hooks/use-toast';
-import { useCurrentUser } from '@/hooks/use-current-user';
-import { NAV_GROUPS, isItemVisibleToRole } from '@/lib/nav-groups';
+import { useCurrentUser, canValidateRapport } from '@/hooks/use-current-user';
+import { NAV_GROUPS } from '@/lib/nav-groups';
+import { describeRole, resolveRoleAccess, roleOpensNavItem } from '@/lib/role-access';
 import { rappelsEnvoyesRoleDefault } from '@/lib/permissions';
 import { useDoc, useFirestore } from '@/firebase';
 import {
@@ -84,8 +85,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { getDocs } from '@/lib/firestore-logged';
-import { roles, isSingleSessionRole, type Role } from '@/lib/dossiers-data';
-import { ROLE_DESCRIPTIONS } from '@/lib/role-descriptions';
+import { isSingleSessionRole, type Role } from '@/lib/dossiers-data';
 import { isSessionStale, timestampToMillis } from '@/lib/session-meta';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useOptions } from '@/hooks/use-options';
@@ -259,6 +259,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
     [dbSites],
   );
 
+  // The same role list as the creation form: Firestore `options_roles`, the
+  // fixed list of dossiers-data.ts `roles` (owner 2026-10-01).
+  const { options: dbRoles } = useOptions('options_roles');
+  const roleOptions = useMemo(() => dbRoles.filter(o => o.active !== false).map(o => o.label), [dbRoles]);
+
   // Zone typeahead combobox state
   const [zonePopoverOpen, setZonePopoverOpen] = useState(false);
   const [zoneQuery, setZoneQuery] = useState('');
@@ -357,13 +362,17 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
   // handler decides which list (denied vs granted) to write to based on it.
   const { compagnies: allCompagnies } = useCompagnies();
   const permissionTree = useMemo(() => {
-    const role = formData.role || undefined;
+    // The label resolves as the account's own profile does (lib/role-access.ts):
+    // « directeur » defaults to everything, « responsable des chiffreurs » to
+    // the chiffrage pages.
+    const access = resolveRoleAccess(formData.role || undefined);
+    const role = access.role ?? undefined;
     type Node = { id: string; label: string; roleDefault: boolean; children?: Node[] };
     const out: Node[] = [];
     for (const group of NAV_GROUPS) {
       for (const item of group.items) {
         if (item.href === '/signaler-bug') continue;
-        const parentDefault = isItemVisibleToRole(item, role);
+        const parentDefault = roleOpensNavItem(item, access);
         const node: Node = { id: item.href, label: t(item.label), roleDefault: parentDefault };
         if (item.href === '/mes-rappels') {
           node.children = [
@@ -373,14 +382,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
             { id: '/mes-rappels#envoyes', label: t('Envoyés'), roleDefault: parentDefault && rappelsEnvoyesRoleDefault(role) },
           ];
         } else if (item.href === '/dossiers') {
-          // Validation has its own role gate (canValidateRapport): Admin +
-          // Directeur-family roles. Other roles cannot validate by default;
-          // an admin can still GRANT the override.
-          const canValidate =
-            role === 'Admin' ||
-            role === 'Directeur des opérations' ||
-            role === 'Directeur' ||
-            role === 'Directeur technique';
+          // Validation has its own role gate (canValidateRapport): Admin and
+          // every label resolving to it. Other roles cannot validate by
+          // default; an admin can still GRANT the override.
+          const canValidate = canValidateRapport(role);
           node.children = [
             { id: '/dossiers#validation', label: t('Validation de dossier'), roleDefault: canValidate },
           ];
@@ -779,13 +784,18 @@ export default function UserDetailPage({ params }: { params: Promise<{ uid: stri
                   <Select value={formData.role} onValueChange={v => setFormData(p => ({ ...p, role: v as Role }))}>
                     <SelectTrigger id="u-role" className="max-w-[16rem]"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {roles.map(r => <SelectItem key={r} value={r}>{t(r)}</SelectItem>)}
+                      {roleOptions.map(r => <SelectItem key={r} value={r}>{t(r)}</SelectItem>)}
+                      {/* A role from before the list was fixed stays readable
+                          until another one is picked. */}
+                      {formData.role && !roleOptions.includes(formData.role) && (
+                        <SelectItem value={formData.role}>{formData.role}</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                   {/* What this role can do, at the point of assignment
                       (addendum ter E). */}
-                  {ROLE_DESCRIPTIONS[formData.role] && (
-                    <p className="t-caption max-w-[24rem]">{t(ROLE_DESCRIPTIONS[formData.role])}</p>
+                  {describeRole(formData.role) && (
+                    <p className="t-caption max-w-[24rem]">{t(describeRole(formData.role) as string)}</p>
                   )}
                 </div>
                 <div className="space-y-1">

@@ -98,7 +98,7 @@ export default function UserMenu({ compact }: UserMenuProps) {
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           title={displayName}
-          description={profile?.role ? t(profile.role) : undefined}
+          description={profile && (profile.roleLabel || profile.role) ? t(profile.roleLabel || profile.role) : undefined}
           items={items}
         />
       </>
@@ -112,7 +112,9 @@ export default function UserMenu({ compact }: UserMenuProps) {
       <DropdownMenuContent align="end" className="w-64 [&_[role=menuitem]]:text-[13px] [&_[role=menuitem]_svg]:text-ink-2">
         <DropdownMenuLabel className="font-normal">
           <p className="truncate text-sm font-semibold text-ink">{displayName}</p>
-          {profile?.role && <p className="t-caption truncate">{t(profile.role)}</p>}
+          {profile && (profile.roleLabel || profile.role) && (
+            <p className="t-caption truncate">{t(profile.roleLabel || profile.role)}</p>
+          )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem

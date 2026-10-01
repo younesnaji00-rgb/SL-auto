@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore';
 import { getDoc, getDocs } from './firestore-logged';
 import { getApp } from 'firebase/app';
-import { CANONICAL_STATUTS } from './dossiers-data';
+import { CANONICAL_STATUTS, roles } from './dossiers-data';
 
 // Module-level guard — prevents multiple seeds in the same browser session
 const _seeded = new Set<string>();
@@ -21,7 +21,8 @@ const ALL_DEFAULTS: Record<string, string[]> = {
   options_statuts: [...CANONICAL_STATUTS],
   options_types_rdv: ['Avant', 'En cours', 'Après'],
   options_types_documents: ['Rapport d\'expertise', 'Devis', 'Facture', 'Photos avant expertise', 'Photos après expertise', 'Photos au moment du sinistre', 'PV de constat', 'Carte grise', 'Permis de conduire', 'Attestation d\'assurance'],
-  options_roles: ['Admin', 'Directeur', 'Directeur des opérations', 'Directeur technique', 'Responsable technique', 'Responsable d\'équipe', 'Gestionnaire', 'Chiffreur', 'Agent de Terrain'],
+  // The fixed role list (dossiers-data.ts) — the access of each is in lib/role-access.ts.
+  options_roles: [...roles],
   options_agents: ['Agent 1', 'Agent 2'],
   compagnies: ['ATLANTA', 'Allianz', 'CP', 'Fès ATLANTASANAD', 'Fès RMA', 'Fès Sanlam', 'Rma assurance', 'Wafa Assurance', 'Zurich Assurance'],
   options_types_dossier: ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'],

@@ -263,7 +263,6 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                   <div className="min-w-0">
                     <div className="flex items-center justify-between">
                       <Label className="t-label">{t('Compagnie')}</Label>
-                      <OptionsManagerModal collectionName="compagnies" title="Compagnies" />
                     </div>
                     <Select value={formData.compagnie} onValueChange={(v) => setFormData({ ...formData, compagnie: v })}>
                       <SelectTrigger className="mt-1 h-10 max-md:h-12"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>

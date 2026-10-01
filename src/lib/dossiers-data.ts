@@ -148,16 +148,23 @@ export const compagnies = [
     'Allianz', 'RMA', 'Sanlam', 'Wafa', 'ATLANTA', 'CP', 'Fès RMA', 'Fès ATLANTASANAD', 'Fès Sanlam', 'Wafa Assurance', 'RMA Assurance', 'Zurich Assurance', 'Saham Assurance', 'Atlanta Assurance', 'AXA Assurance'
 ];
 
+/**
+ * The role list of Utilisateurs, in the order it shows — the same labels as
+ * the Firestore `options_roles` collection (owner list, fixed 2026-10-01: the
+ * gear that added roles is gone). What each role opens lives in
+ * `lib/role-access.ts`; a role added here needs its access defined there.
+ */
 export const roles = [
   'Admin',
-  'Directeur',
-  'Directeur des opérations',
-  'Directeur technique',
-  'Responsable technique',
-  'Responsable d\'équipe',
   'Gestionnaire',
   'Chiffreur',
   'Agent de Terrain',
+  'Responsable des gestionnaires',
+  'Responsable des agents de terrain',
+  'Responsable des chiffreurs',
+  'Directeur des opérations',
+  'Directeur technique',
+  'Directeur',
 ] as const;
 export type Role = typeof roles[number];
 
@@ -166,11 +173,8 @@ export type Role = typeof roles[number];
  * photos, planifications, etc.) anywhere in the app. All other roles see
  * UI without delete buttons.
  *
- * NOTE: the role enum above is also the seed list for the `options_roles`
- * Firestore collection (see `seed-options.ts`). Adding a NEW role via the
- * gear icon in Utilisateurs does NOT grant it delete permission — that
- * permission is intentionally name-driven below. To grant delete to a new
- * role, add its label here.
+ * Checked against the profile's RESOLVED role (lib/role-access.ts), so the
+ * Directeurs and the « Responsable des … » get it through 'Admin'.
  */
 export const ROLES_THAT_CAN_DELETE: ReadonlySet<string> = new Set<string>([
   'Admin',

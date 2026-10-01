@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { buildDocFamilies } from '@/lib/doc-family';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useCanOpenPath } from '@/hooks/use-visible-nav';
 import { useOptions } from '@/hooks/use-options';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -94,6 +95,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const { toast } = useToast();
   const { canWrite, profile } = useCurrentUser();
   const canEdit = canWrite('assignations-chiffrage');
+  // The chiffrage responsable does not open dossiers (owner ruling 2026-10-01).
+  const canOpenPath = useCanOpenPath();
   // "Envoyer par mail" is a gestionnaire-only action. Not Admins (even though
   // Admins can edit everything, they shouldn't send client mails on behalf of
   // the gestionnaire). Not chiffreurs.
@@ -396,7 +399,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         ? `${profile.prenom} ${profile.nom}`.trim() || profile.email
         : 'Admin';
       const userEmail = profile?.email || '';
-      const userRole = profile?.role || 'Admin';
+      const userRole = profile?.roleLabel || profile?.role || 'Admin';
 
       await logHistorique(
         db,
@@ -812,7 +815,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         return (
           <BottomActionBar
             secondary={[
-              chiffrage.dossierId && { label: t('Ouvrir le dossier'), icon: <FolderOpen />, href: `/dossiers/${chiffrage.dossierId}` },
+              chiffrage.dossierId &&
+                canOpenPath(`/dossiers/${chiffrage.dossierId}`) && { label: t('Ouvrir le dossier'), icon: <FolderOpen />, href: `/dossiers/${chiffrage.dossierId}` },
             ].filter(Boolean) as BottomActionBarSecondary[]}
             primary={primary}
             caption={caption}

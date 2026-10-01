@@ -1,12 +1,15 @@
 'use client';
 
 /**
- * Admin / Responsable d'équipe — three tabs (one per role) with the SAME
+ * Admin / Directeurs — three tabs (one per role) with the SAME
  * block skeleton as that role's personal dashboard, aggregated, and a
  * per-user toggle that swaps the page for that person's own dashboard
  * unchanged (Salesforce « view as » running-user pattern), followed by a
  * « Contexte de charge » row comparing the person to the team MEDIAN and its
  * interquartile band — never a rank (theory C4 · role-based C2 · elements B6).
+ *
+ * A « Responsable des … » (`scope`) sees the tab of its own team only — no
+ * Direction, no other team (owner ruling 2026-10-01).
  *
  * The tab and the selected user live in the URL (`?vue=…&user=…`).
  */
@@ -37,6 +40,7 @@ import { DirectionDashboardV2 } from './direction-dashboard-v2';
 // get their own scope-pill shell bound to the same vue/user/period state.
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { PhoneAdminDashboard } from './phone-admin';
+import type { AccessScope } from '@/lib/role-access';
 
 /** Period choices shared by the header strip; « tout » spans the whole history. */
 type Period = 30 | 90 | 365 | 'tout';
@@ -57,6 +61,15 @@ const VUE_OF_ROLE: Record<DashboardRole, Vue> = { Gestionnaire: 'gestionnaires',
 const TAB_LABEL: Record<Vue, string> = { direction: 'Direction', gestionnaires: 'Gestionnaires', chiffreurs: 'Chiffreurs', terrain: 'Terrain' };
 const TAB_ICON: Record<Vue, React.ElementType> = { direction: LineChart, gestionnaires: Building2, chiffreurs: Calculator, terrain: UserCheck };
 const VUES: Vue[] = ['direction', 'gestionnaires', 'chiffreurs', 'terrain'];
+/** The one tab a « Responsable des … » sees: its own team. */
+const VUE_OF_SCOPE: Record<AccessScope, Vue> = { operations: 'gestionnaires', chiffrage: 'chiffreurs', terrain: 'terrain' };
+/** Subtitle of a one-team dashboard (it has no tab row to name the team). */
+const TEAM_LABEL: Record<Vue, string> = {
+  direction: 'Direction',
+  gestionnaires: 'Équipe des gestionnaires',
+  chiffreurs: 'Équipe des chiffreurs',
+  terrain: 'Équipe terrain',
+};
 
 /** Vocabulary of the per-role tiles and columns (same measures, role words). */
 const WORDS: Record<DashboardRole, { enCours: string; enCoursCaption: string; termines: string; sla: string; queueHref: string }> = {
@@ -80,11 +93,15 @@ export interface AdminDashboardProps {
   loading: boolean;
   /** Last listener tick — the « En direct » stamp on the header line. */
   updatedAt?: Date | null;
+  /** A « Responsable des … »: its own team's tab only. `null` = every tab. */
+  scope?: AccessScope | null;
 }
 
 export function AdminDashboard(props: AdminDashboardProps) {
   const t = useT();
-  const [vue, setVue] = useState<Vue>('direction');
+  const vues = useMemo<Vue[]>(() => (props.scope ? [VUE_OF_SCOPE[props.scope]] : VUES), [props.scope]);
+  const homeVue = vues[0];
+  const [vue, setVue] = useState<Vue>(homeVue);
   const [userId, setUserId] = useState<string | null>(null);
   // The period lives HERE, not inside the Direction view: 5a puts the strip on
   // the header line beside the role tabs, and that line belongs to this shell.
@@ -112,13 +129,15 @@ export function AdminDashboard(props: AdminDashboardProps) {
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const v = sp.get('vue');
-    if (v && (VUES as string[]).includes(v)) setVue(v as Vue);
+    // A tab the account does not have (a link from an Admin) is ignored.
+    if (v && (vues as string[]).includes(v)) setVue(v as Vue);
     const u = sp.get('user');
     if (u) setUserId(u);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const sync = (nextVue: Vue, nextUser: string | null) => {
     const url = new URL(window.location.href);
-    if (nextVue === 'direction') url.searchParams.delete('vue');
+    if (nextVue === homeVue) url.searchParams.delete('vue');
     else url.searchParams.set('vue', nextVue);
     if (nextUser) url.searchParams.set('user', nextUser);
     else url.searchParams.delete('user');
@@ -138,7 +157,7 @@ export function AdminDashboard(props: AdminDashboardProps) {
     /* Phone: the tab row is the page's own sticky row under the 48 px bar,
        full width and scrollable if the labels overflow (mobile pass). */
     <TabsList data-tour="dash-tabs" className="max-md:sticky max-md:top-0 max-md:z-20 max-md:-mx-4 max-md:w-[calc(100%+2rem)] max-md:justify-start max-md:overflow-x-auto max-md:rounded-none max-md:px-4 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
-      {VUES.map((v) => {
+      {vues.map((v) => {
         const Icon = TAB_ICON[v];
         return (
           <TabsTrigger key={v} value={v} data-tour={`dash-tab-${v}`} className="gap-2">
@@ -187,9 +206,16 @@ export function AdminDashboard(props: AdminDashboardProps) {
     </div>
   );
 
+  // One team (a « Responsable des … »): no tab row, the team named under the
+  // title instead. The period strip only drives the Direction and Terrain
+  // views, so a one-team dashboard keeps it for Terrain only.
+  const oneTeam = vues.length === 1;
+  const showPeriod = vues.includes('direction') || vue === 'terrain';
+
   if (isPhone) {
     return (
       <PhoneAdminDashboard
+        vues={vues}
         vue={vue}
         onChangeVue={changeVue}
         userId={userId}
@@ -218,30 +244,35 @@ export function AdminDashboard(props: AdminDashboardProps) {
           every block already prints its own window in its caption. */}
       <PageHeader
         title={t('Tableau de bord')}
+        subtitle={oneTeam ? t(TEAM_LABEL[homeVue]) : undefined}
         size="compact"
         actions={
-          <>
-            {tabsList}
-            {periodStrip}
-          </>
+          oneTeam && !showPeriod ? undefined : (
+            <>
+              {!oneTeam && tabsList}
+              {showPeriod && periodStrip}
+            </>
+          )
         }
       />
-      <TabsContent value="direction" className="space-y-6">
-        <DirectionDashboardV2
-          dossiers={props.dossiers}
-          chiffrages={props.chiffrages}
-          missions={props.missions}
-          workflowLogs={props.workflowLogs}
-          users={props.users}
-          sla={props.sla}
-          holidays={props.holidays}
-          now={props.now}
-          loading={props.loading}
-          windowDays={windowDays}
-          onOpenTeam={(role) => changeVue(VUE_OF_ROLE[role])}
-        />
-      </TabsContent>
-      {DASHBOARD_ROLES.map((role) => (
+      {vues.includes('direction') && (
+        <TabsContent value="direction" className="space-y-6">
+          <DirectionDashboardV2
+            dossiers={props.dossiers}
+            chiffrages={props.chiffrages}
+            missions={props.missions}
+            workflowLogs={props.workflowLogs}
+            users={props.users}
+            sla={props.sla}
+            holidays={props.holidays}
+            now={props.now}
+            loading={props.loading}
+            windowDays={windowDays}
+            onOpenTeam={(role) => changeVue(VUE_OF_ROLE[role])}
+          />
+        </TabsContent>
+      )}
+      {DASHBOARD_ROLES.filter((role) => vues.includes(VUE_OF_ROLE[role])).map((role) => (
         <TabsContent key={role} value={VUE_OF_ROLE[role]} className="space-y-6">
           <RoleTab role={role} userId={userId} onSelectUser={changeUser} windowDays={windowDays} {...props} />
         </TabsContent>

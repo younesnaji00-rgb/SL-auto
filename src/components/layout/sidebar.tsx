@@ -238,7 +238,9 @@ const AppSidebar = () => {
         {!isCollapsed && (
           <div className="min-w-0 px-2 pb-1.5">
             <p className="truncate text-[13px] font-medium text-sidebar-foreground">{displayName}</p>
-            {profile?.role && <p className="truncate text-[11px] text-sidebar-muted">{t(profile.role)}</p>}
+            {profile && (profile.roleLabel || profile.role) && (
+              <p className="truncate text-[11px] text-sidebar-muted">{t(profile.roleLabel || profile.role)}</p>
+            )}
           </div>
         )}
         <SidebarMenu>

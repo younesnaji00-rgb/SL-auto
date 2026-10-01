@@ -18,6 +18,8 @@ import MobileNav, { useBottomBarState } from '@/components/layout/mobile-nav';
 import { useRouter, usePathname } from 'next/navigation';
 import { PageLoader } from '@/components/ui/page-loader';
 import { TutorialLauncher } from '@/components/tutorial/tutorial-launcher';
+import { Button } from '@/components/ui/button';
+import { canOpenPath } from '@/lib/role-access';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 
@@ -32,7 +34,7 @@ const FLUSH_ROUTE_PATTERNS = [/^\/dossiers\/[^/]+$/];
 const UNCAPPED_ROUTES = ['/dossiers'];
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { firebaseUser, loading, profile } = useCurrentUser();
+  const { firebaseUser, loading, profile, signOut } = useCurrentUser();
   const { items: navItems } = useVisibleNav();
   const pathname = usePathname() || '';
   const router = useRouter();
@@ -44,16 +46,28 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [loading, firebaseUser, router]);
 
-  // Agent de terrain: the pages of their own navigation only — missions and
-  // their dashboard (owner ruling 2026-09-25: no image or document leaves
-  // the app through them). A typed URL to a dossier, the documents or the
-  // consultation lands back on the missions instead of rendering.
+  // The pages of their own navigation only (owner rulings 2026-09-25 and
+  // 2026-10-01, lib/role-access.ts canOpenPath):
+  // - the agent de terrain — missions and their dashboard (no image or
+  //   document leaves the app through them);
+  // - a « responsable des … » — the pages of their side and their team's
+  //   dashboard, plus the pages that side opens (the devis editor from the
+  //   chiffrage queue); nothing of the other sides.
+  // A typed URL to any other page lands back on their first page instead of
+  // rendering.
+  const isAgent = profile?.role === 'Agent de Terrain';
+  const scope = profile?.accessScope ?? null;
   const offLimits =
-    profile?.role === 'Agent de Terrain' &&
-    !navItems.some((i) => pathname === i.href || pathname.startsWith(`${i.href}/`));
+    !!profile &&
+    !profile.noAccess &&
+    !canOpenPath(pathname, { role: profile.role, scope }, navItems.map((i) => i.href));
+  // Home = a page of their own navigation, so the redirect can never loop
+  // (a per-user deny can hide the role's usual first page).
+  const firstPage = navItems.find((i) => i.roles !== null)?.href ?? '/signaler-bug';
+  const home = isAgent && navItems.some((i) => i.href === '/assignations-atg') ? '/assignations-atg' : firstPage;
   React.useEffect(() => {
-    if (offLimits) router.replace('/assignations-atg');
-  }, [offLimits, router]);
+    if (offLimits) router.replace(home);
+  }, [offLimits, home, router]);
 
   if (loading || offLimits) {
     return (
@@ -67,7 +81,30 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return null;
   }
 
+  // A role name that opens no page (lib/role-access.ts): say so, instead of
+  // the landing redirect looping on « Chargement… ».
+  if (profile?.noAccess) {
+    return <NoAccessScreen label={profile.roleLabel || profile.role} onSignOut={signOut} />;
+  }
+
   return <>{children}</>;
+}
+
+function NoAccessScreen({ label, onSignOut }: { label: string; onSignOut: () => Promise<void> }) {
+  const t = useT();
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div role="alert" className="max-w-md space-y-3 text-center">
+        <h1 className="t-heading">{t('Aucun accès pour ce rôle')}</h1>
+        <p className="text-sm text-ink-3">
+          {t('Le rôle')} « {label} » {t('ne donne accès à aucune page. Contactez un administrateur.')}
+        </p>
+        <Button type="button" variant="outline" onClick={() => void onSignOut()}>
+          {t('Se déconnecter')}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function AppShell({ children }: { children: React.ReactNode }) {

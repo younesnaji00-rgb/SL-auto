@@ -113,7 +113,7 @@ export const MERGE_F_EN: Record<string, string> = {
     'Changes made by this user will appear here.',
   "Son compte et sa fiche seront définitivement supprimés. Les journaux d'activité (historique, workflow) qui lui sont attribués seront conservés. Cette action est irréversible.":
     'Their account and profile will be permanently deleted. Activity logs (history, workflow) attributed to them will be kept. This action cannot be undone.',
-  // Role captions shown under the Rôle field (src/lib/role-descriptions.ts)
+  // Role captions shown under the Rôle field (describeRole in src/lib/role-access.ts)
   'Accès complet : dossiers, assignations, utilisateurs et paramètres':
     'Full access: files, assignments, users, and settings',
   'Tableau de bord, suivi, dossiers, rappels, chiffrage et terrain':
@@ -124,6 +124,27 @@ export const MERGE_F_EN: Record<string, string> = {
   'Réalise les missions terrain qui lui sont assignées': 'Carries out the field assignments given to them',
   'Consultation des dossiers (lecture seule) et jours fériés':
     'File lookup (read-only) and statutory holidays',
+  'Mêmes droits que l’Admin': 'Same rights as Admin',
+  'Droits Admin côté gestionnaires uniquement : dossiers, rappels, consultation, compagnies, suivi d’équipe et le tableau de bord de son équipe':
+    'Admin rights on the handlers’ side only: files, reminders, lookup, companies, team tracking, and their team’s dashboard',
+  'Droits Admin sur le chiffrage uniquement, et le tableau de bord de l’équipe des chiffreurs':
+    'Admin rights on estimating only, and the estimators’ team dashboard',
+  'Droits Admin sur les missions terrain uniquement, et le tableau de bord de l’équipe terrain':
+    'Admin rights on field assignments only, and the field team’s dashboard',
+  'Ce rôle ne donne accès à aucune page.': 'This role opens no page.',
+  // One-team dashboard of a « Responsable des … » (dashboard/admin-dashboard.tsx)
+  'Équipe des gestionnaires': 'Handlers’ team',
+  'Équipe des chiffreurs': 'Estimators’ team',
+  'Équipe terrain': 'Field team',
+  // Role names of the fixed list (dossiers-data.ts `roles`)
+  'Responsable des gestionnaires': 'Handlers’ lead',
+  'Responsable des chiffreurs': 'Estimators’ lead',
+  'Responsable des agents de terrain': 'Field agents’ lead',
+  // No-access screen (src/app/(app)/layout.tsx)
+  'Aucun accès pour ce rôle': 'No access for this role',
+  'Le rôle': 'The role',
+  'ne donne accès à aucune page. Contactez un administrateur.': 'opens no page. Contact an administrator.',
+  'Se déconnecter': 'Sign out',
 
   // ── /consultation ──
   'Erreur de chargement': 'Loading error',

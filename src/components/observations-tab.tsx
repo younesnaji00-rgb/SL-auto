@@ -374,7 +374,7 @@ export default function ObservationsTab({
     if (!email) return;
     const emailKey = email.replace(/\./g, '_');
     const viewerName = profile?.nom || email;
-    const viewerRole = profile?.role;
+    const viewerRole = profile?.roleLabel || profile?.role;
     for (const obs of observations) {
       if (markedRef.current.has(obs.id)) continue;
       if (obs.authorEmail === email) continue;
@@ -393,7 +393,7 @@ export default function ObservationsTab({
         markedRef.current.delete(obs.id);
       });
     }
-  }, [db, dossierId, observations, profile?.email, profile?.nom, profile?.role]);
+  }, [db, dossierId, observations, profile?.email, profile?.nom, profile?.role, profile?.roleLabel]);
 
   // Count of observations newer than the last time the panel was opened by
   // this user on this device. While the panel is open we treat new docs as
@@ -465,7 +465,8 @@ export default function ObservationsTab({
     try {
       const userEmail = auth?.currentUser?.email || profile?.email || '';
       const userNom = profile?.nom || userEmail;
-      const userRole = profile?.role || '';
+      // The account's role name, not the resolved 'Admin' (lib/role-access.ts).
+      const userRole = profile?.roleLabel || profile?.role || '';
       const uploaded: ProofFile[] = [];
       for (const file of Array.from(files)) {
         const path = `dossiers/${dossierId}/observations/${obsId}/${Date.now()}_${file.name}`;
@@ -499,7 +500,8 @@ export default function ObservationsTab({
 
     const userEmail = auth?.currentUser?.email || 'Admin';
     const userName = profile?.nom || userEmail;
-    const userRole = profile?.role || 'Admin';
+    // The account's role name, not the resolved 'Admin' (lib/role-access.ts).
+    const userRole = profile?.roleLabel || profile?.role || 'Admin';
     const text = (customFilled ? customText : selectedPreset).trim();
 
     // Round 8 Q-1 + Q-2 + Q-3: writes carry the panel's context tag so the

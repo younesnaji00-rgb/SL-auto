@@ -175,7 +175,6 @@ export default function DossierTab({ dossierId }: { dossierId: string }) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>{t("Compagnie d'assurance")}</Label>
-                    <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />
                   </div>
                   <Select value={formValues.compagnie} onValueChange={(v) => setFormValues({...formValues, compagnie: v})}>
                     <SelectTrigger><SelectValue placeholder={t('Choisir')} /></SelectTrigger>

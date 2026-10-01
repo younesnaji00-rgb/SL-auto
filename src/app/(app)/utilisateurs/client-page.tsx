@@ -60,7 +60,7 @@ import {
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { ROLE_DESCRIPTIONS } from '@/lib/role-descriptions';
+import { describeRole } from '@/lib/role-access';
 import { useFirestore, useCollection, useFirebaseApp } from '@/firebase';
 import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, addDoc } from 'firebase/firestore';
 import { getDocs } from '@/lib/firestore-logged';
@@ -514,10 +514,10 @@ export default function UtilisateursClientPage() {
                     name="role"
                     render={({ field }) => (
                       <FormItem className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <FormLabel>{t('Rôle')}</FormLabel>
-                          <OptionsManagerModal collectionName="options_roles" title={t('Rôles')} />
-                        </div>
+                        {/* No gear: the role list is fixed — each role's
+                            access is defined in lib/role-access.ts (owner
+                            2026-10-01). */}
+                        <FormLabel>{t('Rôle')}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className="max-w-[16rem]" data-tour="usr-role"><SelectValue placeholder={t('Sélectionnez un rôle')} /></SelectTrigger>
@@ -528,8 +528,8 @@ export default function UtilisateursClientPage() {
                         </Select>
                         {/* What the chosen role can do, in plain French, right
                             where it is assigned (addendum ter E). */}
-                        {ROLE_DESCRIPTIONS[field.value] && (
-                          <p className="t-caption max-w-[24rem]">{t(ROLE_DESCRIPTIONS[field.value])}</p>
+                        {describeRole(field.value) && (
+                          <p className="t-caption max-w-[24rem]">{t(describeRole(field.value) as string)}</p>
                         )}
                         <FormMessage />
                       </FormItem>
@@ -543,10 +543,7 @@ export default function UtilisateursClientPage() {
                     name="compagnies"
                     render={({ field }) => (
                       <FormItem className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <FormLabel>{t("Compagnies d'assurance")}</FormLabel>
-                          <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />
-                        </div>
+                        <FormLabel>{t("Compagnies d'assurance")}</FormLabel>
                         <MultiSelect
                           options={companyOptions}
                           selected={field.value}
@@ -562,10 +559,7 @@ export default function UtilisateursClientPage() {
                     name="sites"
                     render={({ field }) => (
                       <FormItem className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <FormLabel>{t('Sites')} <span className="text-ink-4">({t('facultatif')})</span></FormLabel>
-                          <OptionsManagerModal collectionName="options_sites" title={t('Sites')} />
-                        </div>
+                        <FormLabel>{t('Sites')} <span className="text-ink-4">({t('facultatif')})</span></FormLabel>
                         <MultiSelect
                           options={sitesOptions}
                           selected={field.value ?? []}

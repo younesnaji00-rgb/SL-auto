@@ -45,12 +45,11 @@ import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/recor
 import { LoadMore, useRenderCap } from '@/components/ui/load-more';
 import { usePhoneChrome } from '@/components/layout/page-chrome';
 // Mobile redesign 2026-09-14 (Phone.dc.html 571–583): the compagnie grid is a
-// column of RecordCards under a dashed « + Nouvelle compagnie »; the search
-// lives in the top bar. Creation reuses the options manager for `compagnies`
-// (the only place the app creates one) as a full-screen sheet.
+// column of RecordCards; the search lives in the top bar. The dashed
+// « + Nouvelle compagnie » is gone: compagnies are not created from the app
+// (owner 2026-10-01, with the gears of the forms).
 import { RecordCardList } from '@/components/ui/record-card';
-import { PhoneAdminCard, PhoneCreateButton } from '@/components/admin/phone-admin-list';
-import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
+import { PhoneAdminCard } from '@/components/admin/phone-admin-list';
 
 // ── Status chip (element-specs §11: Carbon tag / dataviz — status colours
 //    reserved, always with a label; one helper per domain). Local stand-in for
@@ -245,12 +244,8 @@ export default function CompagniesClientPage() {
   /* ------------------------------------------------------------------ */
   const isPhone = useIsPhone();
   const cap = useRenderCap(dossiers, 25, { signature: `${selectedId ?? ''}|${dateFrom}|${dateTo}` });
-  // PHONE list (design 845–850): local name search fed by the bar; the bar's
-  // « + » clicks the dashed button, which is the options-manager trigger
-  // (that dialog is uncontrolled) — Admin only, like the manager itself.
+  // PHONE list (design 845–850): local name search fed by the bar.
   const [phoneSearch, setPhoneSearch] = useState('');
-  const phoneCreateRef = React.useRef<HTMLButtonElement>(null);
-  const canCreateCompagnie = profile?.role === 'Admin';
   const phoneCompagnies = useMemo(() => {
     const q = phoneSearch.trim().toLowerCase();
     return q ? compagnies.filter((c) => c.nom.toLowerCase().includes(q)) : compagnies;
@@ -276,13 +271,10 @@ export default function CompagniesClientPage() {
                   placeholder: t('Nom de la compagnie…'),
                   ariaLabel: t('Rechercher une compagnie'),
                 },
-                primaryAction: canCreateCompagnie
-                  ? { label: t('Nouvelle compagnie'), icon: <Plus className="h-5 w-5" />, onClick: () => phoneCreateRef.current?.click() }
-                  : null,
               }
             : null,
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [selectedCompagnie?.id, isPhone, loadingCompagnies, phoneCompagnies.length, phoneSearch, canCreateCompagnie],
+      [selectedCompagnie?.id, isPhone, loadingCompagnies, phoneCompagnies.length, phoneSearch],
     ),
   );
 
@@ -313,18 +305,10 @@ export default function CompagniesClientPage() {
         <PageHeader title={pageTitle} subtitle={pageSubtitle} count={compagnies.length} />
 
         {isPhone ? (
-          // PHONE — dashed create button (the options-manager trigger, Admin
-          // only) then one card per compagnie: 8 px logo/initials tile ·
-          // name · › (design 573–581). No per-compagnie dossier counts are
-          // loaded on this page, so the meta is the card's own caption.
+          // PHONE — one card per compagnie: 8 px logo/initials tile · name ·
+          // › (design 573–581). No per-compagnie dossier counts are loaded on
+          // this page, so the meta is the card's own caption.
           <div className="flex flex-col gap-2 md:hidden">
-            {canCreateCompagnie && (
-              <OptionsManagerModal
-                collectionName="compagnies"
-                title={t('Compagnies')}
-                trigger={<PhoneCreateButton ref={phoneCreateRef} label={t('Nouvelle compagnie')} />}
-              />
-            )}
             {compagnies.length === 0 ? (
               <EmptyState
                 icon={<Building2 />}

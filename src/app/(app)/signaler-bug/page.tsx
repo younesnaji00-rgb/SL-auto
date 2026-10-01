@@ -102,13 +102,15 @@ const RowsSkeleton = ({ rows, bubbles }: { rows: number; bubbles?: boolean }) =>
 
 export default function SignalerBugPage() {
   const t = useT();
-  const { profile, firebaseUser, isAdmin } = useCurrentUser();
+  // The inbox of every report is for Admin and the Directeurs; a « Responsable
+  // des … » reports like everyone else (its Admin rights stop at its side).
+  const { profile, firebaseUser, isFullAdmin } = useCurrentUser();
 
   if (!profile || !firebaseUser) {
     return <PageLoader label={t('Chargement…')} />;
   }
 
-  if (isAdmin) {
+  if (isFullAdmin) {
     return <AdminInbox currentUser={firebaseUser} profile={profile} />;
   }
 
@@ -336,7 +338,7 @@ function ChatThread({
     const userEmail = currentUser.email || 'Unknown';
     const userUid = currentUser.uid;
     const userName = profile?.nom || userEmail;
-    const userRole = profile?.role || '';
+    const userRole = profile?.roleLabel || profile?.role || '';
 
     try {
       let pieceJointeData = null;
@@ -387,7 +389,8 @@ function ChatThread({
       });
 
       // Update conversation metadata
-      const isAdminSender = profile?.role === 'Admin';
+      // A « Responsable des … » writes to the admins like any reporter.
+      const isAdminSender = profile?.role === 'Admin' && !profile?.accessScope;
       const conversationData: Record<string, any> = {
         lastMessage: voiceBlob ? 'Message vocal' : text.trim().slice(0, 100) || (selectedFile ? selectedFile.name : ''),
         lastMessageAt: serverTimestamp(),

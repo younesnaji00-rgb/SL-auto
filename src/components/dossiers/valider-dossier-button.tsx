@@ -54,7 +54,7 @@ export function ValiderDossierButton({
         directorValidated: {
           by: uid,
           at: serverTimestamp(),
-          role: profile.role,
+          role: profile.roleLabel || profile.role,
         },
       });
       await logHistorique(
@@ -62,7 +62,7 @@ export function ValiderDossierButton({
         dossierId,
         'Dossier validé',
         userEmail,
-        `Validation par ${profile.role}`,
+        `Validation par ${profile.roleLabel || profile.role}`,
         'validation',
         profile?.nom,
       );

@@ -716,8 +716,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   // off (Baymard: autocorrect corrupts identifiers).
   const dossierFields: FieldDef[] = [
     {
+      // No gear: compagnies are not created from a form (owner 2026-10-01).
       label: t('Compagnie'), value: form.compagnie, path: 'compagnie',
-      modal: <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />,
       edit: (
         <Select value={form.compagnie} onValueChange={(v) => handleChange('compagnie', v)}>
           <SelectTrigger className="h-8 max-md:h-12" aria-label={t('Compagnie')}><SelectValue placeholder={t('Choisir')} /></SelectTrigger>

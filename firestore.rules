@@ -4,8 +4,14 @@ service cloud.firestore {
     function userRole() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
+    // The fixed role list (src/lib/dossiers-data.ts `roles`, Firestore
+    // `options_roles`); what each opens is src/lib/role-access.ts. The
+    // Directeurs have Admin rights everywhere (owner ruling 2026-10-01).
+    function isDirecteur() {
+      return userRole() in ['Directeur', 'Directeur des opérations', 'Directeur technique'];
+    }
     function isAdmin() {
-      return request.auth != null && userRole() == 'Admin';
+      return request.auth != null && (userRole() == 'Admin' || isDirecteur());
     }
 
     // task #42: canonical statuts list (mirrors CANONICAL_STATUTS in src/lib/dossiers-data.ts)
@@ -35,18 +41,22 @@ service cloud.firestore {
       return canonicalStatuts().hasAny([s])
         || s.matches("^[0-9]+ème (accord|proposition d'accord)$");
     }
-    // task #42: writer must be Admin or Directeur des opérations
+    // task #42: writer must be Admin or a Directeur — plus the responsable des
+    // gestionnaires, an Admin of the dossier pages (canValidateRapport in
+    // src/hooks/use-current-user.tsx runs on the resolved role).
     function canValidateDossier() {
       return request.auth != null
-        && (userRole() == 'Admin' || userRole() == 'Directeur des opérations');
+        && (userRole() == 'Admin' || isDirecteur() || userRole() == 'Responsable des gestionnaires');
     }
+    // Missions: planned from the dossier (gestionnaire side), located from the
+    // missions terrain (the terrain responsable's side).
     function canAssign() {
       return request.auth != null && (
         userRole() == 'Admin'
         || userRole() == 'Gestionnaire'
-        || userRole() == 'Directeur'
-        || userRole() == 'Directeur des opérations'
-        || userRole() == 'Directeur technique'
+        || isDirecteur()
+        || userRole() == 'Responsable des gestionnaires'
+        || userRole() == 'Responsable des agents de terrain'
       );
     }
 

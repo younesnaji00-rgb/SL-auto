@@ -1828,9 +1828,6 @@ export default function DossiersClientPage() {
                               </button>
                             ))}
                           </div>
-                          <div className="flex justify-end">
-                            <OptionsManagerModal collectionName="compagnies" title={t('Compagnies')} />
-                          </div>
                         </PopoverContent>
                       </Popover>
                     );

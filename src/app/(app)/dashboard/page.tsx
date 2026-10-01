@@ -6,8 +6,10 @@
  *   Gestionnaire · Chiffreur · Agent de Terrain → their own operational view
  *   (docs/research/dashboard-*.md: work-item age against the SLA, WIP, the
  *   smallest actionable set first, self-referenced figures only).
- *   Admin · Responsable d'équipe → three tabs (one per role) summarising the
+ *   Admin · Directeurs → Direction + three tabs (one per role) summarising the
  *   team, with a per-user toggle that shows that person's dashboard unchanged.
+ *   Responsable des gestionnaires / chiffreurs / agents de terrain → that one
+ *   team's tab only (owner ruling 2026-10-01; lib/role-access.ts).
  *
  * The page carries no period selector: every caption prints its own window
  * (« 30 août – 6 sept. », « maintenant »), and a freshness stamp says the
@@ -61,9 +63,11 @@ function DashboardInner({ role }: { role: string }) {
   const t = useT();
   const { profile } = useCurrentUser();
   const isAdmin = ADMIN_ROLES.includes(role);
+  // A « Responsable des … » is an Admin of one team: no Direction view.
+  const scope = profile?.accessScope ?? null;
   const isPhone = useIsPhone();
   // The workflow logs are the Direction view's « touches par dossier » — admin only.
-  const data = useDashboardData({ withUsers: isAdmin, withWorkflow: isAdmin, withRappels: role === 'Gestionnaire' });
+  const data = useDashboardData({ withUsers: isAdmin, withWorkflow: isAdmin && !scope, withRappels: role === 'Gestionnaire' });
   const { dossiers, chiffrages, missions, holidays, loading } = data;
 
   // One "now" per data change so every « maintenant » figure agrees — plus a
@@ -120,6 +124,7 @@ function DashboardInner({ role }: { role: string }) {
           now={now}
           loading={loading}
           updatedAt={data.updatedAt}
+          scope={scope}
         />
       )}
       {isPhone && role === 'Gestionnaire' && (

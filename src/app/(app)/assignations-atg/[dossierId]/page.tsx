@@ -299,7 +299,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         const phaseTag = (activeTab as 'Avant' | 'En cours' | 'Après');
         await addObservation(
           db, dossierId, editObservation.trim(), 'Planification',
-          profile?.nom || userEmail, userEmail, profile?.role || 'Agent de Terrain',
+          profile?.nom || userEmail, userEmail, profile?.roleLabel || profile?.role || 'Agent de Terrain',
           'assignations-atg', phaseTag, null,
         );
       }

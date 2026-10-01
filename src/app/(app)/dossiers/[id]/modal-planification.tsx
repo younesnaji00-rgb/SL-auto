@@ -440,7 +440,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
           active: true,
           createdBy: profile?.uid || userId,
           createdByName: profile?.nom || userEmail,
-          createdByRole: profile?.role || 'Gestionnaire',
+          createdByRole: profile?.roleLabel || profile?.role || 'Gestionnaire',
         });
         console.debug('[modal-planification] addDoc OK');
         // Set dateMissionAgentTerrain only if not already set (first planification = mission date)
@@ -492,7 +492,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
 
       // Persist observation to subcollection for history
       if (resolvedObservation) {
-        await addObservation(db, dossierId, resolvedObservation, 'Planification', profile?.nom || userEmail, userEmail, profile?.role || 'Gestionnaire', 'dossiers');
+        await addObservation(db, dossierId, resolvedObservation, 'Planification', profile?.nom || userEmail, userEmail, profile?.roleLabel || profile?.role || 'Gestionnaire', 'dossiers');
       }
 
       // The list re-subscribes, so the saved visit is shown for certain.

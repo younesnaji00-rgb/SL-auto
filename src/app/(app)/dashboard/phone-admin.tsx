@@ -40,6 +40,12 @@ export type PhoneAdminVue = 'direction' | 'gestionnaires' | 'chiffreurs' | 'terr
 export type PhoneAdminPeriod = 30 | 90 | 365 | 'tout';
 
 const VUE_LABEL: Record<PhoneAdminVue, string> = { direction: 'Direction', gestionnaires: 'Gestionnaires', chiffreurs: 'Chiffreurs', terrain: 'Terrain' };
+const TEAM_LABEL: Record<PhoneAdminVue, string> = {
+  direction: 'Direction',
+  gestionnaires: 'Équipe des gestionnaires',
+  chiffreurs: 'Équipe des chiffreurs',
+  terrain: 'Équipe terrain',
+};
 const VUES: PhoneAdminVue[] = ['direction', 'gestionnaires', 'chiffreurs', 'terrain'];
 const VUE_OF_ROLE: Record<DashboardRole, PhoneAdminVue> = { Gestionnaire: 'gestionnaires', Chiffreur: 'chiffreurs', 'Agent de Terrain': 'terrain' };
 const ROLE_OF_VUE: Partial<Record<PhoneAdminVue, DashboardRole>> = { gestionnaires: 'Gestionnaire', chiffreurs: 'Chiffreur', terrain: 'Agent de Terrain' };
@@ -52,6 +58,8 @@ const nameOf = (u: DashboardUser): string => (u.nom || u.email || u.id).trim();
 const pctOf = (v: number | null | undefined): string => (v == null ? '—' : `${v} %`);
 
 export interface PhoneAdminDashboardProps {
+  /** The views this account has: all four, or a « Responsable des … »'s own team only. */
+  vues?: PhoneAdminVue[];
   vue: PhoneAdminVue;
   onChangeVue: (v: PhoneAdminVue) => void;
   userId: string | null;
@@ -72,9 +80,10 @@ export interface PhoneAdminDashboardProps {
 
 export function PhoneAdminDashboard(props: PhoneAdminDashboardProps) {
   const t = useT();
-  const { vue, onChangeVue, userId, onSelectUser, dossiers, chiffrages, missions, users, sla, holidays, now, loading } = props;
+  const { vues = VUES, vue, onChangeVue, userId, onSelectUser, dossiers, chiffrages, missions, users, sla, holidays, now, loading } = props;
 
-  const pills: ScopePill[] = VUES.map((v) => ({ key: v, label: t(VUE_LABEL[v]), active: vue === v, onClick: () => onChangeVue(v), dataTour: `dash-tab-${v}` }));
+  // One team (a « Responsable des … »): no pill row, the team named instead.
+  const pills: ScopePill[] = vues.map((v) => ({ key: v, label: t(VUE_LABEL[v]), active: vue === v, onClick: () => onChangeVue(v), dataTour: `dash-tab-${v}` }));
 
   const role = ROLE_OF_VUE[vue] ?? null;
   const team = useMemo(
@@ -85,9 +94,13 @@ export function PhoneAdminDashboard(props: PhoneAdminDashboardProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <ScopePills pills={pills} sticky ariaLabel={t('Vue')} dataTour="dash-tabs" />
+      {vues.length > 1 ? (
+        <ScopePills pills={pills} sticky ariaLabel={t('Vue')} dataTour="dash-tabs" />
+      ) : (
+        <p className="t-caption px-0.5">{t(TEAM_LABEL[vue])}</p>
+      )}
 
-      {vue === 'direction' && <PhoneDirection {...props} />}
+      {vue === 'direction' && vues.includes('direction') && <PhoneDirection {...props} />}
 
       {role && team && selected && (
         <PhonePersonView role={role} row={selected} team={team} onBack={() => onSelectUser(null)} {...props} />

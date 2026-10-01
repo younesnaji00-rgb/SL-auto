@@ -46,7 +46,10 @@ export function OptionsManagerModal({
   trigger
 }: OptionsManagerModalProps) {
   const t = useT();
-  const { isAdmin, canDelete } = useCurrentUser();
+  // The shared lists (natures, statuts, observations, zones…) are firm-wide
+  // settings: Admin and the Directeurs only, not a « Responsable des … »
+  // whose Admin rights stop at its own side (owner ruling 2026-10-01).
+  const { isFullAdmin: isAdmin, canDelete } = useCurrentUser();
   const { options, addOption, updateOption, deleteOption, loading } = useOptions(collectionName, defaultValues);
   const { toast } = useToast();
   const db = useFirestore();

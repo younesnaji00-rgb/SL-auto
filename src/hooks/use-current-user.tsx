@@ -9,6 +9,7 @@ import { ROLES_THAT_CAN_DELETE, SINGLE_SESSION_ROLES, type Role } from '@/lib/do
 import { collectSessionMeta } from '@/lib/session-meta';
 import { trialStatus } from '@/lib/trial';
 import { isPhoneDevice, isPhoneOnlyRole, PHONE_ONLY_FLAG_KEY } from '@/lib/phone-device';
+import { resolveRoleAccess, scopeWritesSection, type AccessScope } from '@/lib/role-access';
 
 // Single-session enforcement (BLOCK model): the FIRST device to log in claims
 // `currentSessionId` on the user doc and holds it. A SECOND device is blocked
@@ -99,7 +100,14 @@ interface UserProfile {
   nom: string;
   prenom: string;
   email: string;
+  /** The role every check runs on — resolved from the account's label (lib/role-access.ts). */
   role: Role;
+  /** The role name the account carries in Utilisateurs: what it shows and what it records. */
+  roleLabel?: string;
+  /** Admin rights limited to one side of the firm (the « Responsable des … » roles). */
+  accessScope?: AccessScope | null;
+  /** A label that opens no page: the shell shows a no-access screen instead of looping. */
+  noAccess?: boolean;
   compagnies: string[];
   /** Cities the account covers (Utilisateurs → « Sites »); empty = none set. */
   sites: string[];
@@ -162,7 +170,10 @@ export function canValidateRapport(role: Role | undefined | null): boolean {
 interface CurrentUserContextType {
   firebaseUser: User | null;
   profile: UserProfile | null;
+  /** Admin rights on the pages this account opens — for a « Responsable des … », its own side only. */
   isAdmin: boolean;
+  /** Admin rights everywhere: Admin and the Directeurs, not a « Responsable des … ». */
+  isFullAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
   canWrite: (section: Section) => boolean;
@@ -175,6 +186,7 @@ const CurrentUserContext = createContext<CurrentUserContextType>({
   firebaseUser: null,
   profile: null,
   isAdmin: false,
+  isFullAdmin: false,
   loading: true,
   signOut: async () => {},
   canWrite: () => false,
@@ -462,12 +474,20 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
                 return;
               }
             }
+            // The label opens what lib/role-access.ts resolves it to (owner
+            // rulings 2026-09-25 and 2026-10-01): a Directeur is an Admin,
+            // « Responsable des chiffreurs » an Admin of the chiffrage side only.
+            const roleLabel: string = data.role || 'Gestionnaire';
+            const access = resolveRoleAccess(roleLabel);
             setProfile({
               uid: user.uid,
               nom: data.nom || '',
               prenom: data.prenom || '',
               email: data.email || user.email || '',
-              role: data.role || 'Gestionnaire',
+              role: (access.role ?? roleLabel) as Role,
+              roleLabel,
+              accessScope: access.scope,
+              noAccess: access.role === null,
               compagnies: data.compagnies || [],
               sites: Array.isArray(data.sites)
                 ? data.sites.filter((v: unknown): v is string => typeof v === 'string' && v.trim() !== '')
@@ -530,11 +550,16 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
   };
 
   const isAdmin = profile?.role === 'Admin';
-  const canWrite = (section: Section) => canRoleWrite(profile?.role, section);
+  // A « Responsable des … » writes as an Admin on its own side only (owner
+  // ruling 2026-10-01): the chiffrage responsable cannot create a dossier.
+  const scope = profile?.accessScope ?? null;
+  const isFullAdmin = isAdmin && !scope;
+  const canWrite = (section: Section) =>
+    canRoleWrite(profile?.role, section) && (!scope || scopeWritesSection(scope, section));
   const canDelete = canRoleDelete(profile?.role);
 
   return (
-    <CurrentUserContext.Provider value={{ firebaseUser, profile, isAdmin, loading, signOut: handleSignOut, canWrite, canDelete }}>
+    <CurrentUserContext.Provider value={{ firebaseUser, profile, isAdmin, isFullAdmin, loading, signOut: handleSignOut, canWrite, canDelete }}>
       {children}
     </CurrentUserContext.Provider>
   );
@@ -546,7 +571,7 @@ export function useCurrentUser() {
 
 /**
  * Wrap a subtree to force a read-only view: `canWrite` returns false for every
- * section, `canDelete`/`isAdmin` are false. The real `profile` is preserved (so
+ * section, `canDelete`/`isAdmin`/`isFullAdmin` are false. The real `profile` is preserved (so
  * names/roles still resolve). Used by the rappel treatment replica so the live
  * dossier-timeline components render in their read-only display mode for a
  * manager who would otherwise have write access. No edits to the (frozen) tab
@@ -555,7 +580,7 @@ export function useCurrentUser() {
 export function ReadOnlyUserScope({ children }: { children: React.ReactNode }) {
   const ctx = useContext(CurrentUserContext);
   const value = useMemo<CurrentUserContextType>(
-    () => ({ ...ctx, canWrite: () => false, canDelete: false, isAdmin: false }),
+    () => ({ ...ctx, canWrite: () => false, canDelete: false, isAdmin: false, isFullAdmin: false }),
     [ctx],
   );
   return <CurrentUserContext.Provider value={value}>{children}</CurrentUserContext.Provider>;
