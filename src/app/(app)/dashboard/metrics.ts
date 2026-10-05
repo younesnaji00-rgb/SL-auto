@@ -27,6 +27,7 @@ import { STEP_DEFS, type FunnelDossier } from '../monitoring/funnel';
 import { buildSlaItems, normalizeMissionType, SLA_BUSINESS_HOURS, type SlaItem } from '../monitoring/metrics';
 import type { DashboardChiffrage, DashboardMission, DashboardUser } from './use-dashboard-data';
 import { isChiffrageMine, isChiffrageUnowned, type ChiffreurAccountRef } from '@/lib/chiffreur-identity';
+import { isValidPhotosSentAt, missionPhotoAnchor, type PhasePhotoTimes } from '@/lib/mission-photos';
 
 export { SLA_BUSINESS_HOURS };
 
@@ -536,7 +537,7 @@ export interface MissionView {
   type: MissionType | null;
   rdv: Date | null;
   start: Date | null;
-  /** The phase's photos are on the dossier (the queue's own completion rule). */
+  /** Photos of its phase were sent from its RDV day on (lib/mission-photos.ts). */
   done: boolean;
   doneAt: Date | null;
   checkedIn: boolean;
@@ -555,7 +556,10 @@ export interface TerrainTiles {
 
 export interface TerrainView {
   next: MissionView | null;
-  /** Open missions from tomorrow on, in RDV order (capped) — « Prochaines missions » (QA bug AT 010). */
+  /**
+   * « Prochaines missions »: every open mission from today on, in RDV order —
+   * today's still to do included (QA bug AT 010). `next` is its first row.
+   */
   upcoming: MissionView[];
   today: MissionView[];
   late: MissionView[];
@@ -572,11 +576,17 @@ const PHOTO_FIELD: Record<MissionType, keyof FunnelDossier> = {
   Après: 'datePhotosApres',
 };
 
+/** dossierId → its sent photos per phase; a dossier absent from it is not loaded. */
+export type MissionPhotoIndex = ReadonlyMap<string, PhasePhotoTimes>;
+
+const earliest = (a: Date | null, b: Date | null): Date | null => (a && b ? (a <= b ? a : b) : a ?? b);
+
 export function missionViews(
   missions: DashboardMission[],
   dossiers: FunnelDossier[],
   holidays: ReadonlySet<string> | undefined,
   now: Date,
+  photos?: MissionPhotoIndex,
 ): MissionView[] {
   const byId = new Map(dossiers.map((d) => [d.id, d]));
   const today = startOfDay(now);
@@ -587,12 +597,29 @@ export function missionViews(
     const type = normalizeMissionType(m.typeMission) as MissionType | null;
     const rdv = toDate(m.dateRDV);
     const start = toDate(m.createdAt) ?? rdv;
-    const photos = type && dossier ? toDate((dossier as any)[PHOTO_FIELD[type]]) : null;
-    // Per-mission truth first: the AT screen stamps `photosSentAt` on the
-    // missions whose photos it sent (QA bugs AT 008 / 009). The dossier-level
-    // stamp stays as the fallback for photos imported by the gestionnaire.
+    // A photo counts for this visit from the start of its RDV day on (from its
+    // creation without RDV) — lib/mission-photos.ts, QA bugs AT 008 / 010.
+    const anchor = missionPhotoAnchor(rdv, toDate(m.createdAt));
+    const phasePhotos = photos?.get(m.dossierId);
+    let photoAt: Date | null = null;
+    if (type && phasePhotos) {
+      // The photos themselves when loaded: AT uploads before 2026-09-24 left no
+      // stamp at all, and a photo still in the offline queue is not sent.
+      photoAt = (phasePhotos[type] ?? []).find((t) => !anchor || t >= anchor) ?? null;
+    } else if (type && dossier) {
+      // Else the dossier's « dernières photos » stamp of the phase.
+      const last = toDate((dossier as any)[PHOTO_FIELD[type]]);
+      photoAt = last && (!anchor || last >= anchor) ? last : null;
+    }
+    // The AT screen's per-visit stamp. One written before the visit's RDV day
+    // is the old « every planification of the phase » write (it hid future
+    // visits) unless the upload flagged an early visit; with the photos
+    // loaded it also needs a sent photo of the phase still on the dossier.
     const sentAt = toDate((m as any).photosSentAt);
-    const doneAt = sentAt ?? (photos && start && photos >= start ? photos : null);
+    const stampOk =
+      isValidPhotosSentAt(sentAt, anchor, (m as any).photosSentEarly === true) &&
+      (!phasePhotos || !type || (phasePhotos[type]?.length ?? 0) > 0);
+    const doneAt = earliest(stampOk ? sentAt : null, photoAt);
     const done = !!doneAt;
     const ageHours = start && !done ? businessHoursBetween(start, now, holidays) : 0;
     const rdvPast = !!rdv && rdv < today;
@@ -621,9 +648,10 @@ export function computeTerrainView(
   holidays: ReadonlySet<string> | undefined,
   now: Date,
   person: PersonRef | null,
+  photos?: MissionPhotoIndex,
 ): TerrainView {
   const mine = person ? allMissions.filter((m) => missionOwnedBy(m, person)) : allMissions;
-  const views = missionViews(mine, dossiers, holidays, now);
+  const views = missionViews(mine, dossiers, holidays, now, photos);
   const open = views.filter((v) => !v.done);
   const today = startOfDay(now);
   const tomorrow = addDays(today, 1);
@@ -635,11 +663,15 @@ export function computeTerrainView(
   const tomorrowList = open.filter((v) => v.rdv && v.rdv >= tomorrow && v.rdv < dayAfter).sort(byRdv);
   const laterCount = open.filter((v) => v.rdv && v.rdv >= dayAfter).length;
   const late = open.filter((v) => v.late).sort((a, b) => b.ageHours - a.ageHours);
-  // Next = the earliest mission from today onwards that is not done (a past
-  // RDV of today still counts: it is the place to go now).
-  const next = open.filter((v) => v.rdv && v.rdv >= today).sort(byRdv)[0] ?? null;
-  const upcoming = open.filter((v) => v.rdv && v.rdv >= tomorrow).sort(byRdv).slice(0, 8);
-  const photosAEnvoyer = open.filter((v) => v.checkedIn).sort(byRdv);
+  // Every mission still to do from today on — a visit later today belongs
+  // here as much as tomorrow's (QA bug AT 010: it only showed in « Visites
+  // aujourd'hui »). Next = its first row (a past RDV of today still counts:
+  // it is the place to go now).
+  const upcoming = open.filter((v) => v.rdv && v.rdv >= today).sort(byRdv);
+  const next = upcoming[0] ?? null;
+  // Arrived, no photo sent yet, RDV day not over. An older visit without
+  // photos is « En retard » (RDV passé sans photos) and listed there only.
+  const photosAEnvoyer = open.filter((v) => v.checkedIn && !(v.rdv && v.rdv < today)).sort(byRdv);
 
   const weekStart = startOfWeek(now, { locale: fr });
   const weekEnd = addDays(weekStart, 7);

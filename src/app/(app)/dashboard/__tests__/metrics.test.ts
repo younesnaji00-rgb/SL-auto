@@ -127,7 +127,10 @@ test('terrain: next, today, late, tomorrow, photos à envoyer', () => {
   assert.deepEqual(v.late.map((x) => x.mission.id), ['m3']);
   assert.equal(v.late[0].lateReason, 'rdv');
   assert.deepEqual(v.tomorrow.map((x) => x.mission.id), ['m4']);
-  assert.deepEqual(v.photosAEnvoyer.map((x) => x.mission.id), ['m3']);
+  // Yesterday's checked-in visit without photos is « En retard » only (QA bug AT 008).
+  assert.deepEqual(v.photosAEnvoyer.map((x) => x.mission.id), []);
+  // « Prochaines missions »: today's still to do, then the next days (QA bug AT 010).
+  assert.deepEqual(v.upcoming.map((x) => x.mission.id), ['m1', 'm4']);
   assert.equal(v.tiles.semaineFaites, 1);
   assert.equal(v.tiles.semainePlanifiees, 4);
 });
