@@ -38,6 +38,8 @@ import { resolvePhotoGeo, photoGeoFields } from '@/lib/photo-geo';
 import { normalizeTypeMission } from '@/lib/type-mission';
 import { downloadFileFromUrl, ensureImageExtension } from '@/components/documents/typed-doc';
 import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
+import { isEditableDocType } from '@/lib/devis-schema';
+import { restoreStatutWithoutGarageDocs } from '@/lib/restore-statut';
 import { addObservation } from '../../dossiers/[id]/log-observation';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
@@ -481,7 +483,15 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       const userId = auth?.currentUser?.uid || 'unknown';
       await logHistorique(db, dossierId, 'Suppression document Agent de Terrain', userEmail, `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé.`, 'document', profile?.nom);
       await logWorkflow(db, dossierId, 'Document supprimé par Agent de Terrain', userEmail, userId, 'done', { details: `Document "${docItem.nom || docItem.name || 'inconnu'}" supprimé` }, profile?.nom);
-      toast({ title: t('Document supprimé') });
+      // The last garage devis / facture gone: the statut falls back to the
+      // one before the chiffrage (owner ruling 2026-10-05).
+      const restored = isEditableDocType(docItem.type || docItem.typeDocument)
+        ? await restoreStatutWithoutGarageDocs(db, dossierId, { email: userEmail, nom: profile?.nom })
+        : null;
+      toast({
+        title: t('Document supprimé'),
+        ...(restored ? { description: `${t('Statut rétabli :')} ${t(restored)}` } : {}),
+      });
     } catch (err) {
       console.error('Delete doc error:', err);
       toast({ variant: 'destructive', title: t('Erreur lors de la suppression du document') });

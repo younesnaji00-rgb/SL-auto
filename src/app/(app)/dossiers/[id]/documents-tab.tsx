@@ -54,7 +54,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { DOCUMENT_TYPES as defaultDocTypes } from '@/lib/constants';
-import { toOrdinalFr } from '@/lib/devis-schema';
+import { isEditableDocType, toOrdinalFr } from '@/lib/devis-schema';
+import { restoreStatutWithoutGarageDocs } from '@/lib/restore-statut';
 import { useFirestore, useAuth, useCollection, useStorage, useDoc } from '@/firebase';
 import { collection, deleteDoc, doc } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
@@ -470,7 +471,15 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
       }
       await deleteDoc(doc(db, 'dossiers', dossierId, 'documents', document.id));
       await logHistorique(db, dossierId, 'Suppression document', userEmail, `Document "${document.nom || 'inconnu'}" supprimé.`, 'document', profile?.nom);
-      toast({ title: t('Document supprimé avec succès') });
+      // The last garage devis / facture gone: the statut falls back to the
+      // one before the chiffrage (owner ruling 2026-10-05).
+      const restored = isEditableDocType(document.type || document.typeDocument)
+        ? await restoreStatutWithoutGarageDocs(db, dossierId, { email: userEmail, nom: profile?.nom })
+        : null;
+      toast({
+        title: t('Document supprimé avec succès'),
+        ...(restored ? { description: `${t('Statut rétabli :')} ${t(restored)}` } : {}),
+      });
     } catch (error: any) {
       console.error('Document delete error:', error);
       toast({

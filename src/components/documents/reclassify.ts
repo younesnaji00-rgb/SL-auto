@@ -17,6 +17,8 @@
 import { doc, serverTimestamp, writeBatch, type Firestore } from 'firebase/firestore';
 import { apiFetch } from '@/lib/api-fetch';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
+import { isEditableDocType } from '@/lib/devis-schema';
+import { restoreStatutWithoutGarageDocs } from '@/lib/restore-statut';
 import { docDisplayName, type TypedDoc } from './typed-doc';
 
 export interface ReclassifyArgs {
@@ -101,6 +103,13 @@ export async function reclassifyDocuments(args: ReclassifyArgs): Promise<Reclass
     'document',
     userName,
   ).catch((err) => console.warn('[reclassify] historique failed (non-fatal)', err));
+
+  // Moving the last garage devis / facture to another slot removes it as
+  // such: the statut falls back to the one before the chiffrage (owner
+  // ruling 2026-10-05). A swap keeps a document in the garage slot.
+  if (!swap && isEditableDocType(sourceType) && !isEditableDocType(targetType)) {
+    await restoreStatutWithoutGarageDocs(db, dossierId, { email: userEmail, nom: userName });
+  }
 
   // Learning loop — fire-and-forget, never blocks the UI.
   void Promise.allSettled([

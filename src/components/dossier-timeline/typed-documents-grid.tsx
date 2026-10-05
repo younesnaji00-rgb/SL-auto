@@ -10,6 +10,7 @@ import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { extractAndPersistChiffrageDevis, extractAndPersistDossierDoc } from '@/lib/devis-extract';
 import { scanAndPersistCarteGrise } from '@/lib/scan-carte-grise';
 import { isEditableDocType } from '@/lib/devis-schema';
+import { restoreStatutWithoutGarageDocs } from '@/lib/restore-statut';
 import { parseAccordDocType, mapToAccorde } from '@/lib/docType-accorde';
 import { buildDocFamilies } from '@/lib/doc-family';
 import { useToast } from '@/hooks/use-toast';
@@ -636,7 +637,15 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
         'document',
         profile?.nom,
       );
-      toast({ title: t('Document supprimé') });
+      // The last garage devis / facture gone: the statut falls back to the
+      // one before the chiffrage (owner ruling 2026-10-05).
+      const restored = isEditableDocType(item.type || item.typeDocument)
+        ? await restoreStatutWithoutGarageDocs(db, dossierId, { email: userEmail, nom: profile?.nom })
+        : null;
+      toast({
+        title: t('Document supprimé'),
+        ...(restored ? { description: `${t('Statut rétabli :')} ${t(restored)}` } : {}),
+      });
     } catch (err: any) {
       console.error('Typed delete error:', err);
       toast({

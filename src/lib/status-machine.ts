@@ -115,6 +115,35 @@ export function isClosedStatus(s: string): boolean {
 }
 
 /**
+ * The chiffrage phase: the states a dossier only reaches through its garage
+ * devis / facture — chiffrage, accords and propositions, envoi, réforme.
+ */
+export function isChiffragePhaseStatus(s: string): boolean {
+  return s === 'Chiffrage en cours' || s === 'Réforme' || isAccordStatus(s);
+}
+
+/** The statut a `statut` historique entry recorded (« Statut changé en Réforme » → « Réforme »). */
+export function statutOfHistoryEntry(action: string): string {
+  const s = String(action ?? '').trim();
+  const m = /^Statut changé en (.+)$/.exec(s);
+  return (m ? m[1] : s).trim();
+}
+
+/**
+ * The last statut a dossier had before its chiffrage phase — what it falls
+ * back to once its garage devis and facture are all deleted (owner ruling
+ * 2026-10-05). `history` is the dossier's `statut` historique, newest first;
+ * null when it holds nothing outside the chiffrage phase.
+ */
+export function statutBeforeChiffrage(history: readonly string[]): string | null {
+  for (const action of history) {
+    const s = statutOfHistoryEntry(action);
+    if (s && !isChiffragePhaseStatus(s)) return s;
+  }
+  return null;
+}
+
+/**
  * True when the ATG (agent de terrain) workflow is considered complete for
  * this dossier. The ATG's in-flight work ends when the dossier has left the
  * planification/chiffrage phase — i.e. the dossier has reached the terminal
