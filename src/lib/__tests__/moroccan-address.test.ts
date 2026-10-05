@@ -1,10 +1,10 @@
 // Run: npx tsx --test src/lib/__tests__/moroccan-address.test.ts
 //
-// « Destination hors de Casablanca / hors de Fès » (owner request
-// 2026-09-25): the city is the locality of the address Google resolved.
+// A rendez-vous address is in Casablanca or Fès, or it is refused (owner
+// ruling 2026-10-05); the city is the locality of the address Google resolved.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { anchorToMorocco, checkSites, localityOf } from '../moroccan-address';
+import { anchorToMorocco, localityOf, placeOfAddress, samePlace } from '../moroccan-address';
 
 test('the locality is the component before the country, without postal or plus code', () => {
   assert.equal(localityOf('219 Bd Mohamed Zerktouni, Casablanca 20250, Maroc'), 'Casablanca');
@@ -13,38 +13,64 @@ test('the locality is the component before the country, without postal or plus c
   assert.equal(localityOf('8V6V+2Q Casablanca, Maroc'), 'Casablanca');
   assert.equal(localityOf('Aïn Chock, Casablanca, Maroc'), 'Casablanca');
   assert.equal(localityOf('Bouskoura, Maroc'), 'Bouskoura');
-});
-
-test('a street named after a city does not put the address in that city', () => {
-  assert.equal(localityOf('Rte de Casablanca, Rabat, Maroc'), 'Rabat');
-  const r = checkSites('Avenue de Fès, Casablanca 20250, Maroc', ['Fès']);
-  assert.deepEqual(r, { locality: 'Casablanca', insideSites: [] });
-});
-
-test('nothing to say when Google resolved only the country or a bare street', () => {
   assert.equal(localityOf('Maroc'), null);
   assert.equal(localityOf(''), null);
   assert.equal(localityOf('Bd Zerktouni, Maroc'), null);
-  assert.equal(checkSites('Maroc', ['Casablanca']), null);
 });
 
-test('inside the site: accents, case, aliases and admin prefixes do not matter', () => {
-  assert.deepEqual(checkSites('Rue X, Fes 30000, Maroc', ['Fès'])?.insideSites, ['Fès']);
-  assert.deepEqual(checkSites('Fès, Maroc', ['fes'])?.insideSites, ['fes']);
-  assert.deepEqual(checkSites('Casablanca, Maroc', ['Casa'])?.insideSites, ['Casa']);
-  assert.deepEqual(checkSites('Préfecture de Casablanca, Maroc', ['Casablanca'])?.insideSites, ['Casablanca']);
+test('Casablanca and Fès are accepted, whatever the accents, case, alias or admin prefix', () => {
+  assert.deepEqual(placeOfAddress('219 Bd Mohamed Zerktouni, Casablanca 20250, Maroc'), {
+    status: 'inside',
+    city: 'Casablanca',
+    locality: 'Casablanca',
+  });
+  assert.equal(placeOfAddress('Bourgogne, Casablanca, Maroc').status, 'inside');
+  assert.deepEqual(placeOfAddress('Rue X, Fes 30000, Maroc'), { status: 'inside', city: 'Fès', locality: 'Fes' });
+  assert.equal(placeOfAddress('Bd Allal Ben Abdellah, Fez, Maroc').status, 'inside');
+  assert.deepEqual(placeOfAddress('Préfecture de Casablanca, Maroc'), {
+    status: 'inside',
+    city: 'Casablanca',
+    locality: 'Préfecture de Casablanca',
+  });
+  assert.equal(placeOfAddress('8V6V+2Q Casablanca, Maroc').status, 'inside');
 });
 
-test('outside every site: the place Google found is named', () => {
-  assert.deepEqual(checkSites('Bouskoura, Maroc', ['Casablanca']), { locality: 'Bouskoura', insideSites: [] });
-  assert.deepEqual(checkSites('Mohammédia, Maroc', ['Casablanca', 'Fès']), { locality: 'Mohammédia', insideSites: [] });
-  // The region is not the city: an address Google only placed in the region
-  // is outside the city itself.
-  assert.deepEqual(checkSites('Casablanca-Settat, Maroc', ['Casablanca'])?.insideSites, []);
+test('another Moroccan city is refused, and named', () => {
+  assert.deepEqual(placeOfAddress('Bouskoura, Maroc'), { status: 'outside', locality: 'Bouskoura', abroad: false });
+  assert.deepEqual(placeOfAddress('Mohammédia, Maroc'), { status: 'outside', locality: 'Mohammédia', abroad: false });
+  // A street named after a city does not put the address in that city.
+  assert.deepEqual(placeOfAddress('Rte de Casablanca, Rabat, Maroc'), { status: 'outside', locality: 'Rabat', abroad: false });
+  assert.equal(placeOfAddress('Avenue de Fès, Marrakech 40000, Maroc').status, 'outside');
 });
 
-test('an account on two sites is inside when the address is in either', () => {
-  assert.deepEqual(checkSites('Bd Allal Ben Abdellah, Fès, Maroc', ['Casablanca', 'Fès'])?.insideSites, ['Fès']);
+test('another country is refused, with the address Google found', () => {
+  // QA bug 045: « borgone » (for the quartier Bourgogne) became a village near Turin.
+  assert.deepEqual(placeOfAddress('10050 Borgone Susa, Ville métropolitaine de Turin, Italie'), {
+    status: 'outside',
+    locality: '10050 Borgone Susa, Ville métropolitaine de Turin, Italie',
+    abroad: true,
+  });
+  assert.equal(placeOfAddress('Bourgogne-Franche-Comté, France').status, 'outside');
+});
+
+test('a place Google could not pin down is refused as not found', () => {
+  assert.deepEqual(placeOfAddress('Maroc'), { status: 'not-found' });
+  assert.deepEqual(placeOfAddress(''), { status: 'not-found' });
+  assert.deepEqual(placeOfAddress('Bd Zerktouni, Maroc'), { status: 'not-found' });
+  // The region of a firm city: the city or any other town of it.
+  assert.deepEqual(placeOfAddress('Casablanca-Settat, Maroc'), { status: 'not-found' });
+  assert.deepEqual(placeOfAddress('Fès-Meknès, Maroc'), { status: 'not-found' });
+});
+
+test('a firm city written without its country is still that city', () => {
+  assert.deepEqual(placeOfAddress('Casablanca'), { status: 'inside', city: 'Casablanca', locality: 'Casablanca' });
+});
+
+test('same place whatever the spelling', () => {
+  assert.ok(samePlace('Fès', 'fes'));
+  assert.ok(samePlace('Casa', 'Casablanca'));
+  assert.ok(!samePlace('Casablanca', 'Fès'));
+  assert.ok(!samePlace('', ''));
 });
 
 test('addresses are tied to Morocco before they reach Google', () => {

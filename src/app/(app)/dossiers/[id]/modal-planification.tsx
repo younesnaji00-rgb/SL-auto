@@ -39,7 +39,8 @@ import { useAgentTerrainWorkload } from '@/hooks/use-workload-counts';
 import { deriveStatus } from '@/lib/status-machine';
 import { useAtgFeasibility } from '@/hooks/use-atg-feasibility';
 import { useAgentLiveLocation } from '@/hooks/use-agent-live-location';
-import { useDestinationCity } from '@/hooks/use-destination-city';
+import { checkAddress, knownAddressCheck, useAddressCheck, type AddressCheck } from '@/hooks/use-address-check';
+import { samePlace } from '@/lib/moroccan-address';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { formatDurationFr } from '@/lib/atg-feasibility';
 import { MapPin } from 'lucide-react';
@@ -294,6 +295,32 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     };
   }, [effectiveIsFresh, effectiveLocation?.lat, effectiveLocation?.lng]);
 
+  // The rendez-vous address must be in Casablanca or Fès (owner ruling
+  // 2026-10-05): any other city or country — or a place Google cannot find —
+  // is refused, and the planification is never saved with it. Checked while
+  // typing, and again by the save itself (/api/check-address).
+  const addressCheck = useAddressCheck(formData.adresse);
+  const addressInside = addressCheck?.status === 'inside';
+
+  /** Why an address cannot be saved; null when it can, or is not checked yet. */
+  const addressProblem = React.useCallback(
+    (check: AddressCheck | null): string | null => {
+      switch (check?.status) {
+        case 'outside':
+          return check.abroad
+            ? `${t('Adresse hors du Maroc : Google la situe à')} « ${check.locality} ».`
+            : `${t('Adresse hors de Casablanca et de Fès : Google la situe à')} ${check.locality}.`;
+        case 'not-found':
+          return t('Adresse introuvable : précisez le quartier ou la rue, à Casablanca ou à Fès.');
+        case 'unavailable':
+          return t('Vérification de l’adresse impossible pour le moment : réessayez dans un instant.');
+        default:
+          return null;
+      }
+    },
+    [t],
+  );
+
   const {
     conflicts: feasibilityConflicts,
     unavailable: feasibilityUnavailable,
@@ -302,18 +329,32 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     agentName: formData.agentTerrain,
     dateRDV: formData.dateRDV,
     timeRDV: formData.timeRDV,
-    adresse: formData.adresse,
+    // Only an address placed in Casablanca or Fès is routed: a typo Google
+    // put in Italy made a 25-hour « conflit de planning » (QA bug 045).
+    adresse: addressInside ? formData.adresse : '',
     excludeId: initialData?.id ?? null,
     agentLiveLocation: effectiveLocation,
   });
 
   // « Destination hors de Casablanca / hors de Fès » (owner request
-  // 2026-09-25): the account's sites (Utilisateurs → « Sites ») against the
-  // city Google resolves the address to. A warning only — saving stays
-  // possible — and an account with no site set sees nothing.
+  // 2026-09-25): an address in the OTHER firm city than the account's
+  // « Sites » (Utilisateurs) is still allowed — a warning only. An account
+  // with no site set sees nothing.
   const accountSites = profile?.sites ?? [];
-  const destinationCity = useDestinationCity(formData.adresse, accountSites);
-  const outsideSites = !!destinationCity && destinationCity.insideSites.length === 0;
+  const outsideSites =
+    addressCheck?.status === 'inside' &&
+    accountSites.length > 0 &&
+    !accountSites.some((s) => samePlace(s, addressCheck.city));
+  const nearestSite = React.useMemo(() => {
+    if (addressCheck?.status !== 'inside') return null;
+    let best: { site: string; meters: number } | null = null;
+    for (const leg of addressCheck.legs) {
+      const site = accountSites.find((s) => samePlace(s, leg.city));
+      if (!site || typeof leg.meters !== 'number') continue;
+      if (!best || leg.meters < best.meters) best = { site, meters: leg.meters };
+    }
+    return best;
+  }, [addressCheck, accountSites]);
 
   // Validation timing (§2.6): required-empty errors ONLY on submit, then per
   // keystroke on the fields that failed; a summary at the top of the body with
@@ -329,10 +370,21 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     }
     list.push({ id: 'plan-date-field', label: t('Date RDV'), validate: (v) => (v.dateRDV ? null : t('Choisissez la date du rendez-vous.')) });
     list.push({ id: 'plan-heure', label: t('Heure RDV'), validate: (v) => (v.timeRDV ? null : t("Renseignez l'heure du rendez-vous.")) });
-    list.push({ id: 'plan-adresse', label: t('Adresse complète'), validate: (v) => (v.adresse.trim() ? null : t("Renseignez l'adresse du rendez-vous.")) });
+    list.push({
+      id: 'plan-adresse',
+      label: t('Adresse complète'),
+      // Empty, then Casablanca or Fès: the save asks Google before it
+      // validates, so the answer for the address as typed is known here.
+      validate: (v) =>
+        v.adresse.trim() ? addressProblem(knownAddressCheck(v.adresse)) : t("Renseignez l'adresse du rendez-vous."),
+    });
     return list;
-  }, [defaultTypeMission, isCurrentUserAT, t]);
+  }, [defaultTypeMission, isCurrentUserAT, t, addressProblem]);
   const formErrors = useFormErrors(formData, rules, { open });
+
+  // The address verdict as soon as Google answers; after a failed save the
+  // field's own error (same text) takes over.
+  const addressLiveProblem = formErrors.errors['plan-adresse'] ? null : addressProblem(addressCheck);
 
   /** Inline message under a field — icon + 13 px danger text (§2.6). */
   const fieldError = (id: string) =>
@@ -344,9 +396,19 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     ) : null;
 
   const handleSave = async () => {
-    if (!db) return;
-    if (!formErrors.validateAll()) return;
+    if (!db || loading) return;
     setLoading(true);
+    // Casablanca or Fès only (owner ruling 2026-10-05): the answer for the
+    // address as typed — known, or asked now — before anything is written. A
+    // check that cannot run refuses the save too.
+    const addressAnswer = formData.adresse.trim() ? await checkAddress(formData.adresse) : null;
+    const valid = formErrors.validateAll();
+    // The address written is the one checked (formData of this call), whatever
+    // was typed during the check.
+    if (!valid || addressAnswer?.status !== 'inside') {
+      setLoading(false);
+      return;
+    }
     const userEmail = auth?.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'Admin';
     const resolvedObservation =
@@ -700,6 +762,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
               value={formData.adresse}
               onChange={(e) => { const v = e.target.value; setFormData((prev) => ({ ...prev, adresse: v })); }}
               {...formErrors.fieldProps('plan-adresse')}
+              {...(addressLiveProblem ? { 'aria-invalid': true, 'aria-describedby': 'plan-adresse-city' } : {})}
               onPaste={async (e) => {
                 const pasted = e.clipboardData.getData('text');
                 const coords = parseMapsCoords(pasted);
@@ -741,16 +804,24 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </div>
             </div>
             {fieldError('plan-adresse')}
-            {outsideSites && destinationCity && (
+            {/* Casablanca or Fès only (owner ruling 2026-10-05): said as soon
+                as Google has placed the address, not only after « Enregistrer ». */}
+            {addressLiveProblem && (
+              <p id="plan-adresse-city" role="alert" className="flex items-start gap-1.5 text-[13px] font-medium leading-snug text-status-danger-fg">
+                <AlertCircle aria-hidden className="mt-px h-4 w-4 shrink-0" />
+                <span className="min-w-0">{addressLiveProblem}</span>
+              </p>
+            )}
+            {outsideSites && addressCheck?.status === 'inside' && (
               <p role="status" className="flex items-start gap-1.5 rounded-md bg-status-warning-bg px-2.5 py-1.5 text-[13px] font-medium leading-snug text-status-warning-fg">
                 <TriangleAlert aria-hidden className="mt-px h-4 w-4 shrink-0" />
                 <span className="min-w-0">
                   {accountSites.length === 1
                     ? `${t('Destination hors de')} ${accountSites[0]}`
                     : `${t('Destination hors de vos sites')} (${accountSites.join(', ')})`}
-                  {' — '}{t('l’adresse se situe à')} {destinationCity.locality}
-                  {destinationCity.nearest
-                    ? `, ${t('à')} ${Math.max(1, Math.round(destinationCity.nearest.meters / 1000))} km ${t('de')} ${destinationCity.nearest.site}`
+                  {' — '}{t('l’adresse se situe à')} {addressCheck.locality}
+                  {nearestSite
+                    ? `, ${t('à')} ${Math.max(1, Math.round(nearestSite.meters / 1000))} km ${t('de')} ${nearestSite.site}`
                     : ''}
                   .
                 </span>

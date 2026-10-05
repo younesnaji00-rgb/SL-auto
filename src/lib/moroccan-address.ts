@@ -1,15 +1,14 @@
 /**
- * Moroccan addresses as Google resolves them — shared by the two routes that
- * send a rendez-vous address to the Distance Matrix API (atg-feasibility,
- * destination-city).
+ * Moroccan addresses as Google resolves them — shared by the routes that send
+ * a rendez-vous address to the Distance Matrix API (atg-feasibility,
+ * check-address, arrival-distance).
  *
- * « Destination hors de Casablanca / hors de Fès » (owner request
- * 2026-09-25): the city of an address is read from the address Google
- * RESOLVED for the route (Distance Matrix `destination_addresses`, formatted
- * in French: « 219 Bd Mohamed Zerktouni, Casablanca 20250, Maroc »), so the
- * warning names the very place the drive is computed to. The locality is the
- * LAST component before the country: « Rte de Casablanca, Rabat, Maroc » is
- * in Rabat, whatever its street is called.
+ * The city of an address is read from the address Google RESOLVED for the
+ * route (Distance Matrix `destination_addresses`, formatted in French:
+ * « 219 Bd Mohamed Zerktouni, Casablanca 20250, Maroc »), so a message names
+ * the very place the drive is computed to. The locality is the LAST component
+ * before the country: « Rte de Casablanca, Rabat, Maroc » is in Rabat,
+ * whatever its street is called.
  */
 
 /** `lat,lng` pairs are sent as-is; anything else is a typed address. */
@@ -77,17 +76,56 @@ export function localityOf(formatted: string): string | null {
   return locality;
 }
 
-export interface SiteCheck {
-  /** Where Google placed the address, as it wrote it (« Bouskoura »). */
-  locality: string;
-  /** The sites the address lies in; empty when it is outside all of them. */
-  insideSites: string[];
+/** Same place whatever the accents, case, alias or admin prefix (« Fez », « Préfecture de Casablanca »). */
+export function samePlace(a: string, b: string): boolean {
+  const ca = canonicalPlace(a);
+  return ca !== '' && ca === canonicalPlace(b);
 }
 
-/** Which of `sites` the formatted address falls in; null when it cannot be told. */
-export function checkSites(formatted: string, sites: string[]): SiteCheck | null {
+/**
+ * The firm works in two cities (owner ruling 2026-10-05): a rendez-vous
+ * address anywhere else — another Moroccan city, another country, or a place
+ * Google cannot pin down — is invalid, and no planification is saved with it.
+ */
+export const FIRM_CITIES = ['Casablanca', 'Fès'] as const;
+export type FirmCity = (typeof FIRM_CITIES)[number];
+
+/**
+ * Where Google stops when it cannot place an address any closer than the
+ * region of one of the firm's cities (« Casablanca-Settat, Maroc »): the city
+ * itself, or any other town of the region — so it cannot be told.
+ */
+const FIRM_REGIONS = new Set(['casablanca settat', 'fes meknes']);
+
+export type AddressPlace =
+  /** In one of the firm's cities. */
+  | { status: 'inside'; city: FirmCity; locality: string }
+  /** Another city of Morocco, or another country (`abroad`, `locality` = the whole address). */
+  | { status: 'outside'; locality: string; abroad: boolean }
+  /** Nothing closer than the country or the region: Google did not find the place. */
+  | { status: 'not-found' };
+
+function firmCityOf(place: string): FirmCity | null {
+  return FIRM_CITIES.find((c) => samePlace(c, place)) ?? null;
+}
+
+/** Where a Google-formatted address lies against the firm's cities. */
+export function placeOfAddress(formatted: string): AddressPlace {
+  const parts = (formatted || '').split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return { status: 'not-found' };
+  const last = parts[parts.length - 1];
+  if (!COUNTRY.has(normalizePlace(last))) {
+    // No country written after a firm city (« Casablanca »): still that city.
+    const city = firmCityOf(last.replace(/\d+/g, ''));
+    if (city) return { status: 'inside', city, locality: city };
+    // Another country: « 10050 Borgone Susa, Ville métropolitaine de Turin, Italie ».
+    return { status: 'outside', locality: parts.join(', '), abroad: true };
+  }
   const locality = localityOf(formatted);
-  if (!locality) return null;
-  const here = canonicalPlace(locality);
-  return { locality, insideSites: sites.filter((s) => canonicalPlace(s) === here) };
+  if (!locality) return { status: 'not-found' };
+  if (FIRM_REGIONS.has(canonicalPlace(locality).replace(/^region (?:de |d |du )?/, ''))) {
+    return { status: 'not-found' };
+  }
+  const city = firmCityOf(locality);
+  return city ? { status: 'inside', city, locality } : { status: 'outside', locality, abroad: false };
 }
