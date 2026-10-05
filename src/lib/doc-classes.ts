@@ -32,6 +32,17 @@ export const PREFILL_DOC_CLASSES = DOC_CLASSES.filter((c) => c.prefill).map((c) 
 /** Label used while a file is uploaded but not yet classified. */
 export const UNCLASSIFIED_LABEL = 'À classer';
 
+/**
+ * The dropped files « Pré-remplir les informations » sends to the scan: those
+ * of a pre-fill class when there are any, else every file — the user dropped
+ * them to pre-fill. Counting only the pre-fill classes left the button grey
+ * for good whenever the AI filed the document under another one (QA 055).
+ */
+export function prefillSources<T extends { type: string }>(rows: T[]): T[] {
+  const identity = rows.filter((r) => PREFILL_DOC_CLASSES.includes(r.type));
+  return identity.length > 0 ? identity : rows;
+}
+
 export function isDocClass(label: string | null | undefined): label is string {
   return !!label && DOC_CLASS_LABELS.includes(label);
 }

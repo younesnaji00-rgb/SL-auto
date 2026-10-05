@@ -40,7 +40,7 @@ import { extractAndPersistChiffrageDevis, extractAndPersistDossierDoc } from '@/
 import { scanAndPersistCarteGrise } from '@/lib/scan-carte-grise';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
-import { DOC_CLASSES, DOC_CLASS_LABELS, PREFILL_DOC_CLASSES, UNCLASSIFIED_LABEL, confidenceBand } from '@/lib/doc-classes';
+import { DOC_CLASSES, DOC_CLASS_LABELS, UNCLASSIFIED_LABEL, confidenceBand, prefillSources } from '@/lib/doc-classes';
 import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -64,6 +64,8 @@ interface InboxItem {
   examplesUsed?: number;
   corrected?: boolean;
   confirmed?: boolean;
+  /** Stored, but the AI gave no class (error or timeout): left « À classer ». */
+  classifyFailed?: boolean;
   error?: string;
 }
 
@@ -343,7 +345,12 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           try {
             ai = await classify(it.file);
           } catch (err) {
-            if (!forcedType) throw err;
+            // The file is stored: a failed or timed-out classification leaves
+            // the row « À classer », to be filed by hand and still usable for
+            // the pre-fill. As an error row it kept « Pré-remplir les
+            // informations » grey for good (QA 055).
+            console.warn('[smart-inbox] classification failed', err);
+            if (!forcedType) ai = { classifyFailed: true };
           }
           // Deleted while the AI classified it: ✕ already deleted the document.
           if (onRemoveRef.current && removedIdsRef.current.has(it.id)) return;
@@ -354,7 +361,9 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           // « Analyse en cours… » long after the fields were filled (QA 042).
           const merged: InboxItem = { ...it, ...ai, docId, storagePath, type: finalType, status: 'ready' };
           patch(it.id, { ...ai, type: finalType, status: 'ready' });
-          if (docId) {
+          // Nothing learnt when the AI failed: the stored record stays
+          // « À classer » / pending until the user files it.
+          if (docId && !ai.classifyFailed) {
             updateDoc(doc(db, 'dossiers', dossierId, 'documents', docId), {
               type: finalType,
               aiSuggestedType: ai.aiType ?? null,
@@ -366,7 +375,8 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           }
           if (forcedType) void sendFeedback(merged, forcedType, 'manual');
           if (finalType !== UNCLASSIFIED_LABEL) await postProcess(finalType, storagePath, it.file);
-          okCount++;
+          // The history line reads « déposé(s) et classé(s) par l'IA ».
+          if (!ai.classifyFailed) okCount++;
         } catch (err: any) {
           console.error('[smart-inbox] ingest failed', err);
           patch(it.id, { status: 'error', error: err?.message || t('Échec') });
@@ -417,8 +427,9 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
     }
   }, [items, sendFeedback, toast, t]);
 
+  // Any finished row can pre-fill, whatever class the AI gave it (QA 055).
   const prefillCandidates = useMemo(
-    () => items.filter((it) => it.status === 'ready' && PREFILL_DOC_CLASSES.includes(it.type)),
+    () => prefillSources(items.filter((it) => it.status === 'ready')),
     [items],
   );
 
@@ -465,6 +476,8 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
   // slow AI answer no longer reads as the button being stuck (QA 042).
   const uploading = items.some((it) => it.status === 'uploading');
   const ready = items.filter((it) => it.status === 'ready');
+  // A row the AI could not classify is done, but not « classé ».
+  const filed = ready.filter((it) => it.type !== UNCLASSIFIED_LABEL).length;
   const unconfirmed = ready.filter((it) => !it.confirmed && !it.corrected && it.aiType && it.type === it.aiType).length;
 
   if (!canEdit) return null;
@@ -563,7 +576,9 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
                       {it.status === 'uploading' && t('Envoi…')}
                       {it.status === 'classifying' && t("Analyse par l'IA…")}
                       {it.status === 'error' && (it.error || t('Échec'))}
-                      {it.status === 'ready' && (it.rationale || (it.aiType ? `${t('Proposé :')} ${t(it.aiType)}` : t('Classé manuellement')))}
+                      {it.status === 'ready' && (it.classifyFailed && it.type === UNCLASSIFIED_LABEL
+                        ? t("Non classé par l'IA — choisissez la classe")
+                        : it.rationale || (it.aiType ? `${t('Proposé :')} ${t(it.aiType)}` : t('Classé manuellement')))}
                       {it.status === 'ready' && typeof it.examplesUsed === 'number' && it.examplesUsed > 0 && ` · ${it.examplesUsed} ${t('exemple(s) appris utilisé(s)')}`}
                     </p>
                   </div>
@@ -623,7 +638,7 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
           </ul>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2">
             <p className="text-xs text-muted-foreground">
-              {ready.length} {ready.length > 1 ? t('documents classés') : t('document classé')}
+              {filed} {filed > 1 ? t('documents classés') : t('document classé')}
               {unconfirmed > 0 && ` · ${unconfirmed} ${t('à confirmer')}`}
             </p>
             {/* `flex-wrap` + `shrink-0`: the buttons carry `whitespace-nowrap`, so
