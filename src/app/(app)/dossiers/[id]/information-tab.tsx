@@ -550,6 +550,9 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     const missingLabels: string[] = [];
     const role = (form.expertRank as ExpertRole) || '1er';
     const requiredAtCreation: Array<[string, string]> = [
+      // A dossier never exists without its reference (owner ruling
+      // 2026-10-05) — one created before the rule gets it on its next save.
+      ['refExpert', t('Réf Dossier')],
       ['compagnie', t('Compagnie')],
       [`experts.${role}.nom`, `${t('Experts')} · ${t('Nom complet')}`],
     ];

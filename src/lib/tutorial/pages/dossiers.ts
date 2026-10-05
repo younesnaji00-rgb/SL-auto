@@ -274,6 +274,13 @@ export const dossiersTutorial: PageTutorial = {
       interact: 'click',
     },
     {
+      anchor: 'dos-create-reference',
+      title: 'La référence du dossier',
+      body: "Saisissez la référence du dossier : elle est obligatoire, et aucun autre dossier ne peut déjà la porter.",
+      side: 'bottom',
+      dynamic: true,
+    },
+    {
       anchor: 'dos-create-compagnie',
       title: 'La compagnie',
       body: 'Choisissez « Laurentide Assurance » — la compagnie du document du kit.',

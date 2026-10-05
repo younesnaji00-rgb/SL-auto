@@ -449,14 +449,20 @@ export default function Step1Import({
         lastImportOverwriteAt: deleteField(),
         lastImportFilled: deleteField(),
       };
+      // A dossier never loses its reference (owner ruling 2026-10-05): the
+      // one the scan wrote stays unless there is an earlier one to restore.
+      const isReference = (field: string) => field === 'refExpert' || field === 'refExpertKey';
       const overwrites: { field: string; previousValue: any }[] = Array.isArray(dossier?.lastImportOverwrites) ? dossier.lastImportOverwrites : [];
       for (const o of overwrites) {
         if (!o?.field) continue;
+        if (isReference(o.field) && !String(o.previousValue ?? '').trim()) continue;
         revert[o.field] = o.previousValue === undefined ? null : o.previousValue;
+        // The uniqueness key follows the reference it is computed from (QA bug 002).
+        if (o.field === 'refExpert') revert.refExpertKey = normalizeRefExpert(o.previousValue);
       }
       const filled: string[] = Array.isArray(dossier?.lastImportFilled) ? dossier.lastImportFilled : [];
       for (const field of filled) {
-        if (typeof field !== 'string' || !field) continue;
+        if (typeof field !== 'string' || !field || isReference(field)) continue;
         revert[field] = deleteField();
       }
       for (const field of [...overwrites.map((o) => o?.field), ...filled]) {

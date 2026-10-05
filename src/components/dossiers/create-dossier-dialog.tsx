@@ -21,7 +21,8 @@ import {
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Segmented } from '@/components/ui/segmented';
-import { INPUT_EMAIL, INPUT_LAST, INPUT_NAME, INPUT_TEL } from '@/lib/input-attrs';
+import { INPUT_EMAIL, INPUT_ID, INPUT_LAST, INPUT_NAME, INPUT_TEL } from '@/lib/input-attrs';
+import { DUPLICATE_REF_MESSAGE, findDossierWithRefExpert } from '@/lib/ref-expert-unique';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -78,6 +79,8 @@ export function CreateDossierDialog({
     [dbCompagnies],
   );
 
+  // A dossier never exists without its reference (owner ruling 2026-10-05).
+  const [reference, setReference] = useState('');
   const [compagnie, setCompagnie] = useState<string>(initialCompagnie || NONE_VALUE);
   const [expertRole, setExpertRole] = useState<ExpertRole>('1er');
   const [experts, setExperts] = useState<ExpertsState>(initialExpertsState);
@@ -125,6 +128,7 @@ export function CreateDossierDialog({
 
   const resetForm = () => {
     setErrors({});
+    setReference('');
     setCompagnie(initialCompagnie || NONE_VALUE);
     setExpertRole('1er');
     setExperts(initialExpertsState());
@@ -150,11 +154,17 @@ export function CreateDossierDialog({
 
   /**
    * QA bug 007: a dossier needs at least its compagnie and the name of the
-   * expert whose role is selected (the creator). The other experts stay
-   * optional, but any filled téléphone / e-mail / nom must be well-formed.
+   * expert whose role is selected (the creator) — and its reference (owner
+   * ruling 2026-10-05). The other experts stay optional, but any filled
+   * téléphone / e-mail / nom must be well-formed.
    */
   const validate = (): Record<string, string> => {
     const next: Record<string, string> = {};
+    if (!reference.trim()) next.reference = t('Renseignez la référence du dossier.');
+    else {
+      const refMsg = validateFieldValue('ref', reference);
+      if (refMsg) next.reference = t(refMsg);
+    }
     if (compagnie === NONE_VALUE || !compagnie.trim()) next.compagnie = t('Choisissez la compagnie du dossier.');
     for (const role of visibleExpertRoles(expertRole)) {
       const e = experts[role];
@@ -172,6 +182,7 @@ export function CreateDossierDialog({
   // Unsaved work (§2.5): only a typed expert detail or a changed compagnie /
   // rôle counts — an untouched dialog closes without a question.
   const isDirty =
+    reference.trim() !== '' ||
     compagnie !== (initialCompagnie || NONE_VALUE) ||
     expertRole !== '1er' ||
     Object.values(experts).some((e) => e.nom || e.telephone || e.email || e.compagnie);
@@ -188,12 +199,18 @@ export function CreateDossierDialog({
       toast({
         variant: 'destructive',
         title: t('Champs obligatoires'),
-        description: t('Renseignez la compagnie et le nom de l’expert, puis corrigez les formats signalés.'),
+        description: t('Renseignez la référence, la compagnie et le nom de l’expert, puis corrigez les formats signalés.'),
       });
       return;
     }
     try {
       setIsCreating(true);
+      // Uniqueness gate (QA bug 002), as in the Informations form.
+      if (await findDossierWithRefExpert(db, reference)) {
+        setErrors({ reference: t(DUPLICATE_REF_MESSAGE) });
+        toast({ variant: 'destructive', title: t('Réf. expert déjà utilisée'), description: t(DUPLICATE_REF_MESSAGE) });
+        return;
+      }
 
       const roles = visibleExpertRoles(expertRole);
       const expertsSeed: Partial<Record<ExpertRole, Partial<ExpertInfo>>> = {};
@@ -202,6 +219,7 @@ export function CreateDossierDialog({
       }
 
       const seed = {
+        refExpert: reference,
         compagnie: compagnie === NONE_VALUE ? '' : compagnie,
         expertRole,
         experts: expertsSeed,
@@ -262,13 +280,28 @@ export function CreateDossierDialog({
         <DialogHeader>
           <DialogTitle className="t-title">{t('Nouveau dossier')}</DialogTitle>
           <DialogDescription>
-            {t("La compagnie et le nom de l'expert sont obligatoires. Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.")}
+            {t("La référence, la compagnie et le nom de l'expert sont obligatoires. Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.")}
           </DialogDescription>
         </DialogHeader>
 
         {/* Form — element-specs §9 (GOV.UK: visible label above each 40 px
             control, rows 16 apart, placeholder only as a format cue). */}
         <div className="grid gap-4 py-2">
+          <div className="grid gap-1" data-tour="dos-create-reference">
+            <Label htmlFor="create-reference">{t('Réf Dossier')} <span aria-hidden className="text-status-danger-fg">*</span></Label>
+            <Input
+              id="create-reference"
+              {...INPUT_ID}
+              className="max-w-[16rem]"
+              value={reference}
+              onChange={(e) => { setReference(e.target.value); clearError('reference'); }}
+              disabled={isCreating}
+              aria-invalid={!!errors.reference || undefined}
+              aria-required
+            />
+            {fieldError('reference')}
+          </div>
+
           <div className="grid gap-1" data-tour="dos-create-compagnie">
             <Label htmlFor="create-compagnie">{t('Compagnie')} <span aria-hidden className="text-status-danger-fg">*</span></Label>
             <Select

@@ -1,5 +1,6 @@
 import { addDoc, collection, serverTimestamp, type Firestore } from 'firebase/firestore';
 import { deriveStatus } from '@/lib/status-machine';
+import { refExpertFields } from '@/lib/ref-expert-unique';
 
 export type ExpertRole = '1er' | '2eme' | 'arbitre';
 
@@ -46,9 +47,17 @@ export interface CreateEmptyDossierInput {
   }>;
 }
 
+/** Thrown — and shown — when a dossier would be created without its reference. */
+export const MISSING_REF_MESSAGE = 'La référence du dossier est obligatoire.';
+
 /**
  * Creates a blank dossier document and returns its id.
  * All fields are empty strings / defaults. Statut = 'Création dossier' (canonical).
+ *
+ * A dossier never exists without its reference (owner ruling 2026-10-05: a
+ * dossier without one threw off the counts of Gestion des dossiers and
+ * Consultation): `seed.refExpert` is required, and stored trimmed with its
+ * uniqueness key (lib/ref-expert-unique.ts). The caller checks it is free.
  *
  * `seed.experts` is a partial map keyed by role → expert info. Missing roles or
  * fields fall back to the empty shape (`{ nom: '', telephone: '', email: '', compagnie: '' }`).
@@ -56,6 +65,8 @@ export interface CreateEmptyDossierInput {
 export async function createEmptyDossier({ db, user, seed }: CreateEmptyDossierInput): Promise<string> {
   const s = seed ?? {};
   const role = s.expertRole ?? '1er';
+  const reference = refExpertFields(s.refExpert);
+  if (!reference.refExpert) throw new Error(MISSING_REF_MESSAGE);
 
   const mergeExpert = (r: ExpertRole): ExpertInfo => ({
     ...emptyExpertInfo(),
@@ -74,7 +85,7 @@ export async function createEmptyDossier({ db, user, seed }: CreateEmptyDossierI
     compagnie: s.compagnie ?? '',
     nature: s.nature ?? '',
     typeDossier: '',
-    refExpert: s.refExpert ?? '',
+    ...reference,
     matricule: s.matricule ?? '',
     policeNumber: '',
     referenceCompagnie: '',
