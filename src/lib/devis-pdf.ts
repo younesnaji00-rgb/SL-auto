@@ -5,6 +5,8 @@ import { BRAND } from './brand';
 import {
   type DevisSnapshot,
   type EditableDocType,
+  accordColumnTotals,
+  findAccordColumn,
   formatFr,
   OBSERVATION_LABELS,
   rowTotalHT,
@@ -205,31 +207,13 @@ export function renderDevisPdf(
     (c) => c.kind === 'accord' || c.kind === 'proposition-accord'
   );
 
-  // Parse an accord column's per-row PU value (user-entered as a fr-formatted
-  // string). Invalid / blank → 0 so the computed Total HT Accord stays numeric.
-  const parseAccordPU = (raw: string | undefined): number => {
-    if (!raw) return 0;
-    const cleaned = raw.replace(/\s|\u00a0/g, '');
-    const hasComma = cleaned.includes(',');
-    const hasDot = cleaned.includes('.');
-    let normalized = cleaned;
-    if (hasComma && hasDot) normalized = cleaned.replace(/\./g, '').replace(',', '.');
-    else if (hasComma) normalized = cleaned.replace(',', '.');
-    const n = parseFloat(normalized);
-    return Number.isFinite(n) ? n : 0;
-  };
-  const accordRowTotalHT = (r: (typeof devis.rows)[number], puRaw: string | undefined): number => {
-    const pu = parseAccordPU(puRaw);
-    const q = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
-    const vRaw = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
-    const v = Math.min(100, Math.max(0, vRaw));
-    return pu * q * (1 - v / 100);
-  };
-  const accordRowTTC = (r: (typeof devis.rows)[number], puRaw: string | undefined): number => {
-    const ht = accordRowTotalHT(r, puRaw);
-    const pct = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
-    return ht * (1 + pct / 100);
-  };
+  // An accord column's per-row PU is a fr-formatted string; the shared
+  // schema helper parses it and applies vétusté and T.V.A exactly as the
+  // editor does (QA Chiffreur 006).
+  const accordRowHT = (r: (typeof devis.rows)[number], puRaw: string | undefined): number =>
+    accordColumnTotals([r], { [r.id]: puRaw ?? '' }).ht;
+  const accordRowTTC = (r: (typeof devis.rows)[number], puRaw: string | undefined): number =>
+    accordColumnTotals([r], { [r.id]: puRaw ?? '' }).ttc;
 
   const collapseAccord = opts?.collapseAccordToTotal === true;
   const sansTva = opts?.sansTva === true;
@@ -294,11 +278,11 @@ export function renderDevisPdf(
     accordExtras.forEach((c) => {
       const pu = c.values[r.id] || '';
       if (collapseAccord) {
-        const total = sansTva ? accordRowTotalHT(r, pu) : accordRowTTC(r, pu);
+        const total = sansTva ? accordRowHT(r, pu) : accordRowTTC(r, pu);
         base.push(formatFr(total));
       } else {
         base.push(pu);
-        base.push(formatFr(accordRowTotalHT(r, pu)));
+        base.push(formatFr(accordRowHT(r, pu)));
         base.push(formatFr(accordRowTTC(r, pu)));
       }
     });
@@ -364,6 +348,16 @@ export function renderDevisPdf(
   // Two rows now: Total H.T and Total TTC Expert (Total TVA row dropped).
   // "Total TTC Expert" is wider than the former "Total TTC" label, so the
   // label column is given more room.
+  //
+  // The two rows mirror the editor's summary bar: « Total H.T » is the
+  // garage's own total, « Total TTC Expert » the expert's accord column
+  // (vétusté + T.V.A applied) via the same helper. It used to print the
+  // garage's TTC, so the downloaded devis contradicted the total read on
+  // screen before saving (QA Chiffreur 006). Without an accord column there
+  // is no expert figure: the garage TTC is printed as a plain « Total TTC ».
+  const footerAccord = findAccordColumn(devis.extraColumns);
+  const footerTtcLabel = footerAccord ? t('Total TTC Expert') : t('Total TTC');
+  const footerTtc = footerAccord ? accordColumnTotals(devis.rows, footerAccord.values).ttc : sumTTC(devis.rows);
   const finalY = (pdf as any).lastAutoTable?.finalY || blockY + blockH + 4;
   const totalsY = finalY + 4;
   const totalsW = 78;
@@ -384,12 +378,12 @@ export function renderDevisPdf(
     pdf.line(totalsX + 38, totalsY, totalsX + 38, totalsY + 14);
 
     pdf.text(t('Total H.T'), totalsX + 2, totalsY + 5);
-    pdf.text(t('Total TTC Expert'), totalsX + 2, totalsY + 12);
+    pdf.text(footerTtcLabel, totalsX + 2, totalsY + 12);
 
     pdf.setFont('helvetica', 'normal');
     pdf.text(formatFr(sumHT(devis.rows)), totalsX + totalsW - 2, totalsY + 5, { align: 'right' });
     pdf.setFont('helvetica', 'bold');
-    pdf.text(formatFr(sumTTC(devis.rows)), totalsX + totalsW - 2, totalsY + 12, { align: 'right' });
+    pdf.text(formatFr(footerTtc), totalsX + totalsW - 2, totalsY + 12, { align: 'right' });
   }
 
   // ── Version watermark in footer ─────────────────────────────────────────

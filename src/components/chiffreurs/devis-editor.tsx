@@ -46,7 +46,7 @@ import { enqueueUpload } from '@/lib/offline/upload-queue';
 import {
   type DevisExtraColumn, type DevisHeader, type DevisRow, type DevisSnapshot, type DevisVersion, type StructuredDevis,
   type EditableBaseDocType, type EditableDocType, type ObservationOption,
-  accordRowTotalHT, emptyHeader, emptyRow, formatFr, normalizeExtraColumns, parseFr, rowTotalHT, sumHT, sumTTC, sumTVA,
+  accordColumnTotals, accordRowTotalHT, emptyHeader, emptyRow, findAccordColumn, formatFr, normalizeExtraColumns, parseFr, rowTotalHT, sumHT, sumTTC, sumTVA,
   VETUSTE_STEP, isValidVetuste,
   REF_OPTIONS, TYPE_OPTIONS, OBSERVATION_OPTIONS, OBSERVATION_LABELS, toBaseEditableDocType,
 } from '@/lib/devis-schema';
@@ -641,20 +641,12 @@ export function DevisEditor({
 
   // Total TTC Expert is the chiffreur's accord/proposition column total, NOT
   // the gestionnaire-entered row PUHT total. Returns null when no
-  // accord/proposition-accord column exists (callers render '—').
+  // accord/proposition-accord column exists (callers render '—'). Same helper
+  // as the saved PDF's footer, so the two can never disagree (QA Chiffreur 006).
   const totalTTCExpert = useMemo<number | null>(() => {
-    const accordCol = extraColumns.find(
-      (c) => c.kind === 'accord' || c.kind === 'proposition-accord',
-    );
+    const accordCol = findAccordColumn(extraColumns);
     if (!accordCol) return null;
-    return rows.reduce((sum, r) => {
-      const pu = parseFr(accordCol.values[r.id] || '');
-      const qte = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
-      const vetuste = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
-      const tva = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
-      const tHt = accordRowTotalHT(pu, qte, vetuste);
-      return sum + tHt * (1 + tva / 100);
-    }, 0);
+    return accordColumnTotals(rows, accordCol.values).ttc;
   }, [extraColumns, rows]);
 
   // Proposition-accord columns show the 2ème expert's name beside the label
@@ -1110,13 +1102,30 @@ export function DevisEditor({
   // the « ? » sheet (chiffrage-redesign-spec). allowInInput keeps it firing
   // while typing in cells; the handler guards the preview dialog (saving
   // there would re-open the dialog on top of itself).
+  //
+  // A cell validates on blur (vétusté clamped / reverted, a PU accordé above
+  // the P.U.H.T cleared). The « Enregistrer » click blurs it first; the
+  // shortcut did not, so the PDF kept the raw value while the screen went on
+  // to show the corrected one (QA Chiffreur 006). Blur, then save from the
+  // next render's state.
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
   useHotkeys(
     [{
       keys: 'mod+s',
       label: t("Enregistrer"),
       group: t("Éditeur de devis"),
       allowInInput: true,
-      handler: () => { if (!saving && !previewOpen) handleSave(); },
+      handler: () => {
+        if (saving || previewOpen) return;
+        const active = document.activeElement;
+        if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+          active.blur();
+          window.setTimeout(() => handleSaveRef.current(), 0);
+          return;
+        }
+        handleSave();
+      },
     }],
     [saving, previewOpen, header, rows, extraColumns],
   );
@@ -2007,17 +2016,7 @@ export function DevisEditor({
                   if (isAccord) {
                     // Task #21: accord footer — PU cell empty, Total H.T Accord
                     // and Prix TTC Accord show column sums.
-                    let totalHTAccordSum = 0;
-                    let prixTTCAccordSum = 0;
-                    for (const r of rows) {
-                      const pu = parseFr(col.values[r.id] || '');
-                      const qte = typeof r.qte === 'number' && Number.isFinite(r.qte) ? r.qte : 0;
-                      const vetuste = typeof r.vetuste === 'number' && Number.isFinite(r.vetuste) ? r.vetuste : 0;
-                      const tva = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
-                      const tHt = computeAccordTotalHT(pu, qte, vetuste);
-                      totalHTAccordSum += tHt;
-                      prixTTCAccordSum += computeAccordPrixTTC(tHt, tva);
-                    }
+                    const { ht: totalHTAccordSum, ttc: prixTTCAccordSum } = accordColumnTotals(rows, col.values);
                     return (
                       <React.Fragment key={col.id}>
                         <td />

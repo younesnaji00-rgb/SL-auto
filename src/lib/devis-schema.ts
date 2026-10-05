@@ -259,6 +259,40 @@ export function sumTTC(rows: DevisRow[]): number {
   return sumHT(rows) + sumTVA(rows);
 }
 
+/**
+ * The accord / proposition column the expert totals are read from: the first
+ * one, as the editor shows it. Null when the table has none yet.
+ */
+export function findAccordColumn<C extends { kind?: string }>(
+  extraColumns: ReadonlyArray<C | null | undefined> | null | undefined,
+): C | null {
+  return (extraColumns ?? []).find((c): c is C => !!c && (c.kind === 'accord' || c.kind === 'proposition-accord')) ?? null;
+}
+
+/**
+ * « Total H.T accordé » and « Total TTC Expert » of one accord / proposition
+ * column: Σ {@link accordRowTotalHT} (vétusté applied), then each row's T.V.A.
+ *
+ * The ONE formula for the editor and the saved PDF. The PDF footer used to
+ * print the garage's own {@link sumTTC} under the « Total TTC Expert » label,
+ * so the downloaded devis disagreed with the total read on screen before
+ * saving (QA Chiffreur 006).
+ */
+export function accordColumnTotals(
+  rows: ReadonlyArray<Pick<DevisRow, 'id' | 'qte' | 'tva' | 'vetuste'>>,
+  values: Record<string, string> | null | undefined,
+): { ht: number; ttc: number } {
+  let ht = 0;
+  let ttc = 0;
+  for (const r of rows) {
+    const rowHt = accordRowTotalHT(parseFr(values?.[r.id] ?? ''), r.qte, r.vetuste);
+    const tvaPct = typeof r.tva === 'number' && Number.isFinite(r.tva) ? r.tva : 0;
+    ht += rowHt;
+    ttc += rowHt * (1 + tvaPct / 100);
+  }
+  return { ht, ttc };
+}
+
 /** French number formatter: 1234.5 → "1 234,50" */
 export function formatFr(n: number, fractionDigits = 2): string {
   if (!Number.isFinite(n)) n = 0;

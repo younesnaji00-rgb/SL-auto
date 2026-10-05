@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { collection, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, updateDoc, getDocFromServer } from 'firebase/firestore';
 import { onSnapshot } from '@/lib/firestore-logged';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useFirestore } from '@/firebase';
@@ -238,14 +238,30 @@ export default function AssignationsChiffragePage() {
 
   useEffect(() => {
     if (!db || dossierIds.length === 0) return;
+    let disposed = false;
     const unsubs = dossierIds.map(did =>
       onSnapshot(doc(db, 'dossiers', did), (snap) => {
         // Only the server can say a dossier is gone — a cold cache says the
-        // same of a dossier it simply has not loaded yet.
+        // same of a dossier it simply has not loaded yet. Even a server
+        // « absent » is asked once more before the row is hidden, and the row
+        // comes back as soon as the dossier is seen again: one transient
+        // answer used to hide a live, untreated chiffrage from the chiffreur
+        // for the rest of the session (QA Chiffreur 002).
         if (!snap.exists() && !snap.metadata.fromCache) {
-          setMissingDossierIds(prev => (prev.has(did) ? prev : new Set(prev).add(did)));
+          getDocFromServer(doc(db, 'dossiers', did))
+            .then((fresh) => {
+              if (disposed || fresh.exists()) return;
+              setMissingDossierIds(prev => (prev.has(did) ? prev : new Set(prev).add(did)));
+            })
+            .catch((err) => console.warn('[assignations-chiffrage] dossier re-check failed, row kept:', did, err));
         }
         if (snap.exists()) {
+          setMissingDossierIds(prev => {
+            if (!prev.has(did)) return prev;
+            const next = new Set(prev);
+            next.delete(did);
+            return next;
+          });
           const data = snap.data();
           setDossierStatuts(prev => ({ ...prev, [did]: data.statut || 'Nouveau' }));
           setDossierCompagnies(prev => ({ ...prev, [did]: data.compagnie || '' }));
@@ -257,7 +273,10 @@ export default function AssignationsChiffragePage() {
         }
       })
     );
-    return () => unsubs.forEach(u => u());
+    return () => {
+      disposed = true;
+      unsubs.forEach(u => u());
+    };
   }, [db, dossierIds.join(',')]);
 
   // Listen to observations subcollection per dossier (latest text + count)

@@ -163,8 +163,12 @@ export function CellNumberInput({
           "focus:border-input focus:ring-2 focus:ring-ring disabled:cursor-not-allowed",
           align === 'center' && 'text-center',
           align === 'right' && 'text-right',
-          suffix && 'pr-5',
-          showSteppers && 'pr-6',
+          suffix && !showSteppers && 'pr-5',
+          showSteppers && !suffix && 'pr-6',
+          // Steppers (2–18 px from the edge) with the suffix beside them
+          // (20–29 px): the digits must stop before both. pr-6 ended them at
+          // 25 px, on top of the « % » in Vétusté (QA Chiffreur 005).
+          suffix && showSteppers && 'pr-8 max-md:pr-8',
         )}
       />
       {suffix && (

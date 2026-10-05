@@ -259,8 +259,12 @@ function ReferencePane({
   const isPdfFile = (name: string) => /\.pdf$/i.test(name || '');
   const selectedName: string = selectedItem?.name || selectedItem?.nom || '';
 
+  // overflow-hidden: in split mode (Vue 1 / Vue 2) each pane gets half the
+  // panel. Without it, a pane's photo grid spilled into the other pane, and
+  // its thumbnails (positioned) painted over that pane's document viewer and
+  // zoom pill (QA Chiffreur 004).
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Pane mini-header: `t-label` (pane name · selected file) · eye button
           opening the DocumentPreviewLightbox (net-new, kept) · list toggle —
           `ghost` icon buttons with aria-pressed on the toggle (§18). */}
@@ -308,9 +312,10 @@ function ReferencePane({
         </div>
       )}
 
-      {/* Compact item selector */}
+      {/* Compact item selector — may shrink (min-h-0): the grid then scrolls
+          inside the pane instead of pushing past it. */}
       {listOpen && mode === 'photos' && (
-        <div className="flex shrink-0 flex-col border-b border-hairline">
+        <div className="flex min-h-0 flex-col border-b border-hairline">
           <div ref={subTabMorphRef} className={cn(PANE_TABLIST_CLASS, 'mx-2 mb-2')} role="tablist">
             {(['avant', 'en_cours', 'apres'] as const).map((key) => (
               <PaneTab
