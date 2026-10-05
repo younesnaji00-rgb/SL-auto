@@ -556,6 +556,7 @@ html {
   --radix-popover-trigger-height: calc(var(--radix-popper-anchor-height) / var(--app-zoom)) !important;
   --radix-hover-card-content-available-height: calc(var(--radix-popper-available-height) / var(--app-zoom)) !important;
   --radix-tooltip-content-available-height: calc(var(--radix-popper-available-height) / var(--app-zoom)) !important;
+  --radix-tooltip-content-available-width: calc(var(--radix-popper-available-width) / var(--app-zoom)) !important;
 }
 /* Same trap for the guided tour: driver.js and the pointing hand (tour.ts)
    write getBoundingClientRect() pixels into `left`/`top` of elements that

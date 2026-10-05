@@ -382,7 +382,9 @@ export default function RapportTab({
                 </span>
               </TooltipTrigger>
               {!alreadyValidated && (
-                <TooltipContent>
+                // Right edge on the button's right edge: the bubble opens
+                // back over the card instead of past its border.
+                <TooltipContent align="end">
                   {t("En attente de validation du directeur des opérations ou de l'administrateur")}
                 </TooltipContent>
               )}

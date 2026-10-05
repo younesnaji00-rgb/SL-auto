@@ -46,25 +46,35 @@ const TooltipTrigger = TooltipPrimitive.Trigger
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => {
+>(({ className, sideOffset = 4, collisionPadding = 8, ...props }, ref) => {
   const coarse = useIsCoarsePointer()
   // Touch: the trigger renders alone. Nothing pops, nothing is announced,
   // nothing is hidden behind a gesture nobody performs.
   if (coarse) return null
   return (
-    <TooltipPrimitive.Content
-      ref={ref}
-      sideOffset={sideOffset}
-      className={cn(
-        // Ink-solid chip (the one functional dark backdrop besides the lightbox):
-        // 12 px, no border, small radius, no shadow.
-        // Fade + 2px shift toward the trigger, 150ms decelerate; NO exit
-        // animation — a dismissed tooltip vanishes instantly (motion-spec §6).
-        "z-50 overflow-hidden rounded-md bg-ink-solid px-2.5 py-1.5 text-xs leading-[1.4] text-on-ink origin-[--radix-tooltip-content-transform-origin] animate-in fade-in-0 duration-150 ease-enter data-[side=bottom]:slide-in-from-top-0.5 data-[side=left]:slide-in-from-right-0.5 data-[side=right]:slide-in-from-left-0.5 data-[side=top]:slide-in-from-bottom-0.5 motion-reduce:animate-none",
-        className
-      )}
-      {...props}
-    />
+    // Portalled to <body> (owner report 2026-10-05): rendered in place, the
+    // bubble belonged to the step paper around its trigger — the paper's
+    // backdrop-filter makes it the containing block of the fixed bubble and
+    // its `content-visibility: auto` paints nothing outside its own box, so
+    // « En attente de validation… » ran off the paper's edge and was cut.
+    <TooltipPrimitive.Portal>
+      <TooltipPrimitive.Content
+        ref={ref}
+        sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
+        className={cn(
+          // Ink-solid chip (the one functional dark backdrop besides the lightbox):
+          // 12 px, no border, small radius, no shadow.
+          // At most 20rem (never wider than the screen allows): a long hint
+          // wraps instead of running as one strip across the page.
+          // Fade + 2px shift toward the trigger, 150ms decelerate; NO exit
+          // animation — a dismissed tooltip vanishes instantly (motion-spec §6).
+          "z-50 max-w-[min(20rem,var(--radix-tooltip-content-available-width,20rem))] overflow-hidden break-words rounded-md bg-ink-solid px-2.5 py-1.5 text-xs leading-[1.4] text-on-ink origin-[--radix-tooltip-content-transform-origin] animate-in fade-in-0 duration-150 ease-enter data-[side=bottom]:slide-in-from-top-0.5 data-[side=left]:slide-in-from-right-0.5 data-[side=right]:slide-in-from-left-0.5 data-[side=top]:slide-in-from-bottom-0.5 motion-reduce:animate-none",
+          className
+        )}
+        {...props}
+      />
+    </TooltipPrimitive.Portal>
   )
 })
 TooltipContent.displayName = TooltipPrimitive.Content.displayName
