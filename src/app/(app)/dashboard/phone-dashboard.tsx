@@ -39,6 +39,7 @@ import {
   computeTerrainView,
   dossierOwnedBy,
   isOpenDossier,
+  missionOwnedBy,
   toDate,
   type MissionView,
   type PersonRef,
@@ -47,6 +48,7 @@ import {
 } from './metrics';
 import { photosToChiffrageOpen } from './analytics';
 import type { DashboardChiffrage, DashboardMission } from './use-dashboard-data';
+import { useMissionPhotos } from './use-mission-photos';
 import { fmtHours } from './ui';
 import { PhoneBlock, PhoneBlockRow, PhoneKpiLine, fmtDaysFr, type PhoneKpi } from './phone-blocks';
 
@@ -329,9 +331,19 @@ const mapsHref = (v: MissionView): string | null => {
   return dest ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=driving` : null;
 };
 
-export function PhoneTerrainDashboard({ missions, dossiers, holidays, now, person, loading }: PhoneTerrainDashboardProps) {
+const NO_MISSIONS: DashboardMission[] = [];
+
+export function PhoneTerrainDashboard({ missions, dossiers, holidays, now, person, loading: dataLoading }: PhoneTerrainDashboardProps) {
   const t = useT();
-  const view = useMemo(() => computeTerrainView(missions, dossiers, holidays, now, person), [missions, dossiers, holidays, now, person]);
+  // Visits close on the photos themselves (QA bug AT 008); nothing is listed
+  // until they answered, rather than a row that leaves a second later.
+  const mine = useMemo(() => (person ? missions.filter((m) => missionOwnedBy(m, person)) : missions), [missions, person]);
+  const { photos, ready: photosReady } = useMissionPhotos(mine);
+  const loading = dataLoading || !photosReady;
+  const view = useMemo(
+    () => computeTerrainView(photosReady ? missions : NO_MISSIONS, dossiers, holidays, now, person, photos),
+    [photosReady, missions, dossiers, holidays, now, person, photos],
+  );
   const next = view.next;
   const fmtTime = (d: Date | null) => (d ? format(d, 'HH:mm', { locale: dateFnsLocale() }) : '—');
   const fmtDay = (d: Date | null) => (d ? format(d, 'EEE d', { locale: dateFnsLocale() }) : '');
@@ -462,18 +474,38 @@ export function PhoneTerrainDashboard({ missions, dossiers, holidays, now, perso
         </PhoneBlock>
       )}
 
-      {/* Every mission from tomorrow on, not just tomorrow's (QA bug AT 010). */}
+      {/* Every mission still to do — today's included, then the next days (QA
+          bug AT 010: a visit later today showed in « Visites aujourd'hui »
+          only). Today's rows carry the time alone, in the time colour. */}
       <PhoneBlock
         title={t('Prochaines missions')}
-        count={view.tomorrow.length + view.laterCount}
-        caption={view.tomorrow.length > 0 ? `${view.tomorrow.length} ${t('demain')}` : undefined}
-        moreHref={view.tomorrow.length + view.laterCount > ROWS ? '/assignations-atg' : undefined}
+        count={view.upcoming.length}
+        caption={
+          [
+            view.today.length > 0 && `${view.today.length} ${t('aujourd’hui')}`,
+            view.tomorrow.length > 0 && `${view.tomorrow.length} ${t('demain')}`,
+          ]
+            .filter(Boolean)
+            .join(' · ') || undefined
+        }
+        moreHref={view.upcoming.length > ROWS ? '/assignations-atg' : undefined}
         emptyText={t('Aucune mission planifiée à venir')}
         loading={loading}
       >
-        {view.upcoming.slice(0, ROWS).map((v) => (
-          <PhoneBlockRow key={`${v.mission.dossierId}-${v.mission.id}`} href={hrefOfMission(v)} id={refOfMission(v)} who={whoOfMission(v)} chip={typeChip(v)} time={`${fmtDay(v.rdv)} ${fmtTime(v.rdv)}`} />
-        ))}
+        {view.upcoming.slice(0, ROWS).map((v) => {
+          const isToday = !!v.rdv && isSameDay(v.rdv, now);
+          return (
+            <PhoneBlockRow
+              key={`${v.mission.dossierId}-${v.mission.id}`}
+              href={hrefOfMission(v)}
+              id={refOfMission(v)}
+              who={whoOfMission(v)}
+              chip={typeChip(v)}
+              time={isToday ? fmtTime(v.rdv) : `${fmtDay(v.rdv)} ${fmtTime(v.rdv)}`}
+              timeTone={isToday ? 'time' : 'neutral'}
+            />
+          );
+        })}
       </PhoneBlock>
     </div>
   );

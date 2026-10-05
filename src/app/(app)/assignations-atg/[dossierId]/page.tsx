@@ -36,6 +36,7 @@ import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { watermarkAtgPhotoWithGeo, getCurrentGeo } from '@/lib/photo-watermark';
 import { resolvePhotoGeo, photoGeoFields } from '@/lib/photo-geo';
 import { normalizeTypeMission } from '@/lib/type-mission';
+import { photoStampTargets } from '@/lib/mission-photos';
 import { downloadFileFromUrl, ensureImageExtension } from '@/components/documents/typed-doc';
 import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
 import { isEditableDocType } from '@/lib/devis-schema';
@@ -358,6 +359,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       // the watermark would strip it — else the device position, asked ONCE
       // for the batch, not per file.
       const live = await getCurrentGeo().catch(() => null);
+      // Photos that reached Storage now, not the offline queue.
+      let sentNow = 0;
       for (const file of files) {
         const timestamp = Date.now();
         const exifOrLive = await resolvePhotoGeo(file, { liveFallback: true, live });
@@ -365,7 +368,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         const { file: stamped, geo: stampedGeo } = await watermarkAtgPhotoWithGeo(file, watermarkName, exifOrLive);
         const geo = exifOrLive ?? (stampedGeo ? { lat: stampedGeo.lat, lng: stampedGeo.lng } : null);
         const storagePath = `dossiers/${dossierId}/photos/${categoryAtUpload}/${timestamp}_${stamped.name}`;
-        await uploadFileWithOfflineSupport({
+        const upload = await uploadFileWithOfflineSupport({
           storage,
           db,
           file: stamped,
@@ -382,6 +385,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             ...photoGeoFields(geo),
           },
         });
+        if (!upload.queued) sentNow += 1;
         await logHistorique(db, dossierId, 'Upload photo Agent de Terrain', userEmail, `Photo "${stamped.name}" uploadée (${categoryAtUpload}).`, 'photo', profile?.nom);
       }
       const catLabel = categoryAtUpload === 'avant' ? 'Avant' : categoryAtUpload === 'en_cours' ? 'En cours' : 'Après';
@@ -399,10 +403,19 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       // done. Fire-and-forget like the statut advance.
       void setDoc(doc(db, 'dossiers', dossierId), { [PHOTOS_SENT_FIELD[categoryAtUpload]]: serverTimestamp() }, { merge: true })
         .catch((e) => console.warn('[atg] photos-sent stamp:', e));
-      for (const plan of filteredPlans as any[]) {
-        if (!plan?.id) continue;
-        void updateDoc(doc(db, 'dossiers', dossierId, 'planifications', plan.id), { photosSentAt: serverTimestamp() })
-          .catch((e) => console.warn('[atg] mission photos-sent stamp:', e));
+      // Per visit, only the visits these photos belong to (lib/mission-photos.ts):
+      // stamping every planification of the phase also closed the FUTURE ones,
+      // which then vanished from « Prochaines missions » (QA bug AT 010). A
+      // batch that only reached the offline queue is not sent yet: the
+      // dashboard closes the visit once the queued photo has its file.
+      if (sentNow > 0) {
+        const { ids, early } = photoStampTargets(filteredPlans as any[], new Date());
+        for (const planId of ids) {
+          void updateDoc(doc(db, 'dossiers', dossierId, 'planifications', planId), {
+            photosSentAt: serverTimestamp(),
+            ...(early ? { photosSentEarly: true } : {}),
+          }).catch((e) => console.warn('[atg] mission photos-sent stamp:', e));
+        }
       }
       toast({ title: `${files.length} ${files.length > 1 ? t('photos uploadées avec succès') : t('photo uploadée avec succès')}` });
     } catch {

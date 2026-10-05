@@ -119,13 +119,16 @@ export function Segmented<T extends string = string>({
             className={cn(
               // The thumb IS the selection paint — the active button never
               // draws its own background (motion-spec: one surface travels).
-              'relative z-[1] min-w-0 flex-1 basis-0 rounded-md px-2 text-center font-medium leading-tight transition-colors',
+              'relative z-[1] flex-1 basis-0 rounded-md px-2 text-center font-medium leading-tight transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
+              // A form segment is never narrower than its label: a set that
+              // cannot share one row wraps to a second row instead of running
+              // its labels into each other (QA bug AT 011). `xs` truncates.
               size === 'xs'
-                ? 'flex min-h-[30px] items-center justify-center gap-1.5 truncate py-1 text-[13px]'
+                ? 'flex min-h-[30px] min-w-0 items-center justify-center gap-1.5 truncate py-1 text-[13px]'
                 : size === 'sm'
-                  ? 'min-h-9 py-1.5 text-[13px]'
-                  : 'min-h-11 py-2 text-[14px] max-md:text-[15px]',
+                  ? 'min-h-9 min-w-max py-1.5 text-[13px]'
+                  : 'min-h-11 min-w-max py-2 text-[14px] max-md:text-[15px]',
               active ? (size === 'xs' ? 'font-semibold text-ink' : 'text-ink') : 'text-ink-3 hover:text-ink-2',
               opt.disabled && 'cursor-not-allowed opacity-50',
             )}

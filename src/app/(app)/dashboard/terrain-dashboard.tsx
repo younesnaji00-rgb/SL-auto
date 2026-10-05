@@ -23,6 +23,7 @@ import type { FunnelDossier } from '../monitoring/funnel';
 import { computeTerrainView, missionOwnedBy, type MissionView, type PersonRef } from './metrics';
 import { terrainQuality } from './analytics';
 import type { DashboardMission } from './use-dashboard-data';
+import { useMissionPhotos } from './use-mission-photos';
 import { Block, DoneLine, StatTile, WorkRow, fmtHours } from './ui';
 import { fmtPct } from '@/components/viz';
 
@@ -45,6 +46,9 @@ const mapsHref = (v: MissionView): string | null => {
   const dest = placeOf(v);
   return dest ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=driving` : null;
 };
+/** « Prochaines missions » rows; the rest is one tap away in « Toutes les missions ». */
+const UPCOMING_ROWS = 8;
+const NO_MISSIONS: DashboardMission[] = [];
 
 function TypeChip({ type }: { type: MissionView['type'] }) {
   const t = useT();
@@ -69,9 +73,20 @@ export interface TerrainDashboardProps {
   loading: boolean;
 }
 
-export function TerrainDashboard({ missions, dossiers, holidays, now, person, loading }: TerrainDashboardProps) {
+export function TerrainDashboard({ missions, dossiers, holidays, now, person, loading: dataLoading }: TerrainDashboardProps) {
   const t = useT();
-  const view = useMemo(() => computeTerrainView(missions, dossiers, holidays, now, person), [missions, dossiers, holidays, now, person]);
+  // A visit is done when its photos are on the dossier, read from the photos
+  // themselves (QA bug AT 008) — the stamps alone missed every AT upload
+  // made before 2026-09-24.
+  const mine = useMemo(() => (person ? missions.filter((m) => missionOwnedBy(m, person)) : missions), [missions, person]);
+  const { photos, ready: photosReady } = useMissionPhotos(mine);
+  const loading = dataLoading || !photosReady;
+  // Nothing listed until the photos answered, rather than a visit that
+  // leaves « Photos à envoyer » a second later.
+  const view = useMemo(
+    () => computeTerrainView(photosReady ? missions : NO_MISSIONS, dossiers, holidays, now, person, photos),
+    [photosReady, missions, dossiers, holidays, now, person, photos],
+  );
   // One quality number, self-referenced and never ranked (kpi-expansion §4.3.1):
   // was the vehicle actually seen on the day it was booked for.
   const quality = useMemo(
@@ -215,19 +230,19 @@ export function TerrainDashboard({ missions, dossiers, holidays, now, person, lo
         )}
       </Block>
 
-      {/* 3b — Next missions after today (QA bug AT 010): the hero shows one
-          mission and « Demain » only a count, so later planned missions
-          appeared nowhere on the dashboard. */}
+      {/* 3b — Every mission still to do, today's included (QA bug AT 010:
+          a visit later today showed in « Aujourd'hui » only, and the hero
+          shows one mission and « Demain » only a count). */}
       {view.upcoming.length > 0 && (
-        <Block title={t('Prochaines missions')} count={view.upcoming.length} caption={t('À partir de demain, dans l’ordre des rendez-vous')} moreHref="/assignations-atg" moreLabel={t('Toutes les missions')}>
-          {view.upcoming.map((v) => (
+        <Block title={t('Prochaines missions')} count={view.upcoming.length} caption={t('Aujourd’hui et les jours suivants, dans l’ordre des rendez-vous')} moreHref="/assignations-atg" moreLabel={t('Toutes les missions')}>
+          {view.upcoming.slice(0, UPCOMING_ROWS).map((v) => (
             <WorkRow
               key={`${v.mission.dossierId}-${v.mission.id}`}
               href={hrefOf(v)}
               id={refOf(v)}
               who={[whoOf(v), placeOf(v)].filter(Boolean).join(' · ')}
               label={v.type ? t(v.type) : undefined}
-              time={`${fmtDay(v.rdv)} ${fmtTime(v.rdv)}`}
+              time={`${v.rdv && isSameDay(v.rdv, now) ? t("Aujourd'hui") : fmtDay(v.rdv)} ${fmtTime(v.rdv)}`}
               tall
             />
           ))}

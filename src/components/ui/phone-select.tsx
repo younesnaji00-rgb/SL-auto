@@ -200,11 +200,14 @@ export function PhoneSelect({
   /* --- tier: segmented (2–5, every option visible) ------------------- */
   if (resolved === 'segmented') {
     // The trigger's own classes come along EXCEPT its height (`h-8`, `h-10`,
-    // `max-md:h-12`): a segmented control sizes itself from its 44 px rows,
-    // and a 32 px trigger height would crush them.
+    // `max-md:h-12`) and its width (`w-[160px]`, `sm:w-48`, `max-w-[12rem]`):
+    // a segmented control sizes itself from its 44 px rows and lays EVERY
+    // label side by side, where the closed field only ever showed one. A
+    // 160 px observations trigger squeezed « À tous · Gestionnaire ·
+    // Chiffreur » into 53 px segments and the labels overlapped (QA bug AT 011).
     const triggerClass = (triggerProps?.className ?? '')
       .split(/\s+/)
-      .filter((c) => c && !/^(max-md:|md:|lg:)?h-/.test(c))
+      .filter((c) => c && !/^(?:[\w-]+:)*(?:h|w|max-w)-/.test(c))
       .join(' ');
     const segments: SegmentedOption[] = options.map((o) => ({
       value: o.value,
