@@ -11,10 +11,11 @@ import { downloadFileFromUrl, ensureImageExtension } from '@/components/document
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { IconChip } from '@/components/ui/icon-chip';
-import { ChevronLeft, ChevronRight, FileText, FolderOpen, Mail, Scale } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, FolderOpen, Mail, Plus, Scale } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { parseAccordDocType } from '@/lib/docType-accorde';
-import { buildDocFamilies } from '@/lib/doc-family';
+import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
+import { buildDocFamilies, type DocFamily } from '@/lib/doc-family';
+import { toOrdinalFr } from '@/lib/devis-schema';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useCanOpenPath } from '@/hooks/use-visible-nav';
 import { useOptions } from '@/hooks/use-options';
@@ -38,7 +39,7 @@ import {
   ALL_TYPES_KEY,
   type DocumentsFilterPanelDoc,
 } from '@/components/chiffreurs/documents-filter-panel';
-import { AccordPipeline } from '@/components/chiffrage/accord-pipeline';
+import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
 import type { TypedDoc } from '@/components/dossier-timeline/slot-card';
 import {
   getQueueContext,
@@ -110,8 +111,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   const [loading, setLoading] = useState(true);
   const [isReformeOpen, setReformeOpen] = useState(false);
   const [mailDialogOpen, setMailDialogOpen] = useState(false);
-  // Lightbox preview state for slot-card / pièces-jointes clicks — the
-  // chiffreur enters the editor via the pipeline's Éditer socket (spec B3).
+  // Lightbox preview state for pièces-jointes clicks and the phone screen —
+  // the chiffreur enters the editor via the « Éditer » of an awaiting slot.
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nom: string } | null>(null);
   // Phone photo grid: the sibling photos the lightbox pages through.
   const [previewPages, setPreviewPages] = useState<{ url: string; nom: string }[] | null>(null);
@@ -185,9 +186,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     return () => unsub();
   }, [db, chiffrage?.dossierId]);
 
-  // Task #29 — Subscribe to the parent dossier's `documents` subcollection so we can
-  // surface cardinal-accord + proposition-accord docTypes as their own pipeline
-  // stages (with their own deep-link to the editor) alongside the always-present slots.
+  // Task #29 — Subscribe to the parent dossier's `documents` subcollection
+  // (the pièces panel, the mailable accords and the phone screen read it).
   const dossierDocsQuery = useMemo(() => {
     if (!db || !chiffrage?.dossierId) return null;
     return collection(db, 'dossiers', chiffrage.dossierId, 'documents');
@@ -251,9 +251,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     [sortedDocs, photoDocs],
   );
 
-  // Group live docs into Devis / Facture families for the accord pipeline
-  // (spec B1): one aligned row band per parent garage, versions as shared
-  // columns. Same buildDocFamilies grouping the FamilyRow strips used.
+  // Devis / Facture families (same buildDocFamilies grouping as the dossier
+  // page) — feed the phone screen and its « Valider le chiffrage » target.
   const families = useMemo(
     () => buildDocFamilies((dossierDocs as TypedDoc[]) || []),
     [dossierDocs],
@@ -288,8 +287,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
 
   // Task #31 — Route the panel's "open" action. Eye-icon in the pièces
   // jointes panel: preview the file in the in-app lightbox instead of opening
-  // a new tab. The structured editor stays reachable from the pipeline's
-  // Éditer socket (handleEditSlot below).
+  // a new tab. The structured editor stays reachable from the accord slots'
+  // « Éditer » (handleEditSlot below).
   const handleOpenDocument = (docEntry: DocumentsFilterPanelDoc) => {
     if (docEntry.url && !docEntry.pendingUpload) {
       setPreviewDoc({ url: docEntry.url, nom: docEntry.nom || docEntry.fileName || 'document' });
@@ -304,10 +303,10 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     void downloadFileFromUrl(docEntry.url, ensureImageExtension(name, docEntry.url));
   };
 
-  // Spec B3 — pipeline Éditer socket. Opens the structured devis editor
-  // scoped to the target accord/proposition slot via `accordSlot`; the
-  // 1er-accord slot doubles as the SOURCE editing entry (devis-editor treats
-  // ordinal-1 accords as the primary session — no cardinal-revision seeding).
+  // « Éditer » on an awaiting accord/proposition slot. Opens the structured
+  // devis editor scoped to that slot via `accordSlot`; the 1er-accord slot
+  // doubles as the SOURCE editing entry (devis-editor treats ordinal-1
+  // accords as the primary session — no cardinal-revision seeding).
   const handleEditSlot = (parent: string, slot: string) => {
     const params = new URLSearchParams({
       chiffrageId: id,
@@ -317,12 +316,26 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     router.push(`/devis-editor?${params.toString()}`);
   };
 
-  // Slot-card click handler: open a preview lightbox (« Consulter » path —
-  // clicking a doc thumbnail previews the file, never jumps into editing).
-  const handleFamilyDocPreview = (d: TypedDoc, _pages?: TypedDoc[]) => {
-    if (d.url && !d.pendingUpload) {
-      setPreviewDoc({ url: d.url, nom: d.nom || d.fileName || 'document' });
+  // The next revision of a family, from its header band (« + 2ème accord »).
+  // The family rows only show slots that exist — exactly as on the dossier
+  // page — so once the highest accord holds its document this button is the
+  // chiffreur's way into the next round (the old pipeline's ghost socket).
+  // When the highest accord is still awaiting, its own card carries Éditer.
+  const nextAccordAction = (group: DocFamily, docsByType: Record<string, TypedDoc[]>) => {
+    const received = (slot: string) => (docsByType[slot] || []).some((d) => !!d.url && !d.pendingUpload);
+    let top: { ordinal: number; slot: string } | null = null;
+    for (const slot of group.slots) {
+      const parsed = slot === group.parent ? null : parseAccordDocType(slot);
+      if (parsed?.kind === 'accord' && (!top || parsed.ordinal > top.ordinal)) top = { ordinal: parsed.ordinal, slot };
     }
+    if (!top || !received(top.slot)) return null;
+    const next = top.ordinal + 1;
+    return (
+      <Button variant="tonal" size="sm" className="h-7 gap-1 px-2.5 text-xs" onClick={() => handleEditSlot(group.parent, mapToAccorde(group.parent, 'accord', next))}>
+        <Plus className="h-3.5 w-3.5" />
+        {t(`${toOrdinalFr(next)} accord`)}
+      </Button>
+    );
   };
 
   // Task #31 — Import is intentionally not wired to a picker here: the chiffreur
@@ -516,8 +529,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
 
   return (
     // max-w-7xl (owner 2026-09-04: the document grid was ringed by dead
-    // space) — the extra 16rem goes to the thumbnails and to the pipeline's
-    // version columns; the header and observations simply centre wider.
+    // space) — the extra 16rem goes to the thumbnails and the accord cards;
+    // the header and observations simply centre wider.
     <div className="mx-auto max-w-7xl space-y-8">
       {/* Page header (element-specs §1: Polaris Page ✓ "always provide
           breadcrumbs when a page has a parent", the primary as ONE filled
@@ -694,11 +707,15 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       {/* Desktop / tablet body — the phone renders PhoneChiffrageScreen above. */}
       {!isPhone && (
       <>
-      {/* Devis & factures — accord pipeline (spec B1–B3): the actionable
-          object first (B4, fold research), versions as shared columns,
-          families as aligned row bands. Plain section: `t-heading` title
-          (element-specs §5 — no card around papers). */}
-      {orderedFamilies.length > 0 && (
+      {/* Devis & factures — the SAME board as the dossier page's « 1er
+          accord » step (owner request 2026-10-05, QA bug 035: the two pages
+          told different stories about the same accords): one band per garage,
+          the same cards, labels and « En attente de chiffrage » states, the
+          same « n/m reçus ». Read-only here; the chiffreur's only actions
+          are « Éditer » on an awaiting slot and « + Nème accord » in the
+          band. The actionable object stays first (B4). Plain section:
+          `t-heading` title (element-specs §5 — no card around papers). */}
+      {chiffrage.dossierId && (
         <section className="space-y-4" aria-label={t('Devis et factures')} data-tour="chd-familles">
           {/* The page's ONE neutral IconChip (addendum 1b) beside the title of
               the section that anchors the chiffreur's work — away from the
@@ -709,13 +726,14 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             </IconChip>
             <h2 className="t-heading">{t('Devis & factures')}</h2>
           </div>
-          <AccordPipeline
-            families={orderedFamilies}
-            docsByType={familyDocsByType}
-            dossierStatut={dossierStatut}
-            userRole={profile?.role}
-            onPreview={handleFamilyDocPreview}
-            onEditSlot={handleEditSlot}
+          <TypedDocumentsGrid
+            dossierId={chiffrage.dossierId}
+            showOnlyAccordSlots
+            hideCardinalPlus
+            showReformeSlots
+            readOnly
+            onEditSlot={canEdit ? handleEditSlot : undefined}
+            familyAction={canEdit ? nextAccordAction : undefined}
           />
         </section>
       )}
@@ -741,7 +759,7 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
         onDownloadDocument={handleDownloadDocument}
       />
 
-      {/* Observations LAST (spec B4 — workspace R8: the pipeline is the
+      {/* Observations LAST (spec B4 — workspace R8: the accord board is the
           actionable object; the thread stays collapsible, unseen count on
           the collapsed bar). */}
       <div data-tour="chd-observations">
@@ -788,8 +806,8 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
           `hideBottomNav`, which would reserve 56 px on a desktop page. */}
       {/* Mobile redesign 2026-09-14 (Phone.dc.html): « Ouvrir le dossier »
           icon + ONE primary. « Valider le chiffrage » IS the existing
-          validation — the devis editor's save (the pipeline's Éditer socket,
-          same route + slot); the editor is desktop-only by owner ruling
+          validation — the devis editor's save (the desktop « Éditer », same
+          route + slot); the editor is desktop-only by owner ruling
           (E-Q3), so the caption says where the saisie happens. The queue
           spine ‹ › moved into « ⋯ ». No « Contester » action exists in the
           app, so none is offered. */}

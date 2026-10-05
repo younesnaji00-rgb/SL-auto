@@ -44,7 +44,7 @@ export const chiffrageDetailTutorial: PageTutorial = {
       anchor: 'chd-familles',
       title: 'La chaîne des accords',
       body:
-        "Une bande par garage, et de gauche à droite la chaîne complète : le devis d'origine, la proposition, l'accord, puis les révisions suivantes.\nUne case vide est une étape qui reste à faire — la ligne se lit comme une phrase.\nS'il y a plus de colonnes que d'écran, les flèches « ‹ › » au-dessus font défiler toute la grille d'un bloc.",
+        "Une bande par garage, exactement comme sur la fiche dossier : le devis d'origine, l'accord, la proposition, puis les révisions.\nUne case « En attente de chiffrage » est une étape qui reste à faire ; son bouton « Éditer » ouvre l'éditeur sur cette case.\nUne fois l'accord rendu, « + 2ème accord » dans la bande lance la révision suivante.",
       side: 'top',
       cursorAt: 'left',
     },

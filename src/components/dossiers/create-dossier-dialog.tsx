@@ -175,6 +175,8 @@ export function CreateDossierDialog({
       if (telMsg) next[`${role}-telephone`] = t(telMsg);
       const emailMsg = validateFieldValue('email', e.email);
       if (emailMsg) next[`${role}-email`] = t(emailMsg);
+      const compagnieMsg = validateFieldValue('org', e.compagnie);
+      if (compagnieMsg) next[`${role}-compagnie`] = t(compagnieMsg);
     }
     return next;
   };
@@ -426,7 +428,9 @@ export function CreateDossierDialog({
                     value={experts[role].compagnie}
                     onChange={(e) => updateExpert(role, 'compagnie', e.target.value)}
                     disabled={isCreating}
+                    aria-invalid={!!errors[`${role}-compagnie`] || undefined}
                   />
+                  {fieldError(`${role}-compagnie`)}
                 </div>
               </div>
             </section>

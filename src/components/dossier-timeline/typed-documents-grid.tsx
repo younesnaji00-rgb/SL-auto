@@ -12,7 +12,7 @@ import { scanAndPersistCarteGrise } from '@/lib/scan-carte-grise';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { restoreStatutWithoutGarageDocs } from '@/lib/restore-statut';
 import { parseAccordDocType, mapToAccorde } from '@/lib/docType-accorde';
-import { buildDocFamilies } from '@/lib/doc-family';
+import { buildDocFamilies, type DocFamily } from '@/lib/doc-family';
 import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -144,9 +144,24 @@ interface TypedDocumentsGridProps {
   showOnlyNoteHonoraire?: boolean;
   /** Replay: frozen documents list rendered instead of the live subscription. */
   docsOverride?: any[];
+  /**
+   * View-only board: no upload, delete, drag, rename or « + », whatever the
+   * viewer's role. Used by the chiffrage page, which shows the accords
+   * exactly as the dossier page does (owner request 2026-10-05).
+   */
+  readOnly?: boolean;
+  /**
+   * Entry into the devis editor: an « Éditer » button on the accord /
+   * proposition slots still awaiting the chiffreur (empty, or holding the
+   * gestionnaire's placeholder). Offered only in families that hold at least
+   * one received document — an empty family has nothing to edit.
+   */
+  onEditSlot?: (parent: string, slot: string) => void;
+  /** Control at the right end of a family's header band (FamilyRow `topAction`). */
+  familyAction?: (group: DocFamily, docsByType: Record<string, TypedDoc[]>) => React.ReactNode;
 }
 
-export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, hideReformeSlots, showReformeSlots, showOnlyNoteHonoraire, docsOverride }: TypedDocumentsGridProps) {
+export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnlyAccordSlots, hideCardinalPlus, hideExtraSlotPlus, cardinalFilter = 'all', showBaseGarageSlots, hideOtherSlots, showAllNonAccordSlots, hideReformeSlots, showReformeSlots, showOnlyNoteHonoraire, docsOverride, readOnly, onEditSlot, familyAction }: TypedDocumentsGridProps) {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
@@ -155,7 +170,8 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   const { canWrite, canDelete, profile } = useCurrentUser();
   // Gestionnaires / Admins edit via 'dossiers' section; ATG edits this same grid
   // through their own assignation section. Upload is allowed for either.
-  const canEdit = canWrite('dossiers') || canWrite('assignations-atg');
+  const canEdit = !readOnly && (canWrite('dossiers') || canWrite('assignations-atg'));
+  const canManageExtraSlots = !readOnly && canWrite('dossiers');
   const isATG = profile?.role === 'Agent de Terrain';
   const currentEmail = auth?.currentUser?.email || profile?.email || '';
   const currentUid = auth?.currentUser?.uid || '';
@@ -731,7 +747,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
       isUploading={uploadingSlot === slot}
       deletingId={deletingId}
       extraSlotKind={extraSlotKindByLabel[slot]}
-      canManageExtraSlots={canWrite('dossiers')}
+      canManageExtraSlots={canManageExtraSlots}
       onUpload={(files) => handleUpload(slot, files)}
       onDelete={handleDelete}
       onCreateNextCardinal={() => handleCreateNextCardinal(slot)}
@@ -771,6 +787,13 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
   const devisFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Devis Garage');
   const factureFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Facture Garage');
 
+  // « Éditer » only where there is something to edit: a family holding at
+  // least one received document (source or accord).
+  const editSlotFor = (group: DocFamily) =>
+    onEditSlot && group.slots.some((s) => (docsByType[s] || []).some((d) => !!d.url && !d.pendingUpload))
+      ? (slot: string) => onEditSlot(group.parent, slot)
+      : undefined;
+
   return (
     <div className={BOARD_ROOT_CLASS}>
       {loading ? (
@@ -806,7 +829,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
                     isUploading={uploadingSlot === slot}
                     deletingId={deletingId}
                     extraSlotKind={extraSlotKindByLabel[slot]}
-                    canManageExtraSlots={canWrite('dossiers')}
+                    canManageExtraSlots={canManageExtraSlots}
                     onUpload={(files) => handleUpload(slot, files)}
                     onDelete={handleDelete}
                     onCreateNextCardinal={() => handleCreateNextCardinal(slot)}
@@ -832,7 +855,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               canEdit={canEdit}
               canDeleteDoc={canDeleteDoc}
               userRole={profile?.role}
-              canManageExtraSlots={canWrite('dossiers')}
+              canManageExtraSlots={canManageExtraSlots}
               isUploading={(slot) => uploadingSlot === slot}
               deletingId={deletingId}
               extraSlotKindForSlot={(slot) => extraSlotKindByLabel[slot]}
@@ -846,6 +869,8 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               hideCardinalPlus={hideCardinalPlus}
               hideExtraSlotPlus={hideExtraSlotPlus}
               cardinalFilter={cardinalFilter}
+              onEditSlot={editSlotFor(group)}
+              topAction={familyAction?.(group, docsByType)}
             />
           ))}
 
@@ -859,7 +884,7 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               canEdit={canEdit}
               canDeleteDoc={canDeleteDoc}
               userRole={profile?.role}
-              canManageExtraSlots={canWrite('dossiers')}
+              canManageExtraSlots={canManageExtraSlots}
               isUploading={(slot) => uploadingSlot === slot}
               deletingId={deletingId}
               extraSlotKindForSlot={(slot) => extraSlotKindByLabel[slot]}
@@ -873,6 +898,8 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
               hideCardinalPlus={hideCardinalPlus}
               hideExtraSlotPlus={hideExtraSlotPlus}
               cardinalFilter={cardinalFilter}
+              onEditSlot={editSlotFor(group)}
+              topAction={familyAction?.(group, docsByType)}
             />
           ))}
 

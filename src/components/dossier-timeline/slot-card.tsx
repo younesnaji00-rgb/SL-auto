@@ -116,18 +116,19 @@ export interface SlotCardProps {
    */
   hideExtraSlotPlus?: boolean;
   /**
-   * Round 9 item 004 — when set AND the slot is a pending accord/proposition
-   * (no docs yet), render an "Éditer" button that calls this callback.
-   * Used on assignations-chiffrage to route to the structured editor scoped
-   * to this specific slot.
+   * Round 9 item 004 — when set AND the slot is an accord/proposition still
+   * awaiting the chiffreur (no docs yet, or only the gestionnaire's « + »
+   * placeholder), render an "Éditer" button that calls this callback. Used
+   * on assignations-chiffrage to route to the structured editor scoped to
+   * this specific slot; the dossier page never passes it.
    */
   onEdit?: () => void;
   /**
    * Optional version-state chip (`Actuel` / `Remplacé` / `Envoyé` — spec B2)
    * rendered in the filled tile's header row, before the slot controls.
-   * ADDITIVE-ONLY: when omitted the tile renders pixel-identically to before
-   * (dossier-timeline callers pass nothing). Used by the chiffrage accord
-   * pipeline (`components/chiffrage/accord-pipeline.tsx`).
+   * ADDITIVE-ONLY: when omitted the tile renders pixel-identically to before.
+   * No caller since 2026-10-05: the chiffrage page now shows the accords
+   * exactly like the dossier page, which has no chips.
    */
   versionChip?: React.ReactNode;
   /** DOM id on the tile root (summary-line links scroll/focus to it). */
@@ -519,6 +520,17 @@ export function SlotCard({
     dragKind && DRAG_OVER_CLASS,
     selectable && selected && 'ring-2 ring-primary',
   );
+  // A filled accord tile without a real file is the gestionnaire's « + »
+  // placeholder: the chiffreur's turn, so it carries the same « Éditer » as an
+  // empty accord socket (chiffrage page only — `onEdit` is never passed on
+  // the dossier page).
+  const placeholderEdit =
+    onEdit && parsedAccord && !hasRealPage ? (
+      <Button type="button" size="sm" variant="outline" className="mt-1.5 h-7 gap-1.5 text-xs" onClick={onEdit} data-tour="slot-editer">
+        <Pencil className="h-3 w-3" />
+        {t('Éditer')}
+      </Button>
+    ) : null;
   const docDropCaption = dragKind === 'doc' ? <DropCaption label={filled ? t('Échanger') : t('Déplacer ici')} /> : null;
 
   // ── State 1b: filled, multi-page (n ≥ 2) ──────────────────────────────────
@@ -593,6 +605,7 @@ export function SlotCard({
               {t('Chiffré par')} {chiffreurName}
             </p>
           )}
+          {placeholderEdit}
         </div>
 
         {/* Pager — numbered pills with per-page actions */}
@@ -764,6 +777,7 @@ export function SlotCard({
               {t('Chiffré par')} {chiffreurName}
             </p>
           )}
+          {placeholderEdit}
         </div>
         {docDropCaption}
       </div>

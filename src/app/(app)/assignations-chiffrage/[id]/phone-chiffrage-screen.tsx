@@ -14,9 +14,10 @@
  *   [ Devis 1 | Photos 12 | Observations 3 ]     ← Segmented xs
  *   Devis   = the deposited PDF (tile · name · « n pages · size · déposé le …
  *             par … » · ⤓), page-1 preview framed on surface-2 with a
- *             « Plein écran » pill → the existing lightbox, page dots, then the
- *             accord versions already published; the « Montant chiffré » card
- *             (devis garage total · chiffré total · écart ± · %).
+ *             « Plein écran » pill → the existing lightbox, page dots; then the
+ *             accords board — the SAME family bands as the dossier page
+ *             (owner request 2026-10-05), read-only; the « Montant chiffré »
+ *             card (devis garage total · chiffré total · écart ± · %).
  *   Photos  = 3-column grid of `dossiers/{id}/photos` → lightbox with siblings.
  *   Observations = the shared ObservationsTab (its read filter + write path).
  *   [ 📁 ]  [ Valider le chiffrage ]             ← bottom bar (page)
@@ -31,17 +32,17 @@
 
 import * as React from 'react';
 import { collection } from 'firebase/firestore';
-import { ChevronRight, Download, FileText, Image as ImageIcon, Maximize2 } from 'lucide-react';
+import { Download, FileText, Image as ImageIcon, Maximize2 } from 'lucide-react';
 import { useCollection, useFirestore } from '@/firebase';
 import { Segmented } from '@/components/ui/segmented';
 import { RECORD_CARD_CLASS } from '@/components/ui/record-card';
 import { StatusChip } from '@/components/ui/status-chip';
 import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 import ObservationsTab from '@/components/observations-tab';
+import TypedDocumentsGrid from '@/components/dossier-timeline/typed-documents-grid';
 import type { TypedDoc } from '@/components/dossier-timeline/slot-card';
 import type { DocFamily } from '@/lib/doc-family';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
-import { toOrdinalFr } from '@/lib/devis-schema';
 import { docUploaderLabel, formatDocDate, formatFileSize, isPdf } from '@/components/documents/typed-doc';
 import { chiffrageAmounts, ecartWithDevis, formatDhs } from '@/lib/chiffrage-amounts';
 import { cn } from '@/lib/utils';
@@ -78,7 +79,7 @@ const realDoc = (docs: TypedDoc[] | undefined) => (docs || []).find((d) => !!d.u
 
 /**
  * The slot « Valider le chiffrage » opens in the devis editor — the same
- * target the desktop pipeline's Éditer socket computes:
+ * slot whose desktop card carries « Éditer »:
  *   1. a gestionnaire-created placeholder awaiting the chiffreur (« 2ème
  *      accord » spawned with the cardinal « + »), else
  *   2. the 1er accord when the source exists and no accord is published yet.
@@ -106,14 +107,6 @@ export function nextChiffrageSlot(
   if (awaiting) return { parent: family.parent, slot: awaiting };
   if (maxAccord === 0) return { parent: family.parent, slot: mapToAccorde(family.parent, 'accord', 1) };
   return null;
-}
-
-/** French stage label of an accord / proposition slot (« 1er accord », « 2ème proposition d'accord »). */
-function stageLabel(slot: string): string {
-  const parsed = parseAccordDocType(slot);
-  if (!parsed) return slot;
-  const ord = toOrdinalFr(parsed.ordinal);
-  return parsed.kind === 'accord' ? `${ord} accord` : `${ord} proposition d'accord`;
 }
 
 const PHOTO_CATEGORY_LABEL: Record<string, string> = { avant: 'Avant', en_cours: 'En cours', apres: 'Après' };
@@ -184,14 +177,12 @@ export function PhoneChiffrageScreen({
   const [numPages, setNumPages] = React.useState<number | null>(null);
   React.useEffect(() => { setNumPages(null); }, [devisFile?.url]);
 
-  // Published versions of the same family (accords / propositions), lineage order.
-  const versions = React.useMemo(() => {
-    if (!devisFamily) return [] as { slot: string; doc: TypedDoc }[];
-    return devisFamily.slots
-      .filter((slot) => slot !== devisFamily.parent)
-      .map((slot) => ({ slot, doc: realDoc(docsByType[slot]) }))
-      .filter((v): v is { slot: string; doc: TypedDoc } => !!v.doc);
-  }, [devisFamily, docsByType]);
+  // Documents received on the accords board (sources, accords and
+  // propositions of every family) — the « Devis » facet count.
+  const boardCount = React.useMemo(
+    () => families.reduce((n, f) => n + f.slots.filter((slot) => hasReal(docsByType[slot])).length, 0),
+    [families, docsByType],
+  );
 
   const amounts = React.useMemo(
     () => chiffrageAmounts(chiffrage.structuredEditables, devisFamily?.parent ?? 'Devis Garage'),
@@ -200,7 +191,8 @@ export function PhoneChiffrageScreen({
   const ecart = amounts.accordTTC !== null && amounts.devisTTC !== null ? ecartWithDevis(amounts.accordTTC, amounts.devisTTC) : null;
 
   const photoList: any[] = React.useMemo(() => (photos || []).filter((p) => !!p?.url), [photos]);
-  const devisCount = (devisFile ? 1 : 0) + versions.length;
+  // The deposited devis is on the board already, unless it came from the assignation's files.
+  const devisCount = boardCount + (devisFile && !sourceDoc ? 1 : 0);
 
   const vehicule = [dossier?.vehicule?.marque, dossier?.vehicule?.modele].filter(Boolean).join(' ');
   const plate: string = dossier?.matricule || dossier?.vehicule?.immatriculation || '';
@@ -316,30 +308,18 @@ export function PhoneChiffrageScreen({
                   </div>
                 )}
               </div>
-
-              {/* Versions already published by the chiffreur (lineage order). */}
-              {versions.length > 0 && (
-                <ul className="divide-y divide-hairline border-t border-hairline">
-                  {versions.map(({ slot, doc }) => (
-                    <li key={slot}>
-                      <button
-                        type="button"
-                        onClick={() => onPreview({ url: doc.url as string, nom: doc.nom || doc.fileName || slot })}
-                        className="flex min-h-[44px] w-full items-center gap-3 px-3.5 py-1.5 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:bg-surface-2"
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[13px] font-semibold leading-[1.3] text-ink">{t(stageLabel(slot))}</span>
-                          <span className="block truncate text-[12px] leading-4 text-ink-3">{doc.nom || doc.fileName || slot}</span>
-                        </span>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </article>
           ) : (
             <p className={cn(RECORD_CARD_CLASS, 'px-3.5 py-3 text-[13px] text-ink-3')}>{t('Aucun devis déposé pour ce dossier.')}</p>
+          )}
+
+          {/* Accords — the same family bands, cards and states as the dossier
+              page's « 1er accord » step (owner request 2026-10-05). Read-only:
+              editing a devis is desktop-only (owner call E-Q3). */}
+          {dossierId && (
+            <section aria-label={t('Devis et factures')} className={cn(RECORD_CARD_CLASS, 'px-3 py-3')}>
+              <TypedDocumentsGrid dossierId={dossierId} showOnlyAccordSlots hideCardinalPlus showReformeSlots readOnly />
+            </section>
           )}
 
           {/* Montant chiffré — derived from the editor's snapshots. */}

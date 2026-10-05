@@ -53,7 +53,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import { usePrefillFlash } from '@/hooks/use-prefill-flash';
 import { BRAND } from '@/lib/brand';
-import { validateFields, blankRequiredPaths, type ValidatedField } from '@/lib/field-validation';
+import { validateFields, dateCoherenceErrors, blankRequiredPaths, type ValidatedField } from '@/lib/field-validation';
 import { findDossierWithRefExpert, refExpertFields, DUPLICATE_REF_MESSAGE } from '@/lib/ref-expert-unique';
 import {
   INPUT_ADDRESS,
@@ -198,7 +198,7 @@ const FieldRow = ({
             </dt>
             <dd className="mt-1 min-h-[20px]">
               {editing && f.edit ? (
-                <div className={cn('w-full', f.path && errors?.[f.path] && '[&_input]:border-status-danger-fg [&_input]:ring-1 [&_input]:ring-status-danger-fg [&_[role=combobox]]:border-status-danger-fg [&_[role=combobox]]:ring-1 [&_[role=combobox]]:ring-status-danger-fg')}>
+                <div className={cn('w-full', f.path && errors?.[f.path] && '[&_input]:border-status-danger-fg [&_input]:ring-1 [&_input]:ring-status-danger-fg [&_button]:border-status-danger-fg [&_button]:ring-1 [&_button]:ring-status-danger-fg')}>
                   {f.edit}
                   {f.path && errors?.[f.path] && (
                     <p role="alert" className="t-caption mt-1 text-status-danger-fg">{errors[f.path]}</p>
@@ -506,28 +506,34 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   };
 
   /**
-   * Every formatted field of the form (QA bug 016). On a phone only the open
-   * section is checked, since the sheet cannot show an error elsewhere.
+   * Every field of the form with a format of its own (QA bug 016, owner
+   * request 2026-10-05: coherence forced on EVERY field). The remaining
+   * fields are Selects over fixed lists (compagnie, type, nature, statut,
+   * rôle). On a phone only the open section is checked, since the sheet
+   * cannot show an error elsewhere.
    */
   const VALIDATED_FIELDS: ValidatedField[] = [
     { path: 'refExpert', kind: 'ref', label: t('Réf Dossier') },
     { path: 'referenceCompagnie', kind: 'ref', label: t('Référence compagnie') },
     { path: 'policeNumber', kind: 'ref', label: t('N° de Police') },
     { path: 'matricule', kind: 'plate', label: t('Matricule') },
+    { path: 'dateSinistre', kind: 'pastDate', label: t('Date Sinistre') },
+    { path: 'dateRequete', kind: 'pastDate', label: t('Date Requête') },
     ...(['1er', '2eme', 'arbitre'] as const).flatMap((role): ValidatedField[] => [
       { path: `experts.${role}.nom`, kind: 'name', label: `${t('Experts')} · ${t('Nom complet')}` },
       { path: `experts.${role}.telephone`, kind: 'tel', label: `${t('Experts')} · ${t('Téléphone')}` },
       { path: `experts.${role}.email`, kind: 'email', label: `${t('Experts')} · ${t('Email')}` },
-      { path: `experts.${role}.compagnie`, kind: 'label', label: `${t('Experts')} · ${t('Compagnie')}` },
+      { path: `experts.${role}.compagnie`, kind: 'org', label: `${t('Experts')} · ${t('Compagnie')}` },
     ]),
     { path: 'vehicule.marque', kind: 'label', label: `${t('Véhicule')} · ${t('Marque')}` },
     { path: 'vehicule.modele', kind: 'label', label: `${t('Véhicule')} · ${t('Modèle')}` },
     { path: 'vehicule.serie', kind: 'vin', label: `${t('Véhicule')} · ${t('Numéro de série')}` },
     { path: 'vehicule.energie', kind: 'label', label: `${t('Véhicule')} · ${t('Énergie')}` },
+    { path: 'vehicule.mec', kind: 'mecDate', label: `${t('Véhicule')} · ${t('Mise en circ. (Date)')}` },
     { path: 'intermediaireType', kind: 'label', label: `${t('Intermédiaire')} · ${t('Type')}` },
     { path: 'intermediaireCode', kind: 'ref', label: `${t('Intermédiaire')} · ${t('Code Intermédiaire')}` },
-    { path: 'intermediaireCompagnie', kind: 'label', label: `${t('Intermédiaire')} · ${t('Compagnie')}` },
-    { path: 'adverseCompagnie', kind: 'label', label: `${t('Partie Adverse')} · ${t('Compagnie')}` },
+    { path: 'intermediaireCompagnie', kind: 'org', label: `${t('Intermédiaire')} · ${t('Compagnie')}` },
+    { path: 'adverseCompagnie', kind: 'org', label: `${t('Partie Adverse')} · ${t('Compagnie')}` },
     { path: 'adversePermis', kind: 'ref', label: `${t('Partie Adverse')} · ${t('N° Permis')}` },
     { path: 'assure.nom', kind: 'name', label: `${t('Assuré')} · ${t('Nom complet')}` },
     { path: 'assure.telephone', kind: 'tel', label: `${t('Assuré')} · ${t('Téléphone')}` },
@@ -538,9 +544,10 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     { path: 'assure.cin', kind: 'cin', label: `${t('Assuré')} · ${t('CIN')}` },
     { path: 'vehicule.immatriculation', kind: 'plate', label: `${t('Véhicule')} · ${t('Immatriculation')}` },
     { path: 'vehicule.immatriculationAnterieur', kind: 'plate', label: `${t('Véhicule')} · ${t('Immatriculation antérieure')}` },
-    { path: 'vehicule.puissance', kind: 'numeric', label: `${t('Véhicule')} · ${t('Puissance fiscale')}` },
-    { path: 'vehicule.km', kind: 'numeric', label: `${t('Véhicule')} · ${t('Kilométrage')}` },
-    { path: 'intermediaireNom', kind: 'name', label: `${t('Intermédiaire')} · ${t('Nom / Raison sociale')}` },
+    { path: 'vehicule.puissance', kind: 'cv', label: `${t('Véhicule')} · ${t('Puissance fiscale')}` },
+    { path: 'vehicule.km', kind: 'km', label: `${t('Véhicule')} · ${t('Kilométrage')}` },
+    // « Nom / Raison sociale »: a cabinet may carry digits or « & ».
+    { path: 'intermediaireNom', kind: 'org', label: `${t('Intermédiaire')} · ${t('Nom / Raison sociale')}` },
     { path: 'intermediairePrenom', kind: 'name', label: `${t('Intermédiaire')} · ${t('Prénom')}` },
     { path: 'intermediaireTelephone', kind: 'tel', label: `${t('Intermédiaire')} · ${t('Téléphone')}` },
     { path: 'intermediaireEmail', kind: 'email', label: `${t('Intermédiaire')} · ${t('Email')}` },
@@ -555,17 +562,23 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
 
   const handleSave = async () => {
     // Format gate (QA bug 016): a malformed phone / e-mail / plate / CIN /
-    // name / number blocks the save with the message under the field.
+    // name / number / address / date blocks the save with the message under
+    // the field.
     const scopePaths = sheetSection ? new Set((SECTIONS_PATHS[sheetSection] ?? [])) : null;
-    const toCheck = scopePaths ? VALIDATED_FIELDS.filter((f) => scopePaths.has(f.path)) : VALIDATED_FIELDS;
+    const inScope = (p: string) => !scopePaths || scopePaths.has(p);
+    const toCheck = VALIDATED_FIELDS.filter((f) => inScope(f.path));
     const errors = validateFields(form, toCheck);
+    // The dates must also agree with each other: requête after the sinistre,
+    // mise en circulation before it.
+    for (const [p, msg] of Object.entries(dateCoherenceErrors(form))) {
+      if (inScope(p) && !errors[p]) errors[p] = msg;
+    }
     const formatLabels = toCheck.filter((f) => errors[f.path]).map((f) => f.label);
     // Required gate (QA bugs 015 / 040): what creation demanded stays
     // demanded on edit — and ONLY that (`requiredOnSavePaths`). A field that
     // was optional at creation stays optional: it can be filled and emptied
     // again (QA GE-004, 2026-10-05). Format validation deliberately lets empty
     // values through, so this is the only place that blocks a blank.
-    const inScope = (p: string) => !scopePaths || scopePaths.has(p);
     const missingLabels: string[] = [];
     const role = (form.expertRank as ExpertRole) || '1er';
     const requiredLabel: Record<string, string> = {
