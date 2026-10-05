@@ -7,6 +7,7 @@ import { useFirestore } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useMissingDossierIds } from '@/hooks/use-missing-dossiers';
 
 export interface Rappel {
   id: string;
@@ -82,6 +83,11 @@ export function useRappels(): { rappels: Rappel[]; loading: boolean } {
     return () => unsub();
   }, [db, uid, userLoading]);
 
+  // The rappels of a deleted dossier leave the list, the bell and every badge
+  // (QA GE-008) — `deleteDossier` removes them, and this hides the ones a
+  // deletion left behind.
+  const missing = useMissingDossierIds(useMemo(() => rappels.map((r) => r.dossierId), [rappels]));
+
   // Client-side DESC sort on createdAt (avoids composite-index needs).
   const sorted = useMemo(() => {
     const tsOf = (e: Rappel) => {
@@ -92,8 +98,8 @@ export function useRappels(): { rappels: Rappel[]; loading: boolean } {
       const n = Number(t);
       return Number.isFinite(n) ? n : 0;
     };
-    return [...rappels].sort((a, b) => tsOf(b) - tsOf(a));
-  }, [rappels]);
+    return withoutDeletedDossiers(rappels, missing).sort((a, b) => tsOf(b) - tsOf(a));
+  }, [rappels, missing]);
 
   return { rappels: sorted, loading };
 }
@@ -137,6 +143,9 @@ export function useRappelsSent(): { rappels: Rappel[]; loading: boolean } {
     return () => unsub();
   }, [db, uid, userLoading]);
 
+  // Same as useRappels: a deleted dossier's rappels leave « Envoyés » too.
+  const missing = useMissingDossierIds(useMemo(() => rappels.map((r) => r.dossierId), [rappels]));
+
   // Client-side DESC sort on createdAt (avoids composite-index needs).
   const sorted = useMemo(() => {
     const tsOf = (e: Rappel) => {
@@ -147,8 +156,13 @@ export function useRappelsSent(): { rappels: Rappel[]; loading: boolean } {
       const n = Number(t);
       return Number.isFinite(n) ? n : 0;
     };
-    return [...rappels].sort((a, b) => tsOf(b) - tsOf(a));
-  }, [rappels]);
+    return withoutDeletedDossiers(rappels, missing).sort((a, b) => tsOf(b) - tsOf(a));
+  }, [rappels, missing]);
 
   return { rappels: sorted, loading };
+}
+
+/** A copy of `rappels` without those whose dossier is confirmed deleted. */
+export function withoutDeletedDossiers(rappels: readonly Rappel[], missing: ReadonlySet<string>): Rappel[] {
+  return missing.size === 0 ? [...rappels] : rappels.filter((r) => !missing.has(r.dossierId));
 }

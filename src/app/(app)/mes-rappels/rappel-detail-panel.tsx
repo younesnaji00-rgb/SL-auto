@@ -257,6 +257,13 @@ export interface RappelDetailProps {
   rappel: Rappel;
   /** Gates the session-timeline listeners (see SessionTimeline). */
   active: boolean;
+  /**
+   * The dossier is opening (QA GE-010): « Ouvrir le dossier » shows its
+   * loader and takes no second click, and « Comparer avant/après » — which
+   * the opening itself unlocks — waits for the next visit instead of popping
+   * in under the pointer like a step to go through.
+   */
+  opening?: boolean;
   onOpenDossier: (r: Rappel) => void;
   onMarkTreated: (r: Rappel) => void;
   onShowReplay: (r: Rappel) => void;
@@ -267,7 +274,7 @@ export interface RappelDetailProps {
  * reading size (15 px per the prose ruling); actions are the ONLY navigation
  * path (« Ouvrir le dossier » is an explicit act — anti-pogo-sticking).
  */
-export function RappelDetailContent({ rappel: r, active, onOpenDossier, onMarkTreated, onShowReplay }: RappelDetailProps) {
+export function RappelDetailContent({ rappel: r, active, opening = false, onOpenDossier, onMarkTreated, onShowReplay }: RappelDetailProps) {
   const t = useT();
   const assure = assureName(r);
   const state = r.resolvedAt ? 'traite' : r.read ? 'lu' : 'nouveau';
@@ -313,17 +320,17 @@ export function RappelDetailContent({ rappel: r, active, onOpenDossier, onMarkTr
       <div className="flex flex-wrap items-center gap-2">
         {/* Below md this pair's primary lives in the bottom action bar (thumb
             zone, mobile-synthesis §4 master-detail) — never two primaries. */}
-        <Button variant="tonal" className="gap-1.5 max-md:hidden" onClick={() => onOpenDossier(r)}>
-          <FolderOpen className="h-4 w-4" />
-          {t('Ouvrir le dossier')}
+        <Button variant="tonal" className="gap-1.5 max-md:hidden" loading={opening} onClick={() => onOpenDossier(r)}>
+          {!opening && <FolderOpen className="h-4 w-4" />}
+          {opening ? t('Ouverture…') : t('Ouvrir le dossier')}
         </Button>
         {!r.resolvedAt && (
-          <Button variant="outline" className="gap-1.5" onClick={() => onMarkTreated(r)}>
+          <Button variant="outline" className="gap-1.5" disabled={opening} onClick={() => onMarkTreated(r)}>
             <CheckCircle2 className="h-4 w-4" />
             {t('Marquer traité')}
           </Button>
         )}
-        {r.sessionId ? (
+        {r.sessionId && !opening ? (
           <Button variant="ghost" className="gap-1.5" onClick={() => onShowReplay(r)}>
             <ScrollText className="h-4 w-4" />
             {t('Comparer avant/après')}
@@ -351,7 +358,7 @@ export function RappelDetailContent({ rappel: r, active, onOpenDossier, onMarkTr
  * `RappelDetailContent` at reading size, and the two actions sit in a 56 px
  * bottom action bar that replaces the navigation bar.
  */
-export function PhoneRappelDetailScreen({ rappel: r, onOpenDossier, onMarkTreated, onShowReplay }: Omit<RappelDetailProps, 'active'>) {
+export function PhoneRappelDetailScreen({ rappel: r, opening = false, onOpenDossier, onMarkTreated, onShowReplay }: Omit<RappelDetailProps, 'active'>) {
   const t = useT();
   useRegisterPageTitle(r.dossierRef || r.dossierId);
   usePhoneChrome(
@@ -374,6 +381,7 @@ export function PhoneRappelDetailScreen({ rappel: r, onOpenDossier, onMarkTreate
       <RappelDetailContent
         rappel={r}
         active
+        opening={opening}
         onOpenDossier={onOpenDossier}
         onMarkTreated={onMarkTreated}
         onShowReplay={onShowReplay}
@@ -384,7 +392,7 @@ export function PhoneRappelDetailScreen({ rappel: r, onOpenDossier, onMarkTreate
             ? []
             : [{ label: t('Marquer traité'), icon: <CheckCircle2 />, onClick: () => onMarkTreated(r) }]
         }
-        primary={{ label: t('Ouvrir le dossier'), icon: <FolderOpen className="h-4 w-4" />, onClick: () => onOpenDossier(r) }}
+        primary={{ label: opening ? t('Ouverture…') : t('Ouvrir le dossier'), icon: <FolderOpen className="h-4 w-4" />, onClick: () => onOpenDossier(r), loading: opening }}
       />
     </div>
   );

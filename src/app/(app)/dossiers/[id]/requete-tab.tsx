@@ -257,7 +257,7 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
                     >
                         <Select value={formValues.statut} onValueChange={(v) => handleFormChange('statut', v)}>
                             <SelectTrigger className="h-9"><SelectValue placeholder={t('Choisir un statut')} /></SelectTrigger>
-                            <SelectContent className="max-h-[300px]">
+                            <SelectContent className="max-h-[min(var(--radix-select-content-available-height,300px),300px)]">
                                 {statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{t(s.label)}</span></SelectItem>)}
                             </SelectContent>
                         </Select>

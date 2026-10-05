@@ -96,17 +96,20 @@ export function isBlankFieldValue(v: unknown): boolean {
 }
 
 /**
- * Protected fields (owner rulings 2026-09-24, QA bugs 015 / 040): once saved
- * with a value, a field can be CHANGED but never emptied. Returns the paths
- * that hold a value in `saved` and are blank in `form` — the save must be
- * refused for each. A field that was never filled stays optional.
+ * The only fields an Informations save may not leave blank: exactly what the
+ * creation dialog demands (QA bugs 007 / 040) — the reference, the compagnie
+ * and the name of the expert of the dossier's role. A field that was optional
+ * at creation stays optional on every later save: it can be filled, changed
+ * and emptied again (QA GE-004, 2026-10-05 — this replaced the 2026-09-24
+ * « once saved, never emptied » rule).
  */
-export function clearedProtectedPaths(saved: any, form: any, paths: Iterable<string>): string[] {
-  const out: string[] = [];
-  for (const p of paths) {
-    if (!isBlankFieldValue(readFieldPath(saved, p)) && isBlankFieldValue(readFieldPath(form, p))) out.push(p);
-  }
-  return out;
+export function requiredOnSavePaths(expertRank?: string): string[] {
+  return ['refExpert', 'compagnie', `experts.${expertRank || '1er'}.nom`];
+}
+
+/** The `requiredOnSavePaths` that are blank in `form`, in that order. */
+export function blankRequiredPaths(form: any, expertRank?: string): string[] {
+  return requiredOnSavePaths(expertRank).filter((p) => isBlankFieldValue(readFieldPath(form, p)));
 }
 
 /**

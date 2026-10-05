@@ -31,6 +31,7 @@ import { titleForRoute } from '@/lib/nav-groups';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import SessionReplayDialog from './session-replay-dialog';
+import { rappelOrigin, setDossierOrigin } from '@/lib/dossier-origin';
 import { RappelDetailContent, RappelDetailPlaceholder, PhoneRappelDetailScreen, relativeAge } from './rappel-detail-panel';
 // Mobile pass 2026-09-06 (mobile-synthesis §4): below md the master-detail
 // collapses to a SINGLE pane — the Reçus queue is a `RecordList`, a row tap
@@ -381,6 +382,9 @@ export default function MesRappelsPage() {
     writeSelectedUrl(r.id, isPhone);
     setSelectedId(r.id);
     markRead(r);
+    // Fetch the dossier route ahead, so « Ouvrir le dossier » opens it on
+    // the first click without a wait (QA GE-010).
+    try { router.prefetch(`/dossiers/${r.dossierId}`); } catch { /* best effort */ }
   };
 
   const clearSelection = () => {
@@ -418,7 +422,16 @@ export default function MesRappelsPage() {
   const unreadCount = useMemo(() => rappels.filter((r) => !r.read && !r.resolvedAt).length, [rappels]);
   const pendingSentCount = useMemo(() => sentGroups.reduce((n, g) => n + g.newCount + g.readCount, 0), [sentGroups]);
 
-  const openRappel = async (r: Rappel) => {
+  // The rappel whose dossier is opening: its « Ouvrir le dossier » reads
+  // « Ouverture… » and repeat clicks are ignored until the dossier page
+  // replaces this one (QA GE-010).
+  const [openingId, setOpeningId] = useState<string | null>(null);
+
+  const openRappel = (r: Rappel) => {
+    if (openingId === r.id) return;
+    setOpeningId(r.id);
+    // Never stuck on « Ouverture… » if the navigation does not happen.
+    window.setTimeout(() => setOpeningId((cur) => (cur === r.id ? null : cur)), 8000);
     // F9.A: open a rappel "session" — generate sessionId on first
     // click (and persist it on the doc), or re-stamp the existing
     // one. The localStorage key is what addObservation reads to
@@ -427,17 +440,20 @@ export default function MesRappelsPage() {
     const existingSid = r.sessionId;
     let sid = existingSid || null;
     if (db && !existingSid) {
-      // AWAIT the first write so the dossier page's session
-      // lookup (queried on mount) reliably finds the sessionId.
       sid = newSessionId();
-      try {
-        await updateDoc(doc(db, 'rappels', r.id), {
-          read: true,
-          sessionId: sid,
-          sessionStartedAt: serverTimestamp(),
-          seenAt: serverTimestamp(),
-        });
-      } catch {}
+      // NOT awaited (QA GE-010). Waiting for the server's acknowledgement
+      // held the navigation back: the local copy already carried the
+      // session, so the first click only made « Comparer avant/après »
+      // appear, and a second click was needed to open the dossier. The
+      // write is queued on this client before the dossier page mounts, and
+      // Firestore applies pending writes to every read, so that page's
+      // session lookup still finds it.
+      updateDoc(doc(db, 'rappels', r.id), {
+        read: true,
+        sessionId: sid,
+        sessionStartedAt: serverTimestamp(),
+        seenAt: serverTimestamp(),
+      }).catch(() => {});
       // The session-start snapshot (baseline for the manager's
       // diff) is captured on the dossier page once it loads —
       // see ensureSnapshotBefore there.
@@ -447,6 +463,14 @@ export default function MesRappelsPage() {
     if (typeof window !== 'undefined' && sid) {
       try { window.localStorage.setItem(SESSION_KEY(r.dossierId), sid); } catch {}
     }
+    // « Retour » on the dossier comes back to this rappel (QA GE-009).
+    setDossierOrigin(r.dossierId, rappelOrigin(r.id));
+    router.push(`/dossiers/${r.dossierId}`);
+  };
+
+  /** A dossier opened from « Envoyés »: « Retour » comes back to that tab (QA GE-009). */
+  const openSentDossier = (r: Rappel) => {
+    setDossierOrigin(r.dossierId, rappelOrigin(r.id, 'envoyes'));
     router.push(`/dossiers/${r.dossierId}`);
   };
 
@@ -545,7 +569,7 @@ export default function MesRappelsPage() {
         rappel={phoneReplayRappel}
         upHref={own && selectedId ? `/mes-rappels?rappel=${encodeURIComponent(selectedId)}` : '/mes-rappels'}
         upLabel={own && selectedId ? t('Rappel') : undefined}
-        onOpenDossier={(r) => (own ? openRappel(r) : router.push(`/dossiers/${r.dossierId}`))}
+        onOpenDossier={(r) => (own ? openRappel(r) : openSentDossier(r))}
       />
     );
   }
@@ -555,6 +579,7 @@ export default function MesRappelsPage() {
     return (
       <PhoneRappelDetailScreen
         rappel={selected}
+        opening={openingId === selected.id}
         onOpenDossier={openRappel}
         onMarkTreated={markTreated}
         onShowReplay={openPhoneReplay}
@@ -589,7 +614,7 @@ export default function MesRappelsPage() {
         onSearchChange={setPhoneSearch}
         onSelect={selectRappel}
         onOpenDossier={openRappel}
-        onOpenSentDossier={(r) => router.push(`/dossiers/${r.dossierId}`)}
+        onOpenSentDossier={openSentDossier}
         onShowReplay={openPhoneReplay}
       />
     );
@@ -813,6 +838,7 @@ export default function MesRappelsPage() {
                     <RappelDetailContent
                       rappel={selected}
                       active={isXl}
+                      opening={openingId === selected.id}
                       onOpenDossier={openRappel}
                       onMarkTreated={markTreated}
                       onShowReplay={(r) => setReplayRappel(r)}
@@ -838,6 +864,7 @@ export default function MesRappelsPage() {
                   <RappelDetailContent
                     rappel={selected}
                     active={!isXl}
+                    opening={openingId === selected.id}
                     onOpenDossier={openRappel}
                     onMarkTreated={markTreated}
                     onShowReplay={(r) => setReplayRappel(r)}
@@ -947,7 +974,11 @@ export default function MesRappelsPage() {
                                     {g.rappels.map((r) => (
                                       <TableRow key={r.id} className="hover:bg-surface-3">
                                         <TableCell className="t-mono font-semibold">
-                                          <Link href={`/dossiers/${r.dossierId}`} className="rounded-sm hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                          <Link
+                                            href={`/dossiers/${r.dossierId}`}
+                                            onClick={() => setDossierOrigin(r.dossierId, rappelOrigin(r.id, 'envoyes'))}
+                                            className="rounded-sm hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                          >
                                             {r.dossierRef || r.dossierId}
                                           </Link>
                                         </TableCell>

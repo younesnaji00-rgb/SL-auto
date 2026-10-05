@@ -25,6 +25,16 @@ function decode(s: string): Record<string, any> | null {
 }
 
 /**
+ * A link that opens the list at `path` on exactly `filters` (merged over that
+ * page's defaults on arrival, like any shared `?f=` link) — so a figure
+ * elsewhere can open the very rows it counts.
+ */
+export function filtersHref(path: string, filters: Record<string, unknown>): string {
+  const f = encode(filters);
+  return f ? `${path}?${URL_PARAM}=${f}` : path;
+}
+
+/**
  * Hook that persists filter state per page.
  *
  * - localStorage keeps the user's last filters across sessions.

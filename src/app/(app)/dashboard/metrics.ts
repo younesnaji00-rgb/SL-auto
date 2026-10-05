@@ -28,6 +28,7 @@ import { buildSlaItems, normalizeMissionType, SLA_BUSINESS_HOURS, type SlaItem }
 import type { DashboardChiffrage, DashboardMission, DashboardUser } from './use-dashboard-data';
 import { isChiffrageMine, isChiffrageUnowned, type ChiffreurAccountRef } from '@/lib/chiffreur-identity';
 import { isValidPhotosSentAt, missionPhotoAnchor, type PhasePhotoTimes } from '@/lib/mission-photos';
+import { isDossierLate } from '@/lib/dossier-late';
 
 export { SLA_BUSINESS_HOURS };
 
@@ -114,12 +115,16 @@ const DATED_FIELDS = [
   'dateRapportDepose',
   'dateNoteHonoraire',
   'noteHonoraireAt',
+  // Any saved edit of the dossier (Informations, pre-fill, réforme): an edit
+  // is an action, so it ends « sans mouvement » (QA GE-007 — editing a stuck
+  // dossier left it on the card).
+  'updatedAt',
 ] as const;
 
 /**
  * Last dated movement on the dossier document itself (milestones, status
- * change, observation) — no workflow-log listener needed. "Sans mouvement
- * depuis" = now − this.
+ * change, observation, saved edit) — no workflow-log listener needed.
+ * "Sans mouvement depuis" = now − this.
  */
 export function lastMovementAt(d: any): Date | null {
   let best: Date | null = null;
@@ -237,6 +242,12 @@ export interface GestionnaireView {
   parEtape: StepLoad[];
   ageBuckets: AgeBucket[];
   openCount: number;
+  /**
+   * The open dossiers « en retard » by the dossiers list's own rule
+   * (`isDossierLate`: still to treat, created ≥ 7 j ago), oldest first —
+   * what the « En retard » tile counts and names (QA GE-006).
+   */
+  lateDossiers: FunnelDossier[];
 }
 
 /** Practical Moroccan expectation: expertise 8–15 j after declaration; payment 30–60 j (industry report B16). */
@@ -270,7 +281,11 @@ export function computeGestionnaireView(
 ): GestionnaireView {
   const mine = person ? dossiers.filter((d) => dossierOwnedBy(d as any, person)) : dossiers;
   const open = mine.filter(isOpenDossier);
+  // `lateIds` = a chiffrage / terrain clock past 24 h ouvrées: the rows'
+  // « Hors délai » badge. « En retard » (tile, pie) is the dossiers list's
+  // rule instead, so the two pages agree on that word (QA GE-006).
   const lateIds = lateDossierIds(sla);
+  const isLate = (d: FunnelDossier) => isDossierLate(d as any, now);
 
   const aTraiter: WorkItem[] = [];
   const waiting: WorkItem[] = [];
@@ -315,11 +330,16 @@ export function computeGestionnaireView(
     if (next) {
       const row = stepCounts.get(next.id)!;
       row.count += 1;
-      if (late) row.late += 1;
+      if (isLate(d)) row.late += 1;
     }
-    const requete = toDate(d.dateRequete) ?? toDate(d.createdAt);
+    // Age since the requête, falling back on the creation when the requête is
+    // missing or dated in the future (QA GE-007: a requête typed after today
+    // fell in no bucket, so « Âge des ouverts » read 0 everywhere beside
+    // « 1 ouvert »). Every open dossier lands in exactly one bucket.
+    const typed = toDate(d.dateRequete);
+    const requete = typed && typed.getTime() <= now.getTime() ? typed : toDate(d.createdAt) ?? typed;
     if (requete) {
-      const days = Math.floor((startOfDay(now).getTime() - startOfDay(requete).getTime()) / 86_400_000);
+      const days = Math.max(0, Math.floor((startOfDay(now).getTime() - startOfDay(requete).getTime()) / 86_400_000));
       const b = buckets.find((x) => days >= x.from && (x.to == null || days < x.to));
       if (b) b.count += 1;
     }
@@ -342,6 +362,9 @@ export function computeGestionnaireView(
   const rappelOldest = unread
     .slice()
     .sort((a, b) => (toDate(a.createdAt)?.getTime() ?? 0) - (toDate(b.createdAt)?.getTime() ?? 0))[0] ?? null;
+  const lateDossiers = open
+    .filter(isLate)
+    .sort((a, b) => (toDate(a.createdAt)?.getTime() ?? 0) - (toDate(b.createdAt)?.getTime() ?? 0));
 
   return {
     aTraiter,
@@ -350,7 +373,7 @@ export function computeGestionnaireView(
     tiles: {
       enCours: open.length,
       crees7,
-      enRetard: open.filter((d) => lateIds.has(d.id)).length,
+      enRetard: lateDossiers.length,
       rappelsNonLus: unread.length,
       rappelOldest,
       termines7,
@@ -359,6 +382,7 @@ export function computeGestionnaireView(
     parEtape: Array.from(stepCounts.values()),
     ageBuckets: buckets,
     openCount: open.length,
+    lateDossiers,
   };
 }
 
@@ -784,7 +808,6 @@ export function computeTeamView(
   const exceptions: ExceptionRow[] = [];
 
   if (role === 'Gestionnaire') {
-    const lateIds = lateDossierIds(data.sla);
     const openAll = data.dossiers.filter(isOpenDossier);
     for (const u of team) {
       const p = personOf(u);
@@ -836,7 +859,9 @@ export function computeTeamView(
     }).length;
     const tiles: TeamTiles = {
       enCours: openAll.length,
-      enRetard: openAll.filter((d) => lateIds.has(d.id)).length,
+      // The same « En retard » rule as each gestionnaire's tile and the
+      // dossiers list (QA GE-006).
+      enRetard: openAll.filter((d) => isDossierLate(d as any, now)).length,
       third: stale,
       thirdLabel: 'Sans mouvement',
       termines7: data.dossiers.filter((d) => inWindow(STEP_DEFS.rapport.doneAt(d), cur[0], cur[1])).length,

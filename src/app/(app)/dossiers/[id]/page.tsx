@@ -24,6 +24,7 @@ import { StepTabs, type StepTab } from '@/components/dossier-timeline/step-tabs'
 import { useRequiredDocsStatus } from '@/hooks/use-required-docs-status';
 import { chiffrageGateReason, isChiffrageGateClosed } from '@/lib/required-docs';
 import { getMissingRequiredFields } from '@/lib/required-fields';
+import { readDossierOrigin, type DossierOrigin } from '@/lib/dossier-origin';
 import { mapToAccorde, parseAccordeParent } from '@/lib/docType-accorde';
 import { useFocusMode } from '@/hooks/use-focus-mode';
 import {
@@ -237,6 +238,14 @@ function DossierDetail({ id }: { id: string }) {
   const urlStep = parseStepParam(searchParams.get(STEP_PARAM));
   const urlTab = searchParams.get(TAB_PARAM);
   const historiqueView = searchParams.get(VIEW_PARAM) === HISTORIQUE_VIEW;
+
+  // Where « Retour » leads: Mes rappels when the dossier was opened from a
+  // rappel (QA GE-009), the dossiers list otherwise. Read after mount — it
+  // lives in sessionStorage.
+  const [origin, setOrigin] = useState<DossierOrigin | null>(null);
+  useEffect(() => { setOrigin(readDossierOrigin(id)); }, [id]);
+  const backHref = origin?.href ?? '/dossiers';
+  const backLabel = origin?.label ?? 'Dossiers';
 
   // Tab registration + label sync live in <RecordBar> (one label everywhere).
   const [activeStep, setActiveStep] = useLastStep(id);
@@ -498,9 +507,11 @@ function DossierDetail({ id }: { id: string }) {
           description={t("Le dossier que vous recherchez n'existe pas ou a été supprimé.")}
           className="max-w-md"
         />
-        <Link href="/dossiers" className="mt-4">
+        {/* Back where the reader came from — Mes rappels for a rappel whose
+            dossier was deleted (QA GE-008 / GE-009). */}
+        <Link href={backHref} className="mt-4">
           <Button variant="outline">
-            <ArrowLeft className="mr-2 h-4 w-4" /> {t('Retour à la liste')}
+            <ArrowLeft className="mr-2 h-4 w-4" /> {origin ? `${t('Retour à')} ${t(origin.label)}` : t('Retour à la liste')}
           </Button>
         </Link>
       </div>
@@ -786,8 +797,8 @@ function DossierDetail({ id }: { id: string }) {
         onChiffrage={() => setChiffrageModalOpen(true)}
         onGoToStep={goToStep}
         phoneTitle={phoneTitle}
-        upHref={historiqueView ? dossierUrl(id) : '/dossiers'}
-        upLabel={historiqueView ? 'Dossier' : 'Dossiers'}
+        upHref={historiqueView ? dossierUrl(id) : backHref}
+        upLabel={historiqueView ? 'Dossier' : backLabel}
       />
 
       {isPhone ? (

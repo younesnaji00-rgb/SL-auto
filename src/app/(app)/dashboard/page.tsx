@@ -24,6 +24,8 @@ import { useT } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { landingPathFor } from '@/lib/role-landing';
 import { useDashboardData } from './use-dashboard-data';
+import { useMissingDossierIds } from '@/hooks/use-missing-dossiers';
+import { withoutDeletedDossiers } from '@/hooks/use-rappels';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
 import { useAssignableChiffreurs } from '@/hooks/use-assignable-chiffreurs';
 import { directoryIdsFor } from '@/lib/chiffreur-identity';
@@ -69,6 +71,10 @@ function DashboardInner({ role }: { role: string }) {
   // The workflow logs are the Direction view's « touches par dossier » — admin only.
   const data = useDashboardData({ withUsers: isAdmin, withWorkflow: isAdmin && !scope, withRappels: role === 'Gestionnaire' });
   const { dossiers, chiffrages, missions, holidays, loading } = data;
+  // « Rappels non lus » leaves out the rappels of deleted dossiers, like
+  // Mes rappels and the bell (QA GE-008).
+  const missingRappelDossiers = useMissingDossierIds(useMemo(() => data.rappelsRecus.map((r) => r.dossierId), [data.rappelsRecus]));
+  const rappelsRecus = useMemo(() => withoutDeletedDossiers(data.rappelsRecus, missingRappelDossiers), [data.rappelsRecus, missingRappelDossiers]);
 
   // One "now" per data change so every « maintenant » figure agrees — plus a
   // minute tick, so a dashboard left open overnight does not keep yesterday
@@ -105,7 +111,10 @@ function DashboardInner({ role }: { role: string }) {
       ? t('Votre file, vos délais — telle que la file la découpe.')
       : role === 'Agent de Terrain'
         ? t('Où être ensuite, ce qui est en retard, les photos qui manquent.')
-        : t('Ce qui vous attend, ce qui attend un tiers, ce qui n’a pas bougé.');
+        : // Says whose dossiers these are (QA GE-006/007): the gestionnaire's
+          // dashboard counts the dossiers they created, while their Dossiers
+          // list shows every dossier of their compagnies.
+          t('Les dossiers que vous avez créés : ce qui vous attend, ce qui attend un tiers, ce qui n’a pas bougé.');
 
   return (
     <div className={isPhone ? 'flex-1 space-y-2' : 'flex-1 space-y-6'}>
@@ -128,12 +137,12 @@ function DashboardInner({ role }: { role: string }) {
         />
       )}
       {isPhone && role === 'Gestionnaire' && (
-        <PhoneGestionnaireDashboard dossiers={dossiers} chiffrages={chiffrages} sla={sla} rappelsRecus={data.rappelsRecus} holidays={holidays} now={now} person={person} loading={loading} />
+        <PhoneGestionnaireDashboard dossiers={dossiers} chiffrages={chiffrages} sla={sla} rappelsRecus={rappelsRecus} holidays={holidays} now={now} person={person} loading={loading} />
       )}
       {isPhone && role === 'Chiffreur' && <PhoneChiffreurDashboard chiffrages={chiffrages} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
       {isPhone && role === 'Agent de Terrain' && <PhoneTerrainDashboard missions={missions} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
       {!isPhone && role === 'Gestionnaire' && (
-        <GestionnaireDashboard dossiers={dossiers} chiffrages={chiffrages} sla={sla} rappelsRecus={data.rappelsRecus} holidays={holidays} now={now} person={person} loading={loading} />
+        <GestionnaireDashboard dossiers={dossiers} chiffrages={chiffrages} sla={sla} rappelsRecus={rappelsRecus} holidays={holidays} now={now} person={person} loading={loading} />
       )}
       {!isPhone && role === 'Chiffreur' && <ChiffreurDashboard chiffrages={chiffrages} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}
       {!isPhone && role === 'Agent de Terrain' && <TerrainDashboard missions={missions} dossiers={dossiers} holidays={holidays} now={now} person={person} loading={loading} />}

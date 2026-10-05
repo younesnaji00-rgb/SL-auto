@@ -690,7 +690,7 @@ export default function ConsultationClientPage() {
 
         <Select value={filters.status} onValueChange={v => setFilters({ status: v })}>
           <SelectTrigger className="w-[180px]" aria-label={t('Statut')} data-tour="consult-statut"><SelectValue placeholder={t('Statut')} /></SelectTrigger>
-          <SelectContent className="max-h-[300px]">
+          <SelectContent className="max-h-[min(var(--radix-select-content-available-height,300px),300px)]">
             <SelectItem value="Tous">{t('Tous les statuts')}</SelectItem>
             {filterStatuses.map(s => (
               <SelectItem key={s.id} value={s.label}>

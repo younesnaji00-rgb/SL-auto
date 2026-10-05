@@ -61,6 +61,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { type ExportColumn } from '@/lib/export-excel';
 import { CANONICAL_STATUTS } from '@/lib/dossiers-data';
+import { isActionNeeded, LATE_AFTER_DAYS } from '@/lib/dossier-late';
+import { clearDossierOrigin } from '@/lib/dossier-origin';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
 import {
@@ -163,18 +165,11 @@ const WIDE_MENU_CLASS: Record<string, string> = {
   policeNumber: 'max-[1919px]:hidden',
 };
 
-// « À traiter » scope: every status that still needs work. Only « Accord
-// envoyé » is terminal in the canonical status machine today — a Réforme
-// still moves through rapport/honoraires. Extend this set if a new terminal
-// status appears.
-const TERMINAL_STATUTS: ReadonlySet<string> = new Set(['Accord envoyé']);
-const isActionNeeded = (statut: string | undefined) => !TERMINAL_STATUTS.has((statut || '').trim());
-
-// Age alarm threshold in days (SLA aging — attention research 2026-09-03).
-// Lateness uses the DANGER pair, never terracotta (addendum 2026-09-02:
-// terracotta marks aujourd'hui/prochain, "lateness belongs to the danger
-// pair"). Tune here.
-const LATE_AFTER_DAYS = 7;
+// « À traiter » scope (`isActionNeeded`) and the « En retard » age threshold
+// live in lib/dossier-late.ts, shared with the gestionnaire dashboard so both
+// pages count the same late dossiers (QA GE-006). Lateness uses the DANGER
+// pair, never terracotta (addendum 2026-09-02: terracotta marks
+// aujourd'hui/prochain, "lateness belongs to the danger pair").
 
 // Diacritic/case-insensitive search normalizer (fuzzy-search upgrade — the
 // TanStack `rankItem` value delivered natively; ecosystem research
@@ -202,6 +197,9 @@ export default function DossiersClientPage() {
   const dossierListRef = React.useRef<Array<{ id: string }>>([]);
   const openDossier = useCallback((d: { id: string; refExpert?: string; numero?: string; assure?: any }, opts?: { preview?: boolean; navigate?: boolean }) => {
     writeDossierListOrder(dossierListRef.current.map((row) => row.id));
+    // Opened from the list: « Retour » leads back here, even if the dossier
+    // was opened from Mes rappels earlier in this tab (QA GE-009).
+    clearDossierOrigin(d.id);
     openTab(d.id, dossierLabel(d), { preview: opts?.preview ?? true });
     if (opts?.navigate !== false) router.push(`/dossiers/${d.id}`);
   }, [openTab, router]);
@@ -1087,6 +1085,17 @@ export default function DossiersClientPage() {
     filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' ||
     filters.observation !== 'Toutes' || filters.creator !== 'Tous' || !!filters.dateFrom || !!filters.dateTo ||
     filters.lateOnly;
+  // What narrows the table below a KPI tile's own predicate: the column
+  // filters and a typed search (the tiles count every dossier in scope).
+  const narrowing =
+    filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' ||
+    filters.observation !== 'Toutes' || filters.creator !== 'Tous' || !!filters.search.trim();
+  const dated = !!filters.dateFrom || !!filters.dateTo;
+  // The state every KPI tile starts from before applying its own predicate.
+  const TILE_RESET = {
+    search: '', nature: 'Toutes', status: 'Tous', compagnie: 'Toutes', observation: 'Toutes', creator: 'Tous',
+    lateOnly: false, dateFrom: '', dateTo: '', datePreset: null,
+  } satisfies Partial<DossierFilters>;
 
   // The preset → range maths, pure, so the phone filter sheet can write the
   // same dateFrom/dateTo strings into its PENDING state.
@@ -1095,6 +1104,20 @@ export default function DossiersClientPage() {
     const from = preset === 'jour' ? startOfDay(now) : preset === 'semaine' ? startOfWeek(now, { locale: dateFnsLocale() }) : startOfMonth(now);
     return { dateFrom: format(from, 'yyyy-MM-dd'), dateTo: format(endOfDay(now), 'yyyy-MM-dd'), datePreset: preset };
   };
+
+  // A relative preset (« Jour / Semaine / Mois ») restored from storage or a
+  // bookmarked `?f=` link covers TODAY's range again, not the range of the day
+  // it was clicked (QA GE-001: « Jour » stayed highlighted over a past day's
+  // dossiers while the tiles counted today's).
+  useEffect(() => {
+    const p = filters.datePreset;
+    if (p !== 'jour' && p !== 'semaine' && p !== 'mois') return;
+    const r = presetRange(p);
+    if (r.dateFrom !== filters.dateFrom || r.dateTo !== filters.dateTo) {
+      setFilters({ dateFrom: r.dateFrom, dateTo: r.dateTo });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.datePreset, filters.dateFrom, filters.dateTo]);
 
   const applyPreset = (preset: 'jour' | 'semaine' | 'mois') => {
     // The KPI tile counted every statut; opening it onto the « À traiter »
@@ -1242,13 +1265,17 @@ export default function DossiersClientPage() {
         dataTour="dos-kpis"
         loading={loading}
         tiles={[
+          // A tile shows exactly the set it counts (QA GE-001): clicking it
+          // clears the attribute filters and the search, which its number
+          // ignores, and it only reads as selected while nothing else narrows
+          // the table under it.
           {
             key: 'a-traiter',
             label: t('À traiter'),
             value: kpi.aTraiter,
             caption: t('statut non terminé'),
-            active: filters.scope === 'a-traiter' && !filters.lateOnly,
-            onClick: () => { setFilters({ scope: 'a-traiter', lateOnly: false }); setPage(1); },
+            active: filters.scope === 'a-traiter' && !filters.lateOnly && !narrowing && !dated,
+            onClick: () => { setFilters({ ...TILE_RESET, scope: 'a-traiter' }); setPage(1); },
           },
           {
             key: 'en-retard',
@@ -1256,27 +1283,24 @@ export default function DossiersClientPage() {
             value: kpi.enRetard,
             caption: `${t('à traiter depuis ≥')} ${LATE_AFTER_DAYS} ${t('j')}`,
             danger: true,
-            active: filters.lateOnly,
-            onClick: () => { setFilters({ scope: 'a-traiter', lateOnly: true, sortByCreation: 'asc' }); setPage(1); },
+            active: filters.lateOnly && !narrowing && !dated,
+            onClick: () => { setFilters({ ...TILE_RESET, scope: 'a-traiter', lateOnly: true, sortByCreation: 'asc' }); setPage(1); },
           },
           {
             key: 'aujourdhui',
             label: t("Créés aujourd'hui"),
             value: kpi.aujourdHui,
             caption: t('sur la journée'),
-            active: filters.datePreset === 'jour',
-            onClick: () => applyPreset('jour'),
+            active: filters.datePreset === 'jour' && filters.scope === 'tous' && !filters.lateOnly && !narrowing,
+            onClick: () => { setFilters({ ...TILE_RESET, ...presetRange('jour'), scope: 'tous' }); setPage(1); },
           },
           {
             key: 'total',
             label: t('Total'),
             value: kpi.total,
             caption: t('tous statuts'),
-            active: filters.scope === 'tous' && !hasAttributeFilters,
-            onClick: () => {
-              setFilters({ scope: 'tous', lateOnly: false, dateFrom: '', dateTo: '', datePreset: null });
-              setPage(1);
-            },
+            active: filters.scope === 'tous' && !hasAttributeFilters && !filters.search.trim(),
+            onClick: () => { setFilters({ ...TILE_RESET, scope: 'tous' }); setPage(1); },
           },
         ]}
       />
@@ -1617,6 +1641,7 @@ export default function DossiersClientPage() {
                   // the preview tab, let Next navigate.
                   onRowTap(d.id);
                   writeDossierListOrder(dossierListRef.current.map((row) => row.id));
+                  clearDossierOrigin(d.id);
                   openTab(d.id, dossierLabel(d), { preview: true });
                 }}
                 onOpen={(d) => {
@@ -1643,6 +1668,33 @@ export default function DossiersClientPage() {
           `max-md:hidden` keeps the pre-hydration paint right meanwhile). */}
       {!isPhone && (
       <>
+      {/* Applied filters spelled out above the table (QA GE-001). A filter set
+          in a column header used to show only as a 14 px funnel, and a stale
+          one restored from storage or a bookmark showed nowhere — so the tiles
+          above, which count every dossier and ignore the filters, looked
+          contradicted by the rows below. The count says how many rows remain;
+          each chip removes its filter, « Tout effacer » resets them all. */}
+      {!exportMode && !loading && (appliedChips.length > 0 || !!filters.search.trim()) && (
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 max-md:hidden" role="status">
+          <span className="t-caption shrink-0 tabular-nums text-ink-2">
+            {dossierList.length} {dossierList.length > 1 ? t('dossiers affichés') : t('dossier affiché')} {t('sur')} {allDossiers.length}
+            {filters.search.trim() ? ` · ${t('recherche')} « ${filters.search.trim()} »` : ''}
+          </span>
+          <AppliedChips
+            chips={appliedChips}
+            onClearAll={resetAttributeFilters}
+            alwaysClearAll
+            bleed={false}
+            ariaLabel={t('Filtres actifs')}
+            className="min-w-0 flex-1"
+          />
+          {appliedChips.length === 0 && (
+            <Button variant="ghost" size="sm" className="h-8 px-2 text-[13px] text-ink-3" onClick={resetAttributeFilters}>
+              {t('Effacer la recherche')}
+            </Button>
+          )}
+        </div>
+      )}
       {/* relative wrapper so the tutorial can spotlight just the horizontal
           scrollbar strip at the card's bottom edge (dos-hscroll) */}
       <div className="relative max-md:hidden">

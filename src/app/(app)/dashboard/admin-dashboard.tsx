@@ -522,7 +522,9 @@ function PersonView({
   loading,
 }: Omit<AdminDashboardProps, 'users' | 'workflowLogs'> & { role: DashboardRole; user: DashboardUser; team: TeamView; onBack: () => void }) {
   const t = useT();
-  const person = { uid: user.id, nom: user.nom, email: user.email };
+  // The prénom too: the « En retard » tile links to the dossiers list
+  // filtered on « Créé par : Prénom Nom ».
+  const person = { uid: user.id, nom: user.nom, prenom: user.prenom, email: user.email };
   const row: PersonRow | undefined = team.perPerson.find((r) => r.user.id === user.id);
   const words = WORDS[role];
 

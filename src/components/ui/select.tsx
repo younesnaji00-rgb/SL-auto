@@ -112,7 +112,13 @@ const SelectContent = React.forwardRef<
       className={cn(
         // Grows FROM its trigger (origin-aware, motion-spec §6): enter 150ms
         // decelerate, exit 100ms fade-only.
-        "relative z-50 max-h-96 min-w-[8rem] glass-strong overflow-hidden rounded-md text-popover-foreground origin-[--radix-select-content-transform-origin] duration-150 ease-enter data-[state=closed]:duration-100 data-[state=closed]:ease-exit data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none",
+        // Height: 24rem at most, and never more than the room left on screen
+        // (QA GE-003). A fixed 24rem ran past the bottom of the window for a
+        // trigger low on the page; the list then had no scroll of its own and
+        // its last items only showed after scrolling the page. Capped here, the
+        // Viewport scrolls inside the list. A caller's own cap must keep the
+        // same `min(var(--radix-select-content-available-height,…),…)` form.
+        "relative z-50 max-h-[min(var(--radix-select-content-available-height,24rem),24rem)] min-w-[8rem] glass-strong overflow-hidden rounded-md text-popover-foreground origin-[--radix-select-content-transform-origin] duration-150 ease-enter data-[state=closed]:duration-100 data-[state=closed]:ease-exit data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none",
         position === "popper" &&
           "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
         className

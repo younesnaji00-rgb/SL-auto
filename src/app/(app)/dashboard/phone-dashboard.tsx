@@ -47,6 +47,7 @@ import {
   type WorkItem,
 } from './metrics';
 import { photosToChiffrageOpen } from './analytics';
+import { filtersHref } from '@/hooks/use-persisted-filters';
 import type { DashboardChiffrage, DashboardMission } from './use-dashboard-data';
 import { useMissionPhotos } from './use-mission-photos';
 import { fmtHours } from './ui';
@@ -67,9 +68,12 @@ function medianOpenAgeDays(dossiers: FunnelDossier[], now: Date, person: PersonR
   for (const d of dossiers) {
     if (person && !dossierOwnedBy(d as any, person)) continue;
     if (!isOpenDossier(d)) continue;
-    const requete = toDate(d.dateRequete) ?? toDate(d.createdAt);
+    // A requête dated in the future falls back on the creation, and no age is
+    // negative — the desktop buckets' rule (QA GE-007).
+    const typed = toDate(d.dateRequete);
+    const requete = typed && typed.getTime() <= now.getTime() ? typed : toDate(d.createdAt) ?? typed;
     if (!requete) continue;
-    days.push(Math.floor((today - startOfDay(requete).getTime()) / 86_400_000));
+    days.push(Math.max(0, Math.floor((today - startOfDay(requete).getTime()) / 86_400_000)));
   }
   if (days.length === 0) return null;
   days.sort((a, b) => a - b);
@@ -106,10 +110,19 @@ export function PhoneGestionnaireDashboard({ dossiers, chiffrages = [], sla, rap
   const attente = view.enAttente.reduce((n, g) => n + g.count, 0);
   const unread = useMemo(() => rappelsRecus.filter((r) => !r.read), [rappelsRecus]);
   const medianAge = useMemo(() => medianOpenAgeDays(dossiers, now, person), [dossiers, now, person]);
+  // Same link as the desktop tile: the dossiers list's « En retard » rows,
+  // narrowed to this person's dossiers (QA GE-006).
+  const creatorName = person ? `${person.prenom ?? ''} ${person.nom ?? ''}`.trim() : '';
+  const lateHref = filtersHref('/dossiers', {
+    scope: 'a-traiter',
+    lateOnly: true,
+    sortByCreation: 'asc',
+    ...(creatorName ? { creator: creatorName } : {}),
+  });
 
   const kpis: PhoneKpi[] = [
     { key: 'ouverts', value: tiles.enCours, label: t('ouverts'), href: '/dossiers' },
-    { key: 'retard', value: tiles.enRetard, label: t('en retard'), danger: tiles.enRetard > 0 },
+    { key: 'retard', value: tiles.enRetard, label: t('en retard'), danger: tiles.enRetard > 0, href: lateHref },
     // Duration figure (design « 4,2 j »): median age of the open dossiers.
     { key: 'age', value: fmtDaysFr(medianAge, medianAge != null && Number.isInteger(medianAge) ? 0 : 1), label: t('âge médian') },
     { key: 'attente', value: attente, label: t('en attente d’un tiers') },
@@ -132,6 +145,9 @@ export function PhoneGestionnaireDashboard({ dossiers, chiffrages = [], sla, rap
 
   return (
     <div className="flex flex-col gap-2">
+      {/* The page header (and its subtitle) is not painted on a phone: say
+          whose dossiers these are here (QA GE-006/007). */}
+      {!viewAs && <p className="t-caption px-1">{t('Les dossiers que vous avez créés')}</p>}
       <PhoneKpiLine items={kpis} />
 
       {/* Exceptions first (Few: the exception is the reason to open the page). */}

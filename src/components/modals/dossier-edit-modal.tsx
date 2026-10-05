@@ -286,7 +286,7 @@ export default function DossierEditModal({ isOpen, onClose, dossierId }: Dossier
                     </div>
                     <Select value={formData.nature} onValueChange={(v) => setFormData({ ...formData, nature: v })}>
                       <SelectTrigger className="mt-1 h-10 max-md:h-12"><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
-                      <SelectContent className="max-h-[300px]">{natures.map(n => <SelectItem key={n.id} value={n.label}>{t(n.label)}</SelectItem>)}</SelectContent>
+                      <SelectContent className="max-h-[min(var(--radix-select-content-available-height,300px),300px)]">{natures.map(n => <SelectItem key={n.id} value={n.label}>{t(n.label)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>

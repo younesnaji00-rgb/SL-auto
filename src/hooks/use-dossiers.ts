@@ -5,6 +5,7 @@ import { getDocs, onSnapshot } from '@/lib/firestore-logged';
 import { ref, deleteObject, listAll } from 'firebase/storage';
 import { useFirestore, useStorage } from '@/firebase';
 import { useListenerEpoch } from '@/hooks/use-listener-epoch';
+import { markDossierDeleted } from '@/hooks/use-missing-dossiers';
 import type { Dossier } from '@/lib/dossiers-data';
 
 export function useDossiers(allowedCompagnies?: string[]) {
@@ -69,12 +70,30 @@ export function useDossiers(allowedCompagnies?: string[]) {
     // the background; orphans aren't visible anywhere because the parent doc
     // is gone. Errors on the main delete propagate; cleanup failures don't.
     await deleteDoc(doc(db, 'dossiers', dossierId));
+    // Its rappels leave every list on this device at once (QA GE-008); the
+    // cleanup below deletes them for everyone.
+    markDossierDeleted(dossierId);
 
     void (async () => {
-      // The chiffrages FIRST: they are the only leftovers that show in a list
-      // (the chiffrage queue, the dashboards), so they must not wait behind
-      // the subcollections — a tab closed mid-cleanup left six chiffrages of a
-      // deleted dossier in the queue (owner report 2026-09-25).
+      // The rappels sent about it, with their before/after snapshots: left
+      // behind, they stayed in « Mes rappels » and opened « Dossier
+      // introuvable » (QA GE-008).
+      try {
+        const rappelsSnap = await getDocs(query(collection(db, 'rappels'), where('dossierId', '==', dossierId)));
+        await Promise.allSettled(rappelsSnap.docs.map(async (r) => {
+          const snaps = await getDocs(collection(db, 'rappels', r.id, 'snapshots'));
+          await Promise.allSettled(snaps.docs.map((s) => deleteDoc(s.ref)));
+          await deleteDoc(r.ref);
+        }));
+      } catch (err) {
+        console.warn('[deleteDossier] rappels cleanup failed:', err);
+      }
+
+      // The chiffrages next: with the rappels, they are the only leftovers
+      // that show in a list (the chiffrage queue, the dashboards), so they
+      // must not wait behind the subcollections — a tab closed mid-cleanup
+      // left six chiffrages of a deleted dossier in the queue (owner report
+      // 2026-09-25).
       try {
         const chiffragesSnap = await getDocs(query(collection(db, 'chiffrages'), where('dossierId', '==', dossierId)));
         await Promise.allSettled(chiffragesSnap.docs.map(d => deleteDoc(d.ref)));

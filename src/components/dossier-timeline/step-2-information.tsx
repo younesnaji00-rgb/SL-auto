@@ -35,7 +35,7 @@ import {
 import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { useCollection, useFirestore } from '@/firebase';
-import { getMissingRequiredFields } from '@/lib/required-fields';
+import { getMissingRequiredFields, missingIdentification } from '@/lib/required-fields';
 import { useT } from '@/i18n';
 
 // Back-compat: callers that imported the helper from this module keep working.
@@ -60,6 +60,7 @@ export default function Step2Information({
 }: Step2InformationProps) {
   const t = useT();
   const missing = useMemo(() => getMissingRequiredFields(dossier), [dossier]);
+  const idMissing = useMemo(() => missingIdentification(dossier), [dossier]);
 
   const [showCompare, setShowCompare] = useState(false);
   // Comparing is a focus task: ask the page to retract sidebar, steps rail and
@@ -151,13 +152,27 @@ export default function Step2Information({
   // via the shared RequiredSummaryLine shell. Labels are plain text: there is
   // no per-field anchor to scroll to (the Pièces labels scroll to sockets),
   // and an inert button would be a false affordance.
-  const banner = missing.length > 0 && (
+  // The identifications « Envoyer au chiffrage » refuses to send without are
+  // named here too, from the first visit (QA GE-005: the tester only met the
+  // rule at step 3, on a field nothing had marked as needed).
+  const banner = (missing.length > 0 || idMissing.length > 0) && (
     <RequiredSummaryLine state="missing">
-      <span className="font-medium">
-        {missing.length} {missing.length > 1 ? t('champs requis manquants') : t('champ requis manquant')}
-      </span>
-      {' : '}
-      {missing.map((label) => t(label)).join(', ')}
+      {missing.length > 0 && (
+        <>
+          <span className="font-medium">
+            {missing.length} {missing.length > 1 ? t('champs requis manquants') : t('champ requis manquant')}
+          </span>
+          {' : '}
+          {missing.map((label) => t(label)).join(', ')}
+        </>
+      )}
+      {idMissing.length > 0 && (
+        <span className={cn(missing.length > 0 && 'mt-0.5 block')}>
+          <span className="font-medium">{t('Requis pour l’envoi au chiffrage')}</span>
+          {' : '}
+          {idMissing.map((label) => t(label)).join(', ')}
+        </span>
+      )}
     </RequiredSummaryLine>
   );
 

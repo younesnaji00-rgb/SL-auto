@@ -33,7 +33,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { type DocumentReference, Timestamp } from 'firebase/firestore';
+import { type DocumentReference, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { useAuth, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useFormDraft } from '@/hooks/use-form-draft';
@@ -53,7 +53,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import { usePrefillFlash } from '@/hooks/use-prefill-flash';
 import { BRAND } from '@/lib/brand';
-import { validateFields, readFieldPath, isBlankFieldValue, clearedProtectedPaths, type ValidatedField } from '@/lib/field-validation';
+import { validateFields, blankRequiredPaths, type ValidatedField } from '@/lib/field-validation';
 import { findDossierWithRefExpert, refExpertFields, DUPLICATE_REF_MESSAGE } from '@/lib/ref-expert-unique';
 import {
   INPUT_ADDRESS,
@@ -90,9 +90,6 @@ interface InformationTabProps {
 // body, which meant each keystroke produced a new component → React unmounted
 // the focused `<Input>` and remounted a fresh one, losing focus after a
 // single letter.
-/** Assuré fields that can be changed but never emptied once saved (owner ruling 2026-09-24). */
-const PROTECTED_ASSURE_PATHS: ReadonlySet<string> = new Set(['assure.nom', 'assure.telephone', 'assure.cin', 'assure.adresse']);
-
 type FieldDef = {
   label: string;
   value: string;
@@ -113,6 +110,26 @@ type FieldDef = {
   pair?: boolean;
   /** Renders as a sub-heading inside a section sheet (the expert's role). */
   heading?: boolean;
+  /**
+   * One of the identifications « Envoyer au chiffrage » refuses to send
+   * without (`missingIdentification`). While empty, the label carries a
+   * « requis pour le chiffrage » tag, so the gate is announced from the
+   * first fill instead of surfacing at step 3 (QA GE-005).
+   */
+  forChiffrage?: boolean;
+};
+
+/** The « requis pour le chiffrage » tag of an empty `forChiffrage` field. */
+const ChiffrageTag = () => {
+  const t = useT();
+  return (
+    <span
+      className="shrink-0 rounded-sm bg-status-warning-bg px-1 text-[10px] font-medium leading-4 text-status-warning-fg"
+      title={t('Sans cette information, le dossier ne peut pas être envoyé au chiffrage.')}
+    >
+      {t('requis pour le chiffrage')}
+    </span>
+  );
 };
 
 /** Column rhythm: `full` for the full-width identity block, `half` for a
@@ -175,6 +192,7 @@ const FieldRow = ({
           >
             <dt className="t-label flex items-center gap-1">
               <span className="truncate">{f.label}</span>
+              {f.forChiffrage && !f.value && <ChiffrageTag />}
               {editing && f.modal}
               {status && <ChangeBadge status={status} className="ml-auto" />}
             </dt>
@@ -213,7 +231,7 @@ const PhoneFields = ({ fields }: { fields: FieldDef[] }) => {
       action: f.kind === 'tel' ? 'tel' : f.kind === 'email' ? 'email' : f.kind === 'address' ? 'map' : undefined,
       mono: f.kind === 'plate',
       className: cn('rounded-md', highlightClass(status), flash(f.path) && 'animate-value-flash'),
-      trailing: status ? <ChangeBadge status={status} /> : undefined,
+      trailing: status ? <ChangeBadge status={status} /> : f.forChiffrage && !f.value ? <ChiffrageTag /> : undefined,
     };
   });
   // Two-column fact grid (Phone.dc.html `grid-template-columns:1fr 1fr`);
@@ -543,42 +561,24 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     const errors = validateFields(form, toCheck);
     const formatLabels = toCheck.filter((f) => errors[f.path]).map((f) => f.label);
     // Required gate (QA bugs 015 / 040): what creation demanded stays
-    // demanded on edit, and a Création mission field that was saved with a
-    // value cannot be emptied again. Format validation deliberately lets
-    // empty values through, so this is the only place that blocks a blank.
+    // demanded on edit — and ONLY that (`requiredOnSavePaths`). A field that
+    // was optional at creation stays optional: it can be filled and emptied
+    // again (QA GE-004, 2026-10-05). Format validation deliberately lets empty
+    // values through, so this is the only place that blocks a blank.
     const inScope = (p: string) => !scopePaths || scopePaths.has(p);
     const missingLabels: string[] = [];
     const role = (form.expertRank as ExpertRole) || '1er';
-    const requiredAtCreation: Array<[string, string]> = [
+    const requiredLabel: Record<string, string> = {
       // A dossier never exists without its reference (owner ruling
       // 2026-10-05) — one created before the rule gets it on its next save.
-      ['refExpert', t('Réf Dossier')],
-      ['compagnie', t('Compagnie')],
-      [`experts.${role}.nom`, `${t('Experts')} · ${t('Nom complet')}`],
-    ];
-    for (const [p, label] of requiredAtCreation) {
-      if (inScope(p) && isBlankFieldValue(readFieldPath(form, p))) {
-        errors[p] = t('Ce champ est requis.');
-        missingLabels.push(label);
-      }
-    }
-    // Protected fields (owner ruling 2026-09-24): once saved with a value,
-    // they can be CHANGED but never emptied — clearing one without a
-    // replacement blocks the save. Every field of the « Informations
-    // Dossier » card and of « Véhicule », and the assuré's name, phone, CIN
-    // and address. Fields that were never filled stay optional.
-    const labelled = (section: string, defs: FieldDef[]) =>
-      defs.filter((d) => d.path).map((d) => [d.path as string, `${section} · ${d.label}`] as const);
-    const protectedFields = [
-      ...labelled(t('Informations Dossier'), dossierFields),
-      ...labelled(t('Véhicule'), vehiculeFields),
-      ...labelled(t('Assuré'), assureFields.filter((d) => PROTECTED_ASSURE_PATHS.has(d.path ?? ''))),
-    ];
-    const protectedLabel = new Map<string, string>(protectedFields);
-    const checkable = protectedFields.map(([p]) => p).filter((p) => inScope(p) && !errors[p]);
-    for (const p of clearedProtectedPaths(dossier, form, checkable)) {
-      errors[p] = t('Ce champ ne peut pas être vidé.');
-      missingLabels.push(protectedLabel.get(p) ?? p);
+      refExpert: t('Réf Dossier'),
+      compagnie: t('Compagnie'),
+      [`experts.${role}.nom`]: `${t('Experts')} · ${t('Nom complet')}`,
+    };
+    for (const p of blankRequiredPaths(form, role)) {
+      if (!inScope(p)) continue;
+      errors[p] = t('Ce champ est requis.');
+      missingLabels.push(requiredLabel[p] ?? p);
     }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -620,6 +620,9 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
         ...form.vehicule,
         mec: form.vehicule.mec ? form.vehicule.mec.toISOString() : '',
       },
+      // A saved edit is a movement: the dashboard's « Sans mouvement » reads
+      // it (QA GE-007), the phone list prints it as « modifié il y a … ».
+      updatedAt: serverTimestamp(),
     };
 
     try {
@@ -754,13 +757,13 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
       edit: (
         <Select value={form.statut} onValueChange={(v) => handleChange('statut', v)}>
           <SelectTrigger className="h-8 max-md:h-12" aria-label={t('Statut')}><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
-          <SelectContent className="max-h-[300px]">{statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{t(s.label)}</span></SelectItem>)}</SelectContent>
+          <SelectContent className="max-h-[min(var(--radix-select-content-available-height,300px),300px)]">{statuses.map(s => <SelectItem key={s.id} value={s.label}><span className="flex items-center gap-2"><span className={cn("w-2 h-2 rounded-full shrink-0", getStatusDotColor(s.label))} />{t(s.label)}</span></SelectItem>)}</SelectContent>
         </Select>
       ),
     },
-    { label: t('Réf Dossier'), value: form.refExpert, path: 'refExpert', edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.refExpert} onChange={(e) => handleChange('refExpert', e.target.value)} /> },
+    { label: t('Réf Dossier'), value: form.refExpert, path: 'refExpert', forChiffrage: true, edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.refExpert} onChange={(e) => handleChange('refExpert', e.target.value)} /> },
     { label: t('Référence compagnie'), value: form.referenceCompagnie, path: 'referenceCompagnie', edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.referenceCompagnie} onChange={(e) => handleChange('referenceCompagnie', e.target.value)} /> },
-    { label: t('Matricule'), value: form.matricule, path: 'matricule', kind: 'plate', edit: <Input {...INPUT_PLATE} className="h-8 max-md:h-12 t-mono" value={form.matricule} onChange={(e) => handleChange('matricule', e.target.value)} /> },
+    { label: t('Matricule'), value: form.matricule, path: 'matricule', kind: 'plate', forChiffrage: !form.vehicule?.immatriculation, edit: <Input {...INPUT_PLATE} className="h-8 max-md:h-12 t-mono" value={form.matricule} onChange={(e) => handleChange('matricule', e.target.value)} /> },
     { label: t('N° de Police'), value: form.policeNumber, path: 'policeNumber', edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.policeNumber} onChange={(e) => handleChange('policeNumber', e.target.value)} /> },
     // Sinistre / requête are dates the gestionnaire COPIES off a paper mission
     // — often months old. §2.3: typed masked field on touch, never a calendar.
@@ -792,7 +795,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   ];
 
   const assureFields: FieldDef[] = [
-    { label: t('Nom complet'), value: form.assure.nom, path: 'assure.nom', kind: 'name', edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
+    { label: t('Nom complet'), value: form.assure.nom, path: 'assure.nom', kind: 'name', forChiffrage: true, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
     { label: t('Téléphone'), value: form.assure.telephone, path: 'assure.telephone', kind: 'tel', edit: <Input {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} className="h-8 max-md:h-12" value={form.assure.telephone} onChange={(e) => handleNestedChange('assure', 'telephone', e.target.value)} /> },
     { label: 'WhatsApp', value: form.assure.whatsapp, path: 'assure.whatsapp', kind: 'tel', edit: <Input {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} className="h-8 max-md:h-12" value={form.assure.whatsapp} onChange={(e) => handleNestedChange('assure', 'whatsapp', e.target.value)} /> },
     { label: t('Téléphone 2'), value: form.assure.telephone2, path: 'assure.telephone2', kind: 'tel', edit: <Input {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} className="h-8 max-md:h-12" value={form.assure.telephone2} onChange={(e) => handleNestedChange('assure', 'telephone2', e.target.value)} /> },

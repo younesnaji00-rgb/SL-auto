@@ -66,7 +66,7 @@ export interface RecordBarProps {
   onChiffrage: () => void;
   onGoToStep: (stepId: number) => void;
   onDelete?: () => void;
-  /** Phone up-link target (E3). Defaults to the dossier list. */
+  /** Up-link target: the phone top bar (E3) and the desktop back arrow. Defaults to the dossier list. */
   upHref?: string;
   upLabel?: string;
   /**
@@ -198,15 +198,18 @@ export function RecordBar({
       data-record-bar
       data-tour="dosd-header"
     >
+      {/* Back where the dossier was opened from: the up-link the page
+          passes (Mes rappels for a dossier opened from a rappel — QA
+          GE-009), the dossiers list by default. */}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-ink-3 hover:text-ink" asChild>
-            <Link href="/dossiers" aria-label={t('Retour aux dossiers')}>
+            <Link href={upHref} aria-label={upHref === '/dossiers' ? t('Retour aux dossiers') : `${t('Retour à')} ${t(upLabel)}`}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>{t('Dossiers')}</TooltipContent>
+        <TooltipContent>{t(upLabel)}</TooltipContent>
       </Tooltip>
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">

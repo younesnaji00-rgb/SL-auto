@@ -25,7 +25,9 @@ import { cn } from '@/lib/utils';
 import type { SlaItem } from '../monitoring/metrics';
 import type { FunnelDossier } from '../monitoring/funnel';
 import type { Rappel } from '@/hooks/use-rappels';
-import { computeGestionnaireView, computeTeamView, fmtWindow, type PersonRef, type WaitingParty, type WorkItem } from './metrics';
+import { computeGestionnaireView, computeTeamView, dossierOwnedBy, fmtWindow, type PersonRef, type WaitingParty, type WorkItem } from './metrics';
+import { filtersHref } from '@/hooks/use-persisted-filters';
+import { LATE_AFTER_DAYS } from '@/lib/dossier-late';
 import { factureToDepot48, photosToChiffrageOpen } from './analytics';
 import type { DashboardChiffrage, DashboardUser } from './use-dashboard-data';
 import { BarList, Block, Delta, DoneLine, StatTile, WorkRow, fmtHours } from './ui';
@@ -86,7 +88,21 @@ export function GestionnaireDashboard({ dossiers, chiffrages = [], sla, rappelsR
     [dossiers, chiffrages, holidays, now, person],
   );
   // The firm's most quotable promise: the report follows the invoice inside 48 h.
-  const facture48 = useMemo(() => factureToDepot48(dossiers, holidays, now, 30), [dossiers, holidays, now]);
+  // Read on the same dossiers as every other block — the person's own when a
+  // person is given (QA GE-007: it was the only block counting everyone's).
+  const facture48 = useMemo(
+    () => factureToDepot48(person ? dossiers.filter((d) => dossierOwnedBy(d as any, person)) : dossiers, holidays, now, 30),
+    [dossiers, holidays, now, person],
+  );
+  // « En retard » opens the dossiers list on the very rows the tile counts:
+  // the list's « En retard » view, narrowed to this person's dossiers.
+  const creatorName = person ? `${person.prenom ?? ''} ${person.nom ?? ''}`.trim() : '';
+  const lateHref = filtersHref('/dossiers', {
+    scope: 'a-traiter',
+    lateOnly: true,
+    sortByCreation: 'asc',
+    ...(creatorName ? { creator: creatorName } : {}),
+  });
 
   const charge = useMemo(
     () => (users && users.length ? computeTeamView('Gestionnaire', users, { dossiers, chiffrages, missions: [], sla, holidays }, now) : null),
@@ -149,20 +165,25 @@ export function GestionnaireDashboard({ dossiers, chiffrages = [], sla, rappelsR
           </div>
         </StatTile>
 
+        {/* « En retard » = the dossiers list's own rule (QA GE-006): still to
+            treat and created ≥ 7 j ago. The tile opens the list on exactly
+            those rows. Assignments past 24 h ouvrées keep their « Hors délai »
+            badge on the rows below. */}
         <StatTile
           label={t('En retard')}
           value={tiles.enRetard}
           danger={tiles.enRetard > 0}
           loading={loading}
-          title={t('Dossiers avec une assignation chiffrage ou terrain au-delà de 24 h ouvrées')}
+          href={lateHref}
+          title={`${t('Dossiers à traiter depuis')} ${LATE_AFTER_DAYS} ${t('jours ou plus — la même règle que la liste Dossiers')}`}
         >
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {view.aTraiter.filter((w) => w.late).slice(0, 2).map((w) => (
+            {view.lateDossiers.slice(0, 2).map((d) => (
               <span
-                key={w.id}
+                key={d.id}
                 className="inline-flex h-[19px] items-center rounded-md bg-status-danger-bg px-1.5 font-mono text-[10px] font-semibold text-status-danger-fg"
               >
-                {refOf(w.dossier)}
+                {refOf(d)}
               </span>
             ))}
             {tiles.enRetard > 2 && (
@@ -170,7 +191,9 @@ export function GestionnaireDashboard({ dossiers, chiffrages = [], sla, rappelsR
                 +{tiles.enRetard - 2}
               </span>
             )}
-            {tiles.enRetard === 0 && <span className="t-caption">{t('délai de 24 h ouvrées tenu')}</span>}
+            {tiles.enRetard === 0 && (
+              <span className="t-caption">{`${t('aucun dossier à traiter depuis ≥')} ${LATE_AFTER_DAYS} ${t('j')}`}</span>
+            )}
           </div>
         </StatTile>
 
