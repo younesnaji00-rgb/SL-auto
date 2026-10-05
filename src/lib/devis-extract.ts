@@ -1,10 +1,10 @@
-import { doc, serverTimestamp, updateDoc, type Firestore } from 'firebase/firestore';
-import { getDoc } from './firestore-logged';
+import { collection, doc, query, serverTimestamp, updateDoc, where, type Firestore } from 'firebase/firestore';
+import { getDoc, getDocs } from './firestore-logged';
 import { getDownloadURL, ref as storageRef, type FirebaseStorage } from 'firebase/storage';
 import { apiFetch } from '@/lib/api-fetch';
 import {
-  emptyHeader, formatFr, numOrNull, qteFromScan, toBaseEditableDocType,
-  type DevisExtraColumn, type DevisHeader, type DevisRow, type EditableDocType, type StructuredDevis,
+  emptyHeader, formatFr, isEditableDocType, numOrNull, qteFromScan, toBaseEditableDocType,
+  type DevisExtraColumn, type DevisHeader, type DevisRow, type DevisScanSource, type EditableDocType, type StructuredDevis,
 } from './devis-schema';
 import type { ScanDevisCounterOutput } from './scan-devis-counter-schema';
 import { logFrontend } from './debug-log';
@@ -73,7 +73,16 @@ export async function extractAndPersistChiffrageDevis(
     const attempts = (data.editableExtractionAttempted || {}) as Record<string, boolean>;
 
     const files: any[] = Array.isArray(data.files) ? data.files : [];
-    const targetFiles = files.filter((f: any) => f?.docType === docType && f?.storagePath);
+    // One entry per stored file, and only files the dossier still holds under
+    // this type (QA Chiffreur 008): a deleted or re-filed devis/facture kept
+    // its entry here, and a re-scan merged its lines in a second time.
+    const livePaths = await liveSourcePaths(db, data.dossierId, docType);
+    const seenPaths = new Set<string>();
+    const targetFiles = files.filter((f: any) => {
+      if (f?.docType !== docType || !f?.storagePath || seenPaths.has(f.storagePath)) return false;
+      seenPaths.add(f.storagePath);
+      return !livePaths || livePaths.has(f.storagePath);
+    });
 
     if (targetFiles.length === 0) {
       await markAttempted(docRef, docType);
@@ -146,27 +155,24 @@ export async function extractAndPersistChiffrageDevis(
         });
       }
 
+      // Rows keep track of the file they came from (scanSources), with the
+      // totals printed on it — the editor compares them with its own sum.
       const mergedRows: DevisRow[] = [];
-      for (const { parsed } of successful) {
-        const rows = Array.isArray(parsed.rows) ? parsed.rows : [];
-        rows.forEach((r: any) => {
-          mergedRows.push({
-            id: newId(),
-            ref: r.ref || 'CHANGE',
-            designation: r.designation || '',
-            type: r.type || '',
-            tva: numOrNull(r.tva),
-            qte: qteFromScan(r.qte),
-            puHT: numOrNull(r.puHT) ?? 0,
-          });
-        });
-      }
+      const scanSources: DevisScanSource[] = [];
+      originalFiles.forEach((file, i) => {
+        const r = originalExtractions[i];
+        if (!r.ok) return;
+        const rows = rowsFromScan(r.parsed);
+        mergedRows.push(...rows);
+        scanSources.push(sourceFromScan(file.storagePath, rows, r.parsed));
+      });
 
       existing = {
         header: mergedHeader,
         rows: mergedRows,
         versions: existing?.versions || [],
         extraColumns: existing?.extraColumns || [],
+        scanSources,
       };
     }
 
@@ -320,35 +326,25 @@ export async function extractAndPersistDossierDoc({
     }
 
     const parsed = result.parsed;
-    const rows: DevisRow[] = (Array.isArray(parsed.rows) ? parsed.rows : []).map((r: any) => ({
-      id: newId(),
-      ref: r.ref || 'CHANGE',
-      designation: r.designation || '',
-      type: r.type || '',
-      tva: numOrNull(r.tva),
-      qte: qteFromScan(r.qte),
-      puHT: numOrNull(r.puHT) ?? 0,
-    }));
+    const rows = rowsFromScan(parsed);
     if (rows.length === 0) {
       return { ok: true, reason: 'no-files', calculationErrors: [] };
     }
 
-    // Merge with any existing extraction (append rows, preserve earlier header values).
+    // Merge with the existing extraction FILE BY FILE (QA Chiffreur 008).
+    // Rows used to be appended blindly: the same facture scanned twice (a
+    // re-classified drop, or deleted and imported again) doubled the table,
+    // and a deleted document's lines stayed in it for good.
     const snap = await getDoc(dossierRef);
     const existing = (snap.data()?.structuredEditables?.[docType] ?? null) as StructuredDevis | null;
+    const live = (await liveSourcePaths(db, dossierId, docType)) ?? new Set<string>();
+    live.add(storagePath);
 
-    const mergedHeader: DevisHeader = existing?.header ?? emptyHeader();
-    const parsedHeader = parsed.header || {};
-    (Object.keys(mergedHeader) as Array<keyof DevisHeader>).forEach((k) => {
-      if (!mergedHeader[k] && parsedHeader[k]) mergedHeader[k] = String(parsedHeader[k]);
-    });
-
-    const structured: StructuredDevis = {
-      header: mergedHeader,
-      rows: [...(existing?.rows ?? []), ...rows],
-      versions: existing?.versions ?? [],
-      extraColumns: existing?.extraColumns ?? [],
-    };
+    const structured = mergeScannedFile(
+      existing,
+      { source: sourceFromScan(storagePath, rows, parsed), rows, header: parsed.header || {} },
+      live,
+    );
 
     await updateDoc(dossierRef, {
       [`structuredEditables.${docType}`]: structured,
@@ -417,6 +413,166 @@ async function scanOriginal(
     }
     return { ok: false, error: e?.message };
   }
+}
+
+/** Table rows from one `/api/scan-devis` response. */
+function rowsFromScan(parsed: any): DevisRow[] {
+  return (Array.isArray(parsed?.rows) ? parsed.rows : []).map((r: any) => ({
+    id: newId(),
+    ref: r.ref || 'CHANGE',
+    designation: r.designation || '',
+    type: r.type || '',
+    tva: numOrNull(r.tva),
+    qte: qteFromScan(r.qte),
+    puHT: numOrNull(r.puHT) ?? 0,
+  }));
+}
+
+function sourceFromScan(storagePath: string, rows: DevisRow[], parsed: any): DevisScanSource {
+  const printed = parsed?.printedTotals || {};
+  return {
+    storagePath,
+    rowIds: rows.map((r) => r.id),
+    printedTotalHT: numOrNull(printed.ht),
+    printedTotalTTC: numOrNull(printed.ttc),
+  };
+}
+
+/**
+ * Storage paths of the documents the dossier currently files under `docType`,
+ * or null when that can't be told (no dossier, a read error, or a document
+ * without its path — older uploads) so callers keep every file rather than
+ * dropping a good one.
+ */
+async function liveSourcePaths(db: Firestore, dossierId: string | undefined, docType: EditableDocType): Promise<Set<string> | null> {
+  if (!dossierId) return null;
+  try {
+    const snap = await getDocs(query(collection(db, 'dossiers', dossierId, 'documents'), where('type', '==', docType)));
+    if (snap.empty) return null;
+    const paths = new Set<string>();
+    for (const d of snap.docs) {
+      const p = (d.data() as any)?.storagePath;
+      if (typeof p !== 'string' || !p) return null;
+      paths.add(p);
+    }
+    return paths;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The table after scanning one more file (QA Chiffreur 008):
+ *  - the rows this same file produced before are REPLACED, never added twice;
+ *  - rows of files no longer in `livePaths` (deleted, re-filed) are dropped;
+ *  - a table written before `scanSources` existed can't say which file a row
+ *    came from: when this file is the only live one of its slot and nobody
+ *    saved the table (no version), nothing else can own those rows, so the
+ *    table starts over; otherwise they are kept.
+ * Rows no scan produced (typed in the gestionnaire editor) are kept, and so
+ * are versions and extra columns.
+ */
+export function mergeScannedFile(
+  existing: StructuredDevis | null,
+  scanned: { source: DevisScanSource; rows: DevisRow[]; header: Partial<Record<keyof DevisHeader, unknown>> },
+  livePaths: ReadonlySet<string>,
+): StructuredDevis {
+  const path = scanned.source.storagePath;
+  let keptRows: DevisRow[];
+  let keptSources: DevisScanSource[];
+  if (!existing?.scanSources) {
+    const otherLiveFile = [...livePaths].some((p) => p !== path);
+    const savedByHand = (existing?.versions?.length ?? 0) > 0;
+    keptRows = otherLiveFile || savedByHand ? existing?.rows ?? [] : [];
+    keptSources = [];
+  } else {
+    keptSources = existing.scanSources.filter((s) => s.storagePath !== path && livePaths.has(s.storagePath));
+    const dropped = new Set(
+      existing.scanSources.filter((s) => !keptSources.includes(s)).flatMap((s) => s.rowIds),
+    );
+    keptRows = existing.rows.filter((r) => !dropped.has(r.id));
+  }
+
+  // Header: earlier values win while earlier rows remain; a fresh table takes
+  // this scan's header whole.
+  const header: DevisHeader = keptRows.length > 0 ? { ...emptyHeader(), ...existing?.header } : emptyHeader();
+  (Object.keys(header) as Array<keyof DevisHeader>).forEach((k) => {
+    const v = scanned.header[k];
+    if (!header[k] && v) header[k] = String(v);
+  });
+
+  return {
+    header,
+    rows: [...keptRows, ...scanned.rows],
+    versions: existing?.versions ?? [],
+    extraColumns: existing?.extraColumns ?? [],
+    scanSources: [...keptSources, scanned.source],
+  };
+}
+
+/**
+ * Drops the rows of scanned files that are not in `livePaths` — a seed sent
+ * to the chiffreur carries only the documents actually sent. Tables without
+ * `scanSources` are returned as they are.
+ */
+export function pruneDeadScanSources(sd: StructuredDevis, livePaths: ReadonlySet<string>): StructuredDevis {
+  if (!sd.scanSources) return sd;
+  const kept = sd.scanSources.filter((s) => livePaths.has(s.storagePath));
+  if (kept.length === sd.scanSources.length) return sd;
+  const dropped = new Set(sd.scanSources.filter((s) => !kept.includes(s)).flatMap((s) => s.rowIds));
+  return { ...sd, rows: sd.rows.filter((r) => !dropped.has(r.id)), scanSources: kept };
+}
+
+/**
+ * Repairs a table built before `scanSources` existed whose rows are one block
+ * repeated — the same file merged in twice or more (the Z5678 facture read
+ * 66 100,00 for a 33 050,00 document). Returns the block once. Only blocks of
+ * 3+ rows count: two identical labour lines side by side are legitimate.
+ */
+export function collapseRepeatedScan<R extends Pick<DevisRow, 'designation' | 'type' | 'tva' | 'qte' | 'puHT'>>(rows: R[]): R[] {
+  const n = rows.length;
+  const key = (r: R) => [(r.designation || '').trim().toLowerCase(), r.type ?? '', r.tva ?? '', r.qte ?? '', r.puHT ?? ''].join('|');
+  for (let size = 3; size <= n / 2; size++) {
+    if (n % size !== 0) continue;
+    let repeated = true;
+    for (let i = size; i < n && repeated; i++) {
+      if (key(rows[i]) !== key(rows[i % size])) repeated = false;
+    }
+    if (repeated) return rows.slice(0, size);
+  }
+  return rows;
+}
+
+/**
+ * The dossier's pre-extracted tables, trimmed to what is actually sent to the
+ * chiffreur (QA Chiffreur 008): rows of scanned files that are not among
+ * `files` are dropped, and a legacy table (no scanSources, never saved) whose
+ * rows repeat as a block is collapsed. A table left without rows is omitted,
+ * so the chiffrage-side extraction reads the sent files itself.
+ */
+export function seedForChiffrage(
+  editables: Record<string, unknown> | null | undefined,
+  files: ReadonlyArray<{ storagePath?: string; docType?: string }>,
+): Record<string, unknown> | undefined {
+  if (!editables) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(editables)) {
+    if (!isEditableDocType(key) || !value || typeof value !== 'object' || !Array.isArray((value as StructuredDevis).rows)) {
+      out[key] = value;
+      continue;
+    }
+    let sd = value as StructuredDevis;
+    const saved = (sd.versions?.length ?? 0) > 0;
+    if (sd.scanSources) {
+      const sent = new Set(files.filter((f) => f.docType === key && f.storagePath).map((f) => f.storagePath as string));
+      sd = pruneDeadScanSources(sd, sent);
+      if (sd.rows.length === 0 && !saved) continue;
+    } else if (!saved) {
+      sd = { ...sd, rows: collapseRepeatedScan(sd.rows) };
+    }
+    out[key] = sd;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 async function markAttempted(docRef: ReturnType<typeof doc>, docType: EditableDocType): Promise<void> {

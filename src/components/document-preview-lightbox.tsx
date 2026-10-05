@@ -23,8 +23,8 @@
  * min(viewport cap, the width the full viewport height implies at the media's
  * aspect ratio) and the media box derives its height from that width via
  * aspect-ratio — so a portrait scan gets a tall window, a landscape photo a
- * wide one, and there are never letterbox bands in either axis. PDFs assume
- * A4 portrait.
+ * wide one, and there are never letterbox bands in either axis. PDFs take the
+ * shape of their first page (pdf.js), A4 portrait when it can't be read.
  */
 
 import * as React from 'react';
@@ -37,7 +37,7 @@ import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 import { ActionSheet, type ActionItem } from '@/components/ui/action-sheet';
-import { PdfPagesViewer } from '@/components/common/pdf-pages-viewer';
+import { PdfPagesViewer, measurePdfPageRatio } from '@/components/common/pdf-pages-viewer';
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { useOverlayHistory } from '@/hooks/use-overlay-history';
 import { useResilientImageSrc } from '@/hooks/use-resilient-image';
@@ -118,6 +118,19 @@ const A4_RATIO = 210 / 297;
 
 function isPdfName(name: string): boolean {
   return /\.pdf$/i.test(name || '');
+}
+
+/** How long the window waits for a PDF's page shape before opening as A4. */
+const PDF_MEASURE_TIMEOUT_MS = 1500;
+
+/**
+ * The iframe source of a PDF: « view=Fit » (PDF open parameters, honoured by
+ * the Chrome / Edge viewer) shows the WHOLE page on open. Without it the
+ * viewer kept its own zoom and a landscape devis accordé was cut on the right
+ * (QA Chiffreur 007).
+ */
+function pdfFrameSrc(url: string): string {
+  return url.includes('#') ? url : `${url}#view=Fit`;
 }
 
 /**
@@ -337,6 +350,10 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload: onDownloadPr
   // While paging (‹ ›) the previous ratio is kept until the next page's is
   // measured, so the open window never falls back to the neutral box.
   const [imgRatio, setImgRatio] = React.useState<number | null>(null);
+  // Same idea for a PDF: the shape of its first page. A devis with an accord
+  // column is printed landscape — in an A4-portrait window its right half was
+  // cut off (QA Chiffreur 007).
+  const [pdfRatio, setPdfRatio] = React.useState<number | null>(null);
   // true once the current doc's measurement settled (success OR failure).
   const [measured, setMeasured] = React.useState(false);
   // true from the first fully-measured render until the lightbox closes —
@@ -344,7 +361,21 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload: onDownloadPr
   const wasOpenRef = React.useRef(false);
   if (!doc) wasOpenRef.current = false;
   React.useEffect(() => {
-    if (!doc?.url) { setImgRatio(null); setMeasured(false); return; }
+    if (!doc?.url) { setImgRatio(null); setPdfRatio(null); setMeasured(false); return; }
+    if (isPdfName(typeName(doc)) && !isPhone) {
+      // The phone view renders pages with pdf.js itself (no window to shape).
+      setMeasured(false);
+      let settled = false;
+      const settle = (r: number | null) => {
+        if (settled) return;
+        settled = true;
+        setPdfRatio(r);
+        setMeasured(true);
+      };
+      const timer = window.setTimeout(() => settle(null), PDF_MEASURE_TIMEOUT_MS);
+      measurePdfPageRatio(doc.url).then(settle, () => settle(null));
+      return () => { settled = true; window.clearTimeout(timer); };
+    }
     if (!isImageName(typeName(doc))) { setImgRatio(null); setMeasured(true); return; }
     setMeasured(false);
     let alive = true;
@@ -358,7 +389,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload: onDownloadPr
     probe.onerror = () => { if (alive) { setImgRatio(null); setMeasured(true); } };
     probe.src = doc.url;
     return () => { alive = false; };
-  }, [doc?.url, doc?.nom]);
+  }, [doc?.url, doc?.nom, isPhone]);
 
   // Paging across sibling files of the same document.
   const pageList = pages && pages.length > 1 ? pages : null;
@@ -428,7 +459,8 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload: onDownloadPr
   if (!measured && !wasOpenRef.current) return null;
   wasOpenRef.current = true;
 
-  const ratio = isImage ? imgRatio : A4_RATIO;
+  const isPdf = isPdfName(typeName(doc));
+  const ratio = isImage ? imgRatio : isPdf ? (pdfRatio ?? A4_RATIO) : A4_RATIO;
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -549,7 +581,7 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload: onDownloadPr
               </TransformComponent>
             </TransformWrapper>
           ) : (
-            <iframe src={doc.url} className="h-full w-full border-none" title={doc.nom} />
+            <iframe src={isPdf ? pdfFrameSrc(doc.url) : doc.url} className="h-full w-full border-none" title={doc.nom} />
           )}
         </div>
       </DialogContent>

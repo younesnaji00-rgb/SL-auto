@@ -41,6 +41,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useHotkeys } from '@/hooks/use-hotkeys';
 import { useViewportClass } from '@/hooks/use-viewport-class';
+import { useStickyPaneFit } from '@/hooks/use-sticky-pane-fit';
 import { getQueueContext } from '@/lib/queue-session';
 import { enqueueUpload } from '@/lib/offline/upload-queue';
 import {
@@ -50,7 +51,9 @@ import {
   VETUSTE_STEP, isValidVetuste,
   REF_OPTIONS, TYPE_OPTIONS, OBSERVATION_OPTIONS, OBSERVATION_LABELS, toBaseEditableDocType,
 } from '@/lib/devis-schema';
-import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
+import { printedTotalHT } from '@/lib/devis-schema';
+import { prefillHeaderFromDossier } from '@/lib/devis-header-prefill';
+import { collapseRepeatedScan, extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { saveGestionnaireDevisAsPieceJointe, markFirstAccordReached } from '@/lib/send-to-chiffrage';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
 import { deriveStatus } from '@/lib/status-machine';
@@ -259,37 +262,12 @@ export function DevisEditor({
     return () => unsub();
   }, [db, dossierId]);
 
-  // task #17: scan header wins over dossier prefill — fall back to dossier only when scan is blank.
-  // `existing` here is the scan-extracted header (from structuredEditables[docType].header) when
-  // available, or an empty header for a brand-new gestionnaire doc. For each HEADER_FIELDS_*
-  // field we return `existing.<field> || dossier-derived-value || ''` so a non-empty scan value
-  // always wins and dossier metadata only fills gaps.
-  const dossierPrefill = useCallback((existing: DevisHeader): DevisHeader => {
-    if (!dossier) return existing;
-    const v = dossier.vehicule || {};
-    const a = dossier.assure || {};
-    const mecRaw = v.mec;
-    let mecStr = '';
-    if (mecRaw) {
-      try {
-        const d = mecRaw.toDate ? mecRaw.toDate() : new Date(mecRaw);
-        if (!isNaN(d.getTime())) mecStr = d.toLocaleDateString('fr-FR');
-      } catch { /* ignore */ }
-    }
-    return {
-      ...existing,
-      marque: existing.marque || v.marque || '',
-      matricule: existing.matricule || dossier.matricule || v.immatriculation || '',
-      modele: existing.modele || v.modele || mecStr || '',
-      kilometrage: existing.kilometrage || v.km || '',
-      chassis: existing.chassis || v.serie || '',
-      expert: existing.expert || '',
-      client: existing.client || dossier.garageName || [a.prenom, a.nom].filter(Boolean).join(' ') || '',
-      adresse: existing.adresse || a.adresse || '',
-      telephone: existing.telephone || a.telephone || '',
-      assurances: existing.assurances || dossier.compagnie || '',
-    };
-  }, [dossier]);
+  // The DOSSIER wins over the scan for every field it knows (QA Chiffreur
+  // 010, reversing task #17) — see prefillHeaderFromDossier.
+  const dossierPrefill = useCallback(
+    (existing: DevisHeader): DevisHeader => prefillHeaderFromDossier(existing, dossier),
+    [dossier],
+  );
 
   // Initialize editor state from chiffrage.structuredDevis (or kick off extraction once).
   useEffect(() => {
@@ -365,7 +343,11 @@ export function DevisEditor({
             const baseline = (dossier.structuredEditables || {})[docType] as StructuredDevis | undefined;
             if (baseline) {
               setHeader(dossierPrefill(baseline.header));
-              setRows(baseline.rows.length ? baseline.rows : [emptyRow()]);
+              // Same legacy repair as the persisted path below (QA Chiffreur 008).
+              const baselineRows = !baseline.scanSources && !(baseline.versions?.length)
+                ? collapseRepeatedScan(baseline.rows)
+                : baseline.rows;
+              setRows(baselineRows.length ? baselineRows : [emptyRow()]);
               const baselineCols = normalizeExtraColumns(baseline).filter(
                 (c) => c.kind !== 'accord' && c.kind !== 'proposition-accord',
               );
@@ -382,7 +364,18 @@ export function DevisEditor({
 
       if (persisted) {
         setHeader(dossierPrefill(persisted.header));
-        setRows(persisted.rows.length ? persisted.rows : [emptyRow()]);
+        // A table scanned before files were tracked (no scanSources) and never
+        // saved may hold the same file's lines twice (QA Chiffreur 008) —
+        // shown once; the next save stores it repaired.
+        const legacyScan = !persisted.scanSources && !(persisted.versions?.length);
+        const loadedRows = legacyScan ? collapseRepeatedScan(persisted.rows) : persisted.rows;
+        if (loadedRows.length < persisted.rows.length) {
+          toast({
+            title: t('Lignes en double retirées'),
+            description: `${persisted.rows.length - loadedRows.length} ${t('ligne(s) lue(s) deux fois depuis le même document.')}`,
+          });
+        }
+        setRows(loadedRows.length ? loadedRows : [emptyRow()]);
         const cols = normalizeExtraColumns(persisted);
         setExtraColumns(cols);
         setVersions(persisted.versions || []);
@@ -1145,6 +1138,14 @@ export function DevisEditor({
     setHideChrome(compareFullHeight);
     return () => setHideChrome(false);
   }, [compareFullHeight, setHideChrome]);
+  // The split's source pane is fitted to the page scroller (QA Chiffreur 009:
+  // sized to the viewport it ran under the tabs bar and the sync banner, and
+  // its zoom pill fell off the bottom). Above the early return, same reason.
+  const sourcePaneRef = useRef<HTMLDivElement>(null);
+  const sourcePaneFit = useStickyPaneFit(sourcePaneRef, compareFullHeight);
+  // QA Chiffreur 008 — the « Total H.T » printed on the scanned garage
+  // document(s), shown under the table's own when the two disagree.
+  const documentTotalHT = useMemo(() => printedTotalHT(persisted?.scanSources), [persisted?.scanSources]);
 
   // Render ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -2063,6 +2064,25 @@ export function DevisEditor({
             </>
           )}
         </div>
+        {/* QA Chiffreur 008 — the lines no longer add up to the total printed
+            on the garage's paper: a line read twice, misread or missed, or
+            the garage's own arithmetic. Said here, under the total it
+            contradicts, for as long as it is true. */}
+        {documentTotalHT != null && Math.abs(totals.ht - documentTotalHT) > 1 && (
+          <div role="status" className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 border-t border-hairline bg-status-warning-bg px-4 py-2 text-sm text-status-warning-fg">
+            <span>{typeLabel.lower === 'facture' ? t('Total H.T imprimé sur la facture') : t('Total H.T imprimé sur le devis')}</span>
+            <span className="font-semibold tabular-nums">{formatFr(documentTotalHT)}</span>
+            <span aria-hidden>·</span>
+            <span>
+              {t('écart')}{' '}
+              <span className="font-semibold tabular-nums">
+                {totals.ht > documentTotalHT ? '+' : ''}{formatFr(totals.ht - documentTotalHT)}
+              </span>
+            </span>
+            <span aria-hidden>·</span>
+            <span>{t('vérifiez les lignes avec « Comparer ».')}</span>
+          </div>
+        )}
       </Card>
 
           </div>
@@ -2102,7 +2122,15 @@ export function DevisEditor({
               minSize="28%"
               style={{ overflow: 'visible', maxHeight: 'none' }}
             >
-              {sourcePane('paper sticky top-0 h-[calc((100dvh-2rem)/var(--app-zoom))] w-full overflow-hidden')}
+              {/* Sticky wrapper sized by useStickyPaneFit; the viewport calc
+                  is only the first-paint fallback. */}
+              <div
+                ref={sourcePaneRef}
+                className={cn('sticky top-0', !sourcePaneFit && 'h-[calc((100dvh-2rem)/var(--app-zoom))]')}
+                style={sourcePaneFit ? { top: sourcePaneFit.top, height: sourcePaneFit.height } : undefined}
+              >
+                {sourcePane('paper h-full w-full overflow-hidden')}
+              </div>
             </SplitPanel>
             {/* C1 — quiet 1 px hairline handle with a grabber-dot area that
                 stays mid-viewport; hover/drag tint per spec. */}

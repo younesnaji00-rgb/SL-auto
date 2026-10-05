@@ -134,10 +134,43 @@ export interface DevisVersion {
   snapshot: DevisSnapshot;
 }
 
+/**
+ * One garage file the AI scan read into a structured devis: the rows it
+ * produced and the totals printed at the foot of the paper (QA Chiffreur 008).
+ * Rows are keyed by file so a second scan of the same file — or of a file
+ * that has since been deleted — replaces its rows instead of appending them
+ * again (the facture table came out at exactly twice its total).
+ */
+export interface DevisScanSource {
+  storagePath: string;
+  rowIds: string[];
+  /** « Total H.T » printed on the document, as read; null when there is none. */
+  printedTotalHT: number | null;
+  /** « Total T.T.C » printed on the document, as read; null when there is none. */
+  printedTotalTTC: number | null;
+}
+
 export interface StructuredDevis extends DevisSnapshot {
   versions: DevisVersion[];
   updatedAt?: Timestamp | { seconds: number; nanoseconds: number } | Date;
   updatedBy?: string;
+  /** Files the AI scan read, with their rows and printed totals (absent on tables built before 2026-10-05). */
+  scanSources?: DevisScanSource[];
+}
+
+/**
+ * Σ of the « Total H.T » printed on the scanned garage files — what the
+ * editor's own Total H.T should match when the rows were read faithfully.
+ * Null when any scanned file printed no total (nothing to compare against).
+ */
+export function printedTotalHT(sources: ReadonlyArray<DevisScanSource> | null | undefined): number | null {
+  if (!sources || sources.length === 0) return null;
+  let total = 0;
+  for (const s of sources) {
+    if (typeof s.printedTotalHT !== 'number' || !Number.isFinite(s.printedTotalHT)) return null;
+    total += s.printedTotalHT;
+  }
+  return total;
 }
 
 export function emptyHeader(): DevisHeader {

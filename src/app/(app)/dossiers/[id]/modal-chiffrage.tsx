@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { logHistorique, logWorkflow } from './log-historique';
 import { Check, Loader2, Send, ImageIcon, FileText } from 'lucide-react';
 import { sendToChiffrage, ChiffrageFile } from '@/lib/send-to-chiffrage';
-import { extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
+import { extractAndPersistChiffrageDevis, seedForChiffrage } from '@/lib/devis-extract';
 import { isEditableDocType, type EditableDocType } from '@/lib/devis-schema';
 import { chiffrageGateReason, computeRequiredDocsStatus, isChiffrageGateClosed, isChiffrageOutputType, type RequiredDocLike, type RequiredDocsStatus } from '@/lib/required-docs';
 import { useAssignableChiffreurs } from '@/hooks/use-assignable-chiffreurs';
@@ -203,8 +203,10 @@ export default function ModalChiffrage({ open, onOpenChange, dossierId }: ModalC
         sentByNom: profile?.nom || userEmail,
         // Seed the new chiffrage with whatever the dossier-side eager
         // extraction has already produced, so the chiffreur opens to a
-        // ready-to-edit view instead of waiting on background scans.
-        seedStructuredEditables: (dossier as any)?.structuredEditables ?? undefined,
+        // ready-to-edit view instead of waiting on background scans —
+        // trimmed to the files sent (QA Chiffreur 008: lines of a deleted
+        // or re-imported facture made the table twice its total).
+        seedStructuredEditables: seedForChiffrage((dossier as any)?.structuredEditables, selectedFiles),
         // Reuse the existing chiffrage when one is already attached so a
         // re-assign (e.g. for a 2ème cardinal round) keeps the same mission
         // row and the chiffreur opens straight into their prior editor.

@@ -7,6 +7,7 @@ import { collection, doc, updateDoc } from 'firebase/firestore';
 import { onSnapshot } from '@/lib/firestore-logged';
 import { useCollection, useFirestore } from '@/firebase';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
+import { downloadFileFromUrl, ensureImageExtension } from '@/components/documents/typed-doc';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { IconChip } from '@/components/ui/icon-chip';
@@ -227,6 +228,9 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
   // DocumentsFilterPanelDoc so the filter chips ("Photos avant / en cours /
   // après") surface non-empty counts and listed rows alongside Devis/Facture.
   // Photos are NOT family documents — they only feed the filter panel.
+  // The url and the upload state travel too (QA Chiffreur 011): without them
+  // every photo tile was a blank « PNG » card whose Aperçu / Télécharger were
+  // disabled, so a click did nothing.
   const photoDocs = useMemo<DocumentsFilterPanelDoc[]>(() => {
     if (!dossierPhotos) return [];
     return (dossierPhotos as any[]).map((p) => ({
@@ -235,9 +239,10 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       nom: p.name || 'photo',
       fileName: p.name || 'photo',
       storagePath: p.storagePath || '',
+      url: p.url || undefined,
+      pendingUpload: !!p.pendingUpload,
       uploadedAt: p.uploadedAt,
       uploadedBy: p.uploadedBy,
-      // url intentionally omitted — preview is a follow-up.
     }));
   }, [dossierPhotos]);
 
@@ -291,10 +296,12 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
     }
   };
 
-  const handleDownloadDocument = (docEntry: DocumentsFilterPanelDoc) => {
-    if (docEntry.url) {
-      window.open(docEntry.url, '_blank', 'noopener,noreferrer');
-    }
+  // « Télécharger » saves the file under its own name (QA Chiffreur 011) —
+  // opening the URL only showed the image in a new tab.
+  const handleDownloadDocument = (docEntry: { url?: string; nom?: string; fileName?: string }) => {
+    if (!docEntry.url) return;
+    const name = docEntry.nom || docEntry.fileName || 'document';
+    void downloadFileFromUrl(docEntry.url, ensureImageExtension(name, docEntry.url));
   };
 
   // Spec B3 — pipeline Éditer socket. Opens the structured devis editor
@@ -764,12 +771,12 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       )}
 
       {/* Lightbox preview — used by both the pièces-jointes eye icon and the
-          slot-card thumbnail clicks. Download falls back to opening the file
-          in a new tab since this page doesn't have a dedicated downloader. */}
+          slot-card thumbnail clicks. Download saves the file under its name,
+          like the panel's own « Télécharger ». */}
       <DocumentPreviewLightbox
         doc={previewDoc}
         onClose={() => { setPreviewDoc(null); setPreviewPages(null); }}
-        onDownload={(d) => window.open(d.url, '_blank', 'noopener,noreferrer')}
+        onDownload={handleDownloadDocument}
         pages={previewPages ?? undefined}
         onPageChange={previewPages ? (d) => setPreviewDoc(d) : undefined}
       />

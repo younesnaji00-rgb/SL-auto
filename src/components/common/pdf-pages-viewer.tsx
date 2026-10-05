@@ -42,6 +42,25 @@ function loadPdfJs(): Promise<any> {
   return pdfJsPromise;
 }
 
+/**
+ * Width / height of a PDF's first page, rotation applied (null when it can't
+ * be read). The desktop lightbox shapes its window from it: a devis with an
+ * accord column is printed landscape, and an A4-portrait window cut it off
+ * (QA Chiffreur 007).
+ */
+export async function measurePdfPageRatio(url: string): Promise<number | null> {
+  const pdfjs = await loadPdfJs();
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`fetch ${res.status}`);
+  const docu = await pdfjs.getDocument({ data: await res.arrayBuffer() }).promise;
+  try {
+    const vp = (await docu.getPage(1)).getViewport({ scale: 1 });
+    return vp.width > 0 && vp.height > 0 ? vp.width / vp.height : null;
+  } finally {
+    try { docu.destroy(); } catch { /* ignore */ }
+  }
+}
+
 /** Never rasterise above 2× — iOS drops big canvases (react-pdf #1120). */
 const MAX_DPR = 2;
 /** Hard ceiling on a single canvas edge (WebKit refuses ~4 096 px+ textures). */

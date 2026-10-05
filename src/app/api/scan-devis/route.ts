@@ -219,6 +219,10 @@ Conserve les marqueurs textuels comme "S/R" dans le champ "designation" si ils y
       rows: cleanRows,
       rowsCount: cleanRows.length,
       calculationErrors,
+      // The totals printed at the foot of the document, kept with the table so
+      // the editor can show the chiffreur when its rows don't add up to them
+      // (QA Chiffreur 008) — this response used to be the only place they lived.
+      printedTotals: { ht: headerTotalHT, ttc: numOrNull(header.totalTTC) },
     });
   } catch (error: any) {
     const authResp = authErrorResponse(error);
