@@ -10,6 +10,7 @@ import {
 import { getDocs } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 import {
+  buildChain,
   evaluateChain,
   type ChainStop,
   type FeasibilityConflict,
@@ -122,23 +123,9 @@ export function useAtgFeasibility({
           label: `${format(newRdv, 'HH:mm')} — ${address} (en cours)`,
         };
 
-        // Use the live GPS position passed in by the caller (subscribed via
-        // useAgentLiveLocation). If fresh < 10 min, prepend as the chain origin
-        // so the first leg is also feasibility-checked.
-        const liveOrigin: ChainStop | null =
-          agentLiveLocation &&
-          Date.now() - agentLiveLocation.updatedAtMs < 10 * 60 * 1000
-            ? {
-                id: '__live_origin__',
-                address: `${agentLiveLocation.lat},${agentLiveLocation.lng}`,
-                rdvMs: Date.now(),
-                label: 'Position actuelle',
-                isOrigin: true,
-              }
-            : null;
-
-        const chain = [...(liveOrigin ? [liveOrigin] : []), ...others, pending]
-          .sort((a, b) => a.rdvMs - b.rdvMs);
+        // The live GPS position passed in by the caller (subscribed via
+        // useAgentLiveLocation) starts the chain for a rendez-vous today.
+        const chain = buildChain(others, pending, agentLiveLocation, Date.now());
 
         if (chain.length < 2) {
           setConflicts([]);

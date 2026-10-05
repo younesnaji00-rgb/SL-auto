@@ -57,6 +57,44 @@ export function isSameStop(a: ChainStop, b: ChainStop): boolean {
   return na.length > 0 && na === nb;
 }
 
+/** A live position older than this no longer says where the agent is. */
+export const LIVE_ORIGIN_MAX_AGE_MS = 10 * 60 * 1000;
+
+/** The agent's last GPS fix (see useAgentLiveLocation). */
+export interface LivePosition {
+  lat: number;
+  lng: number;
+  updatedAtMs: number;
+}
+
+/**
+ * The day's chain in time order: the agent's other rendez-vous of that day,
+ * the one being planned, and the agent's live position as the origin, so the
+ * first leg is checked too. The live position counts only while fresh and
+ * only for a rendez-vous TODAY: for another day it says nothing about where
+ * the agent will set out from, can never make a conflict, and its lookup
+ * alone raised « Vérification d'itinéraire indisponible » (owner question
+ * 2026-10-05).
+ */
+export function buildChain(
+  others: ChainStop[],
+  pending: ChainStop,
+  live: LivePosition | null,
+  nowMs: number,
+): ChainStop[] {
+  const origin: ChainStop | null =
+    live && nowMs - live.updatedAtMs < LIVE_ORIGIN_MAX_AGE_MS && sameLocalDay(pending.rdvMs, nowMs)
+      ? { id: '__live_origin__', address: `${live.lat},${live.lng}`, rdvMs: nowMs, label: 'Position actuelle', isOrigin: true }
+      : null;
+  return [...(origin ? [origin] : []), ...others, pending].sort((a, b) => a.rdvMs - b.rdvMs);
+}
+
+function sameLocalDay(aMs: number, bMs: number): boolean {
+  const a = new Date(aMs);
+  const b = new Date(bMs);
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 /** Seconds the agent must spend at stop `i` before leaving for stop `i + 1`. */
 export function serviceTimeSec(chain: ChainStop[], i: number): number {
   if (chain[i].isOrigin) return 0;
