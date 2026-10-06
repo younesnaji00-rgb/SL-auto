@@ -127,8 +127,8 @@ export interface SlotCardProps {
    * Optional version-state chip (`Actuel` / `Remplacé` / `Envoyé` — spec B2)
    * rendered in the filled tile's header row, before the slot controls.
    * ADDITIVE-ONLY: when omitted the tile renders pixel-identically to before.
-   * No caller since 2026-10-05: the chiffrage page now shows the accords
-   * exactly like the dossier page, which has no chips.
+   * FamilyRow passes `Actuel` / `Remplacé` on the accord bands of both the
+   * dossier and the chiffrage page (QA 035).
    */
   versionChip?: React.ReactNode;
   /** DOM id on the tile root (summary-line links scroll/focus to it). */

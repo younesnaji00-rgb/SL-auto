@@ -8,7 +8,8 @@ import {
   type ExtraSlotKind,
   type TypedDoc,
 } from './slot-card';
-import type { DocFamily } from '@/lib/doc-family';
+import { Badge } from '@/components/ui/badge';
+import { bandSlots, versionStates, type DocFamily } from '@/lib/doc-family';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { cn } from '@/lib/utils';
 import type { DocDragPayload } from '@/components/documents/typed-doc';
@@ -115,9 +116,14 @@ export function FamilyRow({
     });
   };
 
+  // The band reads like the chiffreur's pipeline (QA 035): Source → 1er
+  // accord → 2ème accord…, no unused 1ère proposition in between, and
+  // « Actuel » / « Remplacé » on the versions.
+  const docsOf = (slot: string) => docsByType[slot] || [];
+  const slots = bandSlots(group, docsOf);
   const visibleSlots = cardinalFilter === 'all'
-    ? group.slots
-    : group.slots.filter((s) => {
+    ? slots
+    : slots.filter((s) => {
         const parsed = parseAccordDocType(s);
         if (cardinalFilter === '1-only') return parsed == null || parsed.ordinal === 1;
         // '2-plus'
@@ -130,6 +136,15 @@ export function FamilyRow({
   const receivedCount = visibleSlots.filter((s) =>
     (docsByType[s] || []).some((d) => !!d.url && !d.pendingUpload),
   ).length;
+
+  const versions = versionStates(group, docsOf);
+  const versionChip = (slot: string) => {
+    const state = versions.get(slot);
+    if (!state) return undefined;
+    return state === 'actuel'
+      ? <Badge variant="info">{t('Actuel')}</Badge>
+      : <Badge variant="neutral">{t('Remplacé')}</Badge>;
+  };
 
   return (
     <section
@@ -203,6 +218,7 @@ export function FamilyRow({
               hideExtraSlotPlus={hideExtraSlotPlus}
               onEdit={onEditSlot ? () => onEditSlot(slot) : undefined}
               onDocDrop={onDocDrop ? (payload) => onDocDrop(slot, payload) : undefined}
+              versionChip={versionChip(slot)}
             />
           ))}
         </div>

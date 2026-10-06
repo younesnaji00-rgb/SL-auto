@@ -92,35 +92,36 @@ export function buildDocFamilies(docs: ReadonlyArray<DocTypeLike>): DocFamily[] 
     parent: string,
     sourceDocType: AccordeSourceDocType,
   ): string[] {
-    const slots: string[] = [
-      parent,
-      mapToAccorde(parent, 'accord', 1),
-      mapToAccorde(parent, 'proposition-accord', 1),
-    ];
+    // Lineage order, as the chiffreur's pipeline showed it: the source, the
+    // accords in round order, then the propositions. The 1ère proposition is
+    // a default slot, but placed right after « accordé » it sat between the
+    // 1er and the 2ème accord (QA 035).
+    const accordSlots = [mapToAccorde(parent, 'accord', 1)];
+    const propositionSlots = [mapToAccorde(parent, 'proposition-accord', 1)];
     const extras = variantSlotsByParent.get(parent);
-    if (!extras) return slots;
-
-    // Collect every accord / proposition ordinal ≥ 2 that has a doc for this
-    // parent. No upper cap — 4ème, 5ème, … render as long as they exist in
-    // Firestore. Sorted ascending so the row order stays stable.
-    const accordOrdinals = new Set<number>();
-    const propositionOrdinals = new Set<number>();
-    for (const label of extras) {
-      const parsed = parseAccordDocType(label);
-      if (!parsed || parsed.parent !== parent) continue;
-      if (parsed.kind === 'accord' && parsed.ordinal >= 2) {
-        accordOrdinals.add(parsed.ordinal);
-      } else if (parsed.kind === 'proposition-accord' && parsed.ordinal >= 2) {
-        propositionOrdinals.add(parsed.ordinal);
+    if (extras) {
+      // Collect every accord / proposition ordinal ≥ 2 that has a doc for
+      // this parent. No upper cap — 4ème, 5ème, … render as long as they
+      // exist in Firestore. Sorted ascending so the row order stays stable.
+      const accordOrdinals = new Set<number>();
+      const propositionOrdinals = new Set<number>();
+      for (const label of extras) {
+        const parsed = parseAccordDocType(label);
+        if (!parsed || parsed.parent !== parent) continue;
+        if (parsed.kind === 'accord' && parsed.ordinal >= 2) {
+          accordOrdinals.add(parsed.ordinal);
+        } else if (parsed.kind === 'proposition-accord' && parsed.ordinal >= 2) {
+          propositionOrdinals.add(parsed.ordinal);
+        }
+      }
+      for (const ord of [...accordOrdinals].sort((a, b) => a - b)) {
+        accordSlots.push(mapToAccorde(parent, 'accord', ord));
+      }
+      for (const ord of [...propositionOrdinals].sort((a, b) => a - b)) {
+        propositionSlots.push(mapToAccorde(parent, 'proposition-accord', ord));
       }
     }
-    for (const ord of [...accordOrdinals].sort((a, b) => a - b)) {
-      slots.push(mapToAccorde(parent, 'accord', ord));
-    }
-    for (const ord of [...propositionOrdinals].sort((a, b) => a - b)) {
-      slots.push(mapToAccorde(parent, 'proposition-accord', ord));
-    }
-    return slots;
+    return [parent, ...accordSlots, ...propositionSlots];
   }
 
   /** Collect extras for a given source, sorted by ordinal ascending. */
@@ -185,4 +186,48 @@ export function collectFamilySlotLabels(families: DocFamily[]): Set<string> {
     for (const slot of fam.slots) set.add(slot);
   }
   return set;
+}
+
+/** The fields of a slot's document that tell a received file from a placeholder. */
+export interface SlotDocLike {
+  url?: string | null;
+  pendingUpload?: boolean;
+}
+
+const isReceived = (d: SlotDocLike) => !!d.url && !d.pendingUpload;
+
+/**
+ * The slots a family band shows: `group.slots`, minus a 1ère proposition
+ * holding no document at all once « accordé » has its file — the first round
+ * was answered by the accord, and the empty card read as « En attente de
+ * chiffrage » next to a finished round (QA 035; the chiffreur's pipeline never
+ * showed it). A placeholder the gestionnaire created still shows.
+ */
+export function bandSlots(group: DocFamily, docsOf: (slot: string) => ReadonlyArray<SlotDocLike>): string[] {
+  const accord1 = mapToAccorde(group.parent, 'accord', 1);
+  const proposition1 = mapToAccorde(group.parent, 'proposition-accord', 1);
+  const unused = docsOf(proposition1).length === 0 && docsOf(accord1).some(isReceived);
+  return unused ? group.slots.filter((s) => s !== proposition1) : group.slots;
+}
+
+export type VersionState = 'actuel' | 'remplace';
+
+/**
+ * « Actuel » / « Remplacé » for each received accord or proposition of a
+ * family, as the chiffreur's pipeline marked them: the latest version is
+ * « Actuel » — accords by round, then any proposition — and every earlier
+ * one « Remplacé ». The source and the slots still awaiting a file get none.
+ */
+export function versionStates(
+  group: DocFamily,
+  docsOf: (slot: string) => ReadonlyArray<SlotDocLike>,
+): Map<string, VersionState> {
+  const received: Array<{ slot: string; rank: number }> = [];
+  for (const slot of group.slots) {
+    const parsed = slot === group.parent ? null : parseAccordDocType(slot);
+    if (!parsed || !docsOf(slot).some(isReceived)) continue;
+    received.push({ slot, rank: parsed.kind === 'accord' ? parsed.ordinal : 100 + parsed.ordinal });
+  }
+  const latest = received.reduce<{ slot: string; rank: number } | null>((a, b) => (!a || b.rank > a.rank ? b : a), null);
+  return new Map(received.map(({ slot }) => [slot, slot === latest?.slot ? 'actuel' : 'remplace']));
 }
