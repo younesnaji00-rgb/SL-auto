@@ -16,6 +16,7 @@ import { PageLoader } from '@/components/ui/page-loader';
 import { ErrorState } from '@/components/ui/error-state';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useUserNames } from '@/hooks/use-user-names';
 import { useT } from '@/i18n';
 
 // ── Timeline ─────────────────────────────────────────────────────────────────
@@ -445,9 +446,15 @@ function DossierDetail({ id }: { id: string }) {
   const accordDocsQuery = useMemo(() => (db ? collection(db, 'dossiers', id, 'documents') : null), [db, id]);
   const { data: accordDocs } = useCollection<any>(accordDocsQuery);
   const accordState = useMemo(() => (accordDocs ? firstAccordState(accordDocs) : null), [accordDocs]);
+  // Step stamps that stored only a uid or an e-mail get the account's name
+  // (they read « Utilisateur inconnu » otherwise).
+  const nameOfUser = useUserNames();
   const stepStates = useMemo(
-    () => getStepStatuses(effectiveDossier ?? dossier, { accord: accordState }),
-    [effectiveDossier, dossier, accordState],
+    () =>
+      getStepStatuses(effectiveDossier ?? dossier, { accord: accordState }).map((s) =>
+        s.doneBy && !s.doneByNom ? { ...s, doneByNom: nameOfUser(s.doneBy) } : s,
+      ),
+    [effectiveDossier, dossier, accordState, nameOfUser],
   );
   // Backfill the stamp the funnel and the dashboards read, once, for dossiers
   // whose accords were saved before it was written reliably.

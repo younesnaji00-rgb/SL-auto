@@ -101,3 +101,13 @@ test('#053: the 1er accord step follows the documents; a deleted accord reopens 
   // Without the documents (lists, dashboards) the stored date still counts.
   assert.equal(byId(getStepStatuses(dossier), 6).status, 'done');
 });
+
+// « Mission » step stamp: the creator's name when one was stored, never an
+// e-mail (the page resolves those through the accounts).
+test('the Mission step carries the stored creator name, not an e-mail', () => {
+  const named = getStepStatuses({ ...ready, createdAt: new Date(), createdBy: 'uid1', createdByName: 'gest un' });
+  assert.equal(byId(named, 1).doneByNom, 'gest un');
+  const mail = getStepStatuses({ ...ready, createdAt: new Date(), createdBy: 'uid1', createdByName: 'gest.un@sl-auto.app' });
+  assert.equal(byId(mail, 1).doneByNom, null);
+  assert.equal(byId(mail, 1).doneBy, 'uid1');
+});

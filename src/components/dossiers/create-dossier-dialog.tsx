@@ -229,7 +229,10 @@ export function CreateDossierDialog({
 
       const id = await createEmptyDossier({
         db,
-        user: { uid: fbUser.uid, displayName: fbUser.displayName, email: fbUser.email },
+        // The account's name (« Prénom Nom »), not the Auth displayName,
+        // which is empty for these accounts: createdByName fell back to the
+        // email and the « Mission » step read « Utilisateur inconnu ».
+        user: { uid: fbUser.uid, displayName: userName || fbUser.displayName, email: fbUser.email },
         seed,
       });
       await logHistorique(

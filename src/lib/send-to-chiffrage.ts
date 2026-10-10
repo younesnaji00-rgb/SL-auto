@@ -41,6 +41,7 @@ async function advanceStatutToChiffrageEnCours(
   db: Firestore,
   dossierId: string,
   userLabel: string,
+  userNom?: string,
 ): Promise<void> {
   try {
     const dossierRef = doc(db, "dossiers", dossierId);
@@ -59,7 +60,9 @@ async function advanceStatutToChiffrageEnCours(
       userLabel || 'Utilisateur',
       'Statut mis à jour automatiquement (envoi au chiffrage).',
       'statut',
-      undefined,
+      // The sender's name: without it the historique showed « Utilisateur
+      // inconnu » for every send (local copy, 2026-10-10).
+      userNom || undefined,
     ).catch(() => {});
   } catch (err) {
     console.warn('[send-to-chiffrage] advance statut failed (non-fatal)', err);
@@ -174,7 +177,7 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
           sentByNom,
           updatedAt: serverTimestamp(),
         });
-        await advanceStatutToChiffrageEnCours(db, dossierId, sentByEmail || sentByNom || sentByUid);
+        await advanceStatutToChiffrageEnCours(db, dossierId, sentByEmail || sentByNom || sentByUid, sentByNom);
         return existingChiffrageId;
       }
     } catch (err) {
@@ -218,7 +221,7 @@ export async function sendToChiffrage(params: SendToChiffrageParams): Promise<st
 
   // Task #11: after the chiffrage is persisted, move the dossier to
   // `Chiffrage en cours`. Idempotent + non-fatal.
-  await advanceStatutToChiffrageEnCours(db, dossierId, sentByEmail || sentByNom || sentByUid);
+  await advanceStatutToChiffrageEnCours(db, dossierId, sentByEmail || sentByNom || sentByUid, sentByNom);
 
   return ref.id;
 }
@@ -482,7 +485,7 @@ export async function saveGestionnaireDevisAsPieceJointe(
       console.warn('[send-to-chiffrage] cardinal statut bump failed (non-fatal)', err);
     }
   } else {
-    await advanceStatutToChiffrageEnCours(db, dossierId, author.email || author.nom || author.uid);
+    await advanceStatutToChiffrageEnCours(db, dossierId, author.email || author.nom || author.uid, author.nom);
   }
 
   // 5. Mirror into the existing chiffrage when one is attached so the chiffreur

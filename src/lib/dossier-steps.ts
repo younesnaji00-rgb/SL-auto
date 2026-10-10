@@ -104,6 +104,11 @@ function visitStep(
   return make(def, 'todo', null, null, null);
 }
 
+/** The stored creator name when it is a name — older dossiers stored the e-mail. */
+function creatorName(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() && !v.includes('@') ? v.trim() : null;
+}
+
 function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -174,7 +179,7 @@ export function getStepStatuses(
         if (!createdAt) return make(def, 'in_progress', null, null, null);
         return requiredMissing
           ? make(def, 'in_progress', null, null, createdAt)
-          : make(def, 'done', createdAt, d.createdBy ?? null, null);
+          : make(def, 'done', createdAt, d.createdBy ?? null, null, undefined, creatorName(d.createdByName));
       }
       case 4:
         return visitStep(def, d, 'datePhotosAvant', 'dateDemandeExpertiseAvant', 'avant');
