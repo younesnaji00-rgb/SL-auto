@@ -25,16 +25,18 @@ test('listSome caps the list with a +n', () => {
   assert.equal(listSome(['a', 'b', 'c', 'd', 'e']), 'a, b, c +2');
 });
 
-test('fresh dossier: missing fields, missing pièces, visite avant to plan', () => {
+// Since the step gating (QA 008) the Visite avant stays blocked until the
+// Création mission fields are filled, so a fresh dossier is not asked to plan
+// it yet — only to fill the fields and drop the pièces.
+test('fresh dossier: missing fields and missing pièces; the visit waits for the fields', () => {
   const d = { createdAt: new Date('2026-01-10') };
   const todos = getDossierTodos(d, getStepStatuses(d), computeRequiredDocsStatus([]));
-  assert.deepEqual(todos.map((t) => t.id), ['fields', 'docs', 'visit-4']);
+  assert.deepEqual(todos.map((t) => t.id), ['fields', 'docs']);
   assert.match(todos[0].label, /^7 champs manquants$/);
   assert.equal(todos[0].action.kind, 'goto');
   assert.equal((todos[0].action as any).tab, 'informations');
   assert.equal(todos[1].label, '6 pièces manquantes');
   assert.equal((todos[1].action as any).tab, 'documents');
-  assert.deepEqual(todos[2].action, { kind: 'planifier', stepId: 4, type: 'Avant' });
 });
 
 test('pièces still loading → no pièces row (never a wrong count)', () => {
