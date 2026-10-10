@@ -723,8 +723,9 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
    * section rarely fits on one screen, and counting filled tiles by eye means
    * scrolling back up.
    */
-  const sectionTitle = (label: string, entries: { docs: TypedDoc[] }[]) => {
-    const received = entries.filter((x) => x.docs.some((d) => !!d.url && !d.pendingUpload)).length;
+  const sectionTitle = (label: string, entries: { docs: TypedDoc[] }[], counts?: { received: number; total: number }) => {
+    const received = counts?.received ?? entries.filter((x) => x.docs.some((d) => !!d.url && !d.pendingUpload)).length;
+    const total = counts?.total ?? entries.length;
     return (
       <div className="flex items-baseline justify-between gap-3">
         {/* Phone (Phone.dc.html): ONE 12 px ink-3 line « Pièces requises · n/m »
@@ -732,10 +733,10 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
             caption is desktop-only. Same wrapper in both shells. */}
         <h4 className={SECTION_LABEL_CLASS}>
           {t(label)}
-          <span className="tabular-nums md:hidden"> · {received}/{entries.length}</span>
+          <span className="tabular-nums md:hidden"> · {received}/{total}</span>
         </h4>
         <span className="t-caption shrink-0 tabular-nums max-md:hidden">
-          {received}/{entries.length} {t('reçues')}
+          {received}/{total} {t('reçues')}
         </span>
       </div>
     );
@@ -907,7 +908,16 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
         <div className="space-y-6">
           {/* Pièces requises — always shown, sockets carry the state. */}
           <section className="space-y-3" aria-label={t('Pièces requises')}>
-            {sectionTitle('Pièces requises', visRequired)}
+            {/* Counted like the tab badge and the banner: the devis and the
+                facture are ONE requirement (either fills it) — the sockets
+                alone said « 6/7 reçues » with nothing missing. */}
+            {sectionTitle(
+              'Pièces requises',
+              visRequired,
+              isSearching
+                ? undefined
+                : { received: REQUIRED_SOURCE_SLOTS.length + 1 - requiredStatus.missingLabels.length, total: REQUIRED_SOURCE_SLOTS.length + 1 },
+            )}
             <div className={SOCKET_GRID_CLASS}>
               {visRequired.map((x) => renderSocket(x.spec, x.docs))}
             </div>
