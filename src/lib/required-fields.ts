@@ -62,8 +62,10 @@ export function getMissingRequiredFields(dossier: any): string[] {
   for (const { label, paths } of REQUIRED_FIELDS) {
     const hasValue = paths.some((p) => {
       const v = readPath(dossier, p);
-      // `assure` alone may be a legacy string — accept it if non-empty.
-      if (p === 'assure' && typeof v === 'string') return !isEmpty(v);
+      // `assure` alone may be a legacy string — accept it if non-empty. The
+      // current shape is a block ({ nom, telephone, … }) whose name is read
+      // through `assure.nom`; the block itself never counts as a name.
+      if (p === 'assure') return typeof v === 'string' && !isEmpty(v);
       return !isEmpty(v);
     });
     if (!hasValue) missing.push(label);
