@@ -69,7 +69,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@
 import { Check, ChevronsUpDown, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, connectAuthEmulator } from 'firebase/auth';
 import { useOptions } from '@/hooks/use-options';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
@@ -229,6 +229,11 @@ export default function UtilisateursClientPage() {
       // This avoids signing out the current admin
       const secondaryApp = initializeApp(app.options, 'secondary-auth');
       const secondaryAuth = getAuth(secondaryApp);
+      // Same back end as the main app: without this, a local copy running on
+      // the emulators created its accounts in the PRODUCTION Auth.
+      if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true') {
+        connectAuthEmulator(secondaryAuth, 'http://127.0.0.1:9099', { disableWarnings: true });
+      }
 
       let uid: string;
       try {
