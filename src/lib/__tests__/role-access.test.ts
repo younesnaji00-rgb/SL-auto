@@ -106,10 +106,47 @@ test('the operational roles are unchanged, whatever the case', () => {
   assert.deepEqual(resolveRoleAccess('chiffreur'), { role: 'Chiffreur', scope: null });
   assert.deepEqual(resolveRoleAccess('agent de terrain'), { role: 'Agent de Terrain', scope: null });
   assert.deepEqual(opens('Chiffreur'), ['/dashboard', '/assignations-chiffrage']);
-  // The agent de terrain keeps to its own navigation; a chiffreur is not limited by the guard.
+  // The agent de terrain keeps to its own navigation; a chiffreur opens a
+  // dossier from its chiffrage (« Ouvrir le dossier »).
   assert.ok(canOpen('Agent de Terrain', '/assignations-atg/abc'));
   assert.ok(!canOpen('Agent de Terrain', '/dossiers/abc'));
   assert.ok(canOpen('Chiffreur', '/dossiers/abc'));
+});
+
+// Live check 2026-10-09/10: a Gestionnaire or a Chiffreur typing an address
+// opened any page — user management included. Each now opens its own menu,
+// the pages its work links to, and pages granted to the account.
+test('gestionnaire: its menu, the dossier pages and the devis editor — nothing else', () => {
+  for (const path of ['/dashboard', '/dossiers', '/dossiers/abc', '/mes-rappels', '/consultation', '/devis-editor', '/chiffrage/abc', '/signaler-bug']) {
+    assert.ok(canOpen('Gestionnaire', path), path);
+  }
+  for (const path of ['/monitoring', '/assignations-chiffrage', '/assignations-atg', '/compagnies', '/utilisateurs', '/tampons', '/jours-feries']) {
+    assert.ok(!canOpen('Gestionnaire', path), path);
+  }
+});
+
+test('chiffreur: its queue, the editor and a dossier opened from a chiffrage — not the lists', () => {
+  for (const path of ['/dashboard', '/assignations-chiffrage', '/assignations-chiffrage/abc', '/devis-editor', '/chiffrage/abc', '/dossiers/abc']) {
+    assert.ok(canOpen('Chiffreur', path), path);
+  }
+  for (const path of ['/dossiers', '/mes-rappels', '/consultation', '/monitoring', '/compagnies', '/assignations-atg', '/utilisateurs']) {
+    assert.ok(!canOpen('Chiffreur', path), path);
+  }
+});
+
+test('a page granted to one account opens for it (individual permissions)', () => {
+  const access = resolveRoleAccess('Gestionnaire');
+  const nav = [...NAV_ITEMS.filter((i) => roleOpensNavItem(i, access)).map((i) => i.href), '/compagnies'];
+  assert.ok(canOpenPath('/compagnies', access, nav));
+  assert.ok(canOpenPath('/compagnies/atlanta', access, nav));
+});
+
+test('Admin and the Directeurs open everything', () => {
+  for (const label of ['Admin', 'Directeur', 'Directeur des opérations']) {
+    for (const path of ['/monitoring', '/utilisateurs', '/tampons', '/assignations-atg', '/dossiers', '/compagnies']) {
+      assert.ok(canOpen(label, path), `${label} ${path}`);
+    }
+  }
 });
 
 test('an unknown label opens nothing — never Admin by default', () => {

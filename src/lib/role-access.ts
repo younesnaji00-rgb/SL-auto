@@ -116,11 +116,34 @@ export function roleOpensNavItem(item: NavItem, access: RoleAccess): boolean {
 }
 
 /**
+ * Pages outside the sidebar that a role's work links to: the devis editor
+ * from a chiffrage, the legacy /chiffrage/[id] page. The Agent de terrain has
+ * none.
+ */
+const ROLE_EXTRA_ROUTES: Partial<Record<BaseRole, string[]>> = {
+  Gestionnaire: ['/devis-editor', '/chiffrage'],
+  Chiffreur: ['/devis-editor', '/chiffrage'],
+};
+
+/**
+ * Detail pages a role opens through a link without opening their list: a
+ * chiffreur opens the dossier of its chiffrage (« Ouvrir le dossier »), not
+ * the Dossiers list.
+ */
+const ROLE_DETAIL_PREFIXES: Partial<Record<BaseRole, string[]>> = {
+  Chiffreur: ['/dossiers/'],
+};
+
+/**
  * Whether a page opens for this account — the shell's route guard
- * (layout.tsx). The Agent de terrain and a « Responsable des … » open the
- * pages of their own navigation (`navHrefs`: the sidebar after grants and
- * denies) and the pages their side opens; any other role opens every page,
- * each page checking its own role. A label that opens nothing opens nothing.
+ * (layout.tsx). Admin and the Directeurs open everything. Every other account
+ * opens the pages of its own navigation (`navHrefs`: the sidebar after grants
+ * and denies) and the pages its work links to. A label that opens nothing
+ * opens nothing.
+ *
+ * Until 2026-10-10 a Gestionnaire or a Chiffreur opened ANY page by typing
+ * its address (live: a gestionnaire got Utilisateurs, a chiffreur the
+ * Dossiers list and Mes rappels).
  */
 export function canOpenPath(
   pathname: string,
@@ -128,9 +151,13 @@ export function canOpenPath(
   navHrefs: readonly string[],
 ): boolean {
   if (!access.role) return false;
-  if (access.role !== 'Agent de Terrain' && !access.scope) return true;
-  const allowed = [...navHrefs, ...scopeExtraRoutes(access.scope)];
-  return allowed.some((h) => pathname === h || pathname.startsWith(`${h}/`));
+  if (access.role === 'Admin' && !access.scope) return true;
+  const role = access.role as BaseRole;
+  const extras = access.scope ? scopeExtraRoutes(access.scope) : ROLE_EXTRA_ROUTES[role] ?? [];
+  const allowed = [...navHrefs, ...extras];
+  if (allowed.some((h) => pathname === h || pathname.startsWith(`${h}/`))) return true;
+  const details = access.scope ? [] : ROLE_DETAIL_PREFIXES[role] ?? [];
+  return details.some((prefix) => pathname.startsWith(prefix));
 }
 
 /** First page after login: the role's first sidebar page (never « Signaler un bug »). */
