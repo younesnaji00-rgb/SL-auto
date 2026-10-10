@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import UtilisateursClientPage from './client-page';
+import { AdminOnly } from '@/components/auth/admin-only';
 import Loading from './loading';
 
 // The page header (title · count) is rendered by the client page because the
@@ -10,7 +11,9 @@ import Loading from './loading';
 export default function UtilisateursPage() {
   return (
     <Suspense fallback={<Loading />}>
-      <UtilisateursClientPage />
+      <AdminOnly>
+        <UtilisateursClientPage />
+      </AdminOnly>
     </Suspense>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { PageHeader } from '@/components/layout/page-header';
+import { AdminOnly } from '@/components/auth/admin-only';
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -227,7 +228,16 @@ function PermissionRow({
   );
 }
 
+// Admin only: see AdminOnly (a gestionnaire could edit any account by URL).
 export default function UserDetailPage({ params }: { params: Promise<{ uid: string }> }) {
+  return (
+    <AdminOnly>
+      <UserDetail params={params} />
+    </AdminOnly>
+  );
+}
+
+function UserDetail({ params }: { params: Promise<{ uid: string }> }) {
   const { uid } = React.use(params);
   const t = useT();
   const db = useFirestore();
