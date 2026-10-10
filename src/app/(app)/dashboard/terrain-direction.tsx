@@ -20,6 +20,7 @@
 import { useMemo } from 'react';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { dossierRef } from '@/lib/dossier-label';
 import type { FunnelDossier } from '../monitoring/funnel';
 import type { DashboardMission } from './use-dashboard-data';
 import { fmtWindow, type PersonRow, type TeamView } from './metrics';
@@ -165,7 +166,7 @@ export function TerrainDirection({ team, missions, dossiers, holidays, now, load
               <WorkRow
                 key={e.id}
                 href={e.href}
-                id={(e.dossier as any)?.refExpert || e.dossierId}
+                id={dossierRef(e.dossier as any)}
                 who={e.owner}
                 label={[t(e.label), e.detail ? t(e.detail) : null].filter(Boolean).join(' · ')}
                 time={fmtHours(e.ageHours)}

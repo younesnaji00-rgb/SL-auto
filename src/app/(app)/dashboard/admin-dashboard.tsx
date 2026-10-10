@@ -20,6 +20,7 @@ import { useTabSlopeMorphRef } from '@/hooks/use-tab-morph';
 import { Building2, Calculator, ChevronLeft, LineChart, UserCheck, Users } from 'lucide-react';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { dossierRef } from '@/lib/dossier-label';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -439,7 +440,7 @@ function RoleTab({
                   <WorkRow
                     key={e.id}
                     href={e.href}
-                    id={(e.dossier as any)?.refExpert || e.dossierId}
+                    id={dossierRef(e.dossier as any)}
                     who={e.owner}
                     label={[t(e.label), e.round ? `${e.round}ᵉ ${t('accord')}` : null, e.detail ? t(e.detail) : null].filter(Boolean).join(' · ')}
                     time={fmtHours(e.ageHours)}

@@ -20,7 +20,7 @@
 
 import { useMemo } from 'react';
 import { useT } from '@/i18n';
-import { assureName } from '@/lib/dossier-label';
+import { assureName, dossierRef } from '@/lib/dossier-label';
 import { cn } from '@/lib/utils';
 import type { SlaItem } from '../monitoring/metrics';
 import type { FunnelDossier } from '../monitoring/funnel';
@@ -38,10 +38,7 @@ import { fmtPct } from '@/components/viz';
 const WORKLIST_CAP = 6;
 const STALE_CAP = 4;
 
-const refOf = (d: FunnelDossier): string => {
-  const raw = (d as any).refExpert;
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : d.id;
-};
+const refOf = (d: FunnelDossier): string => dossierRef(d as any);
 const whoOf = (d: FunnelDossier): string => assureName((d as any).assure) || ((d as any).compagnie ?? '');
 
 const PARTY_LABEL: Record<WaitingParty, string> = {

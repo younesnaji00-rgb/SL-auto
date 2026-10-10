@@ -25,6 +25,7 @@ import { useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { dossierRef } from '@/lib/dossier-label';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -673,7 +674,7 @@ export function DirectionDashboard({ dossiers, chiffrages, missions, workflowLog
                 <ul className="mt-3 space-y-1">
                   {view.unbilled.slice(0, 8).map((u) => (
                     <li key={u.dossier.id} className="flex items-center justify-between gap-3 text-[13px]">
-                      <span className="t-mono truncate">{(u.dossier as any).refExpert || u.dossier.id}</span>
+                      <span className="t-mono truncate">{dossierRef(u.dossier as any)}</span>
                       <span className="tabular-nums text-ink-2">{fmtDays(u.daysSinceDepot)}</span>
                     </li>
                   ))}

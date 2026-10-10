@@ -24,6 +24,7 @@ import { useMemo } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { dossierRef } from '@/lib/dossier-label';
 import { Button } from '@/components/ui/button';
 import { RECORD_CARD_CLASS } from '@/components/ui/record-card';
 import { ScopePills, type ScopePill } from '@/components/ui/scope-pills';
@@ -226,7 +227,7 @@ function PhoneExceptions({ team, moreHref, loading }: { team: TeamView; moreHref
         <PhoneBlockRow
           key={e.id}
           href={e.href}
-          id={(e.dossier as any)?.refExpert || e.dossierId}
+          id={dossierRef(e.dossier as any)}
           who={[e.owner, t(e.label), e.round ? `${e.round}ᵉ ${t('accord')}` : null, e.detail ? t(e.detail) : null].filter(Boolean).join(' · ')}
           time={fmtHours(e.ageHours)}
           timeTone="danger"
