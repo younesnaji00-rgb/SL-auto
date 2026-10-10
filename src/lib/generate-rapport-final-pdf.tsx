@@ -340,7 +340,10 @@ export function RapportFinalDocument({ data }: { data: RapportData }) {
 
         {/* Signatures */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 }}>
-          <Text style={{ fontSize: 9 }}>{t('Expert adverse :')} {data.expertAdverse || 'CEOO'}</Text>
+          {/* No sample name when the dossier has no 2ème expert: the report
+              printed « CEOO » / « CABINET D'ETUDES ET D'EXPERTISES OUDRHIRI »
+              for every dossier without one (local copy, 2026-10-10). */}
+          <Text style={{ fontSize: 9 }}>{t('Expert adverse :')} {data.expertAdverse || '—'}</Text>
           <View style={{ alignItems: 'center' }}>
             <Text style={{ fontSize: 9 }}>{t('Signature')}</Text>
             <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>SLAUTO</Text>
@@ -391,7 +394,7 @@ export function RapportFinalDocument({ data }: { data: RapportData }) {
         <Text style={{ fontSize: 8, color: SOFT, marginTop: 8 }}>{t('Publié le:')} {data.today}</Text>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 4 }}>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8, width: '70%', textAlign: 'center' }}>
-            {t('Expert:')} {data.cabinetAdverse || "CABINET D'ETUDES ET D'EXPERTISES OUDRHIRI"}
+            {t('Expert:')} {data.cabinetAdverse || '—'}
           </Text>
           <SafeImage img={data.cachet || data.slLogo} style={{ width: 90, height: 50, objectFit: 'contain' }} />
         </View>

@@ -1,5 +1,5 @@
 /**
- * Rapport d'expertise préliminaire — "RAPPORT D'EXPERTSE PRÉLIMINAIRE -
+ * Rapport d'expertise préliminaire — "RAPPORT D'EXPERTISE PRÉLIMINAIRE -
  * CONTRADICTOIRE" (Sanlam-style minute contradictoire).
  *
  * Rendered with @react-pdf/renderer: a plain black-on-white bordered form (no
@@ -267,7 +267,7 @@ export function RapportPreliminaireDocument({ data }: { data: RapportData }) {
     <Document>
       {/* ══════════════════ PAGE 1 — 1ER EXPERT ══════════════════ */}
       <RapportPage>
-        <TitleBox size={11}>{t("RAPPORT D'EXPERTSE PRÉLIMINAIRE -CONTRADICTOIRE")}</TitleBox>
+        <TitleBox size={11}>{t("RAPPORT D'EXPERTISE PRÉLIMINAIRE -CONTRADICTOIRE")}</TitleBox>
 
         {/* Identity fiche */}
         <GBox style={{ marginTop: 14 }}>
@@ -332,7 +332,7 @@ export function RapportPreliminaireDocument({ data }: { data: RapportData }) {
 
       {/* ══════════════════ PAGE 2 — 2ÈME EXPERT ══════════════════ */}
       <RapportPage>
-        <TitleBox size={10}>{t("ANNEXE 4 : RAPPORT D'EXPERTSE PRÉLIMINAIRE - CONTRADICTOIRE")}</TitleBox>
+        <TitleBox size={10}>{t("ANNEXE 4 : RAPPORT D'EXPERTISE PRÉLIMINAIRE - CONTRADICTOIRE")}</TitleBox>
 
         <Bullet>{t('POSITION DU 2ÈME EXPERT :')}</Bullet>
         <EstimationHeader reparation={false} />

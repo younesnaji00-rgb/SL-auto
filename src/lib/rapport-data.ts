@@ -208,6 +208,21 @@ const tsToStr = (ts: unknown): string => {
 };
 
 const str = (v: unknown): string => (v == null ? '' : String(v));
+
+/**
+ * The first value that is set and not blank. Several sources can hold the
+ * same field (the Véhicule block, the identity card, legacy flat keys) and the
+ * form saves blank fields as '' — with `??` an empty first source hid a filled
+ * second one.
+ */
+export function filled(...values: unknown[]): unknown {
+  for (const v of values) {
+    if (v == null) continue;
+    if (typeof v === 'string' && !v.trim()) continue;
+    return v;
+  }
+  return undefined;
+}
 const num = (v: unknown): number => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -521,22 +536,26 @@ export async function resolveRapportData(
 
   // ── Vehicle resolution (object first, flat fallbacks) ──
   const vRaw = (d.vehicule as Record<string, unknown>) || {};
-  const marque = str(vRaw.marque ?? d.vehiculeMarque ?? d.marque);
-  const modele = str(vRaw.modele ?? d.vehiculeModele ?? d.modele);
+  // Each field takes the FIRST FILLED source: the Informations form saves
+  // blank fields as '' and `??` stops on '' — the rapport printed an empty
+  // « Immatriculation » although the dossier's Matricule was set (the Véhicule
+  // block's own immatriculation field is usually left blank).
+  const marque = str(filled(vRaw.marque, d.vehiculeMarque, d.marque));
+  const modele = str(filled(vRaw.modele, d.vehiculeModele, d.modele));
   const usure = (vRaw.usurePneus as Record<string, unknown>) || {};
   const vehicule = {
     marque,
     modele,
     marqueModele: `${marque} ${modele}`.trim(),
-    immatriculation: str(vRaw.immatriculation ?? d.vehiculeMatricule ?? d.matricule),
-    serie: str(vRaw.serie ?? d.vehiculeVIN ?? d.serie ?? vRaw.chassis),
-    energie: str(vRaw.energie ?? d.vehiculeEnergie ?? d.energie),
-    puissance: str(vRaw.puissance ?? d.vehiculePuissance ?? d.puissanceFiscale),
-    km: str(vRaw.km ?? d.vehiculeKilometrage ?? d.km),
-    mec: tsToStr(vRaw.mec ?? d.vehiculeMEC ?? d.mec),
-    typeMine: str(vRaw.typeMine ?? d.typeMine),
-    cylindre: str(vRaw.cylindre ?? d.cylindre),
-    etatGeneral: str(vRaw.etatGeneral ?? d.etatGeneral),
+    immatriculation: str(filled(vRaw.immatriculation, d.vehiculeMatricule, d.matricule)),
+    serie: str(filled(vRaw.serie, d.vehiculeVIN, d.serie, vRaw.chassis)),
+    energie: str(filled(vRaw.energie, d.vehiculeEnergie, d.energie)),
+    puissance: str(filled(vRaw.puissance, d.vehiculePuissance, d.puissanceFiscale)),
+    km: str(filled(vRaw.km, d.vehiculeKilometrage, d.km)),
+    mec: tsToStr(filled(vRaw.mec, d.vehiculeMEC, d.mec)),
+    typeMine: str(filled(vRaw.typeMine, d.typeMine)),
+    cylindre: str(filled(vRaw.cylindre, d.cylindre)),
+    etatGeneral: str(filled(vRaw.etatGeneral, d.etatGeneral)),
     valeurNeuf: num(vRaw.valeurNeuf),
     usurePneus: {
       avg: str(usure.avg ?? usure.AVG),
@@ -549,35 +568,35 @@ export async function resolveRapportData(
   // ── Assuré ──
   const aRaw = d.assure;
   const aObj = typeof aRaw === 'object' && aRaw !== null ? (aRaw as Record<string, unknown>) : {};
-  const aNom = str(aObj.nom ?? d.assureNom ?? (typeof aRaw === 'string' ? aRaw : ''));
-  const aPrenom = str(aObj.prenom ?? d.assurePrenom);
+  const aNom = str(filled(aObj.nom, d.assureNom, typeof aRaw === 'string' ? aRaw : ''));
+  const aPrenom = str(filled(aObj.prenom, d.assurePrenom));
   const assure = {
     nom: aNom,
     prenom: aPrenom,
     fullName: `${aPrenom} ${aNom}`.trim(),
-    cin: str(aObj.cin ?? d.assureCIN ?? d.cin),
-    telephone: str(aObj.telephone ?? d.assureTelephone ?? d.telephone),
-    adresse: str(aObj.adresse ?? d.assureAdresse),
+    cin: str(filled(aObj.cin, d.assureCIN, d.cin)),
+    telephone: str(filled(aObj.telephone, d.assureTelephone, d.telephone)),
+    adresse: str(filled(aObj.adresse, d.assureAdresse)),
   };
 
   // ── Adversaire ──
   const advRaw = (d.partieAdverse as Record<string, unknown>) || {};
-  const advNom = str(d.adverseNom ?? advRaw.assure ?? advRaw.nom);
-  const advPrenom = str(d.adversePrenom ?? advRaw.prenom);
+  const advNom = str(filled(d.adverseNom, advRaw.assure, advRaw.nom));
+  const advPrenom = str(filled(d.adversePrenom, advRaw.prenom));
   const advFullName = `${advPrenom} ${advNom}`.trim();
   const adversaire = {
     present: !!(advFullName || d.adverseCompagnie || advRaw.compagnie || d.adverseMatricule || advRaw.matricule),
     fullName: advFullName,
-    vehicule: str(advRaw.marque ?? d.adverseMarque),
-    immatriculation: str(d.adverseMatricule ?? advRaw.matricule),
-    compagnie: str(d.adverseCompagnie ?? advRaw.compagnie),
-    police: str(advRaw.police ?? d.adversePolice),
+    vehicule: str(filled(advRaw.marque, d.adverseMarque)),
+    immatriculation: str(filled(d.adverseMatricule, advRaw.matricule)),
+    compagnie: str(filled(d.adverseCompagnie, advRaw.compagnie)),
+    police: str(filled(advRaw.police, d.adversePolice)),
   };
 
   // ── Intermédiaire ──
   const interRaw = (d.intermediaire as Record<string, unknown>) || {};
   const intermediaire = str(
-    interRaw.nom ?? d.intermediaireNom ?? d.intermediaryName ?? d.intermediaire,
+    filled(interRaw.nom, d.intermediaireNom, d.intermediaryName, typeof d.intermediaire === 'string' ? d.intermediaire : undefined),
   );
 
   // ── Réparateur ──
@@ -592,8 +611,8 @@ export async function resolveRapportData(
   const experts = (d.experts as Record<string, { nom?: string; compagnie?: string }>) || {};
   const expertNom = str(d.expertNom) || BRAND.expertName;
   const cabinetNom = str(d.cabinetNom) || BRAND.cabinetName;
-  const expertAdverse = str(d.expertAdverse ?? experts['2eme']?.nom);
-  const cabinetAdverse = str(d.cabinetAdverse ?? experts['2eme']?.compagnie);
+  const expertAdverse = str(filled(d.expertAdverse, experts['2eme']?.nom));
+  const cabinetAdverse = str(filled(d.cabinetAdverse, experts['2eme']?.compagnie));
 
   // ── Logos ──
   // The compagnie logo + cachet come from Storage and can be multi-megapixel;
@@ -648,7 +667,7 @@ export async function resolveRapportData(
   return {
     dossierId,
     refExpert,
-    numeroDossier: str(d.numeroDossier ?? d.nDossier ?? d.numDossier) || refExpert,
+    numeroDossier: str(filled(d.numeroDossier, d.nDossier, d.numDossier)) || refExpert,
     today: format(new Date(), 'dd/MM/yyyy'),
 
     compagnie: str(d.compagnie),
@@ -660,8 +679,8 @@ export async function resolveRapportData(
 
     dateSinistre: tsToStr(d.dateSinistre),
     dateRequete: tsToStr(d.dateRequete),
-    dateMission: tsToStr(d.dateMissionAgentTerrain ?? d.dateMission),
-    dateExpertise: tsToStr(d.datePhotosAvant ?? d.dateExpertise),
+    dateMission: tsToStr(filled(d.dateMissionAgentTerrain, d.dateMission)),
+    dateExpertise: tsToStr(filled(d.datePhotosAvant, d.dateExpertise)),
     dateAvantTravaux: tsToStr(d.datePhotosAvant),
     dateEnCoursTravaux: tsToStr(d.datePhotosEnCours),
     dateApresTravaux: tsToStr(d.datePhotosApres),
@@ -692,7 +711,7 @@ export async function resolveRapportData(
     reformeView,
 
     montantEnLettres,
-    observation: str(d.observationExpert ?? (d.lastObservation as { text?: string } | undefined)?.text ?? d.commentaireRapport),
+    observation: str(filled(d.observationExpert, (d.lastObservation as { text?: string } | undefined)?.text, d.commentaireRapport)),
     pointsChoc: pointsChocRaw,
     pointsChocDessous: (d.pointsChocDessous as Record<string, boolean>) || {},
   };

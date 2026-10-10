@@ -281,7 +281,7 @@ export function RapportReformeDocument({
         </View>
 
         <View style={{ flexDirection: 'row', marginBottom: 2 }}>
-          <Text style={{ width: '50%', fontSize: 8, color: SOFT }}>{rv.epaviste || 'Reforme jamali'}</Text>
+          <Text style={{ width: '50%', fontSize: 8, color: SOFT }}>{rv.epaviste || '—'}</Text>
           <Text style={{ width: '50%', fontSize: 8, color: SOFT }}>{t('Valeur à neuf :')} {rv.valeurNeuf}</Text>
         </View>
         {[
