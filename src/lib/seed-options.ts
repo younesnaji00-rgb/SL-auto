@@ -23,7 +23,9 @@ const ALL_DEFAULTS: Record<string, string[]> = {
   options_types_documents: ['Rapport d\'expertise', 'Devis', 'Facture', 'Photos avant expertise', 'Photos après expertise', 'Photos au moment du sinistre', 'PV de constat', 'Carte grise', 'Permis de conduire', 'Attestation d\'assurance'],
   // The fixed role list (dossiers-data.ts) — the access of each is in lib/role-access.ts.
   options_roles: [...roles],
-  options_agents: ['Agent 1', 'Agent 2'],
+  // No options_agents seed: the agent list mirrors the Agent de terrain
+  // ACCOUNTS (Utilisateurs). Seeded « Agent 1 / Agent 2 » had no account, so a
+  // visit given to them reached nobody (found on a fresh install 2026-10-10).
   compagnies: ['ATLANTA', 'Allianz', 'CP', 'Fès ATLANTASANAD', 'Fès RMA', 'Fès Sanlam', 'Rma assurance', 'Wafa Assurance', 'Zurich Assurance'],
   options_types_dossier: ['Automobile', 'Incendie', 'Bris de machine', 'Responsabilité civile', 'Transport', 'Divers'],
   options_reparateur_types: ['Agréé', 'Normal'],
