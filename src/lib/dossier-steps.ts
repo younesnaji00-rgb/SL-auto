@@ -140,9 +140,13 @@ export function getStepStatuses(
   const d = dossier || {};
   const chiffrageAt = toDate(d.dateChiffrage);
   const accord = opts.accord ?? null;
-  const firstAccordAt =
-    toDate(d.firstAccordReachedAt) ??
-    (accord?.complete ? (accord.at ?? chiffrageAt ?? new Date()) : null);
+  // With the documents at hand (the dossier page) they decide: a deleted
+  // accord reopens the step (QA #053) — the stored date only dates it. Without
+  // them (lists, dashboards) the stored date stands for the step.
+  const stamp = toDate(d.firstAccordReachedAt);
+  const firstAccordAt = accord
+    ? (accord.complete ? (stamp ?? accord.at ?? chiffrageAt ?? new Date()) : null)
+    : stamp;
   const lastChange = d.lastStatusChange || {};
   const lastStatus: string = lastChange.status || d.statut || '';
   const lastAt = toDate(lastChange.at);

@@ -5,8 +5,21 @@ import { getStepStatuses, nextStep } from '../dossier-steps';
 
 const byId = (states: ReturnType<typeof getStepStatuses>, id: number) => states.find((s) => s.id === id)!;
 
+// Step 1 fields filled: since the step gating (QA 008) a dossier without them
+// keeps every later step blocked, so the fixtures below that test later steps
+// start from a complete Création mission.
+const ready = {
+  compagnie: 'ATLANTA',
+  nature: 'Classique',
+  vehicule: { marque: 'Dacia' },
+  matricule: '12345-A-6',
+  assure: { nom: 'Ali Test' },
+  dateSinistre: '2026-01-01',
+  dateRequete: '2026-01-02',
+};
+
 test('fresh dossier: mission done, everything else todo, 2ème accord blocked', () => {
-  const s = getStepStatuses({ createdAt: new Date('2026-01-10'), createdBy: 'yn' });
+  const s = getStepStatuses({ ...ready, createdAt: new Date('2026-01-10'), createdBy: 'yn' });
   assert.equal(byId(s, 1).status, 'done');
   assert.equal(byId(s, 1).doneBy, 'yn');
   assert.equal(byId(s, 4).status, 'todo');
@@ -29,10 +42,11 @@ test('statut "Planification programmée en cours" marks visite en cours as in pr
 });
 
 test('chiffrage sent → accord in progress; first accord reached → done and 2ème unblocked', () => {
-  const sent = getStepStatuses({ createdAt: new Date(), statut: 'Chiffrage en cours', dateChiffrage: new Date('2026-03-01') });
+  const sent = getStepStatuses({ ...ready, createdAt: new Date(), statut: 'Chiffrage en cours', dateChiffrage: new Date('2026-03-01') });
   assert.equal(byId(sent, 6).status, 'in_progress');
   assert.equal(byId(sent, 11).status, 'blocked');
   const first = getStepStatuses({
+    ...ready,
     createdAt: new Date(),
     statut: 'Accord',
     firstAccordReachedAt: new Date('2026-03-02'),
@@ -65,4 +79,25 @@ test('rapport: director validation = in progress, dépôt = done', () => {
 test('all 8 steps are always returned in business order', () => {
   const s = getStepStatuses({});
   assert.deepEqual(s.map((x) => x.id), [1, 4, 6, 9, 11, 10, 7, 8]);
+});
+
+// QA #053: « 1er accord » stayed « Terminé » after the accord document was
+// deleted — the step read the date stored when the round was first complete.
+// With the documents at hand (the dossier page) the step follows them.
+test('#053: the 1er accord step follows the documents; a deleted accord reopens it', () => {
+  const dossier = {
+    ...ready,
+    createdAt: new Date(),
+    statut: 'Accord',
+    dateChiffrage: new Date('2026-03-01'),
+    firstAccordReachedAt: new Date('2026-03-02'),
+  };
+  const gone = getStepStatuses(dossier, { accord: { complete: false, at: null, missing: ['Devis Garage'], required: ['Devis Garage'] } });
+  assert.notEqual(byId(gone, 6).status, 'done');
+  assert.equal(byId(gone, 11).status, 'blocked');
+  const back = getStepStatuses(dossier, { accord: { complete: true, at: new Date('2026-03-02'), missing: [], required: ['Devis Garage'] } });
+  assert.equal(byId(back, 6).status, 'done');
+  assert.equal(byId(back, 11).status, 'todo');
+  // Without the documents (lists, dashboards) the stored date still counts.
+  assert.equal(byId(getStepStatuses(dossier), 6).status, 'done');
 });
