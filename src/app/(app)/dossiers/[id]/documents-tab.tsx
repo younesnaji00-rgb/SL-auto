@@ -348,6 +348,8 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     if (files.length === 0 || !type || !db || !storage || !auth) return false;
     const userEmail = auth.currentUser?.email || 'Admin';
     const userId = auth?.currentUser?.uid || 'unknown';
+    // The document card shows this name; without it, it falls back to the e-mail prefix.
+    const userName = profile ? `${profile.prenom || ''} ${profile.nom || ''}`.trim() || userEmail : userEmail;
     setUploadingType(type);
     let queuedCount = 0;
     try {
@@ -384,6 +386,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
             type,
             taille: file.size,
             uploadePar: userEmail,
+            uploadedByName: userName,
             storagePath,
             _localCreatedAt: timestamp,
             ...devisMetadata,
