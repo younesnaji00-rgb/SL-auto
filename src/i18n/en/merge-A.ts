@@ -58,12 +58,12 @@ export const MERGE_A_EN: Record<string, string> = {
     'The chiffrageId parameter is required to open the editor.',
 
   // ── Structured devis editor ─────────────────────────────────────────────
-  'Editer les': 'Edit the',
+  'Éditer les': 'Edit the',
   'devis': 'estimate',
   'facture': 'invoice',
   'factures': 'invoices',
   'sera ajouté aux pièces jointes du dossier.': 'will be added to the file attachments.',
-  '(s) fusionne(s) :': '(s) merged:',
+  '(s) fusionné(s) :': '(s) merged:',
   'dans cette assignation': 'in this assignment',
   'Document enregistré': 'Document saved',
   'Accord enregistré': 'Agreement saved',

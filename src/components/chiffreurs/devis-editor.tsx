@@ -86,10 +86,12 @@ interface DevisEditorProps {
   /** Required when `mode === 'gestionnaire'`. Used for the pieces-jointes write. */
   dossierId?: string;
   /**
-   * Round-3: when the chiffreur opens a cardinal accord slot (Devis 2ème accord,
-   * 3ème accord, 1ère/2ème/3ème proposition d'accord), the editor seeds from the
-   * dossier's BASELINE scan rather than from the chiffrage's previous accord
-   * state. The slot label is forwarded so the init effect can detect this.
+   * When the chiffreur opens a cardinal accord slot (Devis 2ème accord,
+   * 3ème accord, 2ème/3ème proposition d'accord) that has no saved document
+   * yet, the editor seeds from the PREVIOUS round of the same kind, accord
+   * column unlocked (7d1f0ca); the baseline scan is the fallback when that
+   * round was never saved. The slot label is forwarded so the init effect can
+   * detect this.
    */
   accordSlot?: string;
 }
@@ -1161,7 +1163,7 @@ export function DevisEditor({
   const sourceCaption = isGestionnaire
     ? `${t('Nouveau')} ${t(typeLabel.lower)} — ${t('sera ajouté aux pièces jointes du dossier.')}`
     : devisFileNames.length > 0
-      ? `${t(typeLabel.lower)}${t('(s) fusionne(s) :')} ${devisFileNames.join(' · ')}`
+      ? `${t(typeLabel.lower)}${t('(s) fusionné(s) :')} ${devisFileNames.join(' · ')}`
       : `${t('Aucun')} ${t(typeLabel.lower)} ${t('dans cette assignation')}`;
   // Emphasis follows the job (GOV.UK button: "the primary is the next thing
   // to do"): while the scan is unreviewed « J'ai vérifié » is THE filled
@@ -1195,7 +1197,7 @@ export function DevisEditor({
             count is a neutral count pill (§11: `bg-surface-3 text-ink-2`,
             tabular digits — a count is information, not a status). */}
         <div className="min-w-0 flex-1" data-tour="dev-files">
-          <h1 className="t-title truncate">{t("Editer les")} {t(typeLabel.plural)}</h1>
+          <h1 className="t-title truncate">{t('Éditer les')} {t(typeLabel.plural)}</h1>
           <div className="t-caption flex min-w-0 items-center gap-1.5" title={sourceCaption}>
             {!isGestionnaire && devisFileNames.length > 0 && (
               <Badge variant="neutral">{devisFileNames.length}</Badge>
