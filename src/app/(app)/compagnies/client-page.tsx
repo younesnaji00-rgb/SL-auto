@@ -55,7 +55,7 @@ import { PhoneAdminCard } from '@/components/admin/phone-admin-list';
 //    reserved, always with a label; one helper per domain). Local stand-in for
 //    `lib/status-colors` (hand-picked hues, shared file outside this page). ──
 function statusVariant(status: string): 'info' | 'warning' | 'success' | 'neutral' {
-  const s = (status || '').trim();
+  const s = String(status ?? '').trim();
   if (s.startsWith('Planification')) return 'info';
   if (s === 'Chiffrage en cours') return 'warning';
   if (/accord/i.test(s)) return 'success';

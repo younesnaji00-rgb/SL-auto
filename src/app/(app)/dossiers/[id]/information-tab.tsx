@@ -426,7 +426,9 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     // effect ran once (guarded by `initialLoadDone`), which meant a scan
     // completing after mount never updated the displayed fields.
     if (dossier && !editing) {
-      const dataAssure = typeof dossier.assure === 'object' ? dossier.assure : { nom: dossier.assure || '' };
+      // `typeof null === 'object'`, so a dossier with `assure: null` would make
+      // dataAssure null and crash on `.nom` below — guard the null explicitly.
+      const dataAssure = (dossier.assure && typeof dossier.assure === 'object') ? dossier.assure : { nom: dossier.assure || '' };
       const v = dossier.vehicule || {};
       const storedExperts = (dossier.experts ?? {}) as any;
       const hydrateExpert = (role: ExpertRole): ExpertInfo => ({

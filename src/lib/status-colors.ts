@@ -35,7 +35,7 @@ const PROPOSITION_SET: ReadonlySet<string> = new Set([
 
 /** Family classification shared by the badge, header and dot helpers. */
 export function getStatusTone(status: string): StatusTone {
-  const s = (status || '').trim();
+  const s = String(status ?? '').trim();
   if (s === 'Création dossier') return 'neutral';
   if (s.startsWith('Planification programmée')) return 'neutral';
   if (s.startsWith('Planification expertise')) return 'neutral';

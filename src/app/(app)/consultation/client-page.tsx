@@ -356,7 +356,7 @@ export default function ConsultationClientPage() {
   const topStatuses = useMemo(() => {
     const counts = new Map<string, number>();
     for (const d of baseList) {
-      const s = (d.statut || '').trim() || 'Nouveau';
+      const s = (String(d.statut ?? '')).trim() || 'Nouveau';
       counts.set(s, (counts.get(s) || 0) + 1);
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
@@ -430,7 +430,9 @@ export default function ConsultationClientPage() {
   const formatDate = (val: any) => {
     if (!val) return null;
     const date = val.toDate ? val.toDate() : new Date(val);
-    return format(date, 'dd/MM/yyyy');
+    // A bad stored date (« 32/13/2099 », a legacy string) makes `format` throw
+    // « Invalid time value » and white-screens the whole list.
+    return isValid(date) ? format(date, 'dd/MM/yyyy') : null;
   };
 
   const hasActiveFilters = !!filters.search || filters.nature !== 'Toutes' || filters.status !== 'Tous' || filters.compagnie !== 'Toutes' || filters.typeDossier !== 'Tous' || !!filters.dateFrom || !!filters.dateTo;

@@ -38,7 +38,7 @@ const INFO_RE = /attente|planif|programm/i;
 
 /** Status label → semantic tone. Exported so lists can colour dots/filters the same way. */
 export function statusTone(status: string | null | undefined): StatusTone {
-  const s = (status || '').trim();
+  const s = String(status ?? '').trim();
   if (!s || /^nouveau$/i.test(s)) return 'neutral';
   const canonical = getStatusTone(s);
   if (canonical !== 'neutral') return canonical;
@@ -66,7 +66,7 @@ export interface StatusChipProps extends Omit<BadgeProps, 'variant' | 'children'
  *  French status and the translation happens here, once, at render. */
 export function StatusChip({ status, icon, fallback = 'Nouveau', className, ...props }: StatusChipProps) {
   const t = useT();
-  const label = (status || '').trim() || fallback;
+  const label = String(status ?? '').trim() || fallback;
   const display = t(label);
   return (
     // Mobile pass 2026-09-06: on a phone the label must never be cut to « … »

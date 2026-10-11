@@ -94,7 +94,7 @@ export interface ReconcileInputs {
  */
 export function deriveActualStatut(input: ReconcileInputs): string {
   const { dossier, documents, photos, planifications } = input;
-  const current = (dossier?.statut || '').trim();
+  const current = String(dossier?.statut ?? '').trim();
 
   // 1. Terminal — never overwrite.
   if (TERMINAL_STATUSES.has(current)) return current;

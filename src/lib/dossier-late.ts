@@ -23,8 +23,10 @@ export const LATE_AFTER_DAYS = 7;
  */
 export const TERMINAL_STATUTS: ReadonlySet<string> = new Set(['Accord envoyé']);
 
-export const isActionNeeded = (statut: string | undefined | null): boolean =>
-  !TERMINAL_STATUTS.has((statut || '').trim());
+export const isActionNeeded = (statut: unknown): boolean =>
+  // Coerce: a legacy or malformed dossier can carry a non-string statut, and
+  // `(42).trim()` would white-screen every page that filters the list.
+  !TERMINAL_STATUTS.has(String(statut ?? '').trim());
 
 function toDate(v: any): Date | null {
   if (!v) return null;

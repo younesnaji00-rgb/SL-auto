@@ -25,6 +25,11 @@ test('only « Accord envoyé » is terminal', () => {
   assert.equal(isActionNeeded(' Accord envoyé '), false);
   assert.equal(isActionNeeded('Réforme'), true);
   assert.equal(isActionNeeded(undefined), true);
+  // A malformed dossier with a non-string statut must not throw (it would
+  // white-screen every page that filters the dossiers list).
+  assert.equal(isActionNeeded(42 as unknown as string), true);
+  assert.equal(isActionNeeded(null), true);
+  assert.equal(isActionNeeded({} as unknown as string), true);
   assert.equal(isDossierLate({ statut: 'Accord envoyé', createdAt: daysAgo(30) }, NOW), false);
 });
 

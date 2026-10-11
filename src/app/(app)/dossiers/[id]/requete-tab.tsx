@@ -79,7 +79,8 @@ export default function RequeteTab({ dossier, dossierRef }: { dossier: any; doss
             }
         };
 
-        const dataAssure = typeof data.assure === 'object' ? data.assure : { nom: data.assure || '' };
+        // `typeof null === 'object'` — guard the null or `.nom` below crashes.
+        const dataAssure = (data.assure && typeof data.assure === 'object') ? data.assure : { nom: data.assure || '' };
 
         return {
             compagnie: data.compagnie || '',
