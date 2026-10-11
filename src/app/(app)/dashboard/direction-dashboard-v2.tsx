@@ -208,7 +208,10 @@ export function DirectionDashboardV2({
           loading={loading}
           caption={
             <span className="tabular-nums">
-              {view.termines} {t('clôturés')} · {view.recus} {t('entrés')} ·{' '}
+              {/* The ratio's own counts (completed weeks): the period's counts
+                  read « 1 clôturés · 1 entrés » under « 0,00 ». */}
+              {view.closingCounts.termines} {t('clôturés')} · {view.closingCounts.recus} {t('entrés')} ·{' '}
+              {view.closingCounts.weeks} {t('semaines terminées')} ·{' '}
               <span className={cn(view.closing != null && view.closing >= 1 ? 'text-primary' : 'text-status-danger-fg')}>
                 {view.closing != null && view.closing >= 1 ? t('le stock baisse') : t('le stock monte')}
               </span>

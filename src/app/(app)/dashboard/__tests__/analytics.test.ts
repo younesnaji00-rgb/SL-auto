@@ -7,6 +7,7 @@ import {
   REAL_USER,
   calDays,
   closingRatio,
+  closingCounts,
   compagnieTable,
   computeDirectionView,
   contradictoireShare,
@@ -213,6 +214,8 @@ test('weeklyFlow: 13 Monday weeks ending on the current one; closingRatio exclud
   assert.equal(flow[11].termines, 1);
   assert.equal(flow[0].weekStart.getTime(), new Date(2025, 11, 15).getTime());
   assert.equal(closingRatio(flow), 0.5);
+  // The tile caption shows these counts — the same completed weeks as the ratio.
+  assert.deepEqual(closingCounts(flow), { recus: 2, termines: 1, weeks: 12 });
   assert.equal(closingRatio(weeklyFlow([], NOW)), null);
 });
 
@@ -363,8 +366,9 @@ test('devisLineStats + devisRates: one snapshot per dossier, accord parsed from 
   assert.equal(s.reparation, 2);
   assert.equal(s.remplacement, 4);
   assert.deepEqual([s.originale, s.adaptable, s.occasion], [2, 1, 1]);
-  assert.equal(s.devisHT, 2250);
-  assert.equal(s.devisHTWithAccord, 1850);
+  // r2 is qte 2 × 250: line totals are qte × PU HT, as in the devis editor and PDF.
+  assert.equal(s.devisHT, 2500);
+  assert.equal(s.devisHTWithAccord, 2100);
   assert.equal(s.accordHT, 1434.5);
   assert.equal(s.withAccord, 1);
 
@@ -374,8 +378,8 @@ test('devisLineStats + devisRates: one snapshot per dossier, accord parsed from 
   assert.deepEqual(r.originale, { pct: 50, num: 2, den: 4 });
   assert.equal(r.adaptable.pct, 25);
   assert.equal(r.occasion.pct, 25);
-  assert.equal(r.economieHT, 415.5);
-  assert.equal(r.economiePct, 22);
+  assert.equal(r.economieHT, 665.5);
+  assert.equal(r.economiePct, 32);
 
   const onlyB = devisLineStats(chiffrages, NOW, DAYS, (c) => c.dossierId === 'b');
   assert.equal(onlyB.accordHT, null);

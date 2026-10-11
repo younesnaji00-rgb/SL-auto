@@ -365,11 +365,19 @@ export function weeklyFlow(dossiers: FunnelDossier[], now: Date, weeks = 13): We
   return out;
 }
 
+/** Σ reçus and Σ terminés over the completed weeks (the current week is excluded). */
+export function closingCounts(flow: WeekFlow[]): { recus: number; termines: number; weeks: number } {
+  const done = flow.slice(0, -1);
+  return {
+    recus: done.reduce((n, w) => n + w.recus, 0),
+    termines: done.reduce((n, w) => n + w.termines, 0),
+    weeks: done.length,
+  };
+}
+
 /** Σ terminés / Σ reçus over the completed weeks (the current week is excluded). */
 export function closingRatio(flow: WeekFlow[]): number | null {
-  const done = flow.slice(0, -1);
-  const recus = done.reduce((n, w) => n + w.recus, 0);
-  const termines = done.reduce((n, w) => n + w.termines, 0);
+  const { recus, termines } = closingCounts(flow);
   return recus > 0 ? round2(termines / recus) : null;
 }
 
@@ -1058,6 +1066,8 @@ export interface DirectionView {
   ladder: LadderRow[];
   flow: WeekFlow[];
   closing: number | null;
+  /** The counts `closing` is made of: completed weeks only, not the period. */
+  closingCounts: { recus: number; termines: number; weeks: number };
   firstPass: FirstPass;
   firstPassByCompagnie: GroupRate[];
   firstPassByGarage: GroupRate[];
@@ -1101,6 +1111,7 @@ export function computeDirectionView(input: DirectionInput, now: Date, days: num
     ladder: stageLadder(dossiers, chiffrages, missions, now, days),
     flow: weeklyFlow(dossiers, now),
     closing: closingRatio(weeklyFlow(dossiers, now)),
+    closingCounts: closingCounts(weeklyFlow(dossiers, now)),
     firstPass: firstPass(chiffrages, now, days),
     firstPassByCompagnie: firstPassBy(chiffrages, dossiers, now, days, 'compagnie'),
     firstPassByGarage: firstPassBy(chiffrages, dossiers, now, days, 'garageName'),
