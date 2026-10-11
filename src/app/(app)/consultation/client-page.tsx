@@ -542,6 +542,11 @@ export default function ConsultationClientPage() {
     setExported(true);
     window.setTimeout(() => setExported(false), 1500);
   };
+  // The phone « ⋯ » sheet below is memoised on a few keys only: it calls the
+  // export through this ref so a filter change that keeps the same count
+  // (compagnie A → compagnie B) still exports the rows on screen.
+  const exportRef = React.useRef(handleExport);
+  exportRef.current = handleExport;
 
   // The page header lives in page.tsx, so the phone top bar's search field
   // (with « Trier »), the « Filtres » icon + badge, the count on the
@@ -564,7 +569,7 @@ export default function ConsultationClientPage() {
         filters: { count: appliedFilterCount, onOpen: () => setPhoneFiltersOpen(true) },
         secondaryActions:
           sortedList.length > 0
-            ? [{ key: 'export', label: t('Exporter'), icon: <Download />, onSelect: handleExport }]
+            ? [{ key: 'export', label: t('Exporter'), icon: <Download />, onSelect: () => exportRef.current() }]
             : [],
       }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
