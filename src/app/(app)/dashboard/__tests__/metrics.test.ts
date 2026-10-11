@@ -48,19 +48,23 @@ test('lastMovementAt is the latest dated field on the document', () => {
   assert.equal(lastMovementAt(d)?.getTime(), T(12).getTime());
 });
 
+// The required fields of the Création mission: without them every later step
+// is blocked and the only to-do is « N champs manquants » (QA bug 008).
+const READY = { nature: 'Classique', vehicule: { marque: 'Dacia' }, matricule: '12345-A-6', assure: { nom: 'Ali Test' }, dateSinistre: T(7, -8) };
+
 test('gestionnaire: à traiter vs en attente, tiles and stale', () => {
   const dossiers: FunnelDossier[] = [
     // Fresh dossier, visit not planned → « Visite avant à planifier » (my action).
-    dossier('a', { createdAt: T(9), dateRequete: T(8) }),
+    dossier('a', { ...READY, createdAt: T(9), dateRequete: T(8) }),
     // Visit planned yesterday, photos awaited → waiting on the agent.
-    dossier('b', { dateDemandeExpertiseAvant: T(10, -1) }),
+    dossier('b', { ...READY, dateDemandeExpertiseAvant: T(10, -1) }),
     // Closed last week (rapport déposé 3 days ago) and one 10 days ago.
     dossier('c', { datePhotosAvant: T(9, -6), dateRapportDepose: T(9, -3) }),
     dossier('d', { datePhotosAvant: T(9, -12), dateRapportDepose: T(9, -10) }),
     // Someone else's dossier — invisible to g1.
     dossier('e', { createdBy: 'uid-other' }),
     // Stale: created 5 business days ago, no movement since.
-    dossier('f', { createdAt: T(9, -7), dateRequete: T(8, -7) }),
+    dossier('f', { ...READY, createdAt: T(9, -7), dateRequete: T(8, -7) }),
   ];
   const sla = buildDashboardSla(dossiers, [], [], H, NOW);
   const v = computeGestionnaireView(dossiers, sla, [{ id: 'r1', recipientUid: 'uid-g1', senderUid: 's', dossierId: 'a', read: false, createdAt: T(9) } as any], H, NOW, g1);
