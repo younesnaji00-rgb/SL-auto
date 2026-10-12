@@ -1,3 +1,5 @@
+import { hasGivenUp } from './upload-status';
+
 const DB_NAME = 'sl-auto-offline';
 const DB_VERSION = 1;
 const STORE_NAME = 'pending-uploads';
@@ -14,6 +16,10 @@ export interface PendingUpload {
   createdAt: number;
   status: 'pending' | 'uploading' | 'failed';
   retryCount: number;
+  /** Why the last attempt failed — shown on « Fichiers non envoyés ». */
+  lastError?: string;
+  lastErrorCode?: string;
+  lastAttemptAt?: number;
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -118,18 +124,13 @@ export async function getAllPending(): Promise<PendingUpload[]> {
   });
 }
 
-export async function getPendingCount(): Promise<number> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const request = tx.objectStore(STORE_NAME).count();
-    request.onsuccess = () => {
-      db.close();
-      resolve(request.result);
-    };
-    request.onerror = () => {
-      db.close();
-      reject(request.error);
-    };
-  });
+/**
+ * `sending`: files the queue is still trying to send. `failed`: files it gave
+ * up on — counting those as « en cours d'envoi » kept the banner up forever
+ * on a device whose uploads would never be tried again (owner 2026-10-05).
+ */
+export async function getQueueCounts(): Promise<{ sending: number; failed: number }> {
+  const items = await getAllPending();
+  const failed = items.filter(hasGivenUp).length;
+  return { sending: items.length - failed, failed };
 }

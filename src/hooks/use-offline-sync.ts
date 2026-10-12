@@ -4,18 +4,20 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNetworkStatus } from './use-network-status';
 import { useFirestore, useStorage } from '@/firebase';
 import { uploadProcessor, onSyncChange } from '@/lib/offline/upload-processor';
-import { getPendingCount } from '@/lib/offline/upload-queue';
+import { getQueueCounts } from '@/lib/offline/upload-queue';
 
 export function useOfflineSync() {
   const isOnline = useNetworkStatus();
   const storage = useStorage();
   const db = useFirestore();
-  const [pendingCount, setPendingCount] = useState(0);
+  // `pendingCount`: files still being sent. `failedCount`: files the queue
+  // gave up on — they wait for « Réessayer » or « Supprimer » and are no
+  // longer counted as « en cours d'envoi » (owner 2026-10-05).
+  const [counts, setCounts] = useState({ sending: 0, failed: 0 });
 
   const refreshCount = useCallback(async () => {
     try {
-      const count = await getPendingCount();
-      setPendingCount(count);
+      setCounts(await getQueueCounts());
     } catch {
       // IndexedDB may not be available in SSR
     }
@@ -39,5 +41,5 @@ export function useOfflineSync() {
     refreshCount();
   }, [refreshCount]);
 
-  return { isOnline, pendingCount };
+  return { isOnline, pendingCount: counts.sending, failedCount: counts.failed };
 }
