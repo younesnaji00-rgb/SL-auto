@@ -12,7 +12,7 @@ const ok = (kind: ValidatedKind, v: unknown, now?: Date) =>
 const ko = (kind: ValidatedKind, v: unknown, now?: Date) =>
   assert.notEqual(validateFieldValue(kind, v, now), null, `${kind} should refuse ${JSON.stringify(v)}`);
 
-const TEXT_KINDS: ValidatedKind[] = ['tel', 'email', 'address', 'plate', 'name', 'org', 'cin', 'numeric', 'cv', 'km', 'ref', 'vin', 'label'];
+const TEXT_KINDS: ValidatedKind[] = ['tel', 'email', 'address', 'plate', 'name', 'org', 'cin', 'numeric', 'cv', 'km', 'ref', 'vin', 'label', 'words'];
 
 test('no text field accepts symbols alone', () => {
   for (const kind of TEXT_KINDS) {
@@ -38,6 +38,10 @@ test('addresses: real ones pass, symbol soup does not', () => {
   ko('address', 'a-b-c-d');
   ko('address', '12 34 56');
   ko('address', 'Fès');
+  // QA bug 016 retest: one word is not an address.
+  ko('address', 'testtestt');
+  ko('address', 'Casablanca');
+  ok('address', 'Hay Salam, Fès');
 });
 
 test('names: letters with hyphen, apostrophe or initials only', () => {
@@ -89,8 +93,18 @@ test('plates: Moroccan Latin, Arabic and WW forms', () => {
   ok('plate', '12345-A-6');
   ok('plate', '12345 | أ | 6');
   ok('plate', 'WW-123456');
+  ok('plate', '123-ش-45');
+  ok('plate', '1-A-6');
+  ok('plate', '123456-6');
+  ok('plate', 'AB-123-CD');
   ko('plate', '12345--A--6');
   ko('plate', 'ABC');
+  // QA bug 016 retest: what the tester typed, and other non-plates.
+  ko('plate', '233e');
+  ko('plate', '123');
+  ko('plate', '1234');
+  ko('plate', '87763');
+  ko('plate', 'ABCDE1');
 });
 
 test('labels (marque, modèle, énergie)', () => {
@@ -100,6 +114,29 @@ test('labels (marque, modèle, énergie)', () => {
   ok('label', '1.6 HDi');
   ko('label', 'A&&&');
   ko('label', '(2019)');
+});
+
+test('words (marque, énergie, type d’intermédiaire): never a number', () => {
+  ok('words', 'Peugeot');
+  ok('words', 'Mercedes-Benz');
+  ok('words', 'Lynk & Co');
+  ok('words', 'Citroën');
+  ok('words', 'Diesel');
+  ok('words', 'Hybride rechargeable');
+  ok('words', 'Essence/GPL');
+  ok('words', 'GO');
+  ko('words', '12');
+  ko('words', '233e');
+  ko('words', 'Renault 12');
+  ko('words', 'a');
+  ko('words', '-Diesel');
+});
+
+test('numéro de série: digits always', () => {
+  ok('vin', 'VF1BB05CF12345678');
+  ok('vin', 'ZZT231-0012345');
+  ko('vin', 'testtestt');
+  ko('vin', 'Casablanca');
 });
 
 test('puissance fiscale and kilométrage stay in range', () => {

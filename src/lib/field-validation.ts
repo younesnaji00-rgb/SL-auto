@@ -26,6 +26,8 @@ export type ValidatedKind =
   | 'ref'
   | 'vin'
   | 'label'
+  /** Marque, énergie, type d'intermédiaire: words, never a number. */
+  | 'words'
   /** Date sinistre, date requête: a real day, not in the future, from 2000 on. */
   | 'pastDate'
   /** Mise en circulation: a real day, not in the future, from 1900 on. */
@@ -50,6 +52,7 @@ const NAME = new RegExp(`^[${LETTERS}][${LETTERS}\\s'’.\\-]*$`);
 const NAME_END = new RegExp(`[${LETTERS}.]$`);
 const ORG = new RegExp(`^[${LETTERS}0-9][${LETTERS}0-9\\s'’.,&()/\\-]*$`);
 const LABEL = new RegExp(`^[${LETTERS}0-9][${LETTERS}0-9\\s'’.&()/\\-]*$`);
+const WORDS = new RegExp(`^[${LETTERS}][${LETTERS}\\s'’.&()/\\-]*$`);
 const ADDRESS_GLYPHS = new RegExp(`^[${LETTERS}0-9\\s,.;:'’"«»()\\-–/°º#&]+$`);
 const WORD = new RegExp(`[${LETTERS}]{2,}`);
 const PLATE_GLYPHS = new RegExp(`^[0-9${LETTERS}\\s|\\-/.]+$`);
@@ -71,6 +74,7 @@ const MSG = {
   ref: 'Référence invalide : lettres et chiffres, séparés au besoin par - _ . / (2 à 40 caractères).',
   vin: 'Numéro de série invalide : 5 à 17 lettres ou chiffres (sans I, O, Q pour un VIN).',
   label: 'Valeur invalide : lettres, chiffres et ponctuation simple uniquement.',
+  words: 'Valeur invalide : des lettres, sans chiffres (ex. Renault, Diesel).',
   date: 'Date invalide (format JJ/MM/AAAA).',
   future: 'Date invalide : elle ne peut pas être dans le futur.',
 } as const;
@@ -137,11 +141,19 @@ export function validateFieldValue(kind: ValidatedKind, raw: unknown, now: Date 
       return ok ? null : MSG.email;
     }
     case 'plate': {
-      // Allowed glyphs only, then the normalised form must carry digits and a
-      // plausible length (« 12345-A-6 », « 12345 | أ | 6 », « WW-123456 »).
+      // Allowed glyphs only, then the normalised form (Arabic letters in
+      // Latin, separators gone) must be a plate (QA bug 016 retest: « 233e »,
+      // « 123 » and « 87763 » went through):
+      // - Moroccan: 1 to 5 digits, the letter, the region (« 12345-A-6 »,
+      //   « 12345 | أ | 6 », « 123-ش-45 »);
+      // - an older all-digit plate, region included (« 123456-6 »);
+      // - temporary or foreign: 5 to 12 characters, letters and at least two
+      //   digits (« WW-123456 », « AB-123-CD »).
       if (!PLATE_GLYPHS.test(value) || SYMBOL_RUN.test(value)) return MSG.plate;
       const norm = normalizePlate(value);
-      if (norm.length >= 3 && norm.length <= 12 && /\d/.test(norm)) return null;
+      if (/^\d{1,5}[A-Z]{1,3}\d{1,2}$/.test(norm)) return null;
+      if (/^\d{6,8}$/.test(norm)) return null;
+      if (norm.length >= 5 && norm.length <= 12 && /[A-Z]/.test(norm) && digitCount(norm) >= 2) return null;
       return MSG.plate;
     }
     case 'address': {
@@ -149,8 +161,12 @@ export function validateFieldValue(kind: ValidatedKind, raw: unknown, now: Date 
       // punctuation addresses use; at least one real word; symbols never
       // outweigh the text.
       const compact = value.replace(/\s/g, '');
+      // Two words at least, as the message asks (QA bug 016 retest:
+      // « testtestt » and « Casablanca » alone went through).
+      const words = value.split(/[\s,،;]+/).filter((w) => letterCount(w) + digitCount(w) > 0);
       const ok =
         value.length >= 5 &&
+        words.length >= 2 &&
         ADDRESS_GLYPHS.test(value) &&
         letterCount(value) >= 3 &&
         WORD.test(value) &&
@@ -203,13 +219,21 @@ export function validateFieldValue(kind: ValidatedKind, raw: unknown, now: Date 
     }
     case 'vin': {
       const compact = value.replace(/[\s-]/g, '').toUpperCase();
-      if (compact.length >= 5 && compact.length <= 17 && /^[A-Z0-9]+$/.test(compact) && !(compact.length === 17 && /[IOQ]/.test(compact))) return null;
+      // Digits always (QA bug 016 retest: « testtestt » went through).
+      if (compact.length >= 5 && compact.length <= 17 && /^[A-Z0-9]+$/.test(compact) && digitCount(compact) >= 2 && !(compact.length === 17 && /[IOQ]/.test(compact))) return null;
       return MSG.vin;
     }
     case 'label': {
-      // Marque, modèle, énergie, type : words, digits and light punctuation.
+      // Modèle: words, digits and light punctuation — « 208 », « C4 (II) »,
+      // and « 12 » is a Renault.
       if (value.length <= 60 && LABEL.test(value) && !SYMBOL_RUN.test(value)) return null;
       return MSG.label;
+    }
+    case 'words': {
+      // Marque, énergie, type d'intermédiaire (QA bug 016 retest: Marque
+      // « 12 » went through): « Mercedes-Benz », « Lynk & Co », « Diesel ».
+      if (value.length <= 40 && WORDS.test(value) && letterCount(value) >= 2 && !SYMBOL_RUN.test(value)) return null;
+      return MSG.words;
     }
     default:
       return null;
