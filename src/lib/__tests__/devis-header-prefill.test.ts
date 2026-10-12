@@ -5,7 +5,7 @@
 // the garage devis, while the dossier says RISKO CAR / ALLIANZ / 0661154584.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canEditDevisHeader, prefillHeaderFromDossier } from '../devis-header-prefill';
+import { prefillHeaderFromDossier } from '../devis-header-prefill';
 import { emptyHeader } from '../devis-schema';
 
 const scanned = {
@@ -52,15 +52,7 @@ test('a stale saved header is refreshed from the corrected dossier', () => {
 
 // QA Chiffreur 003 (2026-09-30): the chiffreur cleared Marque / Matricule in
 // the card and the accord PDF printed them blank.
-test('a chiffreur only reads the card; Admin and gestionnaire edit it', () => {
-  assert.equal(canEditDevisHeader('Chiffreur'), false);
-  assert.equal(canEditDevisHeader('Admin'), true);
-  assert.equal(canEditDevisHeader('Gestionnaire'), true);
-  assert.equal(canEditDevisHeader('Agent de Terrain'), false);
-  assert.equal(canEditDevisHeader(undefined), false);
-});
-
-test('a locked card cleared by hand is restored from the dossier on save', () => {
+test('a header saved with the fields cleared is restored from the dossier', () => {
   const cleared = { ...scanned, marque: '', matricule: '' };
   const h = prefillHeaderFromDossier(cleared, dossier);
   assert.equal(h.marque, 'Hyundai');

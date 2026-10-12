@@ -22,7 +22,6 @@ import {
 import { IconChip } from '@/components/ui/icon-chip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { CellNumberInput } from '@/components/ui/cell-number-input';
@@ -52,7 +51,7 @@ import {
   REF_OPTIONS, TYPE_OPTIONS, OBSERVATION_OPTIONS, OBSERVATION_LABELS, toBaseEditableDocType,
 } from '@/lib/devis-schema';
 import { printedTotalHT } from '@/lib/devis-schema';
-import { canEditDevisHeader, prefillHeaderFromDossier } from '@/lib/devis-header-prefill';
+import { prefillHeaderFromDossier } from '@/lib/devis-header-prefill';
 import { collapseRepeatedScan, extractAndPersistChiffrageDevis } from '@/lib/devis-extract';
 import { saveGestionnaireDevisAsPieceJointe, markFirstAccordReached } from '@/lib/send-to-chiffrage';
 import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
@@ -105,20 +104,20 @@ interface DevisEditorProps {
  * assurance/document meta): rows sit 12 px apart inside a group, 24 px
  * between groups — the wall of equal full-width inputs is banned.
  */
-const HEADER_FIELDS_LEFT: Array<{ key: keyof DevisHeader; label: string; inputClassName?: string; groupStart?: boolean }> = [
+const HEADER_FIELDS_LEFT: Array<{ key: keyof DevisHeader; label: string; groupStart?: boolean }> = [
   { key: 'marque', label: 'Marque' },
-  { key: 'matricule', label: 'Matricule', inputClassName: 'max-w-[14rem]' },
+  { key: 'matricule', label: 'Matricule' },
   { key: 'modele', label: 'Modèle' },
-  { key: 'kilometrage', label: 'Kilométrage', inputClassName: 'max-w-[10rem]' },
-  { key: 'chassis', label: 'N° de châssis', inputClassName: 'max-w-[14rem]' },
+  { key: 'kilometrage', label: 'Kilométrage' },
+  { key: 'chassis', label: 'N° de châssis' },
   { key: 'expert', label: 'Expert', groupStart: true },
 ];
 
-const HEADER_FIELDS_RIGHT: Array<{ key: keyof DevisHeader; label: string; inputClassName?: string; groupStart?: boolean }> = [
+const HEADER_FIELDS_RIGHT: Array<{ key: keyof DevisHeader; label: string; groupStart?: boolean }> = [
   { key: 'client', label: 'Client' },
   { key: 'adresse', label: 'Adresse' },
-  { key: 'ice', label: 'ICE', inputClassName: 'max-w-[14rem]' },
-  { key: 'telephone', label: 'Téléphone', inputClassName: 'max-w-[14rem]' },
+  { key: 'ice', label: 'ICE' },
+  { key: 'telephone', label: 'Téléphone' },
   { key: 'assurances', label: 'Assurances', groupStart: true },
 ];
 
@@ -145,9 +144,6 @@ export function DevisEditor({
   const t = useT();
   const { profile, canWrite } = useCurrentUser();
   const canEdit = canWrite('assignations-chiffrage');
-  // A chiffreur reads the « Informations » card, never edits it (QA Chiffreur
-  // 003) — see canEditDevisHeader.
-  const headerLocked = !canEditDevisHeader(profile?.role);
   const { setOpen: setAppSidebarOpen } = useSidebar();
   const { setHideChrome } = useShellUi();
 
@@ -274,13 +270,14 @@ export function DevisEditor({
     [dossier],
   );
 
-  // A locked card follows the dossier live: a correction the gestionnaire
-  // makes while the editor is open shows here and goes into the PDF. Before
-  // the first load, the init below seeds the card itself.
+  // The « Informations » card is read-only for every role (QA Chiffreur 003)
+  // and follows the dossier live: a correction the gestionnaire makes while
+  // the editor is open shows here and goes into the PDF. Before the first
+  // load, the init below seeds the card itself.
   useEffect(() => {
-    if (!headerLocked || !initializedRef.current) return;
+    if (!initializedRef.current) return;
     setHeader((h) => dossierPrefill(h));
-  }, [headerLocked, dossierPrefill]);
+  }, [dossierPrefill]);
 
   // Initialize editor state from chiffrage.structuredDevis (or kick off extraction once).
   useEffect(() => {
@@ -697,8 +694,8 @@ export function DevisEditor({
     }
     if (!db || !storage) return;
 
-    // A locked card prints the dossier as it stands now (QA Chiffreur 003).
-    const savedHeader = headerLocked ? dossierPrefill(header) : header;
+    // The card prints the dossier as it stands now (QA Chiffreur 003).
+    const savedHeader = dossierPrefill(header);
     const snapshot: DevisSnapshot = extraColumns.length > 0
       ? { header: savedHeader, rows, extraColumns }
       : { header: savedHeader, rows };
@@ -1361,21 +1358,17 @@ export function DevisEditor({
               <span className="flex items-center gap-2">
                 <IconChip><Car /></IconChip>
                 <span className="t-heading">{t("Informations")}</span>
-                {headerLocked && (
-                  <span className="t-caption inline-flex items-center gap-1">
-                    <Lock className="h-3 w-3" aria-hidden />
-                    {t("Lecture seule")}
-                  </span>
-                )}
+                <span className="t-caption inline-flex items-center gap-1">
+                  <Lock className="h-3 w-3" aria-hidden />
+                  {t("Lecture seule")}
+                </span>
               </span>
               <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-3 transition-transform duration-250 ease-standard motion-reduce:transition-none', !infoCardOpen && '-rotate-90')} />
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent>
         <div className="grid grid-cols-1 gap-x-6 gap-y-6 p-6 pt-2 md:grid-cols-2">
-          {headerLocked && (
-            <p className="t-caption -mb-3 md:col-span-2">{t("Reprises du dossier et du document du garage.")}</p>
-          )}
+          <p className="t-caption -mb-3 md:col-span-2">{t("Reprises du dossier et du document du garage.")}</p>
           <div className="flex flex-col gap-3">
             <h3 className="t-heading">{t("Véhicule")}</h3>
             {HEADER_FIELDS_LEFT.map((f) => (
@@ -1383,10 +1376,6 @@ export function DevisEditor({
                 key={f.key}
                 label={t(f.label)}
                 value={header[f.key] || ''}
-                onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
-                disabled={!isEditable}
-                readOnly={headerLocked}
-                inputClassName={f.inputClassName}
                 className={f.groupStart ? 'mt-3' : undefined}
               />
             ))}
@@ -1399,10 +1388,6 @@ export function DevisEditor({
                 key={f.key}
                 label={t(f.label)}
                 value={header[f.key] || ''}
-                onChange={(v) => setHeader((h) => ({ ...h, [f.key]: v }))}
-                disabled={!isEditable}
-                readOnly={headerLocked}
-                inputClassName={f.inputClassName}
                 className={f.groupStart ? 'mt-3' : undefined}
               />
             ))}
@@ -1410,25 +1395,8 @@ export function DevisEditor({
                 when the column has room for both; below 2 × 13rem (phone,
                 tablet) they stack, so the date is never squeezed to 30 px. */}
             <div className="flex flex-wrap gap-x-4 gap-y-3">
-              <HeaderField
-                label={t("Devis N°")}
-                value={header.devisNumero}
-                onChange={(v) => setHeader((h) => ({ ...h, devisNumero: v }))}
-                disabled={!isEditable}
-                readOnly={headerLocked}
-                inputClassName="max-w-[14rem]"
-                className="min-w-[13rem] flex-1"
-              />
-              <HeaderField
-                label={t("Date")}
-                value={header.dateDevis}
-                onChange={(v) => setHeader((h) => ({ ...h, dateDevis: v }))}
-                disabled={!isEditable}
-                readOnly={headerLocked}
-                placeholder={t("JJ/MM/AAAA")}
-                inputClassName="max-w-[12rem]"
-                className="min-w-[13rem] flex-1"
-              />
+              <HeaderField label={t("Devis N°")} value={header.devisNumero} className="min-w-[13rem] flex-1" />
+              <HeaderField label={t("Date")} value={header.dateDevis} className="min-w-[13rem] flex-1" />
             </div>
           </div>
         </div>
@@ -2243,48 +2211,23 @@ export function DevisEditor({
 
 // ── sub-components ────────────────────────────────────────────────────────
 
-function HeaderField({
-  label, value, onChange, disabled, readOnly, placeholder, inputClassName, className,
-}: {
-  label: string; value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string;
-  /** A value to read, not a control (the chiffreur's card, QA Chiffreur 003). */
-  readOnly?: boolean;
-  /** Content-sizes the input (addendum §4: field width matches the known length of the value). */
-  inputClassName?: string;
+function HeaderField({ label, value, className }: {
+  label: string; value: string;
   /** Row-level spacing hook (`mt-3` on the first row of a new group). */
   className?: string;
 }) {
-  // Read-only = the value in place of the control (element-specs §10: value
-  // 600 ink, empty = « — » in ink-3, never a fake value), same row rhythm.
-  if (readOnly) {
-    const shown = value?.trim();
-    return (
-      <dl className={cn('grid min-w-0 grid-cols-[110px_1fr] items-center gap-2', className)}>
-        <dt className="t-label truncate">{label}</dt>
-        <dd className={cn('flex min-h-9 min-w-0 items-center text-sm', shown ? 'font-semibold text-ink' : 'text-ink-3')}>
-          <span className="min-w-0 break-words">{shown || '—'}</span>
-        </dd>
-      </dl>
-    );
-  }
-  // Original 3d5629a layout restored: the label sits LEFT of the control in a
-  // 110 px column (`grid-cols-[110px_1fr]`). Element-specs §9 (GOV.UK text
-  // input: every input has a visible label; NN/g: labels quiet, the value is
-  // the star) — label `t-label` 12/400 ink-3, value 14/600 ink in a solid
-  // 36 px field (the identity block is dense reference data, so the compact
-  // end of the 36–40 px range). Known-length fields cap the input width via
-  // `inputClassName` (GOV.UK: "size inputs to known lengths").
+  // The card is read, never typed in (QA Chiffreur 003): the value in place of
+  // a control (element-specs §10: value 600 ink, empty = « — » in ink-3, never
+  // a fake value). The label sits LEFT in a 110 px column, as in the original
+  // 3d5629a layout, on the 36 px row rhythm of the former inputs.
+  const shown = value?.trim();
   return (
-    <label className={cn('grid min-w-0 grid-cols-[110px_1fr] items-center gap-2', className)}>
-      <span className="t-label truncate">{label}</span>
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        placeholder={placeholder}
-        className={cn('h-9 font-semibold text-ink', inputClassName)}
-      />
-    </label>
+    <dl className={cn('grid min-w-0 grid-cols-[110px_1fr] items-center gap-2', className)}>
+      <dt className="t-label truncate">{label}</dt>
+      <dd className={cn('flex min-h-9 min-w-0 items-center text-sm', shown ? 'font-semibold text-ink' : 'text-ink-3')}>
+        <span className="min-w-0 break-words">{shown || '—'}</span>
+      </dd>
+    </dl>
   );
 }
 

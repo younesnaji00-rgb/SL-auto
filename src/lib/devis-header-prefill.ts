@@ -1,18 +1,6 @@
 import type { DevisHeader } from './devis-schema';
 
 /**
- * Who may type in the « Informations » card (QA Chiffreur 003, owner
- * 2026-10-06): an Admin — the « Responsable des chiffreurs » included — and
- * the gestionnaire's own editor. A chiffreur only reads it: clearing Marque /
- * Matricule there blanked them on the accord PDF. The values come from the
- * dossier (below), which the gestionnaire corrects, and from the garage
- * document's scan.
- */
-export function canEditDevisHeader(role: string | null | undefined): boolean {
-  return role === 'Admin' || role === 'Gestionnaire';
-}
-
-/**
  * The devis editor's « Informations » card: the DOSSIER wins over the scan
  * (QA Chiffreur 010, reversing task #17).
  *
@@ -23,6 +11,12 @@ export function canEditDevisHeader(role: string | null | undefined): boolean {
  * chiffreur saw values that differed from the dossier, or none at all.
  * Every field the dossier knows comes from the dossier; the scan / saved
  * value only fills what the dossier leaves blank (ICE, N°, date…).
+ *
+ * Nobody types in the card (QA Chiffreur 003; owner 2026-10-06 for the
+ * chiffreur, 2026-10-12 for the Admin and everyone else): clearing Marque /
+ * Matricule there blanked them on the accord PDF. A wrong value is fixed on
+ * the dossier (ICE, N°, date: by re-reading the garage document), and the
+ * card follows.
  */
 export function prefillHeaderFromDossier(existing: DevisHeader, dossier: any): DevisHeader {
   if (!dossier) return existing;
