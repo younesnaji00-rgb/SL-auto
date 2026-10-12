@@ -1,6 +1,18 @@
 import type { DevisHeader } from './devis-schema';
 
 /**
+ * Who may type in the « Informations » card (QA Chiffreur 003, owner
+ * 2026-10-06): an Admin — the « Responsable des chiffreurs » included — and
+ * the gestionnaire's own editor. A chiffreur only reads it: clearing Marque /
+ * Matricule there blanked them on the accord PDF. The values come from the
+ * dossier (below), which the gestionnaire corrects, and from the garage
+ * document's scan.
+ */
+export function canEditDevisHeader(role: string | null | undefined): boolean {
+  return role === 'Admin' || role === 'Gestionnaire';
+}
+
+/**
  * The devis editor's « Informations » card: the DOSSIER wins over the scan
  * (QA Chiffreur 010, reversing task #17).
  *
