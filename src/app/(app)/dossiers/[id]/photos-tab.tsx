@@ -61,6 +61,7 @@ import { PhotoGrid, PhotoGroup } from '@/components/common/photo-grid';
 import { PhotoSiteBadge } from '@/components/common/photo-site-badge';
 import { readSiteCheck, siteDetail } from '@/lib/photo-site';
 import { usePhotoLocations, type PhotoLocation } from '@/hooks/use-photo-locations';
+import { restoreStatutAfterPhotoRemoval } from '@/lib/restore-statut';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { logFrontend } from '@/lib/debug-log';
 
@@ -581,7 +582,10 @@ export default function PhotosTab({
       await logWorkflow(db, dossierId, 'Photo supprimée', userEmail, userId, 'done', {
         details: `Photo "${photo.name || 'inconnue'}" supprimée (par gestionnaire)`,
       }, profile?.nom);
-      toast({ title: t('Photo supprimée') });
+      // The phase's last photo gone: back to « Planification programmée »
+      // (owner, 2026-10-13).
+      const restored = await restoreStatutAfterPhotoRemoval(db, dossierId, photo.category, { email: userEmail, nom: profile?.nom });
+      toast({ title: t('Photo supprimée'), ...(restored ? { description: `${t('Statut rétabli :')} ${t(restored)}` } : {}) });
     } catch (err: any) {
       console.error('Delete error:', err);
       toast({ variant: 'destructive', title: t('Erreur lors de la suppression') });

@@ -29,8 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/i18n';
 import { formatFileSize } from '@/components/documents/typed-doc';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
-import { isEditableDocType } from '@/lib/devis-schema';
-import { restoreStatutWithoutGarageDocs } from '@/lib/restore-statut';
+import { restoreStatutAfterDocumentRemoval, restoreStatutAfterPhotoRemoval } from '@/lib/restore-statut';
 import { getAllPending, type PendingUpload } from '@/lib/offline/upload-queue';
 import { onSyncChange, uploadProcessor } from '@/lib/offline/upload-processor';
 import { describeUploadFailure, dossierIdOfPath, hasGivenUp } from '@/lib/offline/upload-status';
@@ -139,10 +138,13 @@ export function FailedUploadsDialog({
           isPhoto ? 'photo' : 'document',
           profile?.nom,
         );
-        // A garage devis / facture that never arrived counts as removed for
-        // the statut fallback (owner ruling 2026-10-05).
-        if (item.firestoreDocPath.endsWith('/documents') && isEditableDocType(removed.type || removed.typeDocument)) {
-          void restoreStatutWithoutGarageDocs(db, dossierId, { email: userEmail, nom: profile?.nom });
+        // A file that never arrived counts as removed for the statut
+        // fallbacks: garage devis / facture (owner ruling 2026-10-05), accord,
+        // the phase's last photo (2026-10-13).
+        if (item.firestoreDocPath.endsWith('/documents')) {
+          void restoreStatutAfterDocumentRemoval(db, dossierId, removed.type || removed.typeDocument, { email: userEmail, nom: profile?.nom });
+        } else if (isPhoto) {
+          void restoreStatutAfterPhotoRemoval(db, dossierId, removed.category, { email: userEmail, nom: profile?.nom });
         }
       }
       toast({ title: t('Fichier supprimé de cet appareil'), description: item.fileName });

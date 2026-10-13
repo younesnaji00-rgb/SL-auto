@@ -18,7 +18,8 @@ import { doc, serverTimestamp, writeBatch, type Firestore } from 'firebase/fires
 import { apiFetch } from '@/lib/api-fetch';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 import { isEditableDocType } from '@/lib/devis-schema';
-import { restoreStatutWithoutGarageDocs } from '@/lib/restore-statut';
+import { restoreStatutAfterAccordRemoval, restoreStatutWithoutGarageDocs } from '@/lib/restore-statut';
+import { parseAccordDocType } from '@/lib/docType-accorde';
 import { docDisplayName, type TypedDoc } from './typed-doc';
 
 export interface ReclassifyArgs {
@@ -109,6 +110,10 @@ export async function reclassifyDocuments(args: ReclassifyArgs): Promise<Reclass
   // ruling 2026-10-05). A swap keeps a document in the garage slot.
   if (!swap && isEditableDocType(sourceType) && !isEditableDocType(targetType)) {
     await restoreStatutWithoutGarageDocs(db, dossierId, { email: userEmail, nom: userName });
+  }
+  // An accord moved out of its slot is gone as such too (owner, 2026-10-13).
+  if (!swap && sourceType !== targetType && parseAccordDocType(sourceType)) {
+    await restoreStatutAfterAccordRemoval(db, dossierId, sourceType, { email: userEmail, nom: userName });
   }
 
   // Learning loop — fire-and-forget, never blocks the UI.

@@ -40,8 +40,7 @@ import { emitPrefillFlash } from '@/hooks/use-prefill-flash';
 import { findDossierWithRefExpert, normalizeRefExpert } from '@/lib/ref-expert-unique';
 import { logFrontend } from '@/lib/debug-log';
 import { getDoc } from '@/lib/firestore-logged';
-import { isEditableDocType } from '@/lib/devis-schema';
-import { restoreStatutWithoutGarageDocs } from '@/lib/restore-statut';
+import { restoreStatutAfterDocumentRemoval } from '@/lib/restore-statut';
 
 export interface Step1ImportProps {
   dossierId: string;
@@ -431,7 +430,7 @@ export default function Step1Import({
     try {
       // The file goes too: « Retirer » removes the source altogether.
       const sourcePath: string | undefined = (importDoc as any)?.storagePath || undefined;
-      const garageDoc = isEditableDocType((importDoc as any)?.type || (importDoc as any)?.typeDocument);
+      const removedType = (importDoc as any)?.type || (importDoc as any)?.typeDocument;
       if (sourcePath && storage) {
         await deleteObject(storageRef(storage, sourcePath)).catch((err) =>
           console.warn('[Step1Import] source file already missing or blocked by rules:', err),
@@ -486,11 +485,9 @@ export default function Step1Import({
           profile?.nom,
         );
       }
-      // The last garage devis / facture gone: the statut falls back to the one
-      // before the chiffrage (owner ruling 2026-10-05).
-      const restored = garageDoc
-        ? await restoreStatutWithoutGarageDocs(db, dossierId, { email: userEmail, nom: profile?.nom })
-        : null;
+      // The statut falls back when the last garage devis / facture goes (owner
+      // ruling 2026-10-05) or the accord it stood for (2026-10-13).
+      const restored = await restoreStatutAfterDocumentRemoval(db, dossierId, removedType, { email: userEmail, nom: profile?.nom });
       toast({
         title: t('Document source supprimé'),
         description: restored
@@ -522,12 +519,12 @@ export default function Step1Import({
       }
       const userEmail = auth?.currentUser?.email || 'Utilisateur';
       // A garage devis / facture filed here counts for the statut fallback below.
-      let garageDoc = false;
+      let removedType: unknown = null;
       try {
         const docRef = firestoreDoc(db, 'dossiers', dossierId, 'documents', docId);
         const before = await getDoc(docRef).catch(() => null);
         const data = (before?.exists() ? before.data() : null) as { type?: string; typeDocument?: string } | null;
-        garageDoc = isEditableDocType(data?.type || data?.typeDocument);
+        removedType = data?.type || data?.typeDocument;
         if (storagePath && storage) {
           await deleteObject(storageRef(storage, storagePath)).catch((err) =>
             console.warn('[Step1Import] file already missing or blocked by rules:', err),
@@ -543,12 +540,10 @@ export default function Step1Import({
         });
         return;
       }
-      // The last garage devis / facture gone: the statut falls back to the one
-      // before the chiffrage (owner ruling 2026-10-05). Immediate, like the
-      // deletion itself, even inside a rappel session.
-      const restored = garageDoc
-        ? await restoreStatutWithoutGarageDocs(db, dossierId, { email: userEmail, nom: profile?.nom })
-        : null;
+      // The statut falls back when the last garage devis / facture goes (owner
+      // ruling 2026-10-05) or the accord it stood for (2026-10-13). Immediate,
+      // like the deletion itself, even inside a rappel session.
+      const restored = await restoreStatutAfterDocumentRemoval(db, dossierId, removedType, { email: userEmail, nom: profile?.nom });
       toast({
         title: t('Document supprimé'),
         description: restored ? `${name} — ${t('Statut rétabli :')} ${t(restored)}` : name,

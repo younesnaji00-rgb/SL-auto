@@ -144,6 +144,55 @@ export function statutBeforeChiffrage(history: readonly string[]): string | null
 }
 
 /**
+ * The round a chiffreur statut stands for: « Accord » / « Proposition
+ * d'accord » → 1, « 3ème accord » → 3, with its kind; null for any other
+ * statut (« Accord envoyé » included — it names no round).
+ */
+export function accordStatutRound(s: string): { kind: 'accord' | 'proposition'; round: number } | null {
+  if (s === 'Accord') return { kind: 'accord', round: 1 };
+  if (s === "Proposition d'accord") return { kind: 'proposition', round: 1 };
+  const m = /^([0-9]+)ème (accord|proposition d'accord)$/.exec(String(s ?? ''));
+  if (!m) return null;
+  return { kind: m[2] === 'accord' ? 'accord' : 'proposition', round: Number(m[1]) };
+}
+
+/**
+ * The statut once an accord / proposition document is removed (owner,
+ * 2026-10-13: « when an accord is deleted, it falls back to assigné au
+ * chiffrage »). The dossier goes back to « Chiffrage en cours » when the
+ * removed document is the answer its statut stands for — same kind, same
+ * round — or, once « Accord envoyé », the latest round's answer. Removing an
+ * older round's document leaves the statut alone: the current answer is still
+ * there. Null = unchanged.
+ *
+ * `highestRemainingRound`: the highest round still holding a received
+ * accord / proposition document after the removal (0 when none).
+ */
+export function statutAfterAccordRemoval(
+  current: string,
+  removed: { kind: 'accord' | 'proposition'; round: number },
+  highestRemainingRound: number,
+): string | null {
+  const back = deriveStatus({ kind: 'sendToChiffrage' });
+  if (current === 'Accord envoyé') return removed.round >= highestRemainingRound ? back : null;
+  const stands = accordStatutRound(current);
+  if (!stands) return null;
+  return stands.kind === removed.kind && stands.round === removed.round ? back : null;
+}
+
+/**
+ * The statut once the LAST photo of a phase is removed (owner, 2026-10-13):
+ * « Planification expertise <phase> » — set by that phase's first photo — goes
+ * back to « Planification programmée <phase> ». Any other statut stays: the
+ * dossier has moved on, or the statut is about another phase. Null = unchanged.
+ */
+export function statutAfterPhotoRemoval(current: string, category: 'avant' | 'en_cours' | 'apres'): string | null {
+  if (current !== deriveStatus({ kind: 'photo', category })) return null;
+  const typeMission = category === 'avant' ? 'Avant' : category === 'en_cours' ? 'En cours' : 'Après';
+  return deriveStatus({ kind: 'planification', typeMission });
+}
+
+/**
  * True when the ATG (agent de terrain) workflow is considered complete for
  * this dossier. The ATG's in-flight work ends when the dossier has left the
  * planification/chiffrage phase — i.e. the dossier has reached the terminal
