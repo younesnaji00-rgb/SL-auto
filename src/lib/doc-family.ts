@@ -197,17 +197,97 @@ export interface SlotDocLike {
 const isReceived = (d: SlotDocLike) => !!d.url && !d.pendingUpload;
 
 /**
- * The slots a family band shows: `group.slots`, minus a 1ère proposition
- * holding no document at all once « accordé » has its file — the first round
- * was answered by the accord, and the empty card read as « En attente de
- * chiffrage » next to a finished round (QA 035; the chiffreur's pipeline never
- * showed it). A placeholder the gestionnaire created still shows.
+ * Why a block of a family band holds what it holds:
+ * - `source`: the garage's devis / facture itself;
+ * - `received`: the accord or proposition has its file;
+ * - `awaiting`: the chiffreur's turn — the first round, or a round the
+ *   gestionnaire asked for (a placeholder exists);
+ * - `optional`: the round after the last answered one, which only happens if
+ *   the dossier goes back to chiffrage;
+ * - `other`: this round was answered by the other kind (an accord instead of
+ *   a proposition, or the reverse).
  */
+export type BandBlockState = 'source' | 'received' | 'awaiting' | 'optional' | 'other';
+
+export interface BandBlock {
+  slot: string;
+  state: BandBlockState;
+  /** Round of an accord / proposition; null for the source. */
+  round: number | null;
+  /** The block holds its file. */
+  hasFile: boolean;
+}
+
+/**
+ * The blocks a family band shows (tester, 2026-10-13: the empty accord and
+ * proposition blocks must always be visible, not appear once the chiffreur
+ * fills them). Every round reached — by a received file or a placeholder —
+ * shows BOTH its accord and its proposition, and the round after the last
+ * answered one shows as the optional next step. Order stays the pipeline's
+ * (QA 035): the source, the accords by round, then the propositions; an empty
+ * block says why it is empty instead of a bare « En attente de chiffrage »
+ * next to a finished round.
+ */
+export function bandBlocks(group: DocFamily, docsOf: (slot: string) => ReadonlyArray<SlotDocLike>): BandBlock[] {
+  const accordOf = (r: number) => mapToAccorde(group.parent, 'accord', r);
+  const propositionOf = (r: number) => mapToAccorde(group.parent, 'proposition-accord', r);
+  const received = (slot: string) => docsOf(slot).some(isReceived);
+  // Rounds that exist (a doc of any kind, placeholders included) and the last
+  // one answered.
+  let existing = 1;
+  let answered = 0;
+  for (const slot of group.slots) {
+    const parsed = slot === group.parent ? null : parseAccordDocType(slot);
+    if (!parsed) continue;
+    if (docsOf(slot).length > 0) existing = Math.max(existing, parsed.ordinal);
+    if (received(slot)) answered = Math.max(answered, parsed.ordinal);
+  }
+  const rounds = Math.max(existing, answered + 1);
+  const stateOf = (slot: string, sibling: string, round: number): BandBlockState => {
+    if (received(slot)) return 'received';
+    // A placeholder: the gestionnaire asked for this very block.
+    if (docsOf(slot).length > 0) return 'awaiting';
+    if (received(sibling)) return 'other';
+    if (round === 1 || docsOf(sibling).length > 0 || round <= answered) return 'awaiting';
+    return 'optional';
+  };
+  const block = (slot: string, state: BandBlockState, round: number | null): BandBlock => ({ slot, state, round, hasFile: received(slot) });
+  const blocks: BandBlock[] = [block(group.parent, 'source', null)];
+  for (let r = 1; r <= rounds; r++) blocks.push(block(accordOf(r), stateOf(accordOf(r), propositionOf(r), r), r));
+  for (let r = 1; r <= rounds; r++) blocks.push(block(propositionOf(r), stateOf(propositionOf(r), accordOf(r), r), r));
+  return blocks;
+}
+
+/** The slot labels of {@link bandBlocks}, in order. */
 export function bandSlots(group: DocFamily, docsOf: (slot: string) => ReadonlyArray<SlotDocLike>): string[] {
-  const accord1 = mapToAccorde(group.parent, 'accord', 1);
-  const proposition1 = mapToAccorde(group.parent, 'proposition-accord', 1);
-  const unused = docsOf(proposition1).length === 0 && docsOf(accord1).some(isReceived);
-  return unused ? group.slots.filter((s) => s !== proposition1) : group.slots;
+  return bandBlocks(group, docsOf).map((b) => b.slot);
+}
+
+/**
+ * « n/m reçus » of a band: the source, then one answer per round — not one
+ * per block, since a round is answered by an accord OR a proposition and the
+ * optional next round is not owed. Counts only the blocks shown.
+ */
+export function bandProgress(blocks: ReadonlyArray<BandBlock>): { received: number; expected: number } {
+  let received = 0;
+  let expected = 0;
+  const rounds = new Map<number, { answered: boolean; owed: boolean }>();
+  for (const b of blocks) {
+    if (b.round === null) {
+      expected += 1;
+      if (b.hasFile) received += 1;
+      continue;
+    }
+    const r = rounds.get(b.round) ?? { answered: false, owed: false };
+    if (b.state === 'received') r.answered = true;
+    if (b.state !== 'optional') r.owed = true;
+    rounds.set(b.round, r);
+  }
+  rounds.forEach((r) => {
+    if (r.answered) received += 1;
+    if (r.answered || r.owed) expected += 1;
+  });
+  return { received, expected };
 }
 
 export type VersionState = 'actuel' | 'remplace';

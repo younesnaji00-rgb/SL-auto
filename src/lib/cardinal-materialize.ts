@@ -7,7 +7,7 @@ type DocLike = DocTypeLike & { url?: string | null; pendingUpload?: boolean };
 /**
  * Materialise any missing 2ème accord / 2ème proposition placeholder docs
  * for a dossier whose round-1 counterpart is already filled. Mirrors the
- * client-side synthesis in `TypedDocumentsGrid.familiesForRender` so the
+ * next round every family band shows (`bandBlocks`, lib/doc-family.ts) so the
  * chiffreur actually sees the slots the gestionnaire previewed.
  *
  * Idempotent — a 2ème slot that already exists (real doc or placeholder)

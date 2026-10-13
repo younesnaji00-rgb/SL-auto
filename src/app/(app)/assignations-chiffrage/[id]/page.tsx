@@ -11,11 +11,10 @@ import { downloadFileFromUrl, ensureImageExtension } from '@/components/document
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { IconChip } from '@/components/ui/icon-chip';
-import { ChevronLeft, ChevronRight, FileText, FolderOpen, Mail, Plus, Scale } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, FolderOpen, Mail, Scale } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { mapToAccorde, parseAccordDocType } from '@/lib/docType-accorde';
-import { buildDocFamilies, type DocFamily } from '@/lib/doc-family';
-import { toOrdinalFr } from '@/lib/devis-schema';
+import { parseAccordDocType } from '@/lib/docType-accorde';
+import { buildDocFamilies } from '@/lib/doc-family';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useCanOpenPath } from '@/hooks/use-visible-nav';
 import { useOptions } from '@/hooks/use-options';
@@ -314,28 +313,6 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
       accordSlot: slot,
     });
     router.push(`/devis-editor?${params.toString()}`);
-  };
-
-  // The next revision of a family, from its header band (« + 2ème accord »).
-  // The family rows only show slots that exist — exactly as on the dossier
-  // page — so once the highest accord holds its document this button is the
-  // chiffreur's way into the next round (the old pipeline's ghost socket).
-  // When the highest accord is still awaiting, its own card carries Éditer.
-  const nextAccordAction = (group: DocFamily, docsByType: Record<string, TypedDoc[]>) => {
-    const received = (slot: string) => (docsByType[slot] || []).some((d) => !!d.url && !d.pendingUpload);
-    let top: { ordinal: number; slot: string } | null = null;
-    for (const slot of group.slots) {
-      const parsed = slot === group.parent ? null : parseAccordDocType(slot);
-      if (parsed?.kind === 'accord' && (!top || parsed.ordinal > top.ordinal)) top = { ordinal: parsed.ordinal, slot };
-    }
-    if (!top || !received(top.slot)) return null;
-    const next = top.ordinal + 1;
-    return (
-      <Button variant="tonal" size="sm" className="h-7 gap-1 px-2.5 text-xs" onClick={() => handleEditSlot(group.parent, mapToAccorde(group.parent, 'accord', next))}>
-        <Plus className="h-3.5 w-3.5" />
-        {t(`${toOrdinalFr(next)} accord`)}
-      </Button>
-    );
   };
 
   // Task #31 — Import is intentionally not wired to a picker here: the chiffreur
@@ -733,7 +710,6 @@ export default function AssignationChiffrageDetailPage({ params }: { params: Pro
             showReformeSlots
             readOnly
             onEditSlot={canEdit ? handleEditSlot : undefined}
-            familyAction={canEdit ? nextAccordAction : undefined}
           />
         </section>
       )}

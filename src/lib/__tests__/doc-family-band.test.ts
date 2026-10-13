@@ -5,9 +5,13 @@
 // while the chiffreur saw Source → 1er accord (Remplacé) → 2ème accord
 // (Actuel). Owner ruling 2026-10-06: the bands read like the chiffreur's
 // pipeline — the source, the accords in round order, then the propositions.
+//
+// Tester, 2026-10-13: the empty accord and proposition blocks must always be
+// visible — not only once the chiffreur fills them. Every round reached shows
+// both blocks, plus the optional next round; an empty block says why.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bandSlots, buildDocFamilies, versionStates } from '../doc-family';
+import { bandBlocks, bandProgress, bandSlots, buildDocFamilies, versionStates } from '../doc-family';
 
 type Doc = { type: string; url?: string | null; pendingUpload?: boolean };
 const doc = (type: string): Doc => ({ type, url: `https://files/${encodeURIComponent(type)}` });
@@ -16,36 +20,74 @@ const placeholder = (type: string): Doc => ({ type, url: null, pendingUpload: tr
 const devisFamily = (docs: Doc[]) => buildDocFamilies(docs).find((f) => f.parent === 'Devis Garage')!;
 const docsOf = (docs: Doc[]) => (slot: string) => docs.filter((d) => d.type === slot);
 const band = (docs: Doc[]) => bandSlots(devisFamily(docs), docsOf(docs));
+/** slot → state, the way the band shows it. */
+const states = (docs: Doc[]) => Object.fromEntries(bandBlocks(devisFamily(docs), docsOf(docs)).map((b) => [b.slot, b.state]));
+const progress = (docs: Doc[]) => bandProgress(bandBlocks(devisFamily(docs), docsOf(docs)));
 const chips = (docs: Doc[]) => Object.fromEntries(versionStates(devisFamily(docs), docsOf(docs)));
 
-test('the screenshot dossier: Source → 1er accord → 2ème accord, nothing in between', () => {
-  const docs = [doc('Devis Garage'), doc('Devis accordé'), doc('Devis 2ème accord')];
-  assert.deepEqual(band(docs), ['Devis Garage', 'Devis accordé', 'Devis 2ème accord']);
-  assert.deepEqual(chips(docs), { 'Devis accordé': 'remplace', 'Devis 2ème accord': 'actuel' });
-});
-
-test('while the first round is open, both of its possible answers show', () => {
+test('while the first round is open, both of its possible answers show, awaiting', () => {
   const docs = [doc('Devis Garage')];
   assert.deepEqual(band(docs), ['Devis Garage', 'Devis accordé', "1ère proposition d'accord (devis)"]);
+  assert.deepEqual(states(docs), { 'Devis Garage': 'source', 'Devis accordé': 'awaiting', "1ère proposition d'accord (devis)": 'awaiting' });
+  assert.deepEqual(progress(docs), { received: 1, expected: 2 });
   assert.deepEqual(chips(docs), {});
 });
 
-test('a first round answered by a proposition keeps the accord slot', () => {
+test('the empty proposition of an answered round stays visible, and the next round shows as optional', () => {
+  const docs = [doc('Devis Garage'), doc('Devis accordé')];
+  assert.deepEqual(band(docs), ['Devis Garage', 'Devis accordé', 'Devis 2ème accord', "1ère proposition d'accord (devis)", "2ème proposition d'accord (devis)"]);
+  assert.deepEqual(states(docs), {
+    'Devis Garage': 'source',
+    'Devis accordé': 'received',
+    'Devis 2ème accord': 'optional',
+    "1ère proposition d'accord (devis)": 'other',
+    "2ème proposition d'accord (devis)": 'optional',
+  });
+  // The source and round 1 are in; round 2 is not owed.
+  assert.deepEqual(progress(docs), { received: 2, expected: 2 });
+});
+
+test('three accords (the local test dossier): every round keeps its proposition block, round 4 is optional', () => {
+  const docs = [doc('Devis Garage'), doc('Devis accordé'), doc('Devis 2ème accord'), doc('Devis 3ème accord')];
+  assert.deepEqual(band(docs), [
+    'Devis Garage', 'Devis accordé', 'Devis 2ème accord', 'Devis 3ème accord', 'Devis 4ème accord',
+    "1ère proposition d'accord (devis)", "2ème proposition d'accord (devis)", "3ème proposition d'accord (devis)", "4ème proposition d'accord (devis)",
+  ]);
+  assert.equal(states(docs)["2ème proposition d'accord (devis)"], 'other');
+  assert.equal(states(docs)['Devis 4ème accord'], 'optional');
+  assert.deepEqual(progress(docs), { received: 4, expected: 4 });
+  assert.deepEqual(chips(docs), { 'Devis accordé': 'remplace', 'Devis 2ème accord': 'remplace', 'Devis 3ème accord': 'actuel' });
+});
+
+test('a first round answered by a proposition keeps the accord block, marked as not used', () => {
   const docs = [doc('Devis Garage'), doc("1ère proposition d'accord (devis)")];
-  assert.deepEqual(band(docs), ['Devis Garage', 'Devis accordé', "1ère proposition d'accord (devis)"]);
+  assert.deepEqual(band(docs), ['Devis Garage', 'Devis accordé', 'Devis 2ème accord', "1ère proposition d'accord (devis)", "2ème proposition d'accord (devis)"]);
+  assert.equal(states(docs)['Devis accordé'], 'other');
   assert.deepEqual(chips(docs), { "1ère proposition d'accord (devis)": 'actuel' });
 });
 
-test('a proposition the gestionnaire asked for still shows next to a filled accord', () => {
+test('a proposition the gestionnaire asked for awaits the chiffreur, even next to a filled accord', () => {
   const docs = [doc('Devis Garage'), doc('Devis accordé'), placeholder("1ère proposition d'accord (devis)")];
-  assert.deepEqual(band(docs), ['Devis Garage', 'Devis accordé', "1ère proposition d'accord (devis)"]);
+  assert.equal(states(docs)["1ère proposition d'accord (devis)"], 'awaiting');
   assert.deepEqual(chips(docs), { 'Devis accordé': 'actuel' });
+});
+
+test('a second round the gestionnaire sent back to chiffrage awaits, it is no longer optional', () => {
+  const docs = [doc('Devis Garage'), doc('Devis accordé'), placeholder('Devis 2ème accord'), placeholder("2ème proposition d'accord (devis)")];
+  assert.equal(states(docs)['Devis 2ème accord'], 'awaiting');
+  assert.equal(states(docs)["2ème proposition d'accord (devis)"], 'awaiting');
+  assert.deepEqual(progress(docs), { received: 2, expected: 3 });
 });
 
 test('an accord still awaiting its file does not hide the proposition', () => {
   const docs = [doc('Devis Garage'), placeholder('Devis accordé')];
   assert.deepEqual(band(docs), ['Devis Garage', 'Devis accordé', "1ère proposition d'accord (devis)"]);
+  assert.deepEqual(states(docs), { 'Devis Garage': 'source', 'Devis accordé': 'awaiting', "1ère proposition d'accord (devis)": 'awaiting' });
   assert.deepEqual(chips(docs), {});
+});
+
+test('a family without its source counts the source as owed', () => {
+  assert.deepEqual(progress([]), { received: 0, expected: 2 });
 });
 
 test('the latest version is « Actuel », propositions after the accords like the pipeline', () => {

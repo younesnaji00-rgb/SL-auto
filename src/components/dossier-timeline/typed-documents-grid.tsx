@@ -760,32 +760,11 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
     />
   );
 
-  // When rendering step 11 (cardinalFilter='2-plus'), synthesise 2ème slots on
-  // a per-kind, per-family basis: only add 2ème accord if the family's 1er
-  // accord is filled (real url, non-pending), and likewise for 2ème
-  // proposition. If neither 1er is filled the family contributes no 2ème
-  // slots, FamilyRow's 2-plus filter strips the 1ers, and the row drops out.
-  const familiesForRender = useMemo(() => {
-    if (cardinalFilter !== '2-plus') return families;
-    const docsArr = (allDocs as TypedDoc[] | undefined) ?? [];
-    const isFilled = (label: string) =>
-      docsArr.some(
-        (d) => (d.type || d.typeDocument || '') === label && !!d.url && !d.pendingUpload,
-      );
-    return families.map((f) => {
-      const accord1 = mapToAccorde(f.parent, 'accord', 1);
-      const prop1 = mapToAccorde(f.parent, 'proposition-accord', 1);
-      const accord2 = mapToAccorde(f.parent, 'accord', 2);
-      const prop2 = mapToAccorde(f.parent, 'proposition-accord', 2);
-      const slots = [...f.slots];
-      if (isFilled(accord1) && !slots.includes(accord2)) slots.push(accord2);
-      if (isFilled(prop1) && !slots.includes(prop2)) slots.push(prop2);
-      return { ...f, slots };
-    });
-  }, [families, cardinalFilter, allDocs]);
+  // The « 2ème accord » step needs no synthesised slots: every band shows the
+  // round after its last answered one (lib/doc-family.ts, bandBlocks).
 
-  const devisFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Devis Garage');
-  const factureFamilies = familiesForRender.filter((f) => f.sourceDocType === 'Facture Garage');
+  const devisFamilies = families.filter((f) => f.sourceDocType === 'Devis Garage');
+  const factureFamilies = families.filter((f) => f.sourceDocType === 'Facture Garage');
 
   // « Éditer » only where there is something to edit: a family holding at
   // least one received document (source or accord).

@@ -9,7 +9,7 @@ import {
   type TypedDoc,
 } from './slot-card';
 import { Badge } from '@/components/ui/badge';
-import { bandSlots, versionStates, type DocFamily } from '@/lib/doc-family';
+import { bandBlocks, bandProgress, versionStates, type BandBlockState, type DocFamily } from '@/lib/doc-family';
 import { parseAccordDocType } from '@/lib/docType-accorde';
 import { cn } from '@/lib/utils';
 import type { DocDragPayload } from '@/components/documents/typed-doc';
@@ -116,28 +116,37 @@ export function FamilyRow({
     });
   };
 
-  // The band reads like the chiffreur's pipeline (QA 035): Source → 1er
-  // accord → 2ème accord…, no unused 1ère proposition in between, and
-  // « Actuel » / « Remplacé » on the versions.
+  // The band reads like the chiffreur's pipeline (QA 035): Source → accords
+  // → propositions, « Actuel » / « Remplacé » on the versions — and every
+  // accord / proposition block stays visible, empty or not (tester,
+  // 2026-10-13), saying why it is empty.
   const docsOf = (slot: string) => docsByType[slot] || [];
-  const slots = bandSlots(group, docsOf);
-  const visibleSlots = cardinalFilter === 'all'
-    ? slots
-    : slots.filter((s) => {
-        const parsed = parseAccordDocType(s);
-        if (cardinalFilter === '1-only') return parsed == null || parsed.ordinal === 1;
-        // '2-plus'
-        return parsed != null && parsed.ordinal >= 2;
-      });
+  const blocks = bandBlocks(group, docsOf).filter((b) => {
+    if (cardinalFilter === 'all') return true;
+    if (cardinalFilter === '1-only') return b.round === null || b.round === 1;
+    // '2-plus'
+    return b.round !== null && b.round >= 2;
+  });
+  // On the « 2ème accord » step, a family whose first round is still open has
+  // no later round to show yet.
+  if (blocks.length === 0) return null;
+  const visibleSlots = blocks.map((b) => b.slot);
+  const stateOf = new Map(blocks.map((b) => [b.slot, b.state]));
 
-  if (visibleSlots.length === 0) return null;
-
-  // "n/m reçus" — filled sockets over total sockets in this family.
-  const receivedCount = visibleSlots.filter((s) =>
-    (docsByType[s] || []).some((d) => !!d.url && !d.pendingUpload),
-  ).length;
+  // « n/m reçus » — one answer per round, not one per block.
+  const progress = bandProgress(blocks);
 
   const versions = versionStates(group, docsOf);
+  // Line 2 of an empty accord / proposition block: why it is empty.
+  const emptyNoteFor = (state: BandBlockState | undefined, slot: string): string | undefined => {
+    if (state === 'optional') return t('Facultatif : nouveau tour de chiffrage');
+    if (state === 'other') {
+      return parseAccordDocType(slot)?.kind === 'accord'
+        ? t('Aucun accord : ce tour a reçu une proposition')
+        : t('Aucune proposition : ce tour a reçu un accord');
+    }
+    return undefined;
+  };
   const versionChip = (slot: string) => {
     const state = versions.get(slot);
     if (!state) return undefined;
@@ -181,9 +190,11 @@ export function FamilyRow({
               {group.parentOrdinal}
             </span>
           )}
-          <span className="shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-ink-2">
-            {receivedCount}/{visibleSlots.length} {receivedCount > 1 ? t('reçus') : t('reçu')}
-          </span>
+          {progress.expected > 0 && (
+            <span className="shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-ink-2">
+              {progress.received}/{progress.expected} {progress.received > 1 ? t('reçus') : t('reçu')}
+            </span>
+          )}
         </button>
         {topAction && (
           <div
@@ -216,9 +227,12 @@ export function FamilyRow({
               onPreview={onPreview}
               hideCardinalPlus={hideCardinalPlus}
               hideExtraSlotPlus={hideExtraSlotPlus}
-              onEdit={onEditSlot ? () => onEditSlot(slot) : undefined}
+              // No « Éditer » on a round the other kind answered: a proposition
+              // filed for a closed round would turn « Actuel » over later accords.
+              onEdit={onEditSlot && stateOf.get(slot) !== 'other' ? () => onEditSlot(slot) : undefined}
               onDocDrop={onDocDrop ? (payload) => onDocDrop(slot, payload) : undefined}
               versionChip={versionChip(slot)}
+              emptyNote={emptyNoteFor(stateOf.get(slot), slot)}
             />
           ))}
         </div>

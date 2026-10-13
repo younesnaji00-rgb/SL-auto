@@ -133,6 +133,12 @@ export interface SlotCardProps {
   versionChip?: React.ReactNode;
   /** DOM id on the tile root (summary-line links scroll/focus to it). */
   id?: string;
+  /**
+   * Why an empty accord / proposition block is empty (« Facultatif… »,
+   * « Aucune proposition : ce tour a reçu un accord »), in place of « En
+   * attente de chiffrage ». Already translated.
+   */
+  emptyNote?: string;
   /** `t-caption` under the slot name in the empty / locked states ("obligatoire"). */
   hint?: string;
   /** Caption of the empty uploadable socket (default "Déposer"; "Optionnel"…). */
@@ -247,6 +253,7 @@ export function SlotCard({
   hideExtraSlotPlus,
   onEdit,
   versionChip,
+  emptyNote,
   id,
   hint,
   emptyCaption = 'Déposer',
@@ -849,7 +856,9 @@ export function SlotCard({
 
   // ── State 3: locked ("locked slot") — never a drop target ─────────────────
   const lockText =
-    parsedAccord || isReformeSlot
+    parsedAccord && emptyNote
+      ? emptyNote
+      : parsedAccord || isReformeSlot
       ? t('En attente de chiffrage')
       : isRapportSlot
         ? t("Généré depuis l'étape Rapport")
