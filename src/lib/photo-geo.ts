@@ -69,7 +69,8 @@ export async function resolvePhotoGeo(
     point = null;
   }
   if (!point && opts.liveFallback) {
-    point = opts.live ?? (await getCurrentGeo().catch(() => null));
+    // A `live` the caller already asked for — even null — is not asked again.
+    point = 'live' in opts ? opts.live ?? null : await getCurrentGeo().catch(() => null);
   }
   if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return null;
   const location = await labelForGeo(point.lat, point.lng);

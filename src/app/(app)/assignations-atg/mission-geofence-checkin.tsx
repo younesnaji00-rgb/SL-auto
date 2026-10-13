@@ -33,6 +33,8 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 import { geocodeAddress, type GeoPoint } from '@/lib/geocode';
 import { apiFetch } from '@/lib/api-fetch';
+import { SITE_MAX_ACCURACY_M, SITE_RADIUS_M, SITE_ROAD_RADIUS_M } from '@/lib/photo-site';
+import { recordFix } from '@/lib/last-fix';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -47,9 +49,10 @@ export interface GeofenceCandidate {
   rdvMs?: number | null;
 }
 
-const RADIUS_M = 150;
-const ROAD_RADIUS_M = 250;
-const MAX_ACCURACY_M = 150;
+// Shared with the « Sur place / Hors site » check of the photos.
+const RADIUS_M = SITE_RADIUS_M;
+const ROAD_RADIUS_M = SITE_ROAD_RADIUS_M;
+const MAX_ACCURACY_M = SITE_MAX_ACCURACY_M;
 const DWELL_MS = 15_000;
 const MAX_CANDIDATES = 20;
 
@@ -113,6 +116,8 @@ export function GeofenceAutoCheckin({
       (p) => {
         setDenied(false);
         setFix({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy ?? 9999, atMs: Date.now() });
+        // The photos taken now use it (lib/last-fix.ts).
+        recordFix(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.timestamp || Date.now());
       },
       (err) => {
         if (err.code === err.PERMISSION_DENIED) setDenied(true);

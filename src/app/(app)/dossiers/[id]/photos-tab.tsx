@@ -58,6 +58,8 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/dossier-timeline/replay-highlight';
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { PhotoGrid, PhotoGroup } from '@/components/common/photo-grid';
+import { PhotoSiteBadge } from '@/components/common/photo-site-badge';
+import { readSiteCheck, siteDetail } from '@/lib/photo-site';
 import { usePhotoLocations, type PhotoLocation } from '@/hooks/use-photo-locations';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { logFrontend } from '@/lib/debug-log';
@@ -97,6 +99,8 @@ interface Photo {
   location?: string;
   lat?: number;
   lng?: number;
+  /** Agent de terrain photos: where the phone was and whether that was the visit (lib/photo-site.ts). */
+  siteCheck?: unknown;
 }
 
 export type PartitionMode = 'date' | 'location';
@@ -358,7 +362,7 @@ export default function PhotosTab({
   const [partitionMode, setPartitionMode] = useState<PartitionMode>('date');
   const locationOf = usePhotoLocations(allPhotos, planifications, {
     unknown: t('Sans localisation'),
-    rdv: t('adresse du RDV'),
+    rdv: t('position du téléphone inconnue, adresse du RDV'),
   });
   // Phone: collapsed/expanded state of the day / location groups.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -751,6 +755,7 @@ export default function PhotosTab({
                   {dateFormat(photo.uploadedAt.toDate(), 'd MMM HH:mm', { locale: dateFnsLocale() })}
                 </p>
               )}
+              <PhotoSiteBadge check={photo.siteCheck} className="mt-1 max-w-full" />
             </>
           )}
         </div>
@@ -818,11 +823,16 @@ export default function PhotosTab({
               onOpen={(photo) => setPreviewPhoto(photo)}
               renderBadge={(photo) => {
                 const status = hl.statusForEntry('photos', photo.id);
-                return status ? (
-                  <span className="pointer-events-none absolute left-1 top-1 z-10 rounded bg-card/90 px-1">
-                    <ChangeBadge status={status} />
-                  </span>
-                ) : null;
+                return (
+                  <>
+                    {status && (
+                      <span className="pointer-events-none absolute left-1 top-1 z-10 rounded bg-card/90 px-1">
+                        <ChangeBadge status={status} />
+                      </span>
+                    )}
+                    <PhotoSiteBadge check={photo.siteCheck} overlay />
+                  </>
+                );
               }}
             />
           </PhotoGroup>
@@ -1111,6 +1121,14 @@ export default function PhotosTab({
                     </span>
                   )}
                 </DialogTitle>
+                {(() => {
+                  const site = readSiteCheck(previewPhoto.siteCheck);
+                  return site ? (
+                    <p data-site-detail={site.status} className={cn('text-xs', site.status === 'sur_place' ? 'text-white/70' : 'font-medium text-amber-200')}>
+                      {siteDetail(site)}
+                    </p>
+                  ) : null;
+                })()}
               </DialogHeader>
               {/* Explicit X close (top-right, Q-6 A). Sits above the
                   zoom-pan-pinch layer so it always receives clicks. */}

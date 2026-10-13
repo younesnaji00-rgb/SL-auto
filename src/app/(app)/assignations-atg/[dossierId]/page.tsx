@@ -35,6 +35,8 @@ import { useToast } from '@/hooks/use-toast';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { watermarkAtgPhotoWithGeo, getCurrentGeo } from '@/lib/photo-watermark';
 import { resolvePhotoGeo, photoGeoFields } from '@/lib/photo-geo';
+import { siteDetail, siteWatermarkLine, visitAddressesForPhotos } from '@/lib/photo-site';
+import { checkPhotoSite } from '@/lib/photo-site-check';
 import { normalizeTypeMission } from '@/lib/type-mission';
 import { photoStampTargets } from '@/lib/mission-photos';
 import { downloadFileFromUrl, ensureImageExtension } from '@/components/documents/typed-doc';
@@ -58,6 +60,7 @@ import { usePhoneChrome, useRegisterPageTitle } from '@/components/layout/page-c
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { GeofenceAutoCheckin, type GeofenceCandidate } from '../mission-geofence-checkin';
 import PhoneMissionScreen from './phone-mission-screen';
+import { PhotoSiteBadge } from '@/components/common/photo-site-badge';
 import Loading from './loading';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
@@ -106,6 +109,8 @@ interface Photo {
   uploadedBy: string;
   storagePath: string;
   pendingUpload?: boolean;
+  /** « Sur place » / « Hors site » / « Lieu non vérifié » (lib/photo-site.ts). */
+  siteCheck?: unknown;
 }
 
 /** Dossier field the gestionnaire side reads as « photos de la phase envoyées ». */
@@ -359,13 +364,18 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       // the watermark would strip it — else the device position, asked ONCE
       // for the batch, not per file.
       const live = await getCurrentGeo().catch(() => null);
+      // Was the phone at the visit? (tester, 2026-10-13: the photos showed the
+      // planification's address wherever they were taken.) Checked once for
+      // the batch against the phase's visit addresses, printed on each photo
+      // and stored with it. Not blocking while the app is tested.
+      const site = await checkPhotoSite(live, visitAddressesForPhotos(filteredPlans as any[], new Date()));
       // Photos that reached Storage now, not the offline queue.
       let sentNow = 0;
       for (const file of files) {
         const timestamp = Date.now();
         const exifOrLive = await resolvePhotoGeo(file, { liveFallback: true, live });
         // Stamp BEFORE queuing so the watermark survives offline uploads too.
-        const { file: stamped, geo: stampedGeo } = await watermarkAtgPhotoWithGeo(file, watermarkName, exifOrLive);
+        const { file: stamped, geo: stampedGeo } = await watermarkAtgPhotoWithGeo(file, watermarkName, exifOrLive, siteWatermarkLine(site));
         const geo = exifOrLive ?? (stampedGeo ? { lat: stampedGeo.lat, lng: stampedGeo.lng } : null);
         const storagePath = `dossiers/${dossierId}/photos/${categoryAtUpload}/${timestamp}_${stamped.name}`;
         const upload = await uploadFileWithOfflineSupport({
@@ -383,6 +393,8 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
             storagePath,
             // Feeds the gestionnaire's « Par localisation » grouping.
             ...photoGeoFields(geo),
+            // Where the agent's phone was, and whether that was the visit.
+            siteCheck: site,
           },
         });
         if (!upload.queued) sentNow += 1;
@@ -418,6 +430,15 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         }
       }
       toast({ title: `${files.length} ${files.length > 1 ? t('photos uploadées avec succès') : t('photo uploadée avec succès')}` });
+      // The disclaimer: the agent knows at once that these photos say they
+      // were not taken at the visit (or that it could not be checked).
+      if (site.status !== 'sur_place') {
+        toast({
+          variant: site.status === 'hors_site' ? 'destructive' : undefined,
+          title: site.status === 'hors_site' ? t('Photos marquées « Hors site »') : t('Photos marquées « Lieu non vérifié »'),
+          description: siteDetail(site),
+        });
+      }
     } catch {
       toast({ variant: 'destructive', title: t("Erreur lors de l'upload") });
     } finally {
@@ -1013,6 +1034,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                         <Eye className="h-5 w-5 text-on-ink" aria-hidden />
                       </span>
                     </button>
+                    <PhotoSiteBadge check={photo.siteCheck} overlay />
                     {/* Hover actions: Télécharger for every viewer but the
                         agent (QA bug AT 005; owner ruling 2026-09-25: the
                         agent never downloads), Supprimer for the uploader. */}

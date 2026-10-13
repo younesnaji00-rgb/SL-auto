@@ -1,27 +1,41 @@
 /**
  * Photo watermarking helper for the Agent de Terrain (ATG) photo flow.
  *
- * Draws a bottom-left watermark block on a captured image with 4 lines:
+ * Draws a bottom-left watermark block on a captured image:
  *   1. "SL auto"                  (title, bold, +4px)
  *   2. Timestamp (YYYY-MM-DD HH:MM:SS, local)
  *   3. GPS (Lat, Lng — 6 decimals) or "Position non disponible"
- *   4. Account display name
+ *   4. Whether that was at the visit (« Sur place », « HORS SITE : … »,
+ *      « Lieu non vérifié » — lib/photo-site.ts), when the caller checked
+ *   5. Account display name
  *
  * Scope: ONLY used on the ATG photo upload path. Other photo flows
  * (gestionnaire scans, AI scan upload, etc.) are intentionally untouched.
  */
+import { freshFix, recordFix } from '@/lib/last-fix';
+
+/** A fix the app's trackers received this recently stands for « here, now ». */
+const RECENT_FIX_MS = 30_000;
 
 export interface GeoCoords {
   lat: number;
   lng: number;
+  /** Radius of uncertainty, metres, when the device reports it. */
+  accuracy?: number;
 }
 
 /**
  * Tries to obtain the current device position. Resolves with the coordinates
  * or `null` on denial / unavailability / timeout. Never rejects — the caller
  * should be able to continue the upload regardless.
+ *
+ * A fix the app's own trackers received in the last 30 s is used as is
+ * (lib/last-fix.ts): asking the phone for a new high-accuracy fix often timed
+ * out, and the photo then carried no position at all.
  */
 export async function getCurrentGeo(): Promise<GeoCoords | null> {
+  const recent = freshFix(RECENT_FIX_MS);
+  if (recent) return { lat: recent.lat, lng: recent.lng, ...(recent.accuracy != null ? { accuracy: recent.accuracy } : {}) };
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
     return null;
   }
@@ -38,7 +52,8 @@ export async function getCurrentGeo(): Promise<GeoCoords | null> {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           clearTimeout(fallback);
-          finish({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          recordFix(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.timestamp || Date.now());
+          finish({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
         },
         () => {
           clearTimeout(fallback);
@@ -170,14 +185,19 @@ export async function watermarkAtgPhotoWithGeo(
   displayName: string,
   /** A position already known for this photo (its EXIF) — stamped instead of the live one (QA bug 021). */
   presetGeo?: GeoCoords | null,
+  /** « Sur place » / « HORS SITE : … » / « Lieu non vérifié », printed under the GPS line. */
+  siteLine?: string,
 ): Promise<{ file: File; geo: GeoCoords | null }> {
   let geo: GeoCoords | null = presetGeo ?? null;
   try {
-    if (!geo) geo = await getCurrentGeo();
+    // `null` = the caller already asked and there is none: asking again only
+    // made each photo wait another 5 s.
+    if (presetGeo === undefined) geo = await getCurrentGeo();
     const lines = [
       'SL auto',
       formatStamp(),
       formatGeo(geo),
+      ...(siteLine ? [siteLine] : []),
       displayName || 'Agent de Terrain',
     ];
     const blob = await watermarkImage(file, lines);

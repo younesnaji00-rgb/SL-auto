@@ -41,6 +41,7 @@ import { cn } from '@/lib/utils';
 import { mapsSearchUrl, useMissionCheckin, waHref } from '../mission-quick-actions';
 import { PhotoGrid, PhotoGroup } from '@/components/common/photo-grid';
 import { usePhotoLocations } from '@/hooks/use-photo-locations';
+import { PhotoSiteBadge } from '@/components/common/photo-site-badge';
 import { PartitionTabs, type PartitionMode } from '@/app/(app)/dossiers/[id]/photos-tab';
 
 export type MissionPhase = 'Avant' | 'En cours' | 'Après';
@@ -73,6 +74,8 @@ export interface PhonePhoto {
   lat?: unknown;
   lng?: unknown;
   location?: unknown;
+  /** « Sur place » / « Hors site » / « Lieu non vérifié » (lib/photo-site.ts). */
+  siteCheck?: unknown;
 }
 
 export interface PhoneMissionScreenProps<TPhoto extends PhonePhoto> {
@@ -143,7 +146,7 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const locationOf = usePhotoLocations(photos, allPlans ?? [], {
     unknown: t('Sans localisation'),
-    rdv: t('adresse du RDV'),
+    rdv: t('position du téléphone inconnue, adresse du RDV'),
   });
   const groups = useMemo(() => {
     type Group = { key: string; label: string; items: TPhoto[] };
@@ -383,7 +386,11 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
                       open={openGroups[g.key] ?? true}
                       onToggle={() => setOpenGroups((prev) => ({ ...prev, [g.key]: !(prev[g.key] ?? true) }))}
                     >
-                      <PhotoGrid photos={g.items} onOpen={(photo) => onOpenPhoto(photo)} />
+                      <PhotoGrid
+                        photos={g.items}
+                        onOpen={(photo) => onOpenPhoto(photo)}
+                        renderBadge={(photo) => <PhotoSiteBadge check={photo.siteCheck} overlay />}
+                      />
                     </PhotoGroup>
                   ))}
                 </div>

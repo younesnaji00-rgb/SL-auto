@@ -15,6 +15,7 @@ import { onSnapshot } from '@/lib/firestore-logged';
 import { Capacitor } from '@capacitor/core';
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { recordFix } from '@/lib/last-fix';
 
 export type GpsPermission = 'granted' | 'denied' | 'prompt' | 'unavailable';
 
@@ -43,6 +44,8 @@ export function useGpsPublisher(): { permission: GpsPermission; retry: () => voi
 
   const writePosition = useCallback(
     async (lat: number, lng: number, accuracy: number, opts?: { force?: boolean }) => {
+      // The photos taken now use it (lib/last-fix.ts), throttled write or not.
+      recordFix(lat, lng, accuracy);
       if (!db || !firebaseUser?.uid) return;
       const now = Date.now();
       const prev = lastWriteRef.current;
