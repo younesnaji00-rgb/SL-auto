@@ -12,7 +12,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { LogOut, Moon, Sun, Bug } from 'lucide-react';
+import { LogOut, Moon, Sun, Bug, CloudOff } from 'lucide-react';
+import { openFailedUploadsList, useFailedUploadCount } from '@/hooks/use-offline-sync';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -60,6 +61,10 @@ export default function UserMenu({ compact }: UserMenuProps) {
   const [mounted, setMounted] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   useEffect(() => setMounted(true), []);
+  // Files this device gave up sending: the list stays reachable here after
+  // its red bar was closed with « × » (owner request 2026-10-14).
+  const failedUploads = useFailedUploadCount();
+  const failedLabel = `${t('Fichiers non envoyés')} (${failedUploads})`;
 
   const displayName = profile ? `${profile.prenom ?? ''} ${profile.nom ?? ''}`.trim() || t('Utilisateur') : t('Utilisateur');
   const isDark = mounted && theme === 'dark';
@@ -87,6 +92,7 @@ export default function UserMenu({ compact }: UserMenuProps) {
 
   if (coarse) {
     const items: ActionItem[] = [
+      ...(failedUploads > 0 ? [{ key: 'failed-uploads', label: failedLabel, icon: <CloudOff />, onSelect: openFailedUploadsList }] : []),
       { key: 'theme', label: isDark ? t('Mode clair') : t('Mode sombre'), icon: isDark ? <Sun /> : <Moon />, onSelect: toggleTheme },
       { key: 'bug', label: t('Signaler un bug'), icon: <Bug />, href: '/signaler-bug' },
       { key: 'signout', label: t('Déconnexion'), icon: <LogOut />, destructive: true, onSelect: () => void signOut() },
@@ -117,6 +123,12 @@ export default function UserMenu({ compact }: UserMenuProps) {
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {failedUploads > 0 && (
+          <DropdownMenuItem onSelect={openFailedUploadsList} className="text-status-danger-fg focus:text-status-danger-fg [&_svg]:!text-status-danger-fg">
+            <CloudOff className="mr-2 h-4 w-4" />
+            {failedLabel}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onSelect={(e) => {
             e.preventDefault();

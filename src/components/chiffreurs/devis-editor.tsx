@@ -161,6 +161,13 @@ export function DevisEditor({
 
   const [header, setHeader] = useState<DevisHeader>(emptyHeader());
   const [rows, setRows] = useState<DevisRow[]>([emptyRow()]);
+  // Read inside runExtraction: is the table still blank (nothing loaded yet)?
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  // The source files the table on screen was read from (scanSources): when the
+  // stored table moves on to other files while the editor is open — the
+  // gestionnaire replaced the devis — a notice offers to reload it.
+  const loadedSourcesRef = useRef<string | null>(null);
   const [extraColumns, setExtraColumns] = useState<DevisExtraColumn[]>([]);
   const [versions, setVersions] = useState<DevisVersion[]>([]);
   const [comparisonOpen, setComparisonOpen] = useState(false);
@@ -389,15 +396,14 @@ export function DevisEditor({
         const cols = normalizeExtraColumns(persisted);
         setExtraColumns(cols);
         setVersions(persisted.versions || []);
+        loadedSourcesRef.current = sourcesKey(persisted);
         initializedRef.current = true;
 
-        // Re-run the extractor if new counter files have landed since the last extract.
-        // The extractor is idempotent; it no-ops when every counter is already represented.
-        const processedPaths = new Set(
-          cols.filter((c) => c.kind === 'counter' && c.sourceStoragePath).map((c) => c.sourceStoragePath as string)
-        );
-        const hasUnprocessedCounter = counterFilePaths.some((p) => !processedPaths.has(p));
-        if (hasUnprocessedCounter) runExtraction(false);
+        // Reconcile with the dossier's documents on every open (tester
+        // 2026-10-14): a devis deleted and another imported, a counter-devis
+        // added — the extractor reads the new files, drops the rows of the
+        // ones that left, and no-ops (two reads, no scan) when nothing moved.
+        runExtraction(false);
         return;
       }
 
@@ -405,9 +411,10 @@ export function DevisEditor({
       setHeader((h) => dossierPrefill(h));
       initializedRef.current = true;
 
-      // If already attempted (success or fail) we leave it alone — user can force retry.
-      if (extractionAttempted) return;
-      if (devisFileNames.length === 0) return;
+      // No table yet: read the files. Neither an earlier failed attempt nor an
+      // empty file list stops it any more (tester 2026-10-14: a devis imported
+      // on a new dossier left the table empty for good) — the extractor also
+      // reads the devis the dossier holds that the chiffrage never received.
       runExtraction(false);
     })();
 
@@ -449,18 +456,48 @@ export function DevisEditor({
         return;
       }
 
-      if (result.reason === 'already-extracted' || result.reason === 'already-attempted' || result.reason === 'no-files') {
+      if (result.reason === 'no-files') {
+        if (isManualRetry) {
+          toast({ variant: 'destructive', title: t('Aucun fichier à lire'), description: t('Le dossier n’a aucun document dans cet emplacement.') });
+        }
+        return;
+      }
+      if (result.reason === 'already-extracted' || result.reason === 'already-attempted') {
+        // Another scan (the send, an upload) wrote the table while this one
+        // was starting: show it rather than the blank row it replaced.
+        const blank = rowsRef.current.every((r) => !(r.designation || '').trim() && !Number(r.puHT));
+        if (blank && result.structuredDevis && result.structuredDevis.rows.length > 0) {
+          const sd0 = result.structuredDevis;
+          setHeader(dossierPrefill(sd0.header));
+          setRows(sd0.rows);
+          setExtraColumns(normalizeExtraColumns(sd0));
+          setVersions(sd0.versions || []);
+          loadedSourcesRef.current = sourcesKey(sd0);
+        }
         return;
       }
 
       const sd = result.structuredDevis;
       if (sd) {
+        loadedSourcesRef.current = sourcesKey(sd);
+        if (result.sourceChange) {
+          const { added, removed } = result.sourceChange;
+          toast({
+            title: t('Le document source a changé'),
+            description: [
+              added > 0 ? `${added} ${t('nouveau(x) fichier(s) lu(s)')}` : null,
+              removed > 0 ? `${removed} ${t('fichier(s) retiré(s) avec leurs lignes')}` : null,
+            ].filter(Boolean).join(', ') + '.',
+          });
+        }
         setHeader(dossierPrefill(sd.header));
         setRows(sd.rows.length ? sd.rows : [emptyRow()]);
         const cols = normalizeExtraColumns(sd);
         setExtraColumns(cols);
         setVersions(sd.versions || []);
-        toast({ title: t('Extraction automatique terminee'), description: `${sd.rows.length} ${t('ligne(s) detectee(s) depuis')} ${devisFileNames.length} ${t(`${typeLabel.lower}(s)`)}.` });
+        if (!result.sourceChange) {
+          toast({ title: t('Extraction automatique terminée'), description: `${sd.rows.length} ${t('ligne(s) détectée(s) depuis')} ${devisFileNames.length || 1} ${t(`${typeLabel.lower}(s)`)}.` });
+        }
         // Task #33: a fresh scan just populated editor state — lock edits and
         // surface the warning dialog until the chiffreur confirms review.
         // Task #35: feed the dialog the calculationErrors from the API so they
@@ -1192,6 +1229,23 @@ export function DevisEditor({
   // (outline ⇄ tonal toggle) · « J'ai vérifié » · Ré-extraire (outline,
   // visible — it is an edit-type action, so a labelled button, not a symbol
   // or a ⋯ item) · ONE filled Enregistrer at the right end.
+  // The stored table now comes from other files than the one on screen (an
+  // upload or a delete in the dossier re-read it while the editor was open).
+  const persistedSources = sourcesKey(persisted);
+  const sourceChangedWhileOpen =
+    !isGestionnaire && !extracting && initializedRef.current && persistedSources !== null
+    && loadedSourcesRef.current !== null && persistedSources !== loadedSourcesRef.current;
+  const reloadFromPersisted = () => {
+    if (!persisted) return;
+    setHeader(dossierPrefill(persisted.header));
+    setRows(persisted.rows.length ? persisted.rows : [emptyRow()]);
+    setExtraColumns(normalizeExtraColumns(persisted));
+    setVersions(persisted.versions || []);
+    loadedSourcesRef.current = sourcesKey(persisted);
+    setScanReviewed(false);
+    setComparisonOpen(true);
+  };
+
   const toolbar = (
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {!isGestionnaire && chiffrageId && (
@@ -1258,7 +1312,7 @@ export function DevisEditor({
             data-tour="dev-reextract"
             onClick={() => runExtraction(true)}
             loading={extracting}
-            disabled={!canEdit || devisFileNames.length === 0}
+            disabled={!canEdit}
             title={t("Relancer l'extraction automatique (écrase les données)")}
           >
             {extracting ? null : <RefreshCw className="h-4 w-4" />}
@@ -1275,6 +1329,18 @@ export function DevisEditor({
   return (
     <div className={cn('w-full space-y-4 px-4 sm:px-6', compareFullHeight ? 'py-2' : 'py-4')}>
       {!compareFullHeight && toolbar}
+
+      {sourceChangedWhileOpen && (
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-status-info-fg/30 bg-status-info-bg px-4 py-2 text-status-info-fg">
+          <RefreshCw className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1 text-sm">
+            {t('Le document source a changé dans le dossier : le tableau a été relu. Rechargez-le pour voir les nouvelles lignes (vos modifications non enregistrées seront perdues).')}
+          </span>
+          <Button variant="outline" size="sm" onClick={reloadFromPersisted}>
+            {t('Recharger le tableau')}
+          </Button>
+        </div>
+      )}
 
       {/* C6 — post-save exit velocity (chiffrage-redesign-spec): inline strip
           directly under the toolbar — NOT a toast, it carries actions. Status
@@ -2297,6 +2363,12 @@ function AccordPUInput({
 }
 
 // ── utilities ─────────────────────────────────────────────────────────────
+
+/** The source files a table was read from, as one comparable string; null for a table that doesn't say. */
+function sourcesKey(sd: StructuredDevis | null | undefined): string | null {
+  if (!sd?.scanSources) return null;
+  return sd.scanSources.map((s) => s.storagePath).sort().join('|');
+}
 
 function toDate(x: any): Date | null {
   if (!x) return null;

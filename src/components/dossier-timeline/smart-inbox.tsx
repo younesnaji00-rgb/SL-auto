@@ -38,6 +38,7 @@ import { apiFetch } from '@/lib/api-fetch';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { extractAndPersistChiffrageDevis, extractAndPersistDossierDoc } from '@/lib/devis-extract';
 import { scanAndPersistCarteGrise } from '@/lib/scan-carte-grise';
+import { scanAndPersistVehicleIds, vehicleIdHintForSlot } from '@/lib/scan-vehicle-ids';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { DOC_CLASSES, DOC_CLASS_LABELS, UNCLASSIFIED_LABEL, confidenceBand, prefillSources } from '@/lib/doc-classes';
@@ -223,6 +224,12 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
         scanAndPersistCarteGrise({ db, storage, dossierId, storagePath, contentType: file.type }).catch((e) =>
           console.error('[smart-inbox] carte-grise scan failed', e),
         );
+      }
+      // An odometer / constructor-plate photo fills the empty Kilométrage /
+      // Numéro de série field (owner request 2026-10-14).
+      const idHint = vehicleIdHintForSlot(type);
+      if (idHint) {
+        void scanAndPersistVehicleIds({ db, storage, dossierId, sources: [{ blob: file, name: file.name }], hint: idHint });
       }
     },
     [db, storage, dossierId],

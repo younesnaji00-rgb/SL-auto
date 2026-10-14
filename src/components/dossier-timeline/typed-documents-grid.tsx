@@ -9,6 +9,7 @@ import { deleteObject, ref } from 'firebase/storage';
 import { uploadFileWithOfflineSupport } from '@/lib/offline/upload-file';
 import { extractAndPersistChiffrageDevis, extractAndPersistDossierDoc } from '@/lib/devis-extract';
 import { scanAndPersistCarteGrise } from '@/lib/scan-carte-grise';
+import { scanAndPersistVehicleIds, vehicleIdHintForSlot } from '@/lib/scan-vehicle-ids';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { restoreStatutAfterDocumentRemoval } from '@/lib/restore-statut';
 import { parseAccordDocType, mapToAccorde } from '@/lib/docType-accorde';
@@ -383,6 +384,18 @@ export default function TypedDocumentsGrid({ dossierId, hideAccordSlots, showOnl
             db, storage, dossierId, storagePath, contentType: file.type,
           }).catch((e) => console.error(`[typed-docs-grid] carte-grise scan failed for ${file.name}`, e));
         });
+      }
+
+      // Odometer / constructor-plate photos: the value goes into the empty
+      // Kilométrage / Numéro de série field (owner request 2026-10-14).
+      const idHint = vehicleIdHintForSlot(slot);
+      if (idHint) {
+        const sentPhotos = uploadJobs
+          .filter((_, idx) => results[idx].status === 'fulfilled')
+          .map(({ file }) => ({ blob: file, name: file.name }));
+        if (sentPhotos.length > 0) {
+          void scanAndPersistVehicleIds({ db, storage, dossierId, sources: sentPhotos, hint: idHint, user: { email: userEmail, nom: userName } });
+        }
       }
 
       // Sync the new file(s) into the dossier's currently-active chiffrage if

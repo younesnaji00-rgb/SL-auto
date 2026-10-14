@@ -3,7 +3,9 @@ import { collection, doc, addDoc, getDoc, updateDoc, deleteDoc, serverTimestamp,
 import type { FirebaseStorage } from 'firebase/storage';
 import type { Firestore } from 'firebase/firestore';
 import { getAllPending, dequeueUpload, updateQueueItem, type PendingUpload } from './upload-queue';
-import { MAX_UPLOAD_ATTEMPTS, hasGivenUp, retryDelayMs } from './upload-status';
+import { MAX_UPLOAD_ATTEMPTS, dossierIdOfPath, hasGivenUp, retryDelayMs } from './upload-status';
+import { scanAndPersistVehicleIds, vehicleIdHintForSlot } from '@/lib/scan-vehicle-ids';
+import { clearUploadFailure, reportUploadFailure, type UploadReporter } from './upload-failure-report';
 
 type SyncListener = () => void;
 const listeners: Set<SyncListener> = new Set();
@@ -26,6 +28,48 @@ class UploadProcessor {
   // when it ends instead of leaving the file for the next trigger.
   private rerun = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  // Who is signed in here: the reports of abandoned files carry it.
+  private reporter: UploadReporter | null = null;
+  // Abandoned files whose placeholder was already looked at this session.
+  private reviewed = new Set<string>();
+
+  setReporter(reporter: UploadReporter | null): void {
+    this.reporter = reporter;
+  }
+
+  /**
+   * An abandoned file, once per session: dropped from the list when nobody
+   * waits for it any more (its document was deleted, or the slot got its
+   * file from another device) — these used to stay in the red count forever.
+   * Otherwise reported to `upload_failures` if it never was (the files
+   * abandoned before the reports existed).
+   */
+  private async reviewGivenUp(db: Firestore, item: PendingUpload): Promise<void> {
+    if (!this.reviewed.has(item.id)) {
+      const placeholderId: string | undefined = item.firestoreMetadata?._placeholderDocId;
+      if (placeholderId) {
+        try {
+          const snap = await getDoc(doc(db, item.firestoreDocPath, placeholderId));
+          const data = snap.exists() ? snap.data() : null;
+          this.reviewed.add(item.id);
+          if (!data || (data.url && !data.pendingUpload)) {
+            await dequeueUpload(item.id);
+            clearUploadFailure(db, item.id);
+            return;
+          }
+        } catch {
+          // Unreachable for now: look again on the next run.
+        }
+      } else {
+        this.reviewed.add(item.id);
+      }
+    }
+    if (!item.reportedAt && this.reporter) {
+      if (await reportUploadFailure(db, item, this.reporter)) {
+        await updateQueueItem(item.id, { reportedAt: Date.now() });
+      }
+    }
+  }
 
   async processQueue(storage: FirebaseStorage, db: Firestore): Promise<void> {
     if (this.processing) {
@@ -52,7 +96,10 @@ class UploadProcessor {
 
       for (const item of pending) {
         // Given up: waits for the user's « Réessayer » or « Supprimer ».
-        if (hasGivenUp(item)) continue;
+        if (hasGivenUp(item)) {
+          await this.reviewGivenUp(db, item).catch(() => {});
+          continue;
+        }
         const placeholderId: string | undefined = item.firestoreMetadata?._placeholderDocId;
         const placeholderRef = placeholderId ? doc(db, item.firestoreDocPath, placeholderId) : null;
 
@@ -67,6 +114,7 @@ class UploadProcessor {
             // of this browser already sent it.
             if (!data || (data.url && !data.pendingUpload)) {
               await dequeueUpload(item.id);
+              if (item.reportedAt) clearUploadFailure(db, item.id);
               continue;
             }
           }
@@ -101,19 +149,28 @@ class UploadProcessor {
             });
           }
 
-          // 3. Remove from queue
+          // 3. Remove from queue — and from the list of unsent files others see.
           await dequeueUpload(item.id);
+          if (item.reportedAt) clearUploadFailure(db, item.id);
+          // An odometer / constructor-plate photo taken offline is read now
+          // that it went (the read at capture time had no network).
+          const idHint = vehicleIdHintForSlot(item.firestoreMetadata?.type);
+          const idDossier = dossierIdOfPath(item.firestoreDocPath);
+          if (idHint && idDossier) {
+            void scanAndPersistVehicleIds({ db, storage, dossierId: idDossier, sources: [{ blob: item.fileBlob, name: item.fileName }], hint: idHint });
+          }
         } catch (err) {
           console.warn(`[UploadProcessor] Failed to process ${item.fileName}:`, err);
           const offline = typeof navigator !== 'undefined' && !navigator.onLine;
           const retryCount = offline ? item.retryCount : item.retryCount + 1;
-          await updateQueueItem(item.id, {
-            status: 'failed',
-            retryCount,
-            lastError: errorMessage(err),
-            lastErrorCode: errorCode(err),
-          });
+          const failed = { status: 'failed' as const, retryCount, lastError: errorMessage(err), lastErrorCode: errorCode(err) };
+          await updateQueueItem(item.id, failed);
           if (hasGivenUp({ retryCount })) {
+            // Tell the others (the owner, an admin): the file stays on this
+            // device only. Not awaited, for the same stalled-connection reason.
+            void reportUploadFailure(db, { ...item, ...failed, lastAttemptAt: Date.now() }, this.reporter)
+              .then((ok) => (ok ? updateQueueItem(item.id, { reportedAt: Date.now() }) : undefined))
+              .catch(() => {});
             // Out of attempts: say so on the placeholder instead of leaving it
             // « En attente… » forever with the pièce silently missing.
             // Not awaited: on a stalled connection the acknowledgement never
@@ -197,6 +254,7 @@ class UploadProcessor {
     // upload itself leaves a file nothing points at.
     if (!sent) void deleteObject(ref(storage, item.storagePath)).catch(() => {});
     await dequeueUpload(item.id);
+    clearUploadFailure(db, item.id);
     notifyListeners();
     return removed;
   }

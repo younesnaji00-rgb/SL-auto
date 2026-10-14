@@ -95,6 +95,8 @@ import {
   type TypedDoc,
 } from '@/components/documents/typed-doc';
 import { reclassifyDocuments } from '@/components/documents/reclassify';
+import { syncGarageDocs } from '@/lib/devis-extract';
+import { scanAndPersistVehicleIds, vehicleIdHintForSlot } from '@/lib/scan-vehicle-ids';
 import JSZip from 'jszip';
 import { useT } from '@/i18n';
 
@@ -352,6 +354,10 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     const userName = profile ? `${profile.prenom || ''} ${profile.nom || ''}`.trim() || userEmail : userEmail;
     setUploadingType(type);
     let queuedCount = 0;
+    // Sent files of a garage devis / facture slot: read at once for the
+    // dossier's table and the chiffreur's (tester 2026-10-14 — this socket
+    // never started a scan, so the chiffrage table stayed empty).
+    const sent: { storagePath: string; name: string }[] = [];
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -393,8 +399,16 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
           },
         });
         if (uploadResult.queued) queuedCount++;
+        else sent.push({ storagePath, name: file.name });
         await logHistorique(db, dossierId, 'Upload document', userEmail, `Document "${file.name}" uploadé.`, 'document', profile?.nom);
         await logWorkflow(db, dossierId, 'Nouveau document ajouté', userEmail, userId, 'done', { details: `Document "${file.name}" ajouté (par gestionnaire)` }, profile?.nom);
+      }
+      if (sent.length > 0) void syncGarageDocs({ db, storage, dossierId, docType: type, added: sent });
+      // Odometer / constructor-plate photos fill the empty Kilométrage /
+      // Numéro de série field (owner request 2026-10-14).
+      const idHint = vehicleIdHintForSlot(type);
+      if (idHint) {
+        void scanAndPersistVehicleIds({ db, storage, dossierId, sources: files.map((f) => ({ blob: f, name: f.name })), hint: idHint, user: { email: userEmail, nom: profile?.nom } });
       }
       if (queuedCount > 0) {
         toast({

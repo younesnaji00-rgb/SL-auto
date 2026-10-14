@@ -9,6 +9,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { doc, getDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -33,6 +34,45 @@ import { restoreStatutAfterDocumentRemoval, restoreStatutAfterPhotoRemoval } fro
 import { getAllPending, type PendingUpload } from '@/lib/offline/upload-queue';
 import { onSyncChange, uploadProcessor } from '@/lib/offline/upload-processor';
 import { describeUploadFailure, dossierIdOfPath, hasGivenUp } from '@/lib/offline/upload-status';
+import { uploadKindOf, uploadSlotOf, uploadWhatLabel } from '@/lib/offline/upload-failure-report';
+import type { Firestore } from 'firebase/firestore';
+
+/**
+ * dossierId → « réf · assuré » (null once the dossier is known to be gone,
+ * '' when it could not be read) — which dossier each file was meant for; the
+ * file name alone rarely says. Shared with the team list.
+ */
+export function useDossierLabels(db: Firestore | null | undefined, ids: ReadonlyArray<string | null>): Record<string, string | null> {
+  const [labels, setLabels] = useState<Record<string, string | null>>({});
+  const key = [...new Set(ids.filter((id): id is string => !!id))].sort().join(',');
+  useEffect(() => {
+    if (!db || !key) return;
+    const missing = key.split(',').filter((id) => !(id in labels));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    void Promise.all(
+      missing.map(async (id): Promise<[string, string | null]> => {
+        try {
+          const snap = await getDoc(doc(db, 'dossiers', id));
+          if (!snap.exists()) return [id, null];
+          const d = snap.data() as { refExpert?: string; assure?: { nom?: string } | string };
+          const assure = typeof d.assure === 'string' ? d.assure : d.assure?.nom;
+          return [id, [d.refExpert, assure].filter(Boolean).join(' · ')];
+        } catch {
+          return [id, ''];
+        }
+      }),
+    ).then((pairs) => {
+      if (!cancelled) setLabels((prev) => ({ ...prev, ...Object.fromEntries(pairs) }));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // labels is read to skip known ids, not to refetch on its change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, key]);
+  return labels;
+}
 
 type Busy = { key: string; action: 'retry' | 'discard' } | null;
 
@@ -49,8 +89,7 @@ export function FailedUploadsDialog({
   const { profile } = useCurrentUser();
   const { toast } = useToast();
   const [items, setItems] = useState<PendingUpload[] | null>(null);
-  // dossierId → « réf · assuré »; null once the dossier is known to be gone.
-  const [dossierLabels, setDossierLabels] = useState<Record<string, string | null>>({});
+  const dossierLabels = useDossierLabels(db, (items ?? []).map((it) => dossierIdOfPath(it.firestoreDocPath)));
   const [busy, setBusy] = useState<Busy>(null);
 
   const load = useCallback(async () => {
@@ -72,35 +111,6 @@ export function FailedUploadsDialog({
   useEffect(() => {
     if (open && items?.length === 0 && busy === null) onOpenChange(false);
   }, [open, items, busy, onOpenChange]);
-
-  // Which dossier each file was meant for — the name alone rarely says.
-  useEffect(() => {
-    if (!db || !items) return;
-    const missing = [
-      ...new Set(items.map((it) => dossierIdOfPath(it.firestoreDocPath)).filter((id): id is string => !!id)),
-    ].filter((id) => !(id in dossierLabels));
-    if (missing.length === 0) return;
-    let cancelled = false;
-    void Promise.all(
-      missing.map(async (id): Promise<[string, string | null]> => {
-        try {
-          const snap = await getDoc(doc(db, 'dossiers', id));
-          if (!snap.exists()) return [id, null];
-          const d = snap.data() as { refExpert?: string; assure?: { nom?: string } };
-          return [id, [d.refExpert, d.assure?.nom].filter(Boolean).join(' · ')];
-        } catch {
-          return [id, ''];
-        }
-      }),
-    ).then((pairs) => {
-      if (!cancelled) setDossierLabels((prev) => ({ ...prev, ...Object.fromEntries(pairs) }));
-    });
-    return () => {
-      cancelled = true;
-    };
-    // dossierLabels is read to skip known ids, not to refetch on its change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, items]);
 
   const retry = async (list: PendingUpload[], key: string) => {
     if (!db || !storage) return;
@@ -161,11 +171,11 @@ export function FailedUploadsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="md:max-w-xl">
+      <DialogContent className="md:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('Fichiers non envoyés')}</DialogTitle>
           <DialogDescription>
-            {t('Ces fichiers sont restés sur cet appareil : leur envoi a échoué plusieurs fois. Réessayez, ou supprimez ceux qui ne servent plus.')}
+            {t('Ces fichiers sont restés sur cet appareil : leur envoi a échoué plusieurs fois. Réessayez, ou supprimez ceux qui ne servent plus. Les administrateurs voient aussi cette liste.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -179,10 +189,13 @@ export function FailedUploadsDialog({
             const dossierLabel = dossierId ? dossierLabels[dossierId] : undefined;
             const Icon = item.contentType?.startsWith('image/') ? ImageIcon : FileText;
             const rowBusy = busy?.key === item.id || busy?.key === 'all';
+            const what = t(uploadWhatLabel(uploadKindOf(item), uploadSlotOf(item)));
             const meta = [
-              dossierLabel === null ? t('Dossier supprimé') : dossierLabel,
               formatFileSize(item.fileSize),
               `${t('déposé le')} ${format(item.createdAt, "dd/MM 'à' HH:mm", { locale: fr })}`,
+              item.lastAttemptAt
+                ? `${item.retryCount} ${item.retryCount > 1 ? t('essais') : t('essai')}, ${t('le dernier le')} ${format(item.lastAttemptAt, "dd/MM 'à' HH:mm", { locale: fr })}`
+                : null,
             ].filter(Boolean);
             return (
               <li key={item.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3">
@@ -192,8 +205,24 @@ export function FailedUploadsDialog({
                     <p className="t-body-sm truncate font-medium" title={item.fileName}>
                       {item.fileName}
                     </p>
+                    {/* Which dossier, and which slot or photo phase in it — wrapped, never cut. */}
+                    <p className="t-caption break-words">
+                      {dossierId && dossierLabel !== null ? (
+                        <Link
+                          href={`/dossiers/${dossierId}`}
+                          onClick={() => onOpenChange(false)}
+                          className="font-medium text-ink-2 underline underline-offset-2 hover:text-ink"
+                        >
+                          {dossierLabel || t('Ouvrir le dossier')}
+                        </Link>
+                      ) : dossierId ? (
+                        t('Dossier supprimé')
+                      ) : null}
+                      {dossierId ? ' · ' : ''}
+                      {what}
+                    </p>
                     <p className="t-caption truncate tabular-nums">{meta.join(' · ')}</p>
-                    <p className="t-caption line-clamp-2 text-status-danger-fg" title={failure.detail}>
+                    <p className="t-caption break-words text-status-danger-fg" title={failure.detail}>
                       {t(failure.reason)}
                       {failure.detail ? ` ${failure.detail}` : ''}
                     </p>
@@ -229,7 +258,7 @@ export function FailedUploadsDialog({
           })}
         </ul>
 
-        {items && items.length > 1 && (
+        {items && items.length > 0 && (
           <DialogFooter>
             <Button
               type="button"

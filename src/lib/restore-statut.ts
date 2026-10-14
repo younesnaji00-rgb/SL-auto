@@ -1,6 +1,8 @@
 import { collection, deleteField, doc, query, serverTimestamp, updateDoc, where, type Firestore } from 'firebase/firestore';
 import { getDoc, getDocs } from './firestore-logged';
+import { getStorage } from 'firebase/storage';
 import { isEditableDocType } from './devis-schema';
+import { syncGarageDocs } from './devis-extract';
 import { parseAccordDocType } from './docType-accorde';
 import { normalizeTypeMission } from './type-mission';
 import {
@@ -237,7 +239,12 @@ export async function restoreStatutAfterDocumentRemoval(
   user: RemovalUser,
 ): Promise<string | null> {
   const type = String(removedType ?? '').trim();
-  if (isEditableDocType(type)) return restoreStatutWithoutGarageDocs(db, dossierId, user);
+  if (isEditableDocType(type)) {
+    // The tables follow: the removed devis / facture's rows leave the
+    // dossier's table and the chiffreur's (tester 2026-10-14).
+    void syncGarageDocs({ db, storage: getStorage(db.app), dossierId, docType: type });
+    return restoreStatutWithoutGarageDocs(db, dossierId, user);
+  }
   if (parseAccordDocType(type)) return restoreStatutAfterAccordRemoval(db, dossierId, type, user);
   return null;
 }

@@ -61,6 +61,7 @@ import { GeofenceAutoCheckin, type GeofenceCandidate } from '../mission-geofence
 import PhoneMissionScreen from './phone-mission-screen';
 import { PhotoSiteBadge } from '@/components/common/photo-site-badge';
 import Loading from './loading';
+import { scanAndPersistVehicleIds } from '@/lib/scan-vehicle-ids';
 
 type PhotoCategory = 'avant' | 'en_cours' | 'apres';
 
@@ -399,6 +400,10 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
         if (!upload.queued) sentNow += 1;
         await logHistorique(db, dossierId, 'Upload photo Agent de Terrain', userEmail, `Photo "${stamped.name}" uploadée (${categoryAtUpload}).`, 'photo', profile?.nom);
       }
+      // While the Kilométrage or the Numéro de série is empty, the batch is
+      // read for an odometer or a constructor plate (owner 2026-10-14) — the
+      // originals, since the watermark band may cover the digits.
+      void scanAndPersistVehicleIds({ db, storage, dossierId, sources: files.map((f) => ({ blob: f, name: f.name })), user: { email: userEmail, nom: profile?.nom } });
       const catLabel = categoryAtUpload === 'avant' ? 'Avant' : categoryAtUpload === 'en_cours' ? 'En cours' : 'Après';
       const userId = auth?.currentUser?.uid || 'unknown';
       await logWorkflow(db, dossierId, 'Agent de Terrain : photos ajoutées en planification', userEmail, userId, 'done', { dossierRef: dossier?.refExpert || dossierId, details: `${files.length} photos ${catLabel} ajoutées par Agent de Terrain` }, profile?.nom);

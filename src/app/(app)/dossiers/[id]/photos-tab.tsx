@@ -64,6 +64,7 @@ import { usePhotoLocations, type PhotoLocation } from '@/hooks/use-photo-locatio
 import { restoreStatutAfterPhotoRemoval } from '@/lib/restore-statut';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { logFrontend } from '@/lib/debug-log';
+import { scanAndPersistVehicleIds } from '@/lib/scan-vehicle-ids';
 
 // Re-exported so the field-agent mission page and any other host import the
 // gallery from one place (the grid itself lives in `components/common`).
@@ -91,6 +92,8 @@ interface Photo {
   uploadedBy: string;
   storagePath: string;
   pendingUpload?: boolean;
+  /** The device holding it gave up sending it (upload-processor). */
+  uploadFailed?: boolean;
   /**
    * Where the photo was taken (QA bug 021), from `resolvePhotoGeo`: the
    * file's EXIF GPS, else — for a camera capture — the device position,
@@ -528,6 +531,11 @@ export default function PhotosTab({
         if (field) {
           await setDoc(doc(db, 'dossiers', dossierId), { [field]: serverTimestamp() }, { merge: true });
         }
+
+        // While the Kilométrage or the Numéro de série is empty, the batch is
+        // read for an odometer or a constructor plate (owner 2026-10-14).
+        const sentPhotos = fileList.filter((_, i) => results[i].status === 'fulfilled').map((file) => ({ blob: file, name: file.name }));
+        void scanAndPersistVehicleIds({ db, storage, dossierId, sources: sentPhotos, user: { email: userEmail, nom: profile?.nom } });
       }
 
       if (failed === 0 && queued > 0) {
@@ -642,7 +650,15 @@ export default function PhotosTab({
           </div>
         )}
         <div className="relative aspect-square w-full overflow-hidden bg-surface-3">
-          {photo.pendingUpload ? (
+          {photo.pendingUpload && photo.uploadFailed ? (
+            // The device that took it gave up sending it (upload-processor):
+            // say so instead of « En attente » forever (2026-10-14).
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-status-danger-bg px-2 text-center text-status-danger-fg">
+              <Upload className="mb-1 h-8 w-8" />
+              <span className="text-xs font-medium">{t('Échec de l’envoi')}</span>
+              <span className="text-[11px] leading-tight">{t('À renvoyer depuis l’appareil qui l’a prise')}</span>
+            </div>
+          ) : photo.pendingUpload ? (
             <div className="flex h-full w-full flex-col items-center justify-center bg-status-warning-bg text-status-warning-fg">
               <Upload className="mb-2 h-8 w-8" />
               <span className="text-xs font-medium">{t('En attente')}</span>

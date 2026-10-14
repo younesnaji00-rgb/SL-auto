@@ -15,6 +15,9 @@
  */
 
 import { doc, serverTimestamp, writeBatch, type Firestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+import { syncGarageDocs } from '@/lib/devis-extract';
+import { scanAndPersistVehicleIds, vehicleIdHintForSlot } from '@/lib/scan-vehicle-ids';
 import { apiFetch } from '@/lib/api-fetch';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 import { isEditableDocType } from '@/lib/devis-schema';
@@ -114,6 +117,21 @@ export async function reclassifyDocuments(args: ReclassifyArgs): Promise<Reclass
   // An accord moved out of its slot is gone as such too (owner, 2026-10-13).
   if (!swap && sourceType !== targetType && parseAccordDocType(sourceType)) {
     await restoreStatutAfterAccordRemoval(db, dossierId, sourceType, { email: userEmail, nom: userName });
+  }
+
+  // A garage devis / facture moved in or out of a slot: the dossier's table
+  // and the chiffreur's follow (tester 2026-10-14 — a devis moved into « Devis
+  // Garage » was never read).
+  const storage = getStorage(db.app);
+  const filed = (docs: TypedDoc[]) =>
+    docs.filter((d) => typeof (d as any).storagePath === 'string' && (d as any).storagePath).map((d) => ({ storagePath: (d as any).storagePath as string, name: docDisplayName(d) }));
+  void syncGarageDocs({ db, storage, dossierId, docType: targetType, added: filed(sourceDocs) });
+  void syncGarageDocs({ db, storage, dossierId, docType: sourceType, added: swap ? filed(targetDocs) : [] });
+  // A photo moved into « Kilométrage » / « Numéro de chassis » is read for
+  // the empty field (owner request 2026-10-14).
+  const idHint = vehicleIdHintForSlot(targetType);
+  if (idHint) {
+    void scanAndPersistVehicleIds({ db, storage, dossierId, sources: filed(sourceDocs), hint: idHint, user: { email: userEmail, nom: userName } });
   }
 
   // Learning loop — fire-and-forget, never blocks the UI.

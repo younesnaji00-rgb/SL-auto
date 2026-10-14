@@ -20,6 +20,8 @@ export interface PendingUpload {
   lastError?: string;
   lastErrorCode?: string;
   lastAttemptAt?: number;
+  /** When it was mirrored to `upload_failures` (upload-failure-report.ts). */
+  reportedAt?: number;
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -129,8 +131,8 @@ export async function getAllPending(): Promise<PendingUpload[]> {
  * up on — counting those as « en cours d'envoi » kept the banner up forever
  * on a device whose uploads would never be tried again (owner 2026-10-05).
  */
-export async function getQueueCounts(): Promise<{ sending: number; failed: number }> {
+export async function getQueueCounts(): Promise<{ sending: number; failed: number; failedIds: string[] }> {
   const items = await getAllPending();
-  const failed = items.filter(hasGivenUp).length;
-  return { sending: items.length - failed, failed };
+  const failedIds = items.filter(hasGivenUp).map((it) => it.id);
+  return { sending: items.length - failedIds.length, failed: failedIds.length, failedIds };
 }

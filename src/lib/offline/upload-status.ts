@@ -31,26 +31,50 @@ export function dossierIdOfPath(path: string | undefined | null): string | null 
  * sentence (a `t()` key); `detail` carries the raw message when no sentence
  * fits.
  */
-export function describeUploadFailure(item: { lastErrorCode?: string; lastError?: string }): {
+export function describeUploadFailure(item: {
+  lastErrorCode?: string;
+  lastError?: string;
+  lastAttemptAt?: number;
+}): {
   reason: string;
   detail?: string;
 } {
   const code = item.lastErrorCode ?? '';
-  if (code === 'storage/unauthorized' || code === 'permission-denied') {
-    return { reason: 'Le serveur a refusé ce fichier.' };
+  const msg = item.lastError ?? '';
+  if (code === 'storage/unauthenticated' || code === 'unauthenticated' || code === 'storage/unauthorized-app') {
+    return { reason: 'La session de cet appareil n’était plus valide. Reconnectez-vous puis réessayez.' };
   }
-  if (code === 'storage/quota-exceeded') {
+  if (code === 'storage/unauthorized') {
+    return { reason: 'Le stockage a refusé ce fichier (droits insuffisants pour ce compte).' };
+  }
+  if (code === 'permission-denied') {
+    return { reason: 'Le serveur a refusé d’enregistrer ce fichier dans le dossier (droits insuffisants pour ce compte).' };
+  }
+  if (code === 'storage/quota-exceeded' || code === 'resource-exhausted') {
     return { reason: 'L’espace de stockage du serveur est plein.' };
+  }
+  if (code === 'storage/canceled') {
+    return { reason: 'L’envoi a été interrompu (application fermée ou page rechargée).' };
+  }
+  if (code === 'storage/server-file-wrong-size' || code === 'storage/invalid-checksum') {
+    return { reason: 'Le fichier est arrivé incomplet sur le serveur.' };
+  }
+  if (/NotFoundError|NotReadableError|WebKitBlobResource|could not be read/i.test(msg)) {
+    return { reason: 'Le fichier n’est plus lisible sur cet appareil (mémoire du navigateur vidée).' };
   }
   if (
     code === 'storage/retry-limit-exceeded' ||
-    code === 'storage/canceled' ||
     code === 'unavailable' ||
-    /network|failed to fetch/i.test(item.lastError ?? '')
+    code === 'deadline-exceeded' ||
+    /network|failed to fetch|offline/i.test(msg)
   ) {
-    return { reason: 'La connexion a coupé pendant l’envoi.' };
+    return { reason: 'La connexion a coupé pendant l’envoi (réseau trop faible ou sans internet).' };
   }
-  // Items queued before the reason was recorded, or an error with no code.
-  if (!item.lastError) return { reason: 'L’envoi a échoué plusieurs fois.' };
-  return { reason: 'L’envoi a échoué.', detail: item.lastError };
+  // Abandoned by the version before 2026-10-12, which kept no reason and no
+  // attempt time — five quick tries on a dead connection were enough then.
+  if (!msg && !code && !item.lastAttemptAt) {
+    return { reason: 'Abandonné par l’ancienne version de l’application (avant le 12/10), qui n’enregistrait pas la raison.' };
+  }
+  if (!msg) return { reason: 'L’envoi a échoué plusieurs fois.', detail: code || undefined };
+  return { reason: 'L’envoi a échoué.', detail: code ? `${msg} (${code})` : msg };
 }

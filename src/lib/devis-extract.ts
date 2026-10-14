@@ -1,4 +1,4 @@
-import { collection, doc, query, serverTimestamp, updateDoc, where, type Firestore } from 'firebase/firestore';
+import { arrayUnion, collection, doc, query, serverTimestamp, updateDoc, where, type Firestore } from 'firebase/firestore';
 import { getDoc, getDocs } from './firestore-logged';
 import { getDownloadURL, ref as storageRef, type FirebaseStorage } from 'firebase/storage';
 import { apiFetch } from '@/lib/api-fetch';
@@ -32,6 +32,11 @@ export type ExtractResult =
        * bullets under its body copy.
        */
       calculationErrors: string[];
+      /**
+       * The source files changed since the table was read (tester
+       * 2026-10-14): how many were read anew, how many left with their rows.
+       */
+      sourceChange?: { added: number; removed: number };
     }
   | { ok: false; reason: 'missing-chiffrage' | 'fetch-failed' | 'api-failed' | 'persist-failed' | 'no-original-for-counter' | 'service-overloaded'; error?: string };
 
@@ -76,16 +81,40 @@ export async function extractAndPersistChiffrageDevis(
     // One entry per stored file, and only files the dossier still holds under
     // this type (QA Chiffreur 008): a deleted or re-filed devis/facture kept
     // its entry here, and a re-scan merged its lines in a second time.
-    const livePaths = await liveSourcePaths(db, data.dossierId, docType);
+    const live = await liveSourceDocs(db, data.dossierId, docType);
+    const livePaths = live?.paths ?? null;
     const seenPaths = new Set<string>();
     const targetFiles = files.filter((f: any) => {
       if (f?.docType !== docType || !f?.storagePath || seenPaths.has(f.storagePath)) return false;
       seenPaths.add(f.storagePath);
       return !livePaths || livePaths.has(f.storagePath);
     });
+    // A devis / facture the dossier holds under this type that the chiffrage
+    // never received — dropped in the Pièces socket, moved from another slot,
+    // imported after the assignment: it is read too, and joins the
+    // chiffrage's files so the editor shows it (tester 2026-10-14: a devis
+    // imported on a new dossier left the table empty).
+    const unsent = (live?.files ?? []).filter((f) => !seenPaths.has(f.storagePath));
+    // …and a file of this type the dossier no longer holds leaves the list,
+    // so the editor stops counting and showing a deleted devis.
+    const gone = livePaths
+      ? files.filter((f: any) => f?.docType === docType && f?.storagePath && !livePaths.has(f.storagePath))
+      : [];
+    if (unsent.length > 0) targetFiles.push(...unsent);
+    if (unsent.length > 0 || gone.length > 0) {
+      try {
+        await updateDoc(docRef, {
+          ...(gone.length > 0
+            ? { files: [...files.filter((f: any) => !gone.includes(f)), ...unsent.map((f) => ({ ...f, status: 'pending', recognizedText: null, pdfUrl: null }))] }
+            : { files: arrayUnion(...unsent.map((f) => ({ ...f, status: 'pending', recognizedText: null, pdfUrl: null }))) }),
+          updatedAt: serverTimestamp(),
+        });
+      } catch (e) {
+        console.warn('[devis-extract] could not bring the chiffrage files in line with the dossier', e);
+      }
+    }
 
     if (targetFiles.length === 0) {
-      await markAttempted(docRef, docType);
       return { ok: true, reason: 'no-files', calculationErrors: [] };
     }
 
@@ -104,18 +133,66 @@ export async function extractAndPersistChiffrageDevis(
     // forwarded to the editor's scan-warning dialog on a fresh extraction.
     const aggregatedCalculationErrors: string[] = [];
 
-    // Phase 1: originals
-    const needsOriginalExtract = force || !existing;
+    // Phase 1: originals. The table follows its source files (tester
+    // 2026-10-14: a devis deleted and another imported left the old lines in
+    // the chiffreur's table — nothing re-read it once a table existed):
+    //  - no table, one without a line, or « Ré-extraire » → every original
+    //    is read;
+    //  - a table that knows its files (scanSources) → the new files are read
+    //    and merged, the rows of the files that left are dropped, rows typed
+    //    by hand stay (mergeScannedFile / pruneDeadScanSources);
+    //  - a table from before scanSources → left as it is.
+    // A failed read no longer marks the type « attempted » for good: the next
+    // trigger (an upload, the editor opening) tries again.
+    void attempts;
+    const liveOriginalPaths = new Set<string>(originalFiles.map((f) => f.storagePath));
+    const hasRows = !!existing && existing.rows.some((r) => (r.designation || '').trim() !== '' || Number(r.puHT) > 0);
+    let mode: 'full' | 'incremental' | 'none' = 'none';
+    let incrementalFiles: any[] = [];
+    let removedSources = 0;
+    if (force || !existing || !hasRows) {
+      mode = 'full';
+    } else if (existing.scanSources && livePaths) {
+      // Only when the dossier vouches for its files: with an empty slot (or
+      // legacy documents) a stale entry of the chiffrage's list would read as
+      // « new » — a deleted devis fetched again, a moved one merged back.
+      const known = new Set(existing.scanSources.map((s) => s.storagePath));
+      incrementalFiles = originalFiles.filter((f) => !known.has(f.storagePath));
+      removedSources = existing.scanSources.filter((s) => !liveOriginalPaths.has(s.storagePath)).length;
+      if (incrementalFiles.length > 0 || removedSources > 0) mode = 'incremental';
+    }
+    const needsOriginalExtract = mode === 'full';
+    let sourceChange: { added: number; removed: number } | undefined;
+    let partialFailure: { reason: 'api-failed' | 'service-overloaded'; error: string } | null = null;
+
+    if (mode === 'incremental' && existing) {
+      let next: StructuredDevis = pruneDeadScanSources(existing, liveOriginalPaths);
+      const reads = await Promise.all(incrementalFiles.map((file) => scanOriginal(storage, file)));
+      let added = 0;
+      incrementalFiles.forEach((file, i) => {
+        const r = reads[i];
+        if (!r.ok) return;
+        const rows = rowsFromScan(r.parsed);
+        if (Array.isArray(r.calculationErrors)) aggregatedCalculationErrors.push(...r.calculationErrors);
+        next = mergeScannedFile(next, { source: sourceFromScan(file.storagePath, rows, r.parsed), rows, header: r.parsed.header || {} }, liveOriginalPaths);
+        added += 1;
+      });
+      if (added < incrementalFiles.length) {
+        const overloaded = reads.some((r) => !r.ok && isOverloadMessage((r as { error?: string }).error));
+        partialFailure = overloaded
+          ? { reason: 'service-overloaded', error: 'Le service IA est momentanément surchargé.' }
+          : { reason: 'api-failed', error: `Un ${docType.toLowerCase()} n'a pas pu être lu.` };
+      }
+      if (added > 0 || removedSources > 0) {
+        existing = next;
+        sourceChange = { added, removed: removedSources };
+      }
+    }
+
     if (needsOriginalExtract) {
       if (originalFiles.length === 0) {
         // Counter-only case — cannot proceed without rows.
-        await markAttempted(docRef, docType);
         return { ok: false, reason: 'no-original-for-counter', error: "Aucun devis original trouvé pour ce dossier." };
-      }
-
-      if (!force && attempts[docType] && !existing) {
-        // Previously attempted and failed — don't loop.
-        return { ok: true, reason: 'already-attempted', calculationErrors: [] };
       }
 
       const originalExtractions = await Promise.all(
@@ -127,20 +204,11 @@ export async function extractAndPersistChiffrageDevis(
         // Distinguish a transient service-overload (503/UNAVAILABLE/high demand)
         // from a permanent api failure. On overload we DON'T mark attempted —
         // the chiffreur can retry naturally a few minutes later.
-        const overloaded = originalExtractions.some((r) => {
-          if (r.ok) return false;
-          const msg = ((r as { error?: string }).error || '').toLowerCase();
-          return msg.includes('unavailable')
-            || msg.includes('overloaded')
-            || msg.includes('high demand')
-            || msg.includes(' 503')
-            || msg.startsWith('api 503');
-        });
+        const overloaded = originalExtractions.some((r) => !r.ok && isOverloadMessage((r as { error?: string }).error));
         if (overloaded) {
           return { ok: false, reason: 'service-overloaded', error: 'Le service IA est momentanément surchargé.' };
         }
-        await markAttempted(docRef, docType);
-        return { ok: false, reason: 'api-failed', error: `Aucun ${docType.toLowerCase()} n'a pu etre extrait.` };
+        return { ok: false, reason: 'api-failed', error: `Aucun ${docType.toLowerCase()} n'a pu être lu.` };
       }
 
       for (const s of successful) {
@@ -178,6 +246,13 @@ export async function extractAndPersistChiffrageDevis(
 
     // Phase 2: counters (Devis only, and only when we have rows to match against)
     let counterColumnsAdded = 0;
+    // A counter-devis that left the dossier takes its column with it.
+    let counterColumnsRemoved = 0;
+    if (isDevis && existing && livePaths && Array.isArray(existing.extraColumns)) {
+      const kept = existing.extraColumns.filter((c) => c.kind !== 'counter' || !c.sourceStoragePath || livePaths.has(c.sourceStoragePath));
+      counterColumnsRemoved = existing.extraColumns.length - kept.length;
+      if (counterColumnsRemoved > 0) existing = { ...existing, extraColumns: kept };
+    }
     if (isDevis && counterFiles.length > 0 && existing && existing.rows.length > 0) {
       const currentColumns = Array.isArray(existing.extraColumns) ? existing.extraColumns : [];
       const processedPaths = new Set(
@@ -201,7 +276,7 @@ export async function extractAndPersistChiffrageDevis(
             const res = await fetch(url);
             if (!res.ok) throw new Error(`fetch ${res.status}`);
             const blob = await res.blob();
-            const contentType = blob.type || (file.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+            const contentType = scanContentType(blob, file);
             const base64 = await blobToBase64(blob);
 
             const r = await apiFetch('/api/scan-devis-counter', {
@@ -248,7 +323,8 @@ export async function extractAndPersistChiffrageDevis(
     }
 
     // Short-circuit: nothing changed → no write, no counter-only error.
-    if (!needsOriginalExtract && counterColumnsAdded === 0) {
+    if (!needsOriginalExtract && !sourceChange && counterColumnsAdded === 0 && counterColumnsRemoved === 0) {
+      if (partialFailure) return { ok: false, ...partialFailure };
       return { ok: true, reason: 'already-extracted', structuredDevis: existing || undefined, calculationErrors: [] };
     }
 
@@ -273,9 +349,10 @@ export async function extractAndPersistChiffrageDevis(
 
     return {
       ok: true,
-      reason: needsOriginalExtract ? 'extracted' : 'counter-only',
+      reason: needsOriginalExtract || sourceChange ? 'extracted' : 'counter-only',
       structuredDevis: existing,
-      calculationErrors: needsOriginalExtract ? aggregatedCalculationErrors : [],
+      calculationErrors: needsOriginalExtract || sourceChange ? aggregatedCalculationErrors : [],
+      ...(sourceChange ? { sourceChange } : {}),
     };
   } catch (e: any) {
     return { ok: false, reason: 'persist-failed', error: e?.message };
@@ -366,7 +443,7 @@ async function scanOriginal(
     const res = await fetch(url);
     if (!res.ok) throw new Error(`fetch ${res.status}`);
     const blob = await res.blob();
-    const contentType = blob.type || (file.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+    const contentType = scanContentType(blob, file);
     const base64 = await blobToBase64(blob);
 
     const r = await apiFetch('/api/scan-devis', {
@@ -445,20 +522,72 @@ function sourceFromScan(storagePath: string, rows: DevisRow[], parsed: any): Dev
  * dropping a good one.
  */
 async function liveSourcePaths(db: Firestore, dossierId: string | undefined, docType: EditableDocType): Promise<Set<string> | null> {
+  return (await liveSourceDocs(db, dossierId, docType))?.paths ?? null;
+}
+
+/** A dossier document of an editable type, as a chiffrage `files` entry. */
+interface LiveSourceFile {
+  name: string;
+  storagePath: string;
+  type: 'rapport';
+  docType: EditableDocType;
+  devisVariant?: 'original' | 'counter';
+  counterRoundLabel?: string;
+  counterRoundOrder?: number;
+}
+
+/**
+ * The documents the dossier files under `docType`: their paths (an upload
+ * still on its way counts — its rows are not to be dropped) and the files
+ * actually stored, as chiffrage `files` entries. Null when that can't be
+ * told (no dossier, a read error, an empty slot, or a stored document without
+ * its path — older uploads) so callers keep every file rather than dropping a
+ * good one. An empty slot placeholder (« + », no file, no path) is skipped.
+ */
+async function liveSourceDocs(
+  db: Firestore,
+  dossierId: string | undefined,
+  docType: EditableDocType,
+): Promise<{ paths: Set<string>; files: LiveSourceFile[] } | null> {
   if (!dossierId) return null;
   try {
     const snap = await getDocs(query(collection(db, 'dossiers', dossierId, 'documents'), where('type', '==', docType)));
-    if (snap.empty) return null;
     const paths = new Set<string>();
+    const files: LiveSourceFile[] = [];
     for (const d of snap.docs) {
-      const p = (d.data() as any)?.storagePath;
-      if (typeof p !== 'string' || !p) return null;
+      const x = d.data() as any;
+      const p = x?.storagePath;
+      if (typeof p !== 'string' || !p) {
+        if (!x?.url) continue; // slot placeholder: nothing filed yet
+        return null;
+      }
       paths.add(p);
+      if (!x.url || x.pendingUpload) continue;
+      files.push({
+        name: x.nom || x.name || 'document.pdf',
+        storagePath: p,
+        type: 'rapport',
+        docType,
+        ...(x.devisVariant ? { devisVariant: x.devisVariant } : {}),
+        ...(x.counterRoundLabel ? { counterRoundLabel: x.counterRoundLabel } : {}),
+        ...(typeof x.counterRoundOrder === 'number' ? { counterRoundOrder: x.counterRoundOrder } : {}),
+      });
     }
-    return paths;
+    return paths.size > 0 ? { paths, files } : null;
   } catch {
     return null;
   }
+}
+
+function isOverloadMessage(error: string | undefined): boolean {
+  const msg = String(error || '').toLowerCase();
+  return msg.includes('unavailable')
+    || msg.includes('overloaded')
+    || msg.includes('high demand')
+    || msg.includes(' 503')
+    || msg.includes(' 429')
+    || msg.startsWith('api 503')
+    || msg.startsWith('api 429');
 }
 
 /**
@@ -575,18 +704,69 @@ export function seedForChiffrage(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-async function markAttempted(docRef: ReturnType<typeof doc>, docType: EditableDocType): Promise<void> {
+/**
+ * A garage devis / facture entered or left a dossier slot — by any path: the
+ * Pièces socket, a move between slots, a delete (tester 2026-10-14: those
+ * paths never told anyone, so the chiffreur's table kept a deleted devis's
+ * lines, or stayed empty for a new one). The dossier's own table reads the
+ * new files and drops the rows of the ones that left; the open chiffrage, if
+ * any, does the same (extractAndPersistChiffrageDevis follows the dossier's
+ * live documents). Fire-and-forget: never throws.
+ */
+export async function syncGarageDocs({
+  db, storage, dossierId, docType, added = [],
+}: {
+  db: Firestore;
+  storage: FirebaseStorage;
+  dossierId: string;
+  docType: string;
+  added?: ReadonlyArray<{ storagePath: string; name?: string }>;
+}): Promise<void> {
+  if (!isEditableDocType(docType)) return;
   try {
-    const snap = await getDoc(docRef);
-    if (!snap.exists()) return;
-    const data = snap.data() as any;
-    const attempts = (data.editableExtractionAttempted || {}) as Record<string, boolean>;
-    if (attempts[docType]) return;
-    await updateDoc(docRef, {
-      editableExtractionAttempted: { ...attempts, [docType]: true },
-      updatedAt: serverTimestamp(),
-    });
-  } catch { /* best effort */ }
+    for (const f of added) {
+      void extractAndPersistDossierDoc({ db, storage, dossierId, docType, storagePath: f.storagePath, name: f.name })
+        .catch((e) => console.error('[devis-extract] dossier extraction failed', e));
+    }
+    const dossierRef = doc(db, 'dossiers', dossierId);
+    const snap = await getDoc(dossierRef);
+    const data = (snap.data() ?? {}) as any;
+    // A file left and none came: the dossier's table drops its rows now
+    // (a new file's scan does it through mergeScannedFile).
+    if (added.length === 0) {
+      const table = data.structuredEditables?.[docType] as StructuredDevis | undefined;
+      const live = await liveSourcePaths(db, dossierId, docType);
+      if (table?.scanSources && live) {
+        const pruned = pruneDeadScanSources(table, live);
+        if (pruned !== table) {
+          await updateDoc(dossierRef, { [`structuredEditables.${docType}`]: pruned, updatedAt: serverTimestamp() });
+        }
+      }
+    }
+    const chiffrageId = data.currentChiffrageId as string | undefined;
+    if (chiffrageId) {
+      void extractAndPersistChiffrageDevis({ db, storage, chiffrageId, docType })
+        .catch((e) => console.error('[devis-extract] chiffrage sync failed', e));
+    }
+  } catch (e) {
+    console.warn('[devis-extract] syncGarageDocs failed (non-fatal)', e);
+  }
+}
+
+/**
+ * The type Gemini is told: the stored one, unless the upload left it blank or
+ * as « application/octet-stream » (Gemini refuses that one) — then the file
+ * name or path decides.
+ */
+function scanContentType(blob: Blob, file: { name?: string; storagePath?: string }): string {
+  const stored = blob.type && blob.type !== 'application/octet-stream' ? blob.type : '';
+  if (stored) return stored;
+  const name = String(file.name || file.storagePath || '').toLowerCase();
+  if (name.endsWith('.pdf')) return 'application/pdf';
+  if (name.endsWith('.png')) return 'image/png';
+  if (name.endsWith('.webp')) return 'image/webp';
+  if (/.(heic|heif)$/.test(name)) return 'image/heic';
+  return 'image/jpeg';
 }
 
 export function blobToBase64(blob: Blob): Promise<string> {
