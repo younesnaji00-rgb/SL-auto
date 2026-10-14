@@ -7,6 +7,8 @@ import { getMissingRequiredFields } from '../required-fields';
 // 5 missing fields and never « Nom de l'assuré », so the later steps unlocked
 // without an assuré name.
 const base = {
+  refExpert: 'SL-1',
+  experts: { '1er': { nom: 'Expert Un' } },
   compagnie: 'ATLANTA',
   nature: 'Classique',
   vehicule: { marque: 'Dacia' },

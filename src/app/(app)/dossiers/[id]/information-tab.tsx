@@ -26,7 +26,7 @@
  * RENDERS. « Annuler » restores the snapshot taken when the sheet opened.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { Pencil, Check, X, User, Car, Users, PenLine, FileText, Clock, AlertTriangle } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -54,6 +54,8 @@ import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/do
 import { usePrefillFlash } from '@/hooks/use-prefill-flash';
 import { BRAND } from '@/lib/brand';
 import { validateFields, dateCoherenceErrors, blankRequiredPaths, type ValidatedField } from '@/lib/field-validation';
+import { requiredFieldsFor } from '@/lib/required-fields';
+import { compagnieInScope, compagnieKey } from '@/lib/compagnie-name';
 import { findDossierWithRefExpert, refExpertFields, DUPLICATE_REF_MESSAGE } from '@/lib/ref-expert-unique';
 import {
   INPUT_ADDRESS,
@@ -111,23 +113,20 @@ type FieldDef = {
   /** Renders as a sub-heading inside a section sheet (the expert's role). */
   heading?: boolean;
   /**
-   * One of the identifications « Envoyer au chiffrage » refuses to send
-   * without (`missingIdentification`). While empty, the label carries a
-   * « requis pour le chiffrage » tag, so the gate is announced from the
-   * first fill instead of surfacing at step 3 (QA GE-005).
+   * One of the fields the save never leaves blank (`requiredFieldsFor`,
+   * owner ruling 2026-10-14). Its label carries a red asterisk from the
+   * start, in every mode; nothing else lists the required fields.
    */
-  forChiffrage?: boolean;
+  required?: boolean;
 };
 
-/** The « requis pour le chiffrage » tag of an empty `forChiffrage` field. */
-const ChiffrageTag = () => {
+/** The red asterisk of a required field (the word is for screen readers). */
+const RequiredMark = () => {
   const t = useT();
   return (
-    <span
-      className="shrink-0 rounded-sm bg-status-warning-bg px-1 text-[10px] font-medium leading-4 text-status-warning-fg"
-      title={t('Sans cette information, le dossier ne peut pas être envoyé au chiffrage.')}
-    >
-      {t('requis pour le chiffrage')}
+    <span className="shrink-0 font-semibold text-status-danger-fg">
+      <span aria-hidden>*</span>
+      <span className="sr-only">({t('obligatoire')})</span>
     </span>
   );
 };
@@ -186,13 +185,14 @@ const FieldRow = ({
         return (
           <div
             key={i}
+            data-field={f.path}
             // Teal value-change fade on fields the AI scan just wrote
             // (owner option B1; motion-spec §8) — colour-only, one-shot.
             className={cn('min-w-0 rounded-md', highlightClass(status), flash(f.path) && 'animate-value-flash')}
           >
             <dt className="t-label flex items-center gap-1">
               <span className="truncate">{f.label}</span>
-              {f.forChiffrage && !f.value && <ChiffrageTag />}
+              {f.required && <RequiredMark />}
               {editing && f.modal}
               {status && <ChangeBadge status={status} className="ml-auto" />}
             </dt>
@@ -231,7 +231,7 @@ const PhoneFields = ({ fields }: { fields: FieldDef[] }) => {
       action: f.kind === 'tel' ? 'tel' : f.kind === 'email' ? 'email' : f.kind === 'address' ? 'map' : undefined,
       mono: f.kind === 'plate',
       className: cn('rounded-md', highlightClass(status), flash(f.path) && 'animate-value-flash'),
-      trailing: status ? <ChangeBadge status={status} /> : f.forChiffrage && !f.value ? <ChiffrageTag /> : undefined,
+      trailing: status ? <ChangeBadge status={status} /> : f.required ? <RequiredMark /> : undefined,
     };
   });
   // Two-column fact grid (Phone.dc.html `grid-template-columns:1fr 1fr`);
@@ -339,6 +339,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   const { options: dbDossierTypes } = useOptions('options_types_dossier');
 
   const compagnies = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
+  /** A stored spelling (« ALLIANZ ») as the list writes it (« Allianz »), else as stored. */
+  const listCompagnie = (v: string) => compagnies.find((c) => compagnieKey(c.label) === compagnieKey(v))?.label ?? v;
   const statuses = useMemo(() => dbStatuses.filter(o => o.active !== false), [dbStatuses]);
   const natures = useMemo(() => dbNatures.filter(o => o.active !== false), [dbNatures]);
   const dossierTypes = useMemo(() => dbDossierTypes.filter(o => o.active !== false), [dbDossierTypes]);
@@ -368,6 +370,11 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   // opened (« Annuler » / « Abandonner » restore it).
   const [sheetSection, setSheetSection] = useState<SectionKey | null>(null);
   const [sheetSnapshot, setSheetSnapshot] = useState<any>(null);
+  // Required fields of OTHER sections that were blank while the sheet was
+  // open: the sheet shows them too, so its save — which checks every
+  // required field — can always be completed from it. Once shown, a field
+  // stays (it must not vanish at the first letter typed).
+  const [sheetExtraPaths, setSheetExtraPaths] = useState<string[]>([]);
 
   // Rappel session: writes are buffered until the page-level « Sauvegarder ».
   const { write: writeDossierDoc, buffered, draft } = useDossierDocWrite(dossierId);
@@ -487,6 +494,24 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     }
   }, [dossier, editing]);
 
+  // The dossier as it was when editing began. A value a scan wrote meanwhile
+  // — photos → kilométrage / n° de série, carte grise → plates — is kept by
+  // the save when the form still holds the blank it started from (the save
+  // writes the whole form, which used to wipe it).
+  const editBaseRef = useRef<any>(null);
+  useEffect(() => {
+    if (!editing) editBaseRef.current = null;
+    else if (!editBaseRef.current) editBaseRef.current = dossier;
+    // Only the moment editing starts matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+  const scannedMeanwhile = (path: string, formValue: unknown): unknown => {
+    const isBlank = (v: unknown) => v === null || v === undefined || String(v).trim() === '';
+    const read = (o: any) => path.split('.').reduce((acc: any, k) => (acc == null ? undefined : acc[k]), o);
+    const now = read(dossier);
+    return isBlank(formValue) && isBlank(read(editBaseRef.current)) && !isBlank(now) ? now : formValue;
+  };
+
   const clearFieldError = (path: string) =>
     setFieldErrors((prev) => (prev[path] ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== path)) : prev));
   const handleChange = (field: string, value: any) => {
@@ -566,7 +591,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     // Format gate (QA bug 016): a malformed phone / e-mail / plate / CIN /
     // name / number / address / date blocks the save with the message under
     // the field.
-    const scopePaths = sheetSection ? new Set((SECTIONS_PATHS[sheetSection] ?? [])) : null;
+    const scopePaths = sheetSection ? new Set([...(SECTIONS_PATHS[sheetSection] ?? []), ...sheetExtraPaths]) : null;
     const inScope = (p: string) => !scopePaths || scopePaths.has(p);
     const toCheck = VALIDATED_FIELDS.filter((f) => inScope(f.path));
     const errors = validateFields(form, toCheck);
@@ -576,27 +601,33 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
       if (inScope(p) && !errors[p]) errors[p] = msg;
     }
     const formatLabels = toCheck.filter((f) => errors[f.path]).map((f) => f.label);
-    // Required gate (QA bugs 015 / 040): what creation demanded stays
-    // demanded on edit — and ONLY that (`requiredOnSavePaths`). A field that
-    // was optional at creation stays optional: it can be filled and emptied
-    // again (QA GE-004, 2026-10-05). Format validation deliberately lets empty
-    // values through, so this is the only place that blocks a blank.
+    // Required gate (owner ruling 2026-10-14): every asterisked field
+    // (`requiredFieldsFor`), on every save — the first one included — and on
+    // a phone whatever section is open: the sheet also shows the blank
+    // required fields of the other sections (`sheetExtraPaths`). Format
+    // validation deliberately lets empty values through, so this is the only
+    // place that blocks a blank.
     const missingLabels: string[] = [];
     const role = (form.expertRank as ExpertRole) || '1er';
-    const requiredLabel: Record<string, string> = {
-      // A dossier never exists without its reference (owner ruling
-      // 2026-10-05) — one created before the rule gets it on its next save.
-      refExpert: t('Réf Dossier'),
-      compagnie: t('Compagnie'),
-      [`experts.${role}.nom`]: `${t('Experts')} · ${t('Nom complet')}`,
-    };
+    const requiredLabel: Record<string, string> = Object.fromEntries(
+      requiredFieldsFor(role).map((f) => [f.paths[0], t(f.label)]),
+    );
     for (const p of blankRequiredPaths(form, role)) {
-      if (!inScope(p)) continue;
       errors[p] = t('Ce champ est requis.');
       missingLabels.push(requiredLabel[p] ?? p);
     }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
+      // Bring the first field in error into view (the required fields span
+      // the whole page) and put the cursor in it.
+      requestAnimationFrame(() => {
+        const first = Array.from(document.querySelectorAll<HTMLElement>('[data-field]')).find(
+          (el) => !!errors[el.dataset.field ?? ''] && el.offsetParent !== null,
+        );
+        if (!first) return;
+        first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        first.querySelector<HTMLElement>('input, button[role="combobox"], button')?.focus({ preventScroll: true });
+      });
       const parts = [
         missingLabels.length > 0 ? `${t('Renseignez')} : ${missingLabels.join(', ')}.` : null,
         formatLabels.length > 0 ? `${t('Corrigez')} : ${formatLabels.join(', ')}.` : null,
@@ -629,10 +660,17 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
       // exact match, so a stored « SL-12 » with a trailing space used to be
       // invisible to it (QA bug 002).
       ...refExpertFields(nextRef),
+      // The list's spelling: the compagnie is the scope key of every account.
+      compagnie: listCompagnie(form.compagnie),
       dateSinistre: form.dateSinistre ? Timestamp.fromDate(form.dateSinistre) : null,
       dateRequete: form.dateRequete ? Timestamp.fromDate(form.dateRequete) : null,
+      matricule: scannedMeanwhile('matricule', form.matricule),
       vehicule: {
         ...form.vehicule,
+        km: scannedMeanwhile('vehicule.km', form.vehicule.km),
+        serie: scannedMeanwhile('vehicule.serie', form.vehicule.serie),
+        immatriculation: scannedMeanwhile('vehicule.immatriculation', form.vehicule.immatriculation),
+        immatriculationAnterieur: scannedMeanwhile('vehicule.immatriculationAnterieur', form.vehicule.immatriculationAnterieur),
         mec: form.vehicule.mec ? form.vehicule.mec.toISOString() : '',
       },
       // A saved edit is a movement: the dashboard's « Sans mouvement » reads
@@ -677,7 +715,18 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
           await logHistorique(db, dossierId, 'Mise à jour', userEmail, 'Informations du dossier mises à jour.', 'autre', profile?.nom);
           await logWorkflow(db, dossierId, 'Modification de dossier', userEmail, userId, 'done', { dossierRef: ref, details: 'Informations du dossier mises à jour' }, profile?.nom);
         }
-        toast({ title: t('Informations mises à jour') });
+        // A compagnie outside the user's own takes the dossier out of their
+        // Dossiers list (and dashboard): say so, it is not a lost dossier.
+        const mine = profile?.compagnies ?? [];
+        const known = compagnies.map((c) => c.label);
+        const leavesScope = compagnieKey(form.compagnie) !== compagnieKey(dossier.compagnie) && mine.length > 0
+          && !compagnieInScope(form.compagnie, mine, known.length > 0 ? known : null);
+        toast(leavesScope
+          ? {
+              title: t('Informations mises à jour'),
+              description: `« ${form.compagnie} » ${t('ne fait pas partie de vos compagnies : ce dossier n’apparaîtra plus dans votre liste Gestion des dossiers. Il reste visible dans Consultation.')}`,
+            }
+          : { title: t('Informations mises à jour') });
       }
       clearDraft();
       setEditing(false);
@@ -702,6 +751,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   /** Phone: open one section's sheet on top of the SHARED form state. */
   const openSection = (key: SectionKey) => {
     setSheetSnapshot(form);
+    setSheetExtraPaths([]);
     setSheetSection(key);
     // `editing` freezes the hydrate effect exactly as on desktop, so a live
     // snapshot can't clobber what is being typed, and `useFormDraft` starts
@@ -721,6 +771,18 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
 
   const sectionDirty = !!sheetSnapshot && JSON.stringify(form) !== JSON.stringify(sheetSnapshot);
 
+  useEffect(() => {
+    if (!sheetSection) return;
+    const own = new Set(SECTIONS_PATHS[sheetSection] ?? []);
+    const blankElsewhere = blankRequiredPaths(form, (form.expertRank as ExpertRole) || '1er').filter((p) => !own.has(p));
+    setSheetExtraPaths((prev) => {
+      const add = blankElsewhere.filter((p) => !prev.includes(p));
+      return add.length > 0 ? [...prev, ...add] : prev;
+    });
+    // SECTIONS_PATHS is derived from `form` on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetSection, form]);
+
   // Display only. Empty / invalid → '' so FieldRow renders the quiet '—'.
   const formatDateDisplay = (date: any) => {
     if (!date) return '';
@@ -738,9 +800,9 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   const dossierFields: FieldDef[] = [
     {
       // No gear: compagnies are not created from a form (owner 2026-10-01).
-      label: t('Compagnie'), value: form.compagnie, path: 'compagnie',
+      label: t('Compagnie'), value: form.compagnie, path: 'compagnie', required: true,
       edit: (
-        <Select value={form.compagnie} onValueChange={(v) => handleChange('compagnie', v)}>
+        <Select value={listCompagnie(form.compagnie)} onValueChange={(v) => handleChange('compagnie', v)}>
           <SelectTrigger className="h-8 max-md:h-12" aria-label={t('Compagnie')}><SelectValue placeholder={t('Choisir')} /></SelectTrigger>
           <SelectContent>{compagnies.map(c => <SelectItem key={c.id} value={c.label}>{c.label}</SelectItem>)}</SelectContent>
         </Select>
@@ -757,7 +819,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
       ),
     },
     {
-      label: t('Nature du dossier'), value: form.nature, path: 'nature',
+      label: t('Nature du dossier'), value: form.nature, path: 'nature', required: true,
       modal: <OptionsManagerModal collectionName="options_natures" title={t('Natures')} />,
       edit: (
         <Select value={form.nature} onValueChange={(v) => handleChange('nature', v)}>
@@ -776,14 +838,15 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
         </Select>
       ),
     },
-    { label: t('Réf Dossier'), value: form.refExpert, path: 'refExpert', forChiffrage: true, edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.refExpert} onChange={(e) => handleChange('refExpert', e.target.value)} /> },
+    { label: t('Réf Dossier'), value: form.refExpert, path: 'refExpert', required: true, edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.refExpert} onChange={(e) => handleChange('refExpert', e.target.value)} /> },
     { label: t('Référence compagnie'), value: form.referenceCompagnie, path: 'referenceCompagnie', edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.referenceCompagnie} onChange={(e) => handleChange('referenceCompagnie', e.target.value)} /> },
-    { label: t('Matricule'), value: form.matricule, path: 'matricule', kind: 'plate', forChiffrage: !form.vehicule?.immatriculation, edit: <Input {...INPUT_PLATE} className="h-8 max-md:h-12 t-mono" value={form.matricule} onChange={(e) => handleChange('matricule', e.target.value)} /> },
+    // Required unless the véhicule's immatriculation already gives the plate.
+    { label: t('Matricule'), value: form.matricule, path: 'matricule', kind: 'plate', required: !String(form.vehicule?.immatriculation ?? '').trim(), edit: <Input {...INPUT_PLATE} className="h-8 max-md:h-12 t-mono" value={form.matricule} onChange={(e) => handleChange('matricule', e.target.value)} /> },
     { label: t('N° de Police'), value: form.policeNumber, path: 'policeNumber', edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.policeNumber} onChange={(e) => handleChange('policeNumber', e.target.value)} /> },
     // Sinistre / requête are dates the gestionnaire COPIES off a paper mission
     // — often months old. §2.3: typed masked field on touch, never a calendar.
-    { label: t('Date Sinistre'), value: formatDateDisplay(form.dateSinistre), path: 'dateSinistre', edit: <DatePicker horizon="far" label={t('Date Sinistre')} className="h-8 max-md:h-12" value={form.dateSinistre} onChange={(d) => handleChange('dateSinistre', d)} /> },
-    { label: t('Date Requête'), value: formatDateDisplay(form.dateRequete), path: 'dateRequete', edit: <DatePicker horizon="far" label={t('Date Requête')} className="h-8 max-md:h-12" value={form.dateRequete} onChange={(d) => handleChange('dateRequete', d)} /> },
+    { label: t('Date Sinistre'), value: formatDateDisplay(form.dateSinistre), path: 'dateSinistre', required: true, edit: <DatePicker horizon="far" label={t('Date Sinistre')} className="h-8 max-md:h-12" value={form.dateSinistre} onChange={(d) => handleChange('dateSinistre', d)} /> },
+    { label: t('Date Requête'), value: formatDateDisplay(form.dateRequete), path: 'dateRequete', required: true, edit: <DatePicker horizon="far" label={t('Date Requête')} className="h-8 max-md:h-12" value={form.dateRequete} onChange={(d) => handleChange('dateRequete', d)} /> },
     // The firm's role sits with the dossier identity (it fills the third
     // slot of the last row at no height cost) and drives the Experts rows.
     {
@@ -803,14 +866,15 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
 
   const expertFields = (role: ExpertRole): FieldDef[] => [
     { label: t('Expert'), value: t(EXPERT_ROLE_LABELS[role]) },
-    { label: t('Nom complet'), value: form.experts?.[role]?.nom, path: `experts.${role}.nom`, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.experts?.[role]?.nom ?? ''} onChange={(e) => handleExpertChange(role, 'nom', e.target.value)} /> },
+    // The expert of the dossier's role is required; the others stay optional.
+    { label: t('Nom complet'), value: form.experts?.[role]?.nom, path: `experts.${role}.nom`, required: role === ((form.expertRank as ExpertRole) || '1er'), edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.experts?.[role]?.nom ?? ''} onChange={(e) => handleExpertChange(role, 'nom', e.target.value)} /> },
     { label: t('Téléphone'), value: form.experts?.[role]?.telephone, path: `experts.${role}.telephone`, kind: 'tel', edit: <Input {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} className="h-8 max-md:h-12" value={form.experts?.[role]?.telephone ?? ''} onChange={(e) => handleExpertChange(role, 'telephone', e.target.value)} /> },
     { label: t('Email'), value: form.experts?.[role]?.email, path: `experts.${role}.email`, kind: 'email', edit: <Input {...INPUT_EMAIL} className="h-8 max-md:h-12" value={form.experts?.[role]?.email ?? ''} onChange={(e) => handleExpertChange(role, 'email', e.target.value)} /> },
     { label: t('Compagnie'), value: form.experts?.[role]?.compagnie, path: `experts.${role}.compagnie`, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.experts?.[role]?.compagnie ?? ''} onChange={(e) => handleExpertChange(role, 'compagnie', e.target.value)} /> },
   ];
 
   const assureFields: FieldDef[] = [
-    { label: t('Nom complet'), value: form.assure.nom, path: 'assure.nom', kind: 'name', forChiffrage: true, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
+    { label: t('Nom complet'), value: form.assure.nom, path: 'assure.nom', kind: 'name', required: true, edit: <Input {...INPUT_NAME} className="h-8 max-md:h-12" value={form.assure.nom} onChange={(e) => handleNestedChange('assure', 'nom', e.target.value)} /> },
     { label: t('Téléphone'), value: form.assure.telephone, path: 'assure.telephone', kind: 'tel', edit: <Input {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} className="h-8 max-md:h-12" value={form.assure.telephone} onChange={(e) => handleNestedChange('assure', 'telephone', e.target.value)} /> },
     { label: 'WhatsApp', value: form.assure.whatsapp, path: 'assure.whatsapp', kind: 'tel', edit: <Input {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} className="h-8 max-md:h-12" value={form.assure.whatsapp} onChange={(e) => handleNestedChange('assure', 'whatsapp', e.target.value)} /> },
     { label: t('Téléphone 2'), value: form.assure.telephone2, path: 'assure.telephone2', kind: 'tel', edit: <Input {...INPUT_TEL} placeholder={BRAND.phonePlaceholder} className="h-8 max-md:h-12" value={form.assure.telephone2} onChange={(e) => handleNestedChange('assure', 'telephone2', e.target.value)} /> },
@@ -820,7 +884,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   ];
 
   const vehiculeFields: FieldDef[] = [
-    { label: t('Marque'), value: form.vehicule.marque, path: 'vehicule.marque', edit: <Input {...INPUT_TEXT} autoCapitalize="words" className="h-8 max-md:h-12" value={form.vehicule.marque} onChange={(e) => handleNestedChange('vehicule', 'marque', e.target.value)} /> },
+    { label: t('Marque'), value: form.vehicule.marque, path: 'vehicule.marque', required: true, edit: <Input {...INPUT_TEXT} autoCapitalize="words" className="h-8 max-md:h-12" value={form.vehicule.marque} onChange={(e) => handleNestedChange('vehicule', 'marque', e.target.value)} /> },
     { label: t('Modèle'), value: form.vehicule.modele, path: 'vehicule.modele', edit: <Input {...INPUT_TEXT} autoCapitalize="words" className="h-8 max-md:h-12" value={form.vehicule.modele} onChange={(e) => handleNestedChange('vehicule', 'modele', e.target.value)} /> },
     { label: t('Immatriculation'), value: form.vehicule.immatriculation, path: 'vehicule.immatriculation', kind: 'plate', edit: <Input {...INPUT_PLATE} className="h-8 max-md:h-12 t-mono" value={form.vehicule.immatriculation} onChange={(e) => handleNestedChange('vehicule', 'immatriculation', e.target.value)} /> },
     { label: t('Numéro de série'), value: form.vehicule.serie, path: 'vehicule.serie', edit: <Input {...INPUT_ID} className="h-8 max-md:h-12" value={form.vehicule.serie} onChange={(e) => handleNestedChange('vehicule', 'serie', e.target.value)} /> },
@@ -949,6 +1013,19 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   ) : null;
 
   const openSheet = sheetSection ? SECTIONS[sheetSection] : null;
+  // The sheet's own fields, then the blank required fields of the other
+  // sections (`sheetExtraPaths`), each group under its section's title.
+  const sheetFields: FieldDef[] = openSheet
+    ? [
+        ...openSheet.fields,
+        ...(Object.keys(SECTIONS) as SectionKey[])
+          .filter((k) => k !== sheetSection)
+          .flatMap((k) => {
+            const extra = SECTIONS[k].fields.filter((f) => f.path && f.edit && sheetExtraPaths.includes(f.path));
+            return extra.length > 0 ? [{ label: SECTIONS[k].title, value: '', heading: true } as FieldDef, ...extra] : [];
+          }),
+      ]
+    : [];
 
   return (
     <div className="space-y-4">
@@ -1070,7 +1147,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
           <div className="grid gap-4">
             {(() => {
               const rows: React.ReactNode[] = [];
-              const fields = openSheet.fields;
+              const fields = sheetFields;
               for (let i = 0; i < fields.length; i += 1) {
                 const f = fields[i];
                 if (f.heading) {
@@ -1088,13 +1165,13 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
                 if (f.pair && next?.pair && next.edit) {
                   rows.push(
                     <div key={f.label + i} className="grid grid-cols-2 gap-3">
-                      <div className="min-w-0 space-y-1">
-                        <p className="t-label">{f.label}</p>
+                      <div data-field={f.path} className="min-w-0 space-y-1">
+                        <p className="t-label flex items-center gap-1">{f.label}{f.required && <RequiredMark />}</p>
                         {f.edit}
                         {f.path && fieldErrors[f.path] && <p role="alert" className="t-caption text-status-danger-fg">{fieldErrors[f.path]}</p>}
                       </div>
-                      <div className="min-w-0 space-y-1">
-                        <p className="t-label">{next.label}</p>
+                      <div data-field={next.path} className="min-w-0 space-y-1">
+                        <p className="t-label flex items-center gap-1">{next.label}{next.required && <RequiredMark />}</p>
                         {next.edit}
                         {next.path && fieldErrors[next.path] && <p role="alert" className="t-caption text-status-danger-fg">{fieldErrors[next.path]}</p>}
                       </div>
@@ -1104,9 +1181,10 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
                   continue;
                 }
                 rows.push(
-                  <div key={f.label + i} className="min-w-0 space-y-1">
+                  <div key={f.label + i} data-field={f.path} className="min-w-0 space-y-1">
                     <div className="flex items-center gap-1">
                       <p className="t-label">{f.label}</p>
+                      {f.required && <RequiredMark />}
                       {f.modal}
                     </div>
                     {f.edit}

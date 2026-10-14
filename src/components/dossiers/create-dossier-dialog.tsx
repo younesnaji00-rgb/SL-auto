@@ -285,11 +285,9 @@ export function CreateDossierDialog({
         <DialogHeader>
           <DialogTitle className="t-title">{t('Nouveau dossier')}</DialogTitle>
           <DialogDescription>
-            {t("La référence, la compagnie et le nom de l'expert sont obligatoires. Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.")}
-            {' '}
-            {/* QA GE-005: the « Envoyer au chiffrage » identification gate is
-                announced at creation, not discovered at step 3. */}
-            {t("Le nom de l'assuré et le matricule seront demandés avant l'envoi au chiffrage.")}
+            {/* The required fields carry their red asterisk; no sentence lists
+                them (owner 2026-10-14). */}
+            {t('Les informations des autres experts peuvent être renseignées ici ou plus tard dans le dossier.')}
           </DialogDescription>
         </DialogHeader>
 

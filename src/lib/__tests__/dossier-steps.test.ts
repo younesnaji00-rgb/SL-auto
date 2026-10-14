@@ -9,6 +9,8 @@ const byId = (states: ReturnType<typeof getStepStatuses>, id: number) => states.
 // keeps every later step blocked, so the fixtures below that test later steps
 // start from a complete Création mission.
 const ready = {
+  refExpert: 'SL-1',
+  experts: { '1er': { nom: 'Expert Un' } },
   compagnie: 'ATLANTA',
   nature: 'Classique',
   vehicule: { marque: 'Dacia' },

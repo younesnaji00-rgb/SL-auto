@@ -7,6 +7,8 @@ import { actionableStep, getDossierTodos, listSome } from '../dossier-todos';
 
 const complete = {
   createdAt: new Date('2026-01-10'),
+  refExpert: 'SL-1',
+  experts: { '1er': { nom: 'Expert Un' } },
   compagnie: 'AXA',
   nature: 'Matériel',
   vehicule: { marque: 'Dacia' },
@@ -32,7 +34,8 @@ test('fresh dossier: missing fields and missing pièces; the visit waits for the
   const d = { createdAt: new Date('2026-01-10') };
   const todos = getDossierTodos(d, getStepStatuses(d), computeRequiredDocsStatus([]));
   assert.deepEqual(todos.map((t) => t.id), ['fields', 'docs']);
-  assert.match(todos[0].label, /^7 champs manquants$/);
+  // The 9 required fields (lib/required-fields.ts, owner ruling 2026-10-14).
+  assert.match(todos[0].label, /^9 champs manquants$/);
   assert.equal(todos[0].action.kind, 'goto');
   assert.equal((todos[0].action as any).tab, 'informations');
   assert.equal(todos[1].label, '6 pièces manquantes');

@@ -11,6 +11,7 @@
  * symbols (« @@@@ », « ---- ») or a run of symbols (« -- », « ,.; »).
  */
 import { normalizePlate } from './plate-match';
+import { requiredFieldFilled, requiredFieldsFor } from './required-fields';
 
 export type ValidatedKind =
   | 'tel'
@@ -271,20 +272,25 @@ export function isBlankFieldValue(v: unknown): boolean {
 }
 
 /**
- * The only fields an Informations save may not leave blank: exactly what the
- * creation dialog demands (QA bugs 007 / 040) — the reference, the compagnie
- * and the name of the expert of the dossier's role. A field that was optional
- * at creation stays optional on every later save: it can be filled, changed
- * and emptied again (QA GE-004, 2026-10-05 — this replaced the 2026-09-24
- * « once saved, never emptied » rule).
+ * The form fields an Informations save may never leave blank — on every
+ * save, the first one included (owner ruling 2026-10-14, which replaced the
+ * 2026-10-05 « only what creation demands » rule of QA GE-004). The list is
+ * `requiredFieldsFor` (lib/required-fields.ts), the same one the asterisks,
+ * the step rail and the to-do read; each entry gives its first path, the
+ * form field that carries the asterisk and the error.
  */
 export function requiredOnSavePaths(expertRank?: string): string[] {
-  return ['refExpert', 'compagnie', `experts.${expertRank || '1er'}.nom`];
+  return requiredFieldsFor(expertRank).map((f) => f.paths[0]);
 }
 
-/** The `requiredOnSavePaths` that are blank in `form`, in that order. */
+/**
+ * The `requiredOnSavePaths` that are blank in `form`, in that order. The
+ * matricule counts as given when the véhicule's immatriculation is.
+ */
 export function blankRequiredPaths(form: any, expertRank?: string): string[] {
-  return requiredOnSavePaths(expertRank).filter((p) => isBlankFieldValue(readFieldPath(form, p)));
+  return requiredFieldsFor(expertRank)
+    .filter((f) => !requiredFieldFilled(form, f))
+    .map((f) => f.paths[0]);
 }
 
 /**

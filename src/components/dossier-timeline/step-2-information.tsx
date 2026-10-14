@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Informations step: the editable form (information-tab.tsx) with the
- * required-fields banner and a side-by-side "Document source" pane.
+ * Informations step: the editable form (information-tab.tsx) and a
+ * side-by-side "Document source" pane. The required fields carry their red
+ * asterisk in the form; no line lists them above it (owner 2026-10-14).
  *
  * Why a pane and not a tab (NN/g): checking AI-extracted values against the
  * lettre de mission is a simultaneous task — the user needs both at once —
@@ -19,7 +20,6 @@ import { setFocusMode } from '@/hooks/use-focus-mode';
 import { usePresence } from '@/hooks/use-presence';
 import { cn } from '@/lib/utils';
 import { Columns2, Eye, X, ZoomIn, ZoomOut } from 'lucide-react';
-import { RequiredSummaryLine } from '@/components/dossier-timeline/required-summary-line';
 import { collection, type DocumentReference } from 'firebase/firestore';
 
 import InformationTab from '@/app/(app)/dossiers/[id]/information-tab';
@@ -35,7 +35,6 @@ import {
 import { PdfThumbnail } from '@/components/common/pdf-thumbnail';
 import { DocumentPreviewLightbox } from '@/components/document-preview-lightbox';
 import { useCollection, useFirestore } from '@/firebase';
-import { getMissingRequiredFields, missingIdentification } from '@/lib/required-fields';
 import { useT } from '@/i18n';
 
 // Back-compat: callers that imported the helper from this module keep working.
@@ -59,8 +58,6 @@ export default function Step2Information({
   onNewPlanification,
 }: Step2InformationProps) {
   const t = useT();
-  const missing = useMemo(() => getMissingRequiredFields(dossier), [dossier]);
-  const idMissing = useMemo(() => missingIdentification(dossier), [dossier]);
 
   const [showCompare, setShowCompare] = useState(false);
   // Comparing is a focus task: ask the page to retract sidebar, steps rail and
@@ -146,35 +143,6 @@ export default function Step2Information({
   const toggleCompare = () => {
     setShowCompare((v) => !v);
   };
-
-  // One-line notice — the SAME treatment as the Pièces tab's « N pièces
-  // requises manquantes » line (owner ruling 2026-09-02: identical style),
-  // via the shared RequiredSummaryLine shell. Labels are plain text: there is
-  // no per-field anchor to scroll to (the Pièces labels scroll to sockets),
-  // and an inert button would be a false affordance.
-  // The identifications « Envoyer au chiffrage » refuses to send without are
-  // named here too, from the first visit (QA GE-005: the tester only met the
-  // rule at step 3, on a field nothing had marked as needed).
-  const banner = (missing.length > 0 || idMissing.length > 0) && (
-    <RequiredSummaryLine state="missing">
-      {missing.length > 0 && (
-        <>
-          <span className="font-medium">
-            {missing.length} {missing.length > 1 ? t('champs requis manquants') : t('champ requis manquant')}
-          </span>
-          {' : '}
-          {missing.map((label) => t(label)).join(', ')}
-        </>
-      )}
-      {idMissing.length > 0 && (
-        <span className={cn(missing.length > 0 && 'mt-0.5 block')}>
-          <span className="font-medium">{t('Requis pour l’envoi au chiffrage')}</span>
-          {' : '}
-          {idMissing.map((label) => t(label)).join(', ')}
-        </span>
-      )}
-    </RequiredSummaryLine>
-  );
 
   // The comparer toggle rides in the identity block header next to Modifier,
   // so it no longer costs a row of its own.
@@ -297,7 +265,6 @@ export default function Step2Information({
   if (!paneMounted) {
     return (
       <div className="space-y-4">
-        {banner}
         {informationContent}
       </div>
     );
@@ -316,7 +283,6 @@ export default function Step2Information({
       )}
     >
       <div className="min-w-0 space-y-4">
-        {banner}
         {informationContent}
       </div>
       <aside

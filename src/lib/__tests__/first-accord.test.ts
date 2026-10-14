@@ -12,6 +12,8 @@ const doc = (type: string, day = 1) => ({ type, url: 'https://x', dateUpload: ne
 // Création mission complete, so the required-field gate never interferes.
 const dossier = {
   createdAt: new Date('2026-09-01'),
+  refExpert: 'SL-1',
+  experts: { '1er': { nom: 'Expert Un' } },
   compagnie: 'RMA',
   nature: 'Classique',
   vehicule: { marque: 'PEUGEOT' },
