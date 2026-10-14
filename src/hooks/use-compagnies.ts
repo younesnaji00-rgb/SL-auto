@@ -71,11 +71,11 @@ export function useCompagnies() {
     }
   }, [compagnies]);
 
-  const addCompagnie = async (nom: string, couleur?: string) => {
-    if (!db || !nom.trim()) return;
+  const addCompagnie = async (nom: string, couleur?: string): Promise<string | undefined> => {
+    if (!db || !nom.trim()) return undefined;
     const colRef = collection(db, 'compagnies');
     // Write both `label` and `nom` for cross-hook compatibility
-    await addDoc(colRef, {
+    const created = await addDoc(colRef, {
       label: nom.trim(),
       nom: nom.trim(),
       couleur: couleur ?? '#6b7280',
@@ -83,6 +83,7 @@ export function useCompagnies() {
       active: true,
       createdAt: serverTimestamp(),
     });
+    return created.id;
   };
 
   const deleteCompagnie = async (id: string) => {

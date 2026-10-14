@@ -42,6 +42,7 @@ import { DirectionDashboardV2 } from './direction-dashboard-v2';
 import { useIsPhone } from '@/hooks/use-viewport-class';
 import { PhoneAdminDashboard } from './phone-admin';
 import type { AccessScope } from '@/lib/role-access';
+import { useKnownCompagnies } from '@/hooks/use-known-compagnies';
 
 /** Period choices shared by the header strip; « tout » spans the whole history. */
 type Period = 30 | 90 | 365 | 'tout';
@@ -297,7 +298,8 @@ function RoleTab({
   loading,
 }: AdminDashboardProps & { role: DashboardRole; userId: string | null; onSelectUser: (u: string | null) => void; windowDays: number }) {
   const t = useT();
-  const team = useMemo(() => computeTeamView(role, users, { dossiers, chiffrages, missions, sla, holidays }, now), [role, users, dossiers, chiffrages, missions, sla, holidays, now]);
+  const knownCompagnies = useKnownCompagnies();
+  const team = useMemo(() => computeTeamView(role, users, { dossiers, chiffrages, missions, sla, holidays, knownCompagnies }, now), [role, users, dossiers, chiffrages, missions, sla, holidays, knownCompagnies, now]);
   const teamUsers = useMemo(() => team.perPerson.map((r) => r.user), [team]);
   const selected = userId ? teamUsers.find((u) => u.id === userId) ?? null : null;
   const words = WORDS[role];
@@ -523,9 +525,10 @@ function PersonView({
   loading,
 }: Omit<AdminDashboardProps, 'users' | 'workflowLogs'> & { role: DashboardRole; user: DashboardUser; team: TeamView; onBack: () => void }) {
   const t = useT();
-  // The prénom too: the « En retard » tile links to the dossiers list
-  // filtered on « Créé par : Prénom Nom ».
-  const person = { uid: user.id, nom: user.nom, prenom: user.prenom, email: user.email };
+  // A gestionnaire's dashboard covers the compagnies of their account
+  // (2026-10-14), so the person carries them.
+  const knownCompagnies = useKnownCompagnies();
+  const person = { uid: user.id, nom: user.nom, prenom: user.prenom, email: user.email, compagnies: user.compagnies ?? null, knownCompagnies };
   const row: PersonRow | undefined = team.perPerson.find((r) => r.user.id === user.id);
   const words = WORDS[role];
 

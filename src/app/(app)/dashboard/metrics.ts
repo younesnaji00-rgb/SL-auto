@@ -29,6 +29,7 @@ import type { DashboardChiffrage, DashboardMission, DashboardUser } from './use-
 import { isChiffrageMine, isChiffrageUnowned, type ChiffreurAccountRef } from '@/lib/chiffreur-identity';
 import { isValidPhotosSentAt, missionPhotoAnchor, type PhasePhotoTimes } from '@/lib/mission-photos';
 import { isDossierLate } from '@/lib/dossier-late';
+import { compagnieInScope } from '@/lib/compagnie-name';
 
 export { SLA_BUSINESS_HOURS };
 
@@ -64,9 +65,31 @@ export interface PersonRef {
    * chiffrage no account owns is in their « Ma file » too, as in the queue.
    */
   chiffreurAccounts?: ReadonlyArray<ChiffreurAccountRef>;
+  /**
+   * The compagnies the account was given — a gestionnaire's portfolio
+   * (`dossierInPortfolio`). Empty or absent = no limit.
+   */
+  compagnies?: ReadonlyArray<string> | null;
+  /** The names of the compagnies list, for compagnieInScope's unknown-compagnie rule. */
+  knownCompagnies?: ReadonlyArray<string> | null;
 }
 
-/** A dossier belongs to the gestionnaire who created it (`createdBy` = uid; legacy `createdByName` = nom or email). */
+/**
+ * A gestionnaire's dossiers: every dossier of the compagnies their account
+ * was given, at creation or on a later edit (owner ruling 2026-10-14 — it
+ * replaced « the dossiers they created »). The same rule as their Dossiers
+ * list (use-dossiers.ts), so the two pages count the same rows.
+ */
+export function dossierInPortfolio(d: { compagnie?: unknown }, p: PersonRef): boolean {
+  return compagnieInScope(d.compagnie, p.compagnies, p.knownCompagnies);
+}
+
+/**
+ * The gestionnaire who created a dossier (`createdBy` = uid; legacy
+ * `createdByName` = nom or email). Attribution only — the team roll-up's
+ * « reçus » and creation-clock figures; what a gestionnaire SEES is
+ * `dossierInPortfolio`.
+ */
 export function dossierOwnedBy(d: FunnelDossier & { createdByName?: string }, p: PersonRef): boolean {
   if (p.uid && d.createdBy === p.uid) return true;
   const by = norm(d.createdByName);
@@ -279,7 +302,7 @@ export function computeGestionnaireView(
   now: Date,
   person: PersonRef | null,
 ): GestionnaireView {
-  const mine = person ? dossiers.filter((d) => dossierOwnedBy(d as any, person)) : dossiers;
+  const mine = person ? dossiers.filter((d) => dossierInPortfolio(d as any, person)) : dossiers;
   const open = mine.filter(isOpenDossier);
   // `lateIds` = a chiffrage / terrain clock past 24 h ouvrées: the rows'
   // « Hors délai » badge. « En retard » (tile, pie) is the dossiers list's
@@ -780,7 +803,7 @@ export interface TeamView {
 const activeUsersOfRole = (users: DashboardUser[], role: DashboardRole): DashboardUser[] =>
   users.filter((u) => u.role === role && u.statut !== 'Inactif');
 
-const personOf = (u: DashboardUser): PersonRef => ({ uid: u.id, nom: u.nom, email: u.email });
+const personOf = (u: DashboardUser): PersonRef => ({ uid: u.id, nom: u.nom, email: u.email, compagnies: u.compagnies ?? null });
 
 const displayName = (u: DashboardUser): string => (u.nom || u.email || u.id).trim();
 
@@ -798,6 +821,8 @@ export function computeTeamView(
     missions: DashboardMission[];
     sla: SlaItem[];
     holidays?: ReadonlySet<string>;
+    /** The names of the compagnies list (compagnieInScope). */
+    knownCompagnies?: ReadonlyArray<string> | null;
   },
   now: Date,
 ): TeamView {
@@ -810,10 +835,12 @@ export function computeTeamView(
   if (role === 'Gestionnaire') {
     const openAll = data.dossiers.filter(isOpenDossier);
     for (const u of team) {
-      const p = personOf(u);
+      const p = { ...personOf(u), knownCompagnies: data.knownCompagnies };
       const v = computeGestionnaireView(data.dossiers, data.sla, [], data.holidays, now, p);
-      const mine = data.dossiers.filter((d) => dossierOwnedBy(d as any, p));
-      const created30 = mine.filter((d) => inWindow(toDate(d.createdAt), d30, now));
+      // Workload = the portfolio (their compagnies); the creation clock and
+      // « reçus » stay with the dossiers they created themselves.
+      const mine = data.dossiers.filter((d) => dossierInPortfolio(d as any, p));
+      const created30 = data.dossiers.filter((d) => dossierOwnedBy(d as any, p) && inWindow(toDate(d.createdAt), d30, now));
       // The gestionnaire's own clock: requête → création within 24 h ouvrées.
       const opened = created30.filter((d) => toDate(d.dateRequete));
       const onTime = opened.filter((d) => {

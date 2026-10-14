@@ -36,6 +36,7 @@ import type { DashboardChiffrage, DashboardMission, DashboardUser } from './use-
 import { computeDirectionView, factureToDepot48 } from './analytics';
 import { computeTeamView, fmtWindow, lateDossierIds, DASHBOARD_ROLES, type DashboardRole } from './metrics';
 import { Block, StatTile } from './ui';
+import { useKnownCompagnies } from '@/hooks/use-known-compagnies';
 
 /** French decimals: 11,4 — never 11.4. */
 const nb = (v: number | null | undefined, digits = 1): string =>
@@ -93,20 +94,21 @@ export function DirectionDashboardV2({
 
   /** Open clocks breached right now — the only "maintenant" figure in the SLA card. */
   const lateNow = useMemo(() => lateDossierIds(sla).size, [sla]);
+  const knownCompagnies = useKnownCompagnies();
 
   /** Charge par personne: the gestionnaire roll-up (swap the role to read another team). */
   const chargeTeam = useMemo(
-    () => computeTeamView('Gestionnaire', users, { dossiers, chiffrages, missions, sla, holidays }, now),
-    [users, dossiers, chiffrages, missions, sla, holidays, now],
+    () => computeTeamView('Gestionnaire', users, { dossiers, chiffrages, missions, sla, holidays, knownCompagnies }, now),
+    [users, dossiers, chiffrages, missions, sla, holidays, knownCompagnies, now],
   );
 
   const teams = useMemo(
     () =>
       DASHBOARD_ROLES.map((role) => ({
         role,
-        view: computeTeamView(role, users, { dossiers, chiffrages, missions, sla, holidays }, now),
+        view: computeTeamView(role, users, { dossiers, chiffrages, missions, sla, holidays, knownCompagnies }, now),
       })),
-    [users, dossiers, chiffrages, missions, sla, holidays, now],
+    [users, dossiers, chiffrages, missions, sla, holidays, knownCompagnies, now],
   );
 
   // `win`, never `window` — the identifier would shadow the global inside this scope.

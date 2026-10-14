@@ -23,6 +23,7 @@ import { useT, useLocale, dateFnsLocale, t as tGlobal } from '@/i18n';
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useCompagnies } from '@/hooks/use-compagnies';
+import { compagnieInScope, compagnieKey } from '@/lib/compagnie-name';
 import { useHolidays } from '@/hooks/use-holidays';
 import { cn } from '@/lib/utils';
 import { assureName } from '@/lib/dossier-label';
@@ -297,7 +298,16 @@ export default function MonitoringPage() {
   const { compagnies: allCompagnies } = useCompagnies();
   const isPhone = useIsPhone();
 
-  const [dossiers, setDossiers] = useState<FunnelDossier[]>([]);
+  const [rawDossiers, setDossiers] = useState<FunnelDossier[]>([]);
+  // Same scope rule as the dossiers list and the dashboard (compagnieInScope):
+  // a blank compagnie or one outside the compagnies list stays visible —
+  // this page used to drop the blank ones, so its counts disagreed.
+  const dossiers = useMemo(() => {
+    const allowed = profile?.compagnies || [];
+    if (allowed.length === 0) return rawDossiers;
+    const known = allCompagnies.map((c) => c.nom).filter((n): n is string => !!n);
+    return rawDossiers.filter((d) => compagnieInScope(d.compagnie, allowed, known.length > 0 ? known : null));
+  }, [rawDossiers, profile?.compagnies, allCompagnies]);
   const [workflowLogs, setWorkflowLogs] = useState<WorkflowLog[]>([]);
   // The SLA sources (user ruling): chiffrage assignments + terrain missions.
   const [chiffrages, setChiffrages] = useState<ChiffrageAssignment[]>([]);
@@ -334,17 +344,11 @@ export default function MonitoringPage() {
 
   useEffect(() => {
     if (!db) return;
-    const allowedLower = (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim());
-
     const qDossiers = query(collection(db, 'dossiers'), orderBy('createdAt', 'desc'));
     const unsubDossiers = onSnapshot(
       qDossiers,
       (snap) => {
-        let data: FunnelDossier[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        if (allowedLower.length > 0) {
-          data = data.filter((d) => allowedLower.includes((d.compagnie || '').toLowerCase().trim()));
-        }
-        setDossiers(data);
+        setDossiers(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
         setLoading(false);
       },
       (err) => {
@@ -502,10 +506,10 @@ export default function MonitoringPage() {
   const headline = useMemo(() => computeHeadline(dossiers, range, now, sla, holidays), [dossiers, range, now, sla, holidays]);
   const cycleTimes = useMemo(() => computeCycleTimes(dossiers, range, sla, holidays), [dossiers, range, sla, holidays]);
   const scopedCompagnieNames = useMemo(() => {
-    const allowed = (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim());
+    const allowed = (profile?.compagnies || []).map(compagnieKey);
     const names = allCompagnies.map((c) => c.nom).filter((n): n is string => !!n);
     if (allowed.length === 0) return names;
-    return names.filter((n) => allowed.includes(n.toLowerCase().trim()));
+    return names.filter((n) => allowed.includes(compagnieKey(n)));
   }, [allCompagnies, profile]);
   const perCompagnie = useMemo(
     () => computePerCompagnieMeasures(dossiers, range, sla, scopedCompagnieNames),

@@ -50,7 +50,7 @@ test('lastMovementAt is the latest dated field on the document', () => {
 
 // The required fields of the Création mission: without them every later step
 // is blocked and the only to-do is « N champs manquants » (QA bug 008).
-const READY = { nature: 'Classique', vehicule: { marque: 'Dacia' }, matricule: '12345-A-6', assure: { nom: 'Ali Test' }, dateSinistre: T(7, -8) };
+const READY = { refExpert: 'SL-1', experts: { '1er': { nom: 'Expert Un' } }, nature: 'Classique', vehicule: { marque: 'Dacia' }, matricule: '12345-A-6', assure: { nom: 'Ali Test' }, dateSinistre: T(7, -8) };
 
 test('gestionnaire: à traiter vs en attente, tiles and stale', () => {
   const dossiers: FunnelDossier[] = [
@@ -61,13 +61,14 @@ test('gestionnaire: à traiter vs en attente, tiles and stale', () => {
     // Closed last week (rapport déposé 3 days ago) and one 10 days ago.
     dossier('c', { datePhotosAvant: T(9, -6), dateRapportDepose: T(9, -3) }),
     dossier('d', { datePhotosAvant: T(9, -12), dateRapportDepose: T(9, -10) }),
-    // Someone else's dossier — invisible to g1.
-    dossier('e', { createdBy: 'uid-other' }),
+    // Another compagnie's dossier — invisible to g1 (their portfolio is their
+    // compagnies, owner ruling 2026-10-14).
+    dossier('e', { compagnie: 'Wafa' }),
     // Stale: created 5 business days ago, no movement since.
     dossier('f', { ...READY, createdAt: T(9, -7), dateRequete: T(8, -7) }),
   ];
   const sla = buildDashboardSla(dossiers, [], [], H, NOW);
-  const v = computeGestionnaireView(dossiers, sla, [{ id: 'r1', recipientUid: 'uid-g1', senderUid: 's', dossierId: 'a', read: false, createdAt: T(9) } as any], H, NOW, g1);
+  const v = computeGestionnaireView(dossiers, sla, [{ id: 'r1', recipientUid: 'uid-g1', senderUid: 's', dossierId: 'a', read: false, createdAt: T(9) } as any], H, NOW, { ...g1, compagnies: ['RMA'] });
   assert.equal(v.tiles.enCours, 3, 'a, b, f open · e excluded · c/d closed');
   assert.ok(v.aTraiter.some((w) => w.dossier.id === 'a' && w.todo.id === 'visit-4'));
   const agent = v.enAttente.find((g) => g.party === 'agent')!;

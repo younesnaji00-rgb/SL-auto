@@ -37,7 +37,7 @@ import {
   computeChiffreurView,
   computeGestionnaireView,
   computeTerrainView,
-  dossierOwnedBy,
+  dossierInPortfolio,
   isOpenDossier,
   missionOwnedBy,
   toDate,
@@ -66,7 +66,7 @@ function medianOpenAgeDays(dossiers: FunnelDossier[], now: Date, person: PersonR
   const today = startOfDay(now).getTime();
   const days: number[] = [];
   for (const d of dossiers) {
-    if (person && !dossierOwnedBy(d as any, person)) continue;
+    if (person && !dossierInPortfolio(d as any, person)) continue;
     if (!isOpenDossier(d)) continue;
     // A requête dated in the future falls back on the creation, and no age is
     // negative — the desktop buckets' rule (QA GE-007).
@@ -110,14 +110,14 @@ export function PhoneGestionnaireDashboard({ dossiers, chiffrages = [], sla, rap
   const attente = view.enAttente.reduce((n, g) => n + g.count, 0);
   const unread = useMemo(() => rappelsRecus.filter((r) => !r.read), [rappelsRecus]);
   const medianAge = useMemo(() => medianOpenAgeDays(dossiers, now, person), [dossiers, now, person]);
-  // Same link as the desktop tile: the dossiers list's « En retard » rows,
-  // narrowed to this person's dossiers (QA GE-006).
-  const creatorName = person ? `${person.prenom ?? ''} ${person.nom ?? ''}`.trim() : '';
+  // Same link as the desktop tile: the dossiers list's « En retard » rows.
+  // The list already holds this gestionnaire's compagnies, so no « Créé
+  // par » filter (2026-10-14: it was saved with the list's filters and kept
+  // hiding colleagues' dossiers afterwards).
   const lateHref = filtersHref('/dossiers', {
     scope: 'a-traiter',
     lateOnly: true,
     sortByCreation: 'asc',
-    ...(creatorName ? { creator: creatorName } : {}),
   });
 
   const kpis: PhoneKpi[] = [
@@ -147,7 +147,7 @@ export function PhoneGestionnaireDashboard({ dossiers, chiffrages = [], sla, rap
     <div className="flex flex-col gap-2">
       {/* The page header (and its subtitle) is not painted on a phone: say
           whose dossiers these are here (QA GE-006/007). */}
-      {!viewAs && <p className="t-caption px-1">{t('Les dossiers que vous avez créés')}</p>}
+      {!viewAs && <p className="t-caption px-1">{t('Les dossiers de vos compagnies')}</p>}
       <PhoneKpiLine items={kpis} />
 
       {/* Exceptions first (Few: the exception is the reason to open the page). */}

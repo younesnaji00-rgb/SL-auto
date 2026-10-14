@@ -39,6 +39,7 @@ import { addDays, eachWeekOfInterval, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { businessHoursBetween } from '@/lib/business-days';
 import { getLocale, t } from '@/i18n';
+import { compagnieKey } from '@/lib/compagnie-name';
 import {
   STEP_DEFS,
   STEP_KEYS,
@@ -484,18 +485,23 @@ const respectFrom = (enDelai: Record<StepKey, number>, horsDelai: Record<StepKey
 
 /** Per-compagnie measures, ALL respecting `range` (the old table ignored it). */
 export function computePerCompagnieMeasures(dossiers: FunnelDossier[], range: FunnelRange, sla: SlaItem[], allCompagnies?: string[]): GroupMeasures[] {
+  // One row per compagnie whatever the spelling on the dossier (« ALLIANZ »
+  // and « Allianz » are one row, named as in the compagnies list).
+  const listName = new Map<string, string>();
+  for (const raw of allCompagnies ?? []) {
+    const name = (raw || '').trim();
+    if (name && !listName.has(compagnieKey(name))) listName.set(compagnieKey(name), name);
+  }
   const groups = new Map<string, FunnelDossier[]>();
   for (const d of dossiers) {
-    const key = (d.compagnie || '').trim() || '— non précisé —';
+    const raw = (d.compagnie || '').trim();
+    const key = raw ? listName.get(compagnieKey(raw)) ?? raw : '— non précisé —';
     const arr = groups.get(key) || [];
     arr.push(d);
     groups.set(key, arr);
   }
-  if (allCompagnies) {
-    for (const raw of allCompagnies) {
-      const key = (raw || '').trim();
-      if (key && !groups.has(key)) groups.set(key, []);
-    }
+  for (const name of listName.values()) {
+    if (!groups.has(name)) groups.set(name, []);
   }
   return Array.from(groups.entries())
     .sort(([a], [b]) => a.localeCompare(b, 'fr'))

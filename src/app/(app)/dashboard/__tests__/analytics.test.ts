@@ -55,7 +55,7 @@ const dossier = (id: string, extra: Partial<FunnelDossier> & Record<string, any>
   ...extra,
 });
 
-const g1 = { uid: 'uid-g1', nom: 'Gest Un', email: 'g1@x' };
+const g1 = { uid: 'uid-g1', nom: 'Gest Un', email: 'g1@x', compagnies: ['RMA'] };
 
 const approx = (actual: number | null, expected: number, msg?: string, eps = 1e-6) =>
   assert.ok(
@@ -551,7 +551,8 @@ test('intakeHeat: Monday-based weekday × hour 8–19', () => {
 test('photosToChiffrageOpen and creationToPlanif24, with and without a person', () => {
   const dossiers: FunnelDossier[] = [
     dossier('a', { datePhotosAvant: T(9, -1), createdAt: T(9, -1) }),
-    dossier('b', { datePhotosAvant: T(9), createdBy: 'uid-other', createdAt: T(9, -4) }),
+    // Another compagnie: off g1's portfolio (owner ruling 2026-10-14).
+    dossier('b', { datePhotosAvant: T(9), compagnie: 'Wafa', createdAt: T(9, -4) }),
     dossier('c', { datePhotosAvant: T(9, -1) }),
     dossier('d', { datePhotosAvant: T(9, -3), dateRapportDepose: T(9, -1) }),
     dossier('e'),

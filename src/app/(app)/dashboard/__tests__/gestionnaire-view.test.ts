@@ -16,7 +16,9 @@ import type { DashboardUser } from '../use-dashboard-data';
 const T = (h: number, dayOffset = 0) => new Date(2026, 2, 10 + dayOffset, h, 0, 0);
 const NOW = T(15);
 const H: ReadonlySet<string> = new Set();
-const g1 = { uid: 'uid-g1', nom: 'Un', prenom: 'Gest', email: 'g1@x' };
+// A gestionnaire's dashboard covers the compagnies of their account (owner
+// ruling 2026-10-14), whoever created the dossier.
+const g1 = { uid: 'uid-g1', nom: 'Un', prenom: 'Gest', email: 'g1@x', compagnies: ['RMA'] };
 
 const dossier = (id: string, extra: Partial<FunnelDossier> & Record<string, any> = {}): FunnelDossier => ({
   id,
@@ -38,11 +40,13 @@ test('« En retard » counts the dossiers the list calls late (≥ 7 j, still to
     dossier('young', { createdAt: T(9, -6) }),
     // Accord envoyé is the list's terminal statut: not « à traiter », not late.
     dossier('sent', { createdAt: T(9, -20), statut: 'Accord envoyé' }),
-    // Someone else's dossier stays off this dashboard.
-    dossier('other', { createdAt: T(9, -30), createdBy: 'uid-other' }),
+    // Another compagnie's dossier stays off this dashboard…
+    dossier('other', { createdAt: T(9, -30), compagnie: 'Wafa' }),
+    // …a colleague's dossier of the same compagnie is on it.
+    dossier('colleague', { createdAt: T(9, -9), createdBy: 'uid-other' }),
   ]);
-  assert.equal(v.tiles.enRetard, 2);
-  assert.deepEqual(v.lateDossiers.map((d) => d.id), ['late', 'edge'], 'oldest first');
+  assert.equal(v.tiles.enRetard, 3);
+  assert.deepEqual(v.lateDossiers.map((d) => d.id), ['colleague', 'late', 'edge'], 'oldest first');
 });
 
 test('« Par étape » marks the same late dossiers in red', () => {

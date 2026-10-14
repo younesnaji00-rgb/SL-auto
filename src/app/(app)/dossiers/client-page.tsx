@@ -106,6 +106,7 @@ import { useListScrollRestore, listScrollKey } from '@/lib/list-scroll-restore';
 import { BottomActionBar } from '@/components/layout/bottom-action-bar';
 import { usePhoneChrome } from '@/components/layout/page-chrome';
 import { useSavedViews } from '@/components/ui/saved-views';
+import { compagnieKey } from '@/lib/compagnie-name';
 
 // Column order = five logical chunks on the hierarchical scan path (research
 // 2026-09-03, docs/research/dossiers-attention-efficiency.md): identity →
@@ -220,8 +221,8 @@ export default function DossiersClientPage() {
   // Filter company dropdown to only show user's assigned companies
   const compagnies = useMemo(() => {
     if (userCompagnies.length === 0) return allCompagnies;
-    const allowed = userCompagnies.map(c => c.toLowerCase().trim());
-    return allCompagnies.filter(c => allowed.includes(c.label.toLowerCase().trim()));
+    const allowed = userCompagnies.map(compagnieKey);
+    return allCompagnies.filter(c => allowed.includes(compagnieKey(c.label)));
   }, [allCompagnies, userCompagnies]);
 
   const { dossiers: allDossiers, loading, error: fetchError, deleteDossier } = useDossiers(userCompagnies.length > 0 ? userCompagnies : undefined);
@@ -395,7 +396,7 @@ export default function DossiersClientPage() {
     }
     if (except !== 'nature' && filters.nature !== 'Toutes') results = results.filter(d => d.nature === filters.nature);
     if (except !== 'status' && filters.status !== 'Tous') results = results.filter(d => d.statut === filters.status);
-    if (except !== 'compagnie' && filters.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === filters.compagnie);
+    if (except !== 'compagnie' && filters.compagnie !== 'Toutes') results = results.filter(d => compagnieKey(d.compagnie) === compagnieKey(filters.compagnie));
     if (except !== 'observation') {
       if (filters.observation === 'Autre') {
         const predefined = new Set(filterObservations.map(o => o.label));

@@ -96,11 +96,15 @@ function DashboardInner({ role }: { role: string }) {
     const base = { uid: profile.uid, nom: profile.nom, prenom: (profile as any).prenom, email: profile.email };
     return {
       ...base,
+      // A gestionnaire's dashboard covers every dossier of the compagnies
+      // their account was given (owner ruling 2026-10-14).
+      compagnies: profile.compagnies ?? null,
+      knownCompagnies: data.knownCompagnies,
       chiffreurDirectoryIds: directoryIdsFor(chiffreurDirectory, base),
       // What no chiffreur account owns is in a chiffreur's « Ma file » too.
       ...(profile.role === 'Chiffreur' && !chiffreurAccountsLoading ? { chiffreurAccounts } : {}),
     };
-  }, [profile, chiffreurDirectory, chiffreurAccounts, chiffreurAccountsLoading]);
+  }, [profile, chiffreurDirectory, chiffreurAccounts, chiffreurAccountsLoading, data.knownCompagnies]);
 
   // Admin has no subtitle (owner 2026-09-08): its header is ONE line — title,
   // freshness, the cohort window, the role tabs and the period strip — so
@@ -111,10 +115,10 @@ function DashboardInner({ role }: { role: string }) {
       ? t('Votre file, vos délais — telle que la file la découpe.')
       : role === 'Agent de Terrain'
         ? t('Où être ensuite, ce qui est en retard, les photos qui manquent.')
-        : // Says whose dossiers these are (QA GE-006/007): the gestionnaire's
-          // dashboard counts the dossiers they created, while their Dossiers
-          // list shows every dossier of their compagnies.
-          t('Les dossiers que vous avez créés : ce qui vous attend, ce qui attend un tiers, ce qui n’a pas bougé.');
+        : // Says whose dossiers these are (QA GE-006/007): every dossier of
+          // the gestionnaire's compagnies, like their Dossiers list (owner
+          // ruling 2026-10-14 — it replaced « the dossiers they created »).
+          t('Les dossiers de vos compagnies : ce qui vous attend, ce qui attend un tiers, ce qui n’a pas bougé.');
 
   return (
     <div className={isPhone ? 'flex-1 space-y-2' : 'flex-1 space-y-6'}>

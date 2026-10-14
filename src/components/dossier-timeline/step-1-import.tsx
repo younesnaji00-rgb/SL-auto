@@ -41,6 +41,8 @@ import { findDossierWithRefExpert, normalizeRefExpert } from '@/lib/ref-expert-u
 import { logFrontend } from '@/lib/debug-log';
 import { getDoc } from '@/lib/firestore-logged';
 import { restoreStatutAfterDocumentRemoval } from '@/lib/restore-statut';
+import { canonicalCompagnie, compagnieInScope, compagnieKey } from '@/lib/compagnie-name';
+import { useKnownCompagnies } from '@/hooks/use-known-compagnies';
 
 export interface Step1ImportProps {
   dossierId: string;
@@ -158,6 +160,7 @@ export default function Step1Import({
   const storage = useStorage();
   const auth = useAuth();
   const { canWrite, canDelete, profile } = useCurrentUser();
+  const knownCompagnies = useKnownCompagnies();
   const isPhone = useIsPhone();
   const { toast } = useToast();
   const t = useT();
@@ -268,6 +271,12 @@ export default function Step1Import({
         // carries is NOT copied — the same mission letter scanned twice must
         // not produce two dossiers with one reference.
         let duplicateRef: string | null = null;
+        // The compagnie decides who sees the dossier (each account lists its
+        // compagnies' dossiers), so the scan never writes it as printed: it
+        // snaps onto the compagnies list, and an existing compagnie is not
+        // replaced by one outside the scanning user's own — the « risko car »
+        // dossier left its gestionnaire's list that way (tester 2026-10-14).
+        let compagnieNotice: { read: string; kept?: string; unknown?: boolean } | null = null;
 
         for (const [scanKey, rawValue] of Object.entries(data)) {
           const target = FIELD_MAP[scanKey];
@@ -286,6 +295,25 @@ export default function Step1Import({
                 : Timestamp.fromDate(parsed);
           } else if (typeof rawValue === 'string') {
             finalValue = rawValue.trim();
+          }
+
+          if (target === 'compagnie') {
+            const read = String(finalValue);
+            const canon = canonicalCompagnie(read, knownCompagnies ?? []);
+            const current = String(dossier?.compagnie ?? '').trim();
+            if (!canon) {
+              compagnieNotice = { read, unknown: true, kept: current || undefined };
+              continue;
+            }
+            if (canon === current) continue;
+            const mine = profile?.compagnies ?? [];
+            if (current && compagnieKey(canon) !== compagnieKey(current) && !compagnieInScope(canon, mine, knownCompagnies)) {
+              compagnieNotice = { read: canon, kept: current };
+              continue;
+            }
+            finalValue = canon;
+          } else if (target === 'partieAdverse.compagnie') {
+            finalValue = canonicalCompagnie(finalValue, knownCompagnies ?? []) ?? finalValue;
           }
 
           if (target === 'refExpert' && db) {
@@ -374,13 +402,19 @@ export default function Step1Import({
             }
           }
         }
-        if (duplicateRef) {
-          toast({
-            variant: 'destructive',
-            title: t('Réf. expert déjà utilisée'),
-            description: `« ${duplicateRef} » ${t('appartient déjà à un autre dossier — la référence n’a pas été reprise.')}`,
-          });
-        }
+        // One toast shows at a time (TOAST_LIMIT 1): what the scan did NOT
+        // copy rides in the « Scan terminé » toast instead of a toast of its
+        // own that the next one replaced at once.
+        const notCopied = [
+          compagnieNotice
+            ? compagnieNotice.unknown
+              ? `${t('Le document indique la compagnie')} « ${compagnieNotice.read} », ${t('qui n’est pas dans la liste des compagnies : choisissez-la dans Informations.')}`
+              : `${t('Le document indique la compagnie')} « ${compagnieNotice.read} », ${t('qui ne fait pas partie de vos compagnies : la compagnie')} « ${compagnieNotice.kept} » ${t('est conservée pour que le dossier reste dans votre liste.')}`
+            : null,
+          duplicateRef
+            ? `« ${duplicateRef} » ${t('appartient déjà à un autre dossier — la référence n’a pas été reprise.')}`
+            : null,
+        ].filter(Boolean).join(' ');
         setLastFilledCount(written);
         // Teal value-change fade on every field the scan just wrote
         // (owner option B1; motion-spec §8).
@@ -397,11 +431,14 @@ export default function Step1Import({
             : null,
         ].filter(Boolean);
         toast({
+          variant: duplicateRef ? 'destructive' : undefined,
           title: t('Scan terminé'),
-          description:
+          description: [
             written > 0
               ? `${toastParts.join(', ')}. ${t("Vérifiez à l'étape Information.")}${buffered ? ` ${t('(Publié après « Sauvegarder » — rappel en cours.)')}` : ''}`
               : t("Aucune valeur extraite par l'IA."),
+            notCopied || null,
+          ].filter(Boolean).join(' '),
         });
       } catch (err: any) {
         console.error('[Step1Import] scan error:', err);
@@ -414,7 +451,7 @@ export default function Step1Import({
         setIsScanning(false);
       }
     },
-    [db, dossier, dossierId, dossierRef, toast, writeDossierDoc, buffered, draft, profile?.nom, t]
+    [db, dossier, dossierId, dossierRef, toast, writeDossierDoc, buffered, draft, profile?.nom, profile?.compagnies, knownCompagnies, t]
   );
 
   const handleDeleteImportDoc = useCallback(async () => {

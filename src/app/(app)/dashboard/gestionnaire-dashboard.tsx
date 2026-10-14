@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 import type { SlaItem } from '../monitoring/metrics';
 import type { FunnelDossier } from '../monitoring/funnel';
 import type { Rappel } from '@/hooks/use-rappels';
-import { computeGestionnaireView, computeTeamView, dossierOwnedBy, fmtWindow, type PersonRef, type WaitingParty, type WorkItem } from './metrics';
+import { computeGestionnaireView, computeTeamView, dossierInPortfolio, fmtWindow, type PersonRef, type WaitingParty, type WorkItem } from './metrics';
 import { filtersHref } from '@/hooks/use-persisted-filters';
 import { LATE_AFTER_DAYS } from '@/lib/dossier-late';
 import { factureToDepot48, photosToChiffrageOpen } from './analytics';
@@ -88,22 +88,22 @@ export function GestionnaireDashboard({ dossiers, chiffrages = [], sla, rappelsR
   // Read on the same dossiers as every other block — the person's own when a
   // person is given (QA GE-007: it was the only block counting everyone's).
   const facture48 = useMemo(
-    () => factureToDepot48(person ? dossiers.filter((d) => dossierOwnedBy(d as any, person)) : dossiers, holidays, now, 30),
+    () => factureToDepot48(person ? dossiers.filter((d) => dossierInPortfolio(d as any, person)) : dossiers, holidays, now, 30),
     [dossiers, holidays, now, person],
   );
   // « En retard » opens the dossiers list on the very rows the tile counts:
-  // the list's « En retard » view, narrowed to this person's dossiers.
-  const creatorName = person ? `${person.prenom ?? ''} ${person.nom ?? ''}`.trim() : '';
+  // the list's « En retard » view. The list already holds this
+  // gestionnaire's compagnies, so no « Créé par » filter (2026-10-14: it was
+  // saved with the list's filters and kept hiding colleagues' dossiers).
   const lateHref = filtersHref('/dossiers', {
     scope: 'a-traiter',
     lateOnly: true,
     sortByCreation: 'asc',
-    ...(creatorName ? { creator: creatorName } : {}),
   });
 
   const charge = useMemo(
-    () => (users && users.length ? computeTeamView('Gestionnaire', users, { dossiers, chiffrages, missions: [], sla, holidays }, now) : null),
-    [users, dossiers, chiffrages, sla, holidays, now],
+    () => (users && users.length ? computeTeamView('Gestionnaire', users, { dossiers, chiffrages, missions: [], sla, holidays, knownCompagnies: person?.knownCompagnies }, now) : null),
+    [users, dossiers, chiffrages, sla, holidays, person?.knownCompagnies, now],
   );
 
   const attente = view.enAttente.reduce((n, g) => n + g.count, 0);

@@ -27,6 +27,8 @@ import type { Rappel } from '@/hooks/use-rappels';
 import type { FunnelDossier, WorkflowLog } from '../monitoring/funnel';
 import type { ChiffrageAssignment, TerrainMission } from '../monitoring/metrics';
 import type { StructuredDevis } from '@/lib/devis-schema';
+import { compagnieInScope } from '@/lib/compagnie-name';
+import { useKnownCompagnies } from '@/hooks/use-known-compagnies';
 
 /** `chiffrages/{id}` with the queue's extra fields the dashboard shows. */
 export interface DashboardChiffrage extends ChiffrageAssignment {
@@ -58,6 +60,8 @@ export interface DashboardUser {
   email?: string;
   role?: string;
   statut?: string;
+  /** The compagnies the account was given — a gestionnaire's portfolio. */
+  compagnies?: string[];
 }
 
 export interface DashboardData {
@@ -74,6 +78,8 @@ export interface DashboardData {
   loading: boolean;
   /** Time of the last snapshot received from any listener (the freshness stamp). */
   updatedAt: Date | null;
+  /** The names of the compagnies list (`null` while it loads) — for compagnieInScope. */
+  knownCompagnies: string[] | null;
 }
 
 export interface DashboardDataOptions {
@@ -90,12 +96,21 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
   const { profile } = useCurrentUser();
   const holidays = useHolidays();
   const uid = profile?.uid;
-  const compagnieScope = useMemo(
-    () => (profile?.compagnies || []).map((c: string) => c.toLowerCase().trim()),
-    [profile?.compagnies],
-  );
+  const scopeKey = JSON.stringify(profile?.compagnies || []);
+  const compagnieScope = useMemo(() => JSON.parse(scopeKey) as string[], [scopeKey]);
+  const knownCompagnies = useKnownCompagnies();
 
-  const [dossiers, setDossiers] = useState<FunnelDossier[]>([]);
+  const [allDossiers, setDossiers] = useState<FunnelDossier[]>([]);
+  // Same rule as the dossiers list (use-dossiers.ts, compagnieInScope): a
+  // dossier with no compagnie yet, or one outside the compagnies list,
+  // belongs to everyone's scope, so the dashboard and the list never
+  // disagree on the count.
+  const dossiers = useMemo(
+    () => compagnieScope.length > 0
+      ? allDossiers.filter((d) => compagnieInScope(d.compagnie, compagnieScope, knownCompagnies))
+      : allDossiers,
+    [allDossiers, compagnieScope, knownCompagnies],
+  );
   const [chiffrages, setChiffrages] = useState<DashboardChiffrage[]>([]);
   const [missions, setMissions] = useState<DashboardMission[]>([]);
   const [rappelsRecus, setRappelsRecus] = useState<Rappel[]>([]);
@@ -118,21 +133,13 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
 
   useEffect(() => {
     if (!db) return;
-    const scope = compagnieScope;
     const unsubs: Array<() => void> = [];
 
     unsubs.push(
       onSnapshot(
         query(collection(db, 'dossiers'), orderBy('createdAt', 'desc')),
         (snap) => {
-          let data: FunnelDossier[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-          if (scope.length > 0) {
-            // Same rule as the dossiers list (use-dossiers.ts): a dossier with no
-            // compagnie yet belongs to everyone's scope, so the dashboard and the
-            // list never disagree on the count.
-            data = data.filter((d) => { const c = (d.compagnie || '').toLowerCase().trim(); return !c || scope.includes(c); });
-          }
-          setDossiers(data);
+          setDossiers(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
           setDossiersLoaded(true);
           touch();
         },
@@ -211,7 +218,7 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
 
     return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, compagnieScope, withUsers, withWorkflow, epoch]);
+  }, [db, withUsers, withWorkflow, epoch]);
 
   useEffect(() => {
     if (!db || !uid || !withRappels) return;
@@ -246,5 +253,6 @@ export function useDashboardData(opts: DashboardDataOptions = {}): DashboardData
     holidays,
     loading: !(dossiersLoaded && chiffragesLoaded && missionsLoaded),
     updatedAt,
+    knownCompagnies,
   };
 }

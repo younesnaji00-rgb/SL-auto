@@ -35,6 +35,7 @@ import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
 import { isClosedStatus } from '@/lib/status-machine';
 import { cn } from '@/lib/utils';
 import { CreateDossierDialog } from '@/components/dossiers/create-dossier-dialog';
+import { NewCompagnieDialog } from '@/components/compagnies/new-compagnie-dialog';
 // Mobile pass 2026-09-06 (mobile-synthesis §4): the compagnie CARDS stay (they
 // are heterogeneous browsing tiles — NN/g) but go 1-up with 16 px padding; the
 // « Portefeuille dossiers » table is a RECORD QUEUE, so below md it becomes a
@@ -45,9 +46,9 @@ import { RecordList, RecordRow, RecordListSkeleton } from '@/components/ui/recor
 import { LoadMore, useRenderCap } from '@/components/ui/load-more';
 import { usePhoneChrome } from '@/components/layout/page-chrome';
 // Mobile redesign 2026-09-14 (Phone.dc.html 571–583): the compagnie grid is a
-// column of RecordCards; the search lives in the top bar. The dashed
-// « + Nouvelle compagnie » is gone: compagnies are not created from the app
-// (owner 2026-10-01, with the gears of the forms).
+// column of RecordCards; the search lives in the top bar. « Nouvelle
+// compagnie » came back on 2026-10-14 (owner) for Admin, the Directeurs and
+// the Responsable des gestionnaires — the page primary, never a form gear.
 import { RecordCardList } from '@/components/ui/record-card';
 import { PhoneAdminCard } from '@/components/admin/phone-admin-list';
 
@@ -160,8 +161,12 @@ export default function CompagniesClientPage() {
   const router = useRouter();
   const selectedId = searchParams.get('selected');
 
-  const { compagnies: allCompagnies, loading: loadingCompagnies } = useCompagnies();
-  const { profile } = useCurrentUser();
+  const { compagnies: allCompagnies, loading: loadingCompagnies, addCompagnie } = useCompagnies();
+  const { profile, isAdmin } = useCurrentUser();
+  // Admin and the Directeurs (Admin, no scope) and the Responsable des
+  // gestionnaires (Admin of the Opérations side) add compagnies (2026-10-14).
+  const canAddCompagnie = isAdmin && (!profile?.accessScope || profile.accessScope === 'operations');
+  const [newCompagnieOpen, setNewCompagnieOpen] = useState(false);
   // Filter out compagnies the current user has been denied access to via
   // the per-user permissions. Applied across the entire page (cards grid,
   // detail view, etc.) — `compagnies` below is the post-filter list.
@@ -265,6 +270,9 @@ export default function CompagniesClientPage() {
           : isPhone
             ? {
                 count: loadingCompagnies ? null : phoneCompagnies.length,
+                ...(canAddCompagnie
+                  ? { primaryAction: { label: t('Nouvelle compagnie'), icon: <Plus className="h-5 w-5" />, onClick: () => setNewCompagnieOpen(true), dataTour: 'cie-add' } }
+                  : {}),
                 search: {
                   value: phoneSearch,
                   onChange: setPhoneSearch,
@@ -274,7 +282,7 @@ export default function CompagniesClientPage() {
               }
             : null,
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [selectedCompagnie?.id, isPhone, loadingCompagnies, phoneCompagnies.length, phoneSearch],
+      [selectedCompagnie?.id, isPhone, loadingCompagnies, phoneCompagnies.length, phoneSearch, canAddCompagnie],
     ),
   );
 
@@ -300,9 +308,30 @@ export default function CompagniesClientPage() {
     return (
       <div className="space-y-8">
         {/* Page header (element-specs §1: Polaris Page — plural object as the
-            title, count pill; no page primary: compagnies are seeded, not
-            created here). Title and subtitle come from nav-groups. */}
-        <PageHeader title={pageTitle} subtitle={pageSubtitle} count={compagnies.length} />
+            title, count pill; « Nouvelle compagnie » as the one primary for
+            the roles that add compagnies). Title and subtitle come from
+            nav-groups. */}
+        <PageHeader
+          title={pageTitle}
+          subtitle={pageSubtitle}
+          count={compagnies.length}
+          actions={
+            canAddCompagnie ? (
+              <Button data-tour="cie-add" onClick={() => setNewCompagnieOpen(true)}>
+                <Plus aria-hidden />
+                {t('Nouvelle compagnie')}
+              </Button>
+            ) : undefined
+          }
+        />
+        {canAddCompagnie && (
+          <NewCompagnieDialog
+            open={newCompagnieOpen}
+            onOpenChange={setNewCompagnieOpen}
+            existing={allCompagnies}
+            onCreate={addCompagnie}
+          />
+        )}
 
         {isPhone ? (
           // PHONE — one card per compagnie: 8 px logo/initials tile · name ·

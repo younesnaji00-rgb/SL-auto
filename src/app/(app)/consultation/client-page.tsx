@@ -61,6 +61,7 @@ import { SortSheet } from '@/components/ui/sort-sheet';
 import { LoadMore, useRenderCap } from '@/components/ui/load-more';
 import { useListScrollRestore, listScrollKey } from '@/lib/list-scroll-restore';
 import { usePhoneChrome } from '@/components/layout/page-chrome';
+import { compagnieKey } from '@/lib/compagnie-name';
 
 // ── Status chip (element-specs §11): the shared app-wide mapping — the local
 //    stand-in was retired 2026-09-02 (it coloured « Proposition d'accord »
@@ -307,7 +308,7 @@ export default function ConsultationClientPage() {
   const filterExceptStatus = useCallback((list: any[], f: ConsultationFilters) => {
     let results = [...list];
     if (f.nature !== 'Toutes') results = results.filter(d => d.nature === f.nature);
-    if (f.compagnie !== 'Toutes') results = results.filter(d => d.compagnie === f.compagnie);
+    if (f.compagnie !== 'Toutes') results = results.filter(d => compagnieKey(d.compagnie) === compagnieKey(f.compagnie));
     if (f.typeDossier !== 'Tous') results = results.filter(d => d.typeDossier === f.typeDossier);
     if (searchActive) results = results.filter(matchesSearch);
     if (f.dateFrom) {

@@ -29,7 +29,7 @@ import {
 import { parseAccordDocType, parseGarageSlot } from '@/lib/docType-accorde';
 import type { FunnelDossier, WorkflowLog } from '../monitoring/funnel';
 import { normalizeMissionType, type SlaItem } from '../monitoring/metrics';
-import { dossierOwnedBy, isOpenDossier, isQueueChiffrage, toDate, type PersonRef } from './metrics';
+import { dossierInPortfolio, isOpenDossier, isQueueChiffrage, toDate, type PersonRef } from './metrics';
 import type { DashboardChiffrage, DashboardMission } from './use-dashboard-data';
 
 // ── Primitives ──────────────────────────────────────────────────────────────
@@ -1017,7 +1017,7 @@ export function photosToChiffrageOpen(
   const out: HandoffItem[] = [];
   for (const d of dossiers) {
     if (!isOpenDossier(d) || rounds.has(d.id)) continue;
-    if (person && !dossierOwnedBy(d as any, person)) continue;
+    if (person && !dossierInPortfolio(d as any, person)) continue;
     const photos = toDate(d.datePhotosAvant);
     if (!photos) continue;
     out.push({ dossier: d, sinceHours: bizHours(photos, now, holidays) });
@@ -1038,7 +1038,7 @@ export function creationToPlanif24(
   let num = 0;
   let den = 0;
   for (const d of createdCohort(dossiers, now, days)) {
-    if (person && !dossierOwnedBy(d as any, person)) continue;
+    if (person && !dossierInPortfolio(d as any, person)) continue;
     const created = toDate(d.createdAt)!;
     const planif = firstPlanifAt(byDossier.get(d.id));
     if (!planif) continue;

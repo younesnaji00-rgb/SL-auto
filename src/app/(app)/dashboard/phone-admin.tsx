@@ -36,6 +36,7 @@ import type { DashboardChiffrage, DashboardMission, DashboardUser } from './use-
 import { fmtHours } from './ui';
 import { PhoneBarCard, PhoneBarRow, PhoneBlock, PhoneBlockRow, PhoneKpiLine, PhonePersonRow, fmtDaysFr, type PhoneKpi } from './phone-blocks';
 import { PhoneChiffreurDashboard, PhoneGestionnaireDashboard, PhoneTerrainDashboard } from './phone-dashboard';
+import { useKnownCompagnies } from '@/hooks/use-known-compagnies';
 
 export type PhoneAdminVue = 'direction' | 'gestionnaires' | 'chiffreurs' | 'terrain';
 export type PhoneAdminPeriod = 30 | 90 | 365 | 'tout';
@@ -87,9 +88,10 @@ export function PhoneAdminDashboard(props: PhoneAdminDashboardProps) {
   const pills: ScopePill[] = vues.map((v) => ({ key: v, label: t(VUE_LABEL[v]), active: vue === v, onClick: () => onChangeVue(v), dataTour: `dash-tab-${v}` }));
 
   const role = ROLE_OF_VUE[vue] ?? null;
+  const knownCompagnies = useKnownCompagnies();
   const team = useMemo(
-    () => (role ? computeTeamView(role, users, { dossiers, chiffrages, missions, sla, holidays }, now) : null),
-    [role, users, dossiers, chiffrages, missions, sla, holidays, now],
+    () => (role ? computeTeamView(role, users, { dossiers, chiffrages, missions, sla, holidays, knownCompagnies }, now) : null),
+    [role, users, dossiers, chiffrages, missions, sla, holidays, knownCompagnies, now],
   );
   const selected = role && team && userId ? team.perPerson.find((r) => r.user.id === userId) ?? null : null;
 
@@ -136,9 +138,10 @@ function PhoneDirection({ dossiers, chiffrages, missions, workflowLogs, users, s
     [dossiers, chiffrages, missions, workflowLogs, sla, holidays, now, windowDays],
   );
   const lateNow = useMemo(() => lateDossierIds(sla).size, [sla]);
+  const knownCompagnies = useKnownCompagnies();
   const teams = useMemo(
-    () => DASHBOARD_ROLES.map((role) => ({ role, view: computeTeamView(role, users, { dossiers, chiffrages, missions, sla, holidays }, now) })),
-    [users, dossiers, chiffrages, missions, sla, holidays, now],
+    () => DASHBOARD_ROLES.map((role) => ({ role, view: computeTeamView(role, users, { dossiers, chiffrages, missions, sla, holidays, knownCompagnies }, now) })),
+    [users, dossiers, chiffrages, missions, sla, holidays, knownCompagnies, now],
   );
   const charge = teams.find((x) => x.role === 'Gestionnaire')?.view ?? null;
   const win = fmtWindow(now, windowDays);
@@ -278,7 +281,12 @@ function PhoneTerrainDirection({ team, onSelectUser, missions, dossiers, holiday
 function PhonePersonView({ role, row, team, onBack, dossiers, chiffrages, missions, sla, holidays, now, loading }: PhoneAdminDashboardProps & { role: DashboardRole; row: PersonRow; team: TeamView; onBack: () => void }) {
   const t = useT();
   const user = row.user;
-  const person = useMemo(() => ({ uid: user.id, nom: user.nom, email: user.email }), [user.id, user.nom, user.email]);
+  // A gestionnaire's dashboard covers the compagnies of their account (2026-10-14).
+  const knownCompagnies = useKnownCompagnies();
+  const person = useMemo(
+    () => ({ uid: user.id, nom: user.nom, email: user.email, compagnies: user.compagnies ?? null, knownCompagnies }),
+    [user.id, user.nom, user.email, user.compagnies, knownCompagnies],
+  );
   const med = (s: { med: number } | null | undefined) => (s ? s.med : null);
   const line = (label: string, value: number | null, m: number | null, unit = '') => (
     <li key={label} className="flex min-h-[40px] items-center gap-2.5 border-t border-hairline px-3.5 text-[13px]">

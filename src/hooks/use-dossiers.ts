@@ -7,11 +7,12 @@ import { useFirestore, useStorage } from '@/firebase';
 import { useListenerEpoch } from '@/hooks/use-listener-epoch';
 import { markDossierDeleted } from '@/hooks/use-missing-dossiers';
 import type { Dossier } from '@/lib/dossiers-data';
+import { compagnieInScope } from '@/lib/compagnie-name';
+import { useKnownCompagnies } from '@/hooks/use-known-compagnies';
 
 export function useDossiers(allowedCompagnies?: string[]) {
     const db = useFirestore();
     const storage = useStorage();
-    const [dossiers, setDossiers] = useState<Dossier[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     // Re-subscribes after a refusal caused by a missing/refreshing login
@@ -19,8 +20,14 @@ export function useDossiers(allowedCompagnies?: string[]) {
     const { epoch, onDenied } = useListenerEpoch();
 
     // Stabilize the array reference to avoid re-subscribing on every render
-    const compagniesKey = allowedCompagnies ? JSON.stringify(allowedCompagnies.map(c => c.toLowerCase().trim()).sort()) : '';
+    const compagniesKey = allowedCompagnies ? JSON.stringify([...allowedCompagnies].sort()) : '';
     const allowed = useMemo(() => compagniesKey ? JSON.parse(compagniesKey) as string[] : null, [compagniesKey]);
+    // The compagnies list: a dossier whose compagnie is not in it stays
+    // visible to everyone (compagnieInScope).
+    const known = useKnownCompagnies();
+    const knownKey = known ? JSON.stringify(known) : '';
+    const knownList = useMemo(() => knownKey ? JSON.parse(knownKey) as string[] : null, [knownKey]);
+    const [rawDossiers, setRawDossiers] = useState<Dossier[]>([]);
 
     useEffect(() => {
         if (!db) return;
@@ -29,21 +36,7 @@ export function useDossiers(allowedCompagnies?: string[]) {
 
         const unsub = onSnapshot(q,
             (snapshot) => {
-                let results = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Dossier));
-
-                // Filter by user's allowed companies. A dossier whose compagnie
-                // is still blank (freshly created, not yet qualified) belongs to
-                // nobody's scope in particular — hiding it made « 2 sur 6 »
-                // dossiers vanish from the list and the Total tile for the very
-                // person who had just created them.
-                if (allowed && allowed.length > 0) {
-                    results = results.filter(d => {
-                        const c = (d.compagnie || '').toLowerCase().trim();
-                        return !c || allowed.includes(c);
-                    });
-                }
-
-                setDossiers(results);
+                setRawDossiers(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Dossier)));
                 setLoading(false);
                 setError(null);
             },
@@ -60,7 +53,19 @@ export function useDossiers(allowedCompagnies?: string[]) {
 
         return () => unsub();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [db, allowed, epoch]);
+    }, [db, epoch]);
+
+    // Filter by user's allowed companies (compagnieInScope — case, accents
+    // and spacing ignored). A dossier whose compagnie is still blank (freshly
+    // created, not yet qualified) or not in the compagnies list belongs to
+    // nobody's scope in particular — hiding it made « 2 sur 6 » dossiers
+    // vanish from the list for the very person who had just created them.
+    const dossiers = useMemo(
+        () => allowed && allowed.length > 0
+            ? rawDossiers.filter(d => compagnieInScope(d.compagnie, allowed, knownList))
+            : rawDossiers,
+        [rawDossiers, allowed, knownList],
+    );
 
   const deleteDossier = async (dossierId: string): Promise<void> => {
     if (!db) throw new Error('DB not initialized');
