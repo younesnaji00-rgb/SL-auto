@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useMemo, useCallback } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Search, AlertCircle, FolderOpen, Columns3, Download, Check, ChevronRight } from 'lucide-react';
+import { Search, AlertCircle, FolderOpen, Columns3, Download, Check } from 'lucide-react';
 import { format, parseISO, isValid, isToday, startOfDay, startOfWeek, startOfMonth, endOfDay } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, STICKY_HEAD, STICKY_CELL, EmptyCell } from '@/components/ui/table';
@@ -36,8 +34,6 @@ import { exportToExcel, type ExportColumn } from '@/lib/export-excel';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
-import { useDossierTabs } from '@/hooks/use-dossier-tabs';
-import { dossierLabel } from '@/lib/dossier-label';
 // Mobile pass 2026-09-06 (mobile-synthesis §4): below md the 9-column lookup
 // table becomes a 3-line record list under a sticky search row; the five
 // selects + the date cluster move into the « Filtres » sheet, the sort into a
@@ -148,19 +144,11 @@ const HIDEABLE_COLUMNS = COLUMNS.filter((c) => c.key !== 'refExpert');
 
 export default function ConsultationClientPage() {
   const t = useT();
-  const router = useRouter();
-  const { openTab } = useDossierTabs();
-  // Row click opens the dossier as a PREVIEW tab (VS Code semantics, same as
-  // the dossiers list) — consultation is a lookup surface, so a look never
-  // mints a permanent tab. The réf cell and the row-end chevron are real
-  // <Link>s; this is the pointer-only convenience on top of them.
-  const openDossier = useCallback(
-    (d: { id: string; refExpert?: string; assure?: unknown }) => {
-      openTab(d.id, dossierLabel(d), { preview: true });
-      router.push(`/dossiers/${d.id}`);
-    },
-    [openTab, router],
-  );
+  // Read-only lookup (owner ruling 2026-10-15): every account that opens
+  // Consultation sees EVERY dossier, whatever its compagnies, and nobody goes
+  // into a dossier from here — no row link, no réf link, no chevron. The
+  // dossier itself is opened from Gestion des dossiers, within the account's
+  // compagnies.
 
   const { options: dbCompagnies } = useOptions('compagnies');
   const { options: dbNatures } = useOptions('options_natures');
@@ -173,7 +161,7 @@ export default function ConsultationClientPage() {
   const statuses = useMemo(() => dbStatuses.filter(o => o.active !== false), [dbStatuses]);
   const typesDossier = useMemo(() => dbTypesDossier.filter(o => o.active !== false), [dbTypesDossier]);
 
-  // Fetch ALL dossiers — no company restriction
+  // ALL dossiers — no compagnie restriction (owner ruling 2026-10-15).
   const { dossiers: allDossiers, loading, error: fetchError } = useDossiers();
   // References carried by two or more dossiers — badged « Doublon » so
   // duplicates that predate the save gate are visible here too (QA bug 002).
@@ -186,14 +174,15 @@ export default function ConsultationClientPage() {
   const augmentWithLiveValues = (
     seeded: { id: string; label: string; order: number; active: boolean }[],
     rawValues: (string | undefined)[],
+    keyOf: (label: string) => string = (label) => label,
   ) => {
-    const seen = new Set(seeded.map((o) => o.label));
+    const seen = new Set(seeded.map((o) => keyOf(o.label)));
     const extras: typeof seeded = [];
     for (const v of rawValues) {
       if (!v || typeof v !== 'string') continue;
       const trimmed = v.trim();
-      if (!trimmed || seen.has(trimmed)) continue;
-      seen.add(trimmed);
+      if (!trimmed || seen.has(keyOf(trimmed))) continue;
+      seen.add(keyOf(trimmed));
       extras.push({ id: `live-${trimmed}`, label: trimmed, order: 9999, active: true });
     }
     return extras.length === 0 ? seeded : [...seeded, ...extras];
@@ -206,8 +195,9 @@ export default function ConsultationClientPage() {
     () => augmentWithLiveValues(natures, allDossiers.map((d) => d.nature)),
     [natures, allDossiers],
   );
+  // One entry per compagnie: « ALLIANZ » on a dossier is the list's « Allianz ».
   const filterCompagnies = useMemo(
-    () => augmentWithLiveValues(compagnies, allDossiers.map((d) => d.compagnie)),
+    () => augmentWithLiveValues(compagnies, allDossiers.map((d) => d.compagnie), compagnieKey),
     [compagnies, allDossiers],
   );
   const filterTypesDossier = useMemo(
@@ -508,7 +498,7 @@ export default function ConsultationClientPage() {
     [filters],
   );
   const cap = useRenderCap(sortedList, 25, { signature: capSignature });
-  const { onRowTap, returnedId } = useListScrollRestore({
+  const { returnedId } = useListScrollRestore({
     key: listScrollKey(pathname, capSignature),
     enabled: isPhone,
     ready: isPhone && !loading && cap.rows.length > 0,
@@ -923,12 +913,6 @@ export default function ConsultationClientPage() {
                         </>
                       }
                       returned={returnedId === d.id}
-                      href={`/dossiers/${d.id}`}
-                      ariaLabel={`${t('Ouvrir le dossier')} ${d.refExpert || ''}`.trim()}
-                      onClick={() => {
-                        onRowTap(d.id);
-                        openTab(d.id, dossierLabel(d), { preview: true });
-                      }}
                     />
                   );
                 })}
@@ -992,9 +976,6 @@ export default function ConsultationClientPage() {
                   <SortableHeader label={t('Date de requête')} sort={sortFor('dateRequete')} onChange={onSortChange('dateRequete')} />
                 </TableHead>
               )}
-              <TableHead className="w-10 text-right">
-                <span className="sr-only">{t('Ouvrir')}</span>
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1039,28 +1020,9 @@ export default function ConsultationClientPage() {
               sortedList.slice(0, visibleCount).map(d => {
                 const assureName = renderAssure(d.assure);
                 return (
-                <TableRow
-                  key={d.id}
-                  className="group cursor-pointer"
-                  onClick={(e) => {
-                    // Row click is a pointer-only enhancement over the real
-                    // links: selecting text or clicking a control never
-                    // navigates (tempertemper / Roselli on clickable rows).
-                    if ((e.target as HTMLElement).closest('a,button')) return;
-                    if (window.getSelection()?.toString()) return;
-                    openDossier(d);
-                  }}
-                >
+                <TableRow key={d.id}>
                   <TableCell className={cn(STICKY_CELL, 't-mono font-semibold')}>
-                    {d.refExpert ? (
-                      <Link
-                        href={`/dossiers/${d.id}`}
-                        className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label={`${t('Ouvrir le dossier')} ${d.refExpert}`}
-                      >
-                        <Highlight text={d.refExpert} query={filters.search} />
-                      </Link>
-                    ) : <EmptyCell />}
+                    {d.refExpert ? <Highlight text={d.refExpert} query={filters.search} /> : <EmptyCell />}
                     {d.refExpert && dupRefKeys.has(normalizeRefExpert(d.refExpert)) && (
                       <Badge variant="warning" className="ml-1.5 align-middle font-sans font-normal" title={t('Réf. expert partagée avec un autre dossier')}>
                         {t('Doublon')}
@@ -1119,19 +1081,6 @@ export default function ConsultationClientPage() {
                       ) : <EmptyCell />}
                     </TableCell>
                   )}
-                  <TableCell className="w-10 text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-ink-3 hover:text-ink"
-                      asChild
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Link href={`/dossiers/${d.id}`} title={t('Ouvrir le dossier')} aria-label={`${t('Ouvrir le dossier')} ${d.refExpert || ''}`}>
-                        <ChevronRight className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </TableCell>
                 </TableRow>
                 );
               })

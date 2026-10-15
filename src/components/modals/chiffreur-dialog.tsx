@@ -9,6 +9,9 @@
  * account also links it to the chiffreur directory. The old « + » / « Gérer
  * les chiffreurs » window let people create directory entries with no
  * account behind them, and a dossier sent to one reached nobody.
+ *
+ * The Responsable des chiffreurs is listed too, with a « Responsable » pill
+ * (owner ruling 2026-10-14).
  */
 import { useAssignableChiffreurs } from "@/hooks/use-assignable-chiffreurs";
 import { useChiffreurWorkload } from "@/hooks/use-workload-counts";
@@ -20,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/i18n";
+import { ResponsablePill } from "@/components/ui/responsable-pill";
 
 interface Props {
   /** Called when the user picks a chiffreur from the dropdown (returns ID) */
@@ -46,6 +50,7 @@ export function ChiffreurDialog({ onSelectId, selectedId }: Props) {
               <SelectItem key={c.id} value={c.id}>
                 <span className="flex items-center gap-2">
                   <span>{c.nom}</span>
+                  {c.lead && <ResponsablePill />}
                   {count > 0 && (
                     // Workload count — element-specs §11: a plain count is
                     // information, not an exception → neutral count pill.

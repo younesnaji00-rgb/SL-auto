@@ -14,13 +14,21 @@
  * then login e-mail, then name) so assignments keep the directory id the
  * workload counts and older chiffrages use; an account with no entry is
  * keyed by its uid, which the queue and dashboard also match on.
+ *
+ * The Responsable des chiffreurs chiffre too (owner ruling 2026-10-14): their
+ * account is listed, flagged `lead` for the « Responsable » pill. Labels are
+ * read through teamRoleOf, so « chiffreur » typed in lower case counts too.
+ * Being listed also matters off the picker: a chiffrage whose assignee is in
+ * no listed account counts as unowned and shows in EVERY chiffreur's queue
+ * (chiffreur-identity.ts isChiffrageUnowned).
  */
 import { useEffect, useMemo, useState } from 'react';
-import { collection, query, where } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
 import { compactName } from '@/lib/chiffreur-identity';
+import { isTeamLead, teamRoleOf } from '@/lib/role-access';
 
 export interface AssignableChiffreur {
   /** Directory id when the account has an entry, else the account uid. */
@@ -28,6 +36,8 @@ export interface AssignableChiffreur {
   uid: string;
   nom: string;
   email: string;
+  /** A Responsable des chiffreurs (« Responsable » pill). */
+  lead: boolean;
 }
 
 interface ChiffreurAccount {
@@ -36,6 +46,7 @@ interface ChiffreurAccount {
   prenom: string;
   email: string;
   inactive: boolean;
+  lead: boolean;
 }
 
 export function useAssignableChiffreurs(): { chiffreurs: AssignableChiffreur[]; loading: boolean } {
@@ -47,10 +58,10 @@ export function useAssignableChiffreurs(): { chiffreurs: AssignableChiffreur[]; 
   useEffect(() => {
     if (!db) return;
     const unsub = onSnapshot(
-      query(collection(db, 'users'), where('role', '==', 'Chiffreur')),
+      collection(db, 'users'),
       (snap) => {
         setAccounts(
-          snap.docs.map((d) => {
+          snap.docs.filter((d) => teamRoleOf(d.data().role) === 'Chiffreur').map((d) => {
             const u = d.data() as Record<string, unknown>;
             const statut = String(u.statut ?? '').toLowerCase();
             return {
@@ -60,6 +71,7 @@ export function useAssignableChiffreurs(): { chiffreurs: AssignableChiffreur[]; 
               email: String(u.email ?? '').toLowerCase().trim(),
               // A deactivated account cannot log in to see its queue.
               inactive: u.active === false || statut === 'inactif' || statut === 'désactivé' || statut === 'suspendu',
+              lead: isTeamLead(String(u.role ?? '')),
             };
           }),
         );
@@ -83,7 +95,7 @@ export function useAssignableChiffreurs(): { chiffreurs: AssignableChiffreur[]; 
           directory.find((c) => a.email && (c.email || '').toLowerCase().trim() === a.email) ??
           directory.find((c) => [compactName(a.nom), full].includes(compactName(c.nom)));
         const nom = [a.prenom, a.nom].filter(Boolean).join(' ') || a.email || a.uid;
-        return { id: entry?.id ?? a.uid, uid: a.uid, nom, email: a.email };
+        return { id: entry?.id ?? a.uid, uid: a.uid, nom, email: a.email, lead: a.lead };
       })
       .sort((x, y) => x.nom.localeCompare(y.nom, 'fr'));
   }, [accounts, directory]);

@@ -12,7 +12,7 @@
  * compagnie's dossiers between two scopes.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,19 +38,27 @@ export function NewCompagnieDialog({
   existing,
   onCreate,
   onCreated,
+  initialNom = '',
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The compagnies already in the list: names for the duplicate check, colours to pick an unused one. */
   existing: { nom: string; couleur?: string }[];
   onCreate: (nom: string, couleur: string) => Promise<string | undefined>;
-  onCreated?: (id: string) => void;
+  /** The new entry, e.g. to choose at once who sees it. */
+  onCreated?: (id: string, nom: string) => void;
+  /** Name the field opens with — a compagnie found on dossiers (« Ajouter à la liste »). */
+  initialNom?: string;
 }) {
   const t = useT();
   const { toast } = useToast();
   const [nom, setNom] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) setNom(initialNom);
+  }, [open, initialNom]);
 
   const reset = () => {
     setNom('');
@@ -84,7 +92,7 @@ export function NewCompagnieDialog({
       const id = await onCreate(name, couleur);
       toast({ title: t('Compagnie ajoutée'), description: name });
       handleOpenChange(false);
-      if (id) onCreated?.(id);
+      if (id) onCreated?.(id, name);
     } catch (e: any) {
       toast({ variant: 'destructive', title: t('Erreur'), description: String(e?.message ?? e) });
     } finally {
@@ -94,7 +102,7 @@ export function NewCompagnieDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="lg:max-w-md" dirty={nom.trim().length > 0} onDiscard={reset}>
+      <DialogContent className="lg:max-w-md" dirty={nom.trim() !== initialNom.trim()} onDiscard={reset}>
         <DialogHeader>
           <DialogTitle className="t-title">{t('Nouvelle compagnie')}</DialogTitle>
           <DialogDescription>

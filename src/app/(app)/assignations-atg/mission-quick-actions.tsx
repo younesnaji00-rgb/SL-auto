@@ -22,7 +22,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useIsCoarsePointer } from '@/hooks/use-viewport-class';
 import { useFirestore, useAuth } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { useOptions } from '@/hooks/use-options';
+import { useAssignableAgents } from '@/hooks/use-assignable-agents';
+import { ResponsablePill } from '@/components/ui/responsable-pill';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -103,7 +104,9 @@ export function ReassignPopover({
   const auth = useAuth();
   const { profile } = useCurrentUser();
   const { toast } = useToast();
-  const { options: agents } = useOptions('options_agents');
+  // The agents and the Responsable des agents de terrain (owner ruling
+  // 2026-10-14), each with its account uid when one bears its name.
+  const { agents } = useAssignableAgents();
   const t = useT();
   const coarse = useIsCoarsePointer();
   const [uncontrolled, setUncontrolled] = useState(false);
@@ -139,13 +142,13 @@ export function ReassignPopover({
     }));
   };
 
-  const reassignTo = async (agentLabel: string, zone: string) => {
+  const reassignTo = async (agentLabel: string, zone: string, knownUid?: string) => {
     if (!db || saving || targets.length === 0) return;
     setSaving(true);
     try {
       // Resolve the agent uid once (mirrors modal-planification's lookup).
-      let agentUid: string | null = null;
-      try {
+      let agentUid: string | null = knownUid ?? null;
+      if (!agentUid) try {
         const snap = await getDocs(query(collection(db, 'users'), where('nom', '==', agentLabel), limit(1)));
         agentUid = snap.docs[0]?.id ?? null;
       } catch { agentUid = null; }
@@ -200,13 +203,16 @@ export function ReassignPopover({
             key={a.id ?? a.label}
             type="button"
             disabled={saving || isCurrent}
-            onClick={() => reassignTo(a.label, a.zone?.trim() || '')}
+            onClick={() => reassignTo(a.label, a.zone?.trim() || '', a.uid)}
             className={cn(
               rowClass,
               isCurrent ? 'cursor-default bg-surface-2 text-ink-3' : 'hover:bg-surface-2',
             )}
           >
-            <span className="truncate font-medium">{a.label}</span>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate font-medium">{a.label}</span>
+              {a.lead && <ResponsablePill />}
+            </span>
             <span className="shrink-0 text-xs text-ink-3">
               {isCurrent ? t('actuel') : a.zone?.trim() || ''}
             </span>

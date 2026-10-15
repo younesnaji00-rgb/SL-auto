@@ -144,6 +144,15 @@ service cloud.firestore {
           request.auth != null
           && request.auth.uid == userId
           && !('role' in request.resource.data.diff(resource.data).affectedKeys())
+        )
+        // « Qui voit cette compagnie ? » on /compagnies (owner 2026-10-15): the
+        // Responsable des gestionnaires gives or takes a compagnie — that
+        // field only — on accounts without Admin rights.
+        || (
+          request.auth != null
+          && userRole() == 'Responsable des gestionnaires'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['compagnies'])
+          && !(resource.data.role in ['Admin', 'Directeur', 'Directeur des opérations', 'Directeur technique'])
         );
       // Delete: Admin only.
       allow delete: if isAdmin();

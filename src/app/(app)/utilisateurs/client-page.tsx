@@ -58,9 +58,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { SitesPicker, normalizeSites } from '@/components/admin/sites-picker';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { describeRole } from '@/lib/role-access';
+import { describeRole, roleKey } from '@/lib/role-access';
 import { useFirestore, useCollection, useFirebaseApp } from '@/firebase';
 import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, addDoc } from 'firebase/firestore';
 import { getDocs } from '@/lib/firestore-logged';
@@ -143,12 +144,10 @@ export default function UtilisateursClientPage() {
   const { options: dbCompagnies } = useOptions('compagnies');
   const { options: dbAgentsRaw } = useOptions('options_agents');
   const { options: dbZones } = useOptions('options_zones');
-  const { options: dbSites } = useOptions('options_sites');
 
   const roles = useMemo(() => dbRoles.filter(o => o.active !== false), [dbRoles]);
   const compagniesOptions = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
   const zones = useMemo(() => dbZones.filter(o => o.active !== false), [dbZones]);
-  const sitesOptions = useMemo(() => dbSites.filter(o => o.active !== false).map(s => ({ value: s.label, label: s.label })), [dbSites]);
 
   // Zone typeahead combobox state
   const [zonePopoverOpen, setZonePopoverOpen] = useState(false);
@@ -254,7 +253,7 @@ export default function UtilisateursClientPage() {
         password: data.password, // stored so admin can see it
         role: data.role,
         compagnies: data.compagnies,
-        sites: data.sites ?? [],
+        sites: normalizeSites(data.sites),
         zone: savedZone,
         statut: 'Actif',
         createdAt: serverTimestamp(),
@@ -378,7 +377,9 @@ export default function UtilisateursClientPage() {
         (user.nom || '').toLowerCase().includes(searchLower) ||
         (user.prenom || '').toLowerCase().includes(searchLower) ||
         (user.email || '').toLowerCase().includes(searchLower);
-      const roleMatch = filters.role === 'Tous' || user.role === filters.role;
+      // Case, accents and spacing ignored (roleKey): an account saved as
+      // « directeur » is a Directeur (QA #058).
+      const roleMatch = filters.role === 'Tous' || roleKey(user.role) === roleKey(filters.role);
       return nameMatch && roleMatch;
     });
   }, [userList, filters]);
@@ -405,7 +406,7 @@ export default function UtilisateursClientPage() {
         (user.nom || '').toLowerCase().includes(s) ||
         (user.prenom || '').toLowerCase().includes(s) ||
         (user.email || '').toLowerCase().includes(s);
-      return nameMatch && (f.role === 'Tous' || user.role === f.role);
+      return nameMatch && (f.role === 'Tous' || roleKey(user.role) === roleKey(f.role));
     }).length;
 
   // PHONE top bar (design 845–850): count on the « Utilisateurs » chip, the
@@ -565,12 +566,7 @@ export default function UtilisateursClientPage() {
                     render={({ field }) => (
                       <FormItem className="space-y-1">
                         <FormLabel>{t('Sites')} <span className="text-ink-4">({t('facultatif')})</span></FormLabel>
-                        <MultiSelect
-                          options={sitesOptions}
-                          selected={field.value ?? []}
-                          onChange={field.onChange}
-                          className="w-full"
-                        />
+                        <SitesPicker value={field.value} onChange={field.onChange} />
                         <FormMessage />
                       </FormItem>
                     )}
@@ -834,9 +830,16 @@ export default function UtilisateursClientPage() {
                 </div>
               )}
 
-              <div className="-mx-6 -mb-6 border-t border-hairline max-md:hidden" data-tour="usr-table">
+              {/* The list grows with the firm (owner 2026-10-15): the table scrolls
+                  inside the card, its header pinned, instead of the whole page —
+                  the same capped box as the Dossiers list. */}
+              <div
+                className="-mx-6 -mb-6 max-h-[calc((100dvh-300px)/var(--app-zoom))] overflow-auto border-t border-hairline max-md:hidden [&>div]:overflow-visible"
+                data-tour="usr-table"
+                data-testid="usr-table-scroll"
+              >
                 <Table regionLabel={t('Utilisateurs')}>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 z-10 bg-card">
                     <TableRow>
                       <TableHead className="pl-6">{t('Nom')}</TableHead>
                       {/* The « Mot de passe » column was removed 2026-09-02

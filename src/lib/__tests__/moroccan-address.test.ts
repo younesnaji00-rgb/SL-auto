@@ -4,7 +4,7 @@
 // ruling 2026-10-05); the city is the locality of the address Google resolved.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { anchorToMorocco, localityOf, placeOfAddress, samePlace } from '../moroccan-address';
+import { anchorToMorocco, firmCityNamedIn, localityOf, pickFirmPlace, placeOfAddress, samePlace, withFirmCity } from '../moroccan-address';
 
 test('the locality is the component before the country, without postal or plus code', () => {
   assert.equal(localityOf('219 Bd Mohamed Zerktouni, Casablanca 20250, Maroc'), 'Casablanca');
@@ -77,4 +77,29 @@ test('addresses are tied to Morocco before they reach Google', () => {
   assert.equal(anchorToMorocco('Maarif, rue X'), 'Maarif, rue X, Maroc');
   assert.equal(anchorToMorocco('Casablanca, Maroc'), 'Casablanca, Maroc');
   assert.equal(anchorToMorocco('33.5731,-7.5898'), '33.5731,-7.5898');
+});
+
+
+// Owner 2026-10-15: only Casablanca and Fès, so the city need not be typed.
+test('an address names a firm city, or is completed with one', () => {
+  assert.equal(firmCityNamedIn('12 rue Ibn Battouta, Maarif, Casablanca'), 'Casablanca');
+  assert.equal(firmCityNamedIn('Bd Zerktouni casa'), 'Casablanca');
+  assert.equal(firmCityNamedIn('Av. Hassan II, Fez'), 'Fès');
+  assert.equal(firmCityNamedIn('Av. Hassan II, Fès'), 'Fès');
+  assert.equal(firmCityNamedIn('12 rue Ibn Battouta, Maarif'), null);
+  assert.equal(firmCityNamedIn('Rue des Fesses'), null);
+  assert.equal(withFirmCity('12 rue Ibn Battouta, Maarif, ', 'Casablanca'), '12 rue Ibn Battouta, Maarif, Casablanca');
+  assert.equal(withFirmCity('Av. Hassan II, Fès', 'Casablanca'), 'Av. Hassan II, Fès');
+});
+
+test('of the two lookups, the place inside a firm city is kept', () => {
+  const at = (city: 'Casablanca' | 'Fès', formatted: string) => ({ city, place: placeOfAddress(formatted) });
+  // Only the Casablanca lookup lands in a firm city.
+  assert.equal(pickFirmPlace([at('Casablanca', 'Rue Ibn Battouta, Casablanca 20250, Maroc'), at('Fès', 'Fès, Maroc')])?.city, 'Casablanca');
+  // Both do: the account's site decides, else the list order.
+  const both = [at('Casablanca', 'Rue 5, Casablanca, Maroc'), at('Fès', 'Rue 5, Fès 30000, Maroc')];
+  assert.equal(pickFirmPlace(both, ['Fès'])?.city, 'Fès');
+  assert.equal(pickFirmPlace(both)?.city, 'Casablanca');
+  // Neither: no pick (the route then reports where Google put it).
+  assert.equal(pickFirmPlace([at('Casablanca', 'Rue X, Rabat, Maroc'), at('Fès', 'Rue X, Meknès, Maroc')]), null);
 });

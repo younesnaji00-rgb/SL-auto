@@ -35,22 +35,32 @@ export function useChiffreurWorkload(): Record<string, number> {
  *
  * When `dayFilter` is provided, only planifications whose `dateRDV` falls on
  * that calendar day are counted — used by the planification modal so the agent
- * picker reflects each agent's load for the day being scheduled. Called with no
- * argument, the count spans all days (the assignations-ATG workload overview).
+ * picker reflects each agent's load for the day being scheduled. Without a
+ * day it counts nothing (see below).
  *
  * NOTE: prior to task #47 this predicate skipped dossiers whose status was in
  * the 6 "agentTerrainStatuses" planification labels — but after task #2
  * repointed that export at the canonical planification labels, those are the
  * in-flight statuses, not the completed ones. The correct "ATG done" check is
  * `isAtgCompletedStatus` (alias of `isClosedStatus`).
+ *
+ * Nothing is read until a day is chosen (the planning dialog prints the
+ * counts only then), and only the dossiers of THAT day's planifications are
+ * followed. It used to follow every planification of the firm plus one live
+ * listener per dossier they belong to, from every dossier page (owner
+ * 2026-10-15: « everything is so slow »).
  */
 export function useAgentTerrainWorkload(dayFilter?: Date | null): Record<string, number> {
   const db = useFirestore();
   const [planifs, setPlanifs] = useState<Array<{ dossierId: string; agentTerrain: string; dateRDVMs: number | null }>>([]);
   const [dossierStatuts, setDossierStatuts] = useState<Record<string, string>>({});
 
+  const watching = !!dayFilter;
   useEffect(() => {
-    if (!db) return;
+    if (!db || !watching) {
+      setPlanifs([]);
+      return;
+    }
     const unsub = onSnapshot(collectionGroup(db, 'planifications'), (snap) => {
       const items: Array<{ dossierId: string; agentTerrain: string; dateRDVMs: number | null }> = [];
       snap.docs.forEach((d) => {
@@ -67,11 +77,31 @@ export function useAgentTerrainWorkload(dayFilter?: Date | null): Record<string,
       setPlanifs(items);
     });
     return () => unsub();
-  }, [db]);
+  }, [db, watching]);
 
+  // Calendar-day bounds for the optional day filter. Computed as a memoized
+  // scalar pair so the counting memo below only re-runs when the day changes,
+  // not on every new Date identity. Uses setDate (not +86_400_000) so DST days
+  // stay correct — mirrors dayBounds() in use-atg-feasibility.
+  const dayBounds = useMemo(() => {
+    if (!dayFilter) return null;
+    const start = new Date(dayFilter);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { startMs: start.getTime(), endMs: end.getTime() };
+  }, [dayFilter]);
+
+  const dayPlanifs = useMemo(
+    () =>
+      dayBounds
+        ? planifs.filter((p) => p.dateRDVMs != null && p.dateRDVMs >= dayBounds.startMs && p.dateRDVMs < dayBounds.endMs)
+        : planifs,
+    [planifs, dayBounds],
+  );
   const dossierIdsKey = useMemo(
-    () => [...new Set(planifs.map((p) => p.dossierId))].sort().join(','),
-    [planifs],
+    () => [...new Set(dayPlanifs.map((p) => p.dossierId))].sort().join(','),
+    [dayPlanifs],
   );
 
   useEffect(() => {
@@ -90,29 +120,13 @@ export function useAgentTerrainWorkload(dayFilter?: Date | null): Record<string,
     return () => unsubs.forEach((u) => u());
   }, [db, dossierIdsKey]);
 
-  // Calendar-day bounds for the optional day filter. Computed as a memoized
-  // scalar pair so the counting memo below only re-runs when the day changes,
-  // not on every new Date identity. Uses setDate (not +86_400_000) so DST days
-  // stay correct — mirrors dayBounds() in use-atg-feasibility.
-  const dayBounds = useMemo(() => {
-    if (!dayFilter) return null;
-    const start = new Date(dayFilter);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
-    return { startMs: start.getTime(), endMs: end.getTime() };
-  }, [dayFilter]);
-
   return useMemo(() => {
     const result: Record<string, number> = {};
-    planifs.forEach((p) => {
+    dayPlanifs.forEach((p) => {
       const statut = dossierStatuts[p.dossierId] || '';
       if (isAtgCompletedStatus(statut)) return;
-      if (dayBounds) {
-        if (p.dateRDVMs == null || p.dateRDVMs < dayBounds.startMs || p.dateRDVMs >= dayBounds.endMs) return;
-      }
       result[p.agentTerrain] = (result[p.agentTerrain] || 0) + 1;
     });
     return result;
-  }, [planifs, dossierStatuts, dayBounds]);
+  }, [dayPlanifs, dossierStatuts]);
 }

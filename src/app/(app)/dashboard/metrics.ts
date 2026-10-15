@@ -30,6 +30,7 @@ import { isChiffrageMine, isChiffrageUnowned, type ChiffreurAccountRef } from '@
 import { isValidPhotosSentAt, missionPhotoAnchor, type PhasePhotoTimes } from '@/lib/mission-photos';
 import { isDossierLate } from '@/lib/dossier-late';
 import { compagnieInScope } from '@/lib/compagnie-name';
+import { isTeamLead, teamRoleOf } from '@/lib/role-access';
 
 export { SLA_BUSINESS_HOURS };
 
@@ -800,8 +801,19 @@ export interface TeamView {
   stats: TeamStats;
 }
 
+// The team's members, whatever the case of their label, and the Responsable
+// des chiffreurs / des agents de terrain, who does the team's work and is
+// counted with it (owner ruling 2026-10-14) — on what is assigned to them.
+// Not the Responsable des gestionnaires: a gestionnaire's load is the
+// dossiers of their compagnies, and a responsable without compagnies would
+// carry every dossier of the firm.
 const activeUsersOfRole = (users: DashboardUser[], role: DashboardRole): DashboardUser[] =>
-  users.filter((u) => u.role === role && u.statut !== 'Inactif');
+  users.filter(
+    (u) =>
+      u.statut !== 'Inactif' &&
+      teamRoleOf(u.role) === role &&
+      !(role === 'Gestionnaire' && isTeamLead(u.role)),
+  );
 
 const personOf = (u: DashboardUser): PersonRef => ({ uid: u.id, nom: u.nom, email: u.email, compagnies: u.compagnies ?? null });
 

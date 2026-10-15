@@ -61,6 +61,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { roles } from '@/lib/dossiers-data';
+import { roleKey } from '@/lib/role-access';
+import { CompagnieScopeNote } from '@/components/dossiers/compagnie-scope-note';
 // Mobile pass 2026-09-06 (mobile-synthesis §4 / research §2): the two wide
 // stat tables are FIGURE COMPARISON, so they keep a real `<table>` — frozen
 // identifier column, a viewport-wide scroll region with a `ScrollFade` cue,
@@ -581,7 +583,9 @@ export default function MonitoringPage() {
   const filteredPerUser = useMemo(() => {
     let rows = dedupedPerUser;
     if (roleFilter !== ROLE_FILTER_ALL) {
-      rows = rows.filter((r) => r.role === roleFilter);
+      // Same label whatever its case, accents or spacing: accounts saved as
+      // « directeur » vanished under « Directeur » (QA #058).
+      rows = rows.filter((r) => roleKey(r.role) === roleKey(roleFilter));
     }
     const q = userSearch.toLowerCase().trim();
     if (q) {
@@ -703,6 +707,14 @@ export default function MonitoringPage() {
           onChangeVue={changeVue}
         />
       )}
+
+      {/* The account's compagnies: the one filter not chosen here (QA #059). */}
+      <CompagnieScopeNote
+        compagnies={profile?.compagnies}
+        outOfScope={rawDossiers.length - dossiers.length}
+        loading={loading}
+        className={isPhone ? 'pt-2' : '-mt-4'}
+      />
 
       {/* Page summary (Few: summary before detail) — above the tabs so the four
           numbers stay in view while a breakdown is compared against them

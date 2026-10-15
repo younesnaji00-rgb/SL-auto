@@ -65,7 +65,8 @@ const MSG = {
   tel: 'Numéro marocain attendu : 06 12 34 56 78 ou +212 6 12 34 56 78.',
   email: 'Adresse e-mail invalide (ex. nom@domaine.ma).',
   plate: 'Immatriculation invalide (ex. 12345-A-6 ou WW-123456).',
-  address: 'Adresse invalide : indiquez au moins la rue et la ville, en lettres et chiffres (pas de symboles seuls).',
+  // No city asked: the firm works in Casablanca and Fès only (owner 2026-10-15).
+  address: 'Adresse invalide : indiquez au moins la rue et le quartier, en lettres et chiffres (pas de symboles seuls). Inutile d’ajouter la ville.',
   name: 'Nom invalide : lettres uniquement (espace, tiret et apostrophe admis).',
   org: 'Nom invalide : lettres et chiffres, ponctuation simple admise (pas de symboles seuls).',
   cin: 'CIN invalide (ex. AB123456).',

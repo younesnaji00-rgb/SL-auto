@@ -25,6 +25,7 @@ import { ScopePills, type ScopePill } from '@/components/ui/scope-pills';
 import { PhoneBarCard, PhoneBarRow, PhoneBlock, PhonePersonRow } from '../dashboard/phone-blocks';
 import { STEP_KEYS, STEP_LABELS_SHORT, type StepKey } from './funnel';
 import type { CycleTimeRow, Headline } from './metrics';
+import { teamRoleOf } from '@/lib/role-access';
 
 /** Phone-only step labels (design): the photo steps read as visits. `funnel.ts` is shared with desktop and untouched. */
 const PHONE_STEP_LABELS: Partial<Record<StepKey, string>> = {
@@ -94,7 +95,8 @@ export function PhoneSuivi({ periodLabel, counts, horsDelaiCounts, users, loadin
   const ref = first > 0 ? first : Math.max(1, ...STEP_KEYS.map((k) => counts[k] ?? 0));
 
   const team = useMemo(() => {
-    const gest = users.filter((u) => u.role === 'Gestionnaire');
+    // The gestionnaires and their responsable, whatever the label's spelling.
+    const gest = users.filter((u) => teamRoleOf(u.role) === 'Gestionnaire');
     const rows = (gest.length > 0 ? gest : users).map((u) => ({
       name: u.user,
       open: u.ouverts,

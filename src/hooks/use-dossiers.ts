@@ -66,6 +66,9 @@ export function useDossiers(allowedCompagnies?: string[]) {
             : rawDossiers,
         [rawDossiers, allowed, knownList],
     );
+    // How many the scope keeps out — said on the page (CompagnieScopeNote),
+    // so a gap with another count is never unexplained (QA #003, #054).
+    const outOfScope = rawDossiers.length - dossiers.length;
 
   const deleteDossier = async (dossierId: string): Promise<void> => {
     if (!db) throw new Error('DB not initialized');
@@ -142,5 +145,5 @@ export function useDossiers(allowedCompagnies?: string[]) {
     })();
   };
 
-    return { dossiers, loading, error, deleteDossier };
+    return { dossiers, outOfScope, loading, error, deleteDossier };
 }

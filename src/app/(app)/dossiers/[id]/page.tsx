@@ -82,6 +82,7 @@ import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
 import ModalPlanification from './modal-planification';
 import ModalChiffrage from './modal-chiffrage';
 import { EnvoyerEmailDialog } from '@/components/dossiers/envoyer-email-dialog';
+import { usePresence } from '@/hooks/use-presence';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 // Mirrors mes-rappels/page.tsx — must stay in sync.
@@ -474,6 +475,13 @@ function DossierDetail({ id }: { id: string }) {
   const [isChiffrageModalOpen, setChiffrageModalOpen] = useState(false);
   const [isHistoriqueOpen, setHistoriqueOpen] = useState(false);
   const [isEmailDialogOpen, setEmailDialogOpen] = useState(false);
+  // Mounted only while open (plus the closing animation): closed, the
+  // planning dialog still subscribed to EVERY planification of the firm and
+  // to each of their dossiers (agent workload), the chiffrage one to every
+  // account — on each dossier opened (owner 2026-10-15: « everything is so
+  // slow »).
+  const planifModal = usePresence(isPlanificationModalOpen, 300);
+  const chiffrageModal = usePresence(isChiffrageModalOpen, 300);
 
   const handleEditPlanification = (data: any) => {
     setPlanificationInitialData(data);
@@ -870,8 +878,8 @@ function DossierDetail({ id }: { id: string }) {
       {phoneBar}
 
       {/* MODALS */}
-      <ModalPlanification open={isPlanificationModalOpen} onOpenChange={setPlanificationModalOpen} dossierId={id} initialData={planificationInitialData} dossierData={viewDossier} defaultTypeMission={planificationDefaultType ?? undefined} />
-      <ModalChiffrage open={isChiffrageModalOpen} onOpenChange={setChiffrageModalOpen} dossierId={id} />
+      {planifModal.mounted && <ModalPlanification open={isPlanificationModalOpen} onOpenChange={setPlanificationModalOpen} dossierId={id} initialData={planificationInitialData} dossierData={viewDossier} defaultTypeMission={planificationDefaultType ?? undefined} />}
+      {chiffrageModal.mounted && <ModalChiffrage open={isChiffrageModalOpen} onOpenChange={setChiffrageModalOpen} dossierId={id} />}
       <EnvoyerEmailDialog
         open={isEmailDialogOpen}
         onOpenChange={setEmailDialogOpen}

@@ -30,6 +30,9 @@ import { dateFnsLocale, useT, t as tGlobal } from '@/i18n';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useChiffreurs } from '@/hooks/use-chiffreurs';
 import { useAssignableChiffreurs } from '@/hooks/use-assignable-chiffreurs';
+import { doesTeamWork } from '@/lib/role-access';
+import { compagnieKey } from '@/lib/compagnie-name';
+import { useKnownCompagnies } from '@/hooks/use-known-compagnies';
 import { isChiffrageUnowned } from '@/lib/chiffreur-identity';
 import { useListenerEpoch } from '@/hooks/use-listener-epoch';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
@@ -175,8 +178,12 @@ export default function AssignationsChiffragePage() {
   const myEmail = (profile?.email || '').toLowerCase().trim();
   const myName = compactName(profile?.nom || '');
   const myFullName = compactName(`${profile?.prenom || ''} ${profile?.nom || ''}`);
+  // The Responsable des chiffreurs chiffre too (owner ruling 2026-10-14):
+  // their directory entry is found and linked the same way; they keep the
+  // whole queue (their own chiffrages: the « Chiffreur » filter).
+  const doesChiffrage = doesTeamWork(profile, 'Chiffreur');
   const myDirectoryIds = useMemo(() => {
-    if (profile?.role !== 'Chiffreur') return new Set<string>();
+    if (!doesChiffrage) return new Set<string>();
     return new Set(
       chiffreurDirectory
         .filter(c =>
@@ -186,16 +193,16 @@ export default function AssignationsChiffragePage() {
         )
         .map(c => c.id),
     );
-  }, [chiffreurDirectory, profile?.role, myUid, myEmail, myName, myFullName]);
+  }, [chiffreurDirectory, doesChiffrage, myUid, myEmail, myName, myFullName]);
   useEffect(() => {
-    if (!db || profile?.role !== 'Chiffreur' || !myUid) return;
+    if (!db || !doesChiffrage || !myUid) return;
     const unlinked = chiffreurDirectory.filter(c => myDirectoryIds.has(c.id) && !c.uid);
     unlinked.forEach(c => {
       updateDoc(doc(db, 'chiffreurs', c.id), { uid: myUid }).catch(err =>
         console.warn('[assignations-chiffrage] could not link the chiffreur directory entry:', err),
       );
     });
-  }, [db, profile?.role, myUid, chiffreurDirectory, myDirectoryIds]);
+  }, [db, doesChiffrage, myUid, chiffreurDirectory, myDirectoryIds]);
   // Live Réf. expert per dossier (QA bug Chiffreur 001): the chiffrage keeps
   // the reference copied at send time — or, before the fix, the raw Firestore
   // id when the dossier had none — and a later correction never reached it.
@@ -294,15 +301,25 @@ export default function AssignationsChiffragePage() {
     return () => unsubs.forEach(u => u());
   }, [db, dossierIds.join(',')]);
 
-  // Build filter options from loaded data
+  // Compagnie filter: EVERY compagnie of the list, even at 0 chiffrage
+  // (owner 2026-10-15), plus any other one a dossier carries; one entry per
+  // compagnie whatever its spelling (« ALLIANZ » counts under « Allianz »).
+  const knownCompagnies = useKnownCompagnies();
   const compagnieOptions = useMemo(() => {
-    const counts: Record<string, number> = {};
+    const names = new Map<string, string>();
+    for (const n of knownCompagnies ?? []) if (compagnieKey(n) && !names.has(compagnieKey(n))) names.set(compagnieKey(n), n);
+    const counts = new Map<string, number>();
     chiffrages.forEach(c => {
       const comp = dossierCompagnies[c.dossierId] || '';
-      if (comp) counts[comp] = (counts[comp] || 0) + 1;
+      const key = compagnieKey(comp);
+      if (!key) return;
+      if (!names.has(key)) names.set(key, comp.trim());
+      counts.set(key, (counts.get(key) || 0) + 1);
     });
-    return Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
-  }, [chiffrages, dossierCompagnies]);
+    return Array.from(names.entries())
+      .map(([key, name]) => [name, counts.get(key) || 0] as [string, number])
+      .sort(([a], [b]) => a.localeCompare(b, 'fr'));
+  }, [chiffrages, dossierCompagnies, knownCompagnies]);
 
   // Chiffreur filter counts. We group for DISPLAY by name (what the user
   // picks in the dropdown) but compute counts from the shared "open chiffrage"
@@ -371,7 +388,7 @@ export default function AssignationsChiffragePage() {
       });
     }
     if (f.compagnieFilter !== 'Toutes') {
-      results = results.filter(c => (dossierCompagnies[c.dossierId] || '') === f.compagnieFilter);
+      results = results.filter(c => compagnieKey(dossierCompagnies[c.dossierId]) === compagnieKey(f.compagnieFilter));
     }
     if (f.chiffreurFilter !== 'Tous') {
       results = results.filter(c => c.assignedChiffreurNom?.trim() === f.chiffreurFilter);

@@ -3,7 +3,7 @@
 import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Building2, ChevronRight, FileText, FolderOpen, Inbox, Plus, Upload } from 'lucide-react';
+import { Building2, ChevronRight, FileText, FolderOpen, Forward, Inbox, Plus, Upload, Users } from 'lucide-react';
 import { useCompagnies, type Compagnie } from '@/hooks/use-compagnies';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { hasPermission } from '@/lib/permissions';
@@ -36,6 +36,8 @@ import { isClosedStatus } from '@/lib/status-machine';
 import { cn } from '@/lib/utils';
 import { CreateDossierDialog } from '@/components/dossiers/create-dossier-dialog';
 import { NewCompagnieDialog } from '@/components/compagnies/new-compagnie-dialog';
+import { CompagnieAccessDialog } from '@/components/compagnies/compagnie-access-dialog';
+import { canonicalCompagnie, compagnieKey } from '@/lib/compagnie-name';
 // Mobile pass 2026-09-06 (mobile-synthesis §4): the compagnie CARDS stay (they
 // are heterogeneous browsing tiles — NN/g) but go 1-up with 16 px padding; the
 // « Portefeuille dossiers » table is a RECORD QUEUE, so below md it becomes a
@@ -167,6 +169,13 @@ export default function CompagniesClientPage() {
   // gestionnaires (Admin of the Opérations side) add compagnies (2026-10-14).
   const canAddCompagnie = isAdmin && (!profile?.accessScope || profile.accessScope === 'operations');
   const [newCompagnieOpen, setNewCompagnieOpen] = useState(false);
+  // « Qui voit cette compagnie ? » — the same roles give a compagnie to
+  // several accounts at once (owner 2026-10-15), from its card, its page, or
+  // right after creating it.
+  const [accessFor, setAccessFor] = useState<{ id: string; nom: string } | null>(null);
+  const accessDialog = canAddCompagnie ? (
+    <CompagnieAccessDialog open={!!accessFor} onOpenChange={(o) => { if (!o) setAccessFor(null); }} compagnie={accessFor} />
+  ) : null;
   // Filter out compagnies the current user has been denied access to via
   // the per-user permissions. Applied across the entire page (cards grid,
   // detail view, etc.) — `compagnies` below is the post-filter list.
@@ -207,7 +216,37 @@ export default function CompagniesClientPage() {
     [compagnies, selectedId]
   );
 
-  const { dossiers: allDossiers, loading: loadingDossiers } = useDossiers(selectedCompagnie?.nom ? [selectedCompagnie.nom] : undefined);
+  // The account's dossiers (its compagnies scope, like every list), then
+  // strictly this compagnie's: the scope rule keeps blank and unlisted
+  // compagnies visible to everyone, which put them under EVERY compagnie here.
+  const scope = profile?.compagnies?.length ? profile.compagnies : undefined;
+  const { dossiers: scopedDossiers, loading: loadingDossiers } = useDossiers(scope);
+  const allDossiers = useMemo(() => {
+    if (!selectedCompagnie) return scopedDossiers;
+    const key = compagnieKey(selectedCompagnie.nom);
+    return scopedDossiers.filter((d) => compagnieKey(d.compagnie) === key);
+  }, [scopedDossiers, selectedCompagnie]);
+
+  // Compagnies written on dossiers that the list does not have (« ALLIANZ »
+  // read by the AI, a name typed before the list existed): out of every
+  // compagnie filter and account form until added (QA #057).
+  const unlisted = useMemo(() => {
+    const listed = new Set(allCompagnies.map((c) => compagnieKey(c.nom)));
+    const byKey = new Map<string, { nom: string; count: number }>();
+    for (const d of scopedDossiers) {
+      const nom = String(d.compagnie ?? '').replace(/\s+/g, ' ').trim();
+      const key = compagnieKey(nom);
+      if (!key || listed.has(key)) continue;
+      const row = byKey.get(key) ?? { nom, count: 0 };
+      row.count += 1;
+      byKey.set(key, row);
+    }
+    const names = allCompagnies.map((c) => c.nom);
+    return Array.from(byKey.entries())
+      .map(([key, row]) => ({ key, ...row, close: canonicalCompagnie(row.nom, names) }))
+      .sort((a, b) => b.count - a.count || a.nom.localeCompare(b.nom, 'fr'));
+  }, [scopedDossiers, allCompagnies]);
+  const [newCompagnieName, setNewCompagnieName] = useState('');
   const filterDefaults = { dateFrom: '', dateTo: '' };
   const [filters, setFilters] = usePersistedFilters('compagnies', filterDefaults);
   const { dateFrom, dateTo } = filters;
@@ -271,7 +310,7 @@ export default function CompagniesClientPage() {
             ? {
                 count: loadingCompagnies ? null : phoneCompagnies.length,
                 ...(canAddCompagnie
-                  ? { primaryAction: { label: t('Nouvelle compagnie'), icon: <Plus className="h-5 w-5" />, onClick: () => setNewCompagnieOpen(true), dataTour: 'cie-add' } }
+                  ? { primaryAction: { label: t('Nouvelle compagnie'), icon: <Plus className="h-5 w-5" />, onClick: () => { setNewCompagnieName(''); setNewCompagnieOpen(true); }, dataTour: 'cie-add' } }
                   : {}),
                 search: {
                   value: phoneSearch,
@@ -317,7 +356,7 @@ export default function CompagniesClientPage() {
           count={compagnies.length}
           actions={
             canAddCompagnie ? (
-              <Button data-tour="cie-add" onClick={() => setNewCompagnieOpen(true)}>
+              <Button data-tour="cie-add" onClick={() => { setNewCompagnieName(''); setNewCompagnieOpen(true); }}>
                 <Plus aria-hidden />
                 {t('Nouvelle compagnie')}
               </Button>
@@ -330,8 +369,11 @@ export default function CompagniesClientPage() {
             onOpenChange={setNewCompagnieOpen}
             existing={allCompagnies}
             onCreate={addCompagnie}
+            initialNom={newCompagnieName}
+            onCreated={(id, nom) => setAccessFor({ id, nom })}
           />
         )}
+        {accessDialog}
 
         {isPhone ? (
           // PHONE — one card per compagnie: 8 px logo/initials tile · name ·
@@ -430,18 +472,76 @@ export default function CompagniesClientPage() {
                       <CardDescription className="t-caption mt-1">{t("Visualiser l'activité globale")}</CardDescription>
                     </div>
                   </CardHeader>
-                  <CardContent className="max-md:px-4 max-md:pb-4">
+                  <CardContent className="flex flex-wrap items-center justify-between gap-2 max-md:px-4 max-md:pb-4">
                     {/* Affordance pill (§11 count-pill surface + the light rim
                         on a raised pill): the card itself is the link. */}
                     <span className="t-caption inline-flex w-fit items-center gap-2 rounded-full bg-surface-3 px-3 py-1.5 font-medium text-ink-2 shadow-rim">
                       <FileText className="h-3 w-3" aria-hidden />
                       {t('Gérer les sinistres')}
                     </span>
+                    {canAddCompagnie && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        data-testid="cie-attribuer"
+                        title={`${t('Choisir les comptes qui voient')} ${c.nom}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAccessFor({ id: c.id, nom: c.nom });
+                        }}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <Forward aria-hidden />
+                        {t('Attribuer')}
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               </li>
             ))}
           </ul>
+        )}
+
+        {/* Compagnies found on dossiers but missing from the list (QA #057):
+            named with their dossier count, one click from being added. */}
+        {unlisted.length > 0 && (
+          <section aria-labelledby="cie-unlisted-title" className="space-y-3" data-testid="cie-unlisted">
+            <div>
+              <h2 id="cie-unlisted-title" className="t-heading">{t('Compagnies des dossiers absentes de la liste')}</h2>
+              <p className="t-caption mt-1">
+                {canAddCompagnie
+                  ? t('Ajoutez-les pour les retrouver dans les filtres et pouvoir les attribuer aux comptes.')
+                  : t('Un administrateur peut les ajouter à la liste.')}
+              </p>
+            </div>
+            <ul className="divide-y divide-hairline rounded-lg border border-hairline bg-card">
+              {unlisted.map((u) => (
+                <li key={u.key} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3">
+                  <Building2 className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="t-body-sm truncate font-medium">{u.nom}</p>
+                    <p className="t-caption">
+                      {u.count} {u.count > 1 ? t('dossiers') : t('dossier')}
+                      {u.close ? ` · ${t('proche de')} « ${u.close} »` : ''}
+                    </p>
+                  </div>
+                  {canAddCompagnie && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setNewCompagnieName(u.nom);
+                        setNewCompagnieOpen(true);
+                      }}
+                    >
+                      <Plus aria-hidden />
+                      {t('Ajouter à la liste')}
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
     );
@@ -481,6 +581,12 @@ export default function CompagniesClientPage() {
         <div className="min-w-0 flex-1 md:hidden">
           <p className="t-title truncate">{selectedCompagnie.nom}</p>
           <p className="t-caption truncate">{t('Tableau de bord opérationnel')}</p>
+          {canAddCompagnie && (
+            <Button size="sm" variant="outline" className="mt-2" onClick={() => setAccessFor({ id: selectedCompagnie.id, nom: selectedCompagnie.nom })}>
+              <Users aria-hidden />
+              {t('Qui voit cette compagnie ?')}
+            </Button>
+          )}
         </div>
         <PageHeader
           className="min-w-0 flex-1 max-md:hidden"
@@ -492,6 +598,12 @@ export default function CompagniesClientPage() {
           subtitle={t('Tableau de bord opérationnel')}
           actions={
             <>
+              {canAddCompagnie && (
+                <Button variant="outline" onClick={() => setAccessFor({ id: selectedCompagnie.id, nom: selectedCompagnie.nom })}>
+                  <Users aria-hidden />
+                  {t('Qui voit cette compagnie ?')}
+                </Button>
+              )}
               <Button variant="outline" asChild>
                 <Link href="/dossiers">{t('Tous les dossiers')}</Link>
               </Button>
@@ -697,6 +809,7 @@ export default function CompagniesClientPage() {
         initialCompagnie={selectedCompagnie.nom}
         onCreated={(id) => router.push(`/dossiers/${id}`)}
       />
+      {accessDialog}
     </div>
   );
 }

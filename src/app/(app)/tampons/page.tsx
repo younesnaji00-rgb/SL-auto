@@ -24,7 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ChevronDown, ImageIcon, Stamp as StampIcon, Trash2, Users, X } from 'lucide-react';
 import { IconChip } from '@/components/ui/icon-chip';
 import { useFirestore, useStorage, useCollection } from '@/firebase';
-import { addDoc, collection, deleteDoc, deleteField, doc, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, deleteField, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
@@ -34,6 +34,7 @@ import { format } from 'date-fns';
 import { useT, dateFnsLocale } from '@/i18n';
 import { useStamps, type Stamp } from '@/hooks/use-stamps';
 import { cn } from '@/lib/utils';
+import { teamRoleOf } from '@/lib/role-access';
 import { TamponsSkeleton } from './loading';
 // Mobile redesign 2026-09-14 (Phone.dc.html 571–583): the stamp list is a
 // column of RecordCards under a dashed « + Nouveau tampon »; the import card
@@ -101,11 +102,14 @@ export default function TamponsSettingsPage() {
   // user doc carries an optional `assignedStampId` pointing at a stamp.id.
   // We do NOT modify the read site here (PDF generator) — this just plumbs
   // the write field so a future iteration can adopt it.
-  const chiffreursQuery = useMemo(
-    () => (db ? (query(collection(db, 'users'), where('role', '==', 'Chiffreur')) as any) : null),
-    [db]
+  // The Responsable des chiffreurs chiffre too and stamps their devis
+  // (owner ruling 2026-10-14); labels read whatever their case.
+  const usersQuery = useMemo(() => (db ? (collection(db, 'users') as any) : null), [db]);
+  const { data: allUsers, loading: chiffreursLoading } = useCollection<ChiffreurUser & { role?: string }>(usersQuery);
+  const chiffreurUsers = useMemo(
+    () => (allUsers ? allUsers.filter((u) => teamRoleOf(u.role) === 'Chiffreur') : allUsers),
+    [allUsers],
   );
-  const { data: chiffreurUsers, loading: chiffreursLoading } = useCollection<ChiffreurUser>(chiffreursQuery);
 
   const isImporting = progress !== null;
 

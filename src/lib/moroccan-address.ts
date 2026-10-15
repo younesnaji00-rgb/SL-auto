@@ -129,3 +129,43 @@ export function placeOfAddress(formatted: string): AddressPlace {
   const city = firmCityOf(locality);
   return city ? { status: 'inside', city, locality } : { status: 'outside', locality, abroad: false };
 }
+
+
+/**
+ * The firm city a typed address already names — « …, Maarif, Casablanca »,
+ * « Casa », « Fez » — else null. The firm works in these two cities only, so
+ * nobody has to type the city (owner 2026-10-15): an address without one is
+ * looked up in both (/api/check-address) and completed with the one found.
+ */
+export function firmCityNamedIn(address: string): FirmCity | null {
+  const text = ` ${normalizePlace(address)} `;
+  for (const city of FIRM_CITIES) {
+    const key = normalizePlace(city);
+    const names = [key, ...Object.keys(ALIASES).filter((alias) => ALIASES[alias] === key)];
+    if (names.some((n) => text.includes(` ${n} `))) return city;
+  }
+  return null;
+}
+
+/** The address with its city written out (for Google, the maps links, the agent's itinerary). */
+export function withFirmCity(address: string, city: FirmCity): string {
+  const trimmed = address.trim().replace(/[\s,;]+$/, '');
+  return firmCityNamedIn(trimmed) ? trimmed : `${trimmed}, ${city}`;
+}
+
+/**
+ * Of the places Google found for « address, Casablanca » and « address, Fès »,
+ * the one to keep: a place inside a firm city — the one its own query named
+ * first, then the account's site (`prefer`) when the address exists in both
+ * cities, then the list order. Null when neither lands in a firm city.
+ */
+export function pickFirmPlace<T extends { city: FirmCity; place: AddressPlace }>(
+  candidates: readonly T[],
+  prefer: readonly string[] = [],
+): T | null {
+  const inside = candidates.filter((c) => c.place.status === 'inside');
+  if (inside.length === 0) return null;
+  const faithful = inside.filter((c) => c.place.status === 'inside' && c.place.city === c.city);
+  const pool = faithful.length > 0 ? faithful : inside;
+  return pool.find((c) => prefer.some((p) => samePlace(p, c.city))) ?? pool[0];
+}

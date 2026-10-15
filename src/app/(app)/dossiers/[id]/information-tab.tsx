@@ -28,7 +28,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { Pencil, Check, X, User, Car, Users, PenLine, FileText, Clock, AlertTriangle } from 'lucide-react';
+import { Pencil, Check, X, User, Car, Users, PenLine, FileText, Clock, AlertTriangle, Lock } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -84,6 +84,12 @@ interface InformationTabProps {
   onNewPlanification: () => void;
   /** Extra controls rendered in the identity block header, left of Modifier / Enregistrer. */
   headerActions?: React.ReactNode;
+  /**
+   * The fiche — the document imported in « Création de mission », which the
+   * pre-fill read — is absent: nothing here can be changed until one is
+   * imported again (owner ruling 2026-10-15).
+   */
+  ficheMissing?: boolean;
 }
 
 // ── Table-like row layout helpers ──
@@ -324,13 +330,14 @@ function diffForFeedback(dossier: any, form: any): { field: string; before: stri
   return out;
 }
 
-export default function InformationTab({ dossier, dossierRef, dossierId, headerActions }: InformationTabProps) {
+export default function InformationTab({ dossier, dossierRef, dossierId, headerActions, ficheMissing = false }: InformationTabProps) {
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
   const t = useT();
   const { canWrite, profile } = useCurrentUser();
-  const canEdit = canWrite('dossiers');
+  const mayWrite = canWrite('dossiers');
+  const canEdit = mayWrite && !ficheMissing;
 
   // Single source of truth: Firestore. Filter inactive entries client-side.
   const { options: dbCompagnies } = useOptions('compagnies');
@@ -498,6 +505,14 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   // — photos → kilométrage / n° de série, carte grise → plates — is kept by
   // the save when the form still holds the blank it started from (the save
   // writes the whole form, which used to wipe it).
+  useEffect(() => {
+    if (!ficheMissing) return;
+    setEditing(false);
+    setSheetSection(null);
+    setFieldErrors({});
+    // Only the fiche leaving matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ficheMissing]);
   const editBaseRef = useRef<any>(null);
   useEffect(() => {
     if (!editing) editBaseRef.current = null;
@@ -1029,6 +1044,12 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
 
   return (
     <div className="space-y-4">
+      {mayWrite && ficheMissing && (
+        <p role="status" data-testid="info-fiche-missing" className="t-caption flex items-start gap-1.5 rounded-lg border border-hairline bg-surface-2 px-4 py-2.5 text-ink-2">
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>{t('Importez la fiche dans « Création de mission » pour modifier ces informations : sans fiche, elles sont en lecture seule.')}</span>
+        </p>
+      )}
       {/* Crash-recovery banner: a draft only survives here if a previous edit
           session ended without Enregistrer/Annuler (power cut, crash, tab
           closed mid-edit). */}

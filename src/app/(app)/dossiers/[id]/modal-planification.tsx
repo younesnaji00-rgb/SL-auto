@@ -31,7 +31,9 @@ import { useT, dateFnsLocale } from '@/i18n';
 import { logHistorique, logWorkflow } from './log-historique';
 import { addObservation } from './log-observation';
 import { PLANIFICATIONS_SAVED_EVENT } from './planification-tab';
-import { useOptions, type Option } from '@/hooks/use-options';
+import { useOptions } from '@/hooks/use-options';
+import { useAssignableAgents } from '@/hooks/use-assignable-agents';
+import { ResponsablePill } from '@/components/ui/responsable-pill';
 import { OptionsManagerModal } from '@/components/modals/options-manager-modal';
 import { DatePicker } from '@/components/ui/date-picker';
 import { useCurrentUser } from '@/hooks/use-current-user';
@@ -133,8 +135,9 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const { options: dbRDVTypes } = useOptions('options_types_rdv');
   const rdvTypes = useMemo(() => dbRDVTypes.filter(o => o.active !== false), [dbRDVTypes]);
 
-  const { options: dbAgents } = useOptions('options_agents');
-  const agents = useMemo<Option[]>(() => dbAgents.filter(o => o.active !== false), [dbAgents]);
+  // The agents and the Responsable des agents de terrain, who goes on site
+  // too (owner ruling 2026-10-14) — shown with a « Responsable » pill.
+  const { agents } = useAssignableAgents();
 
   const { options: dbObservationPresets, loading: observationPresetsLoading } = useOptions('options_observations');
   const activeObservationPresets = useMemo(
@@ -169,18 +172,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   });
 
   // Unsaved-work guard (§2.5): « × » / Escape / scrim / Android back on a
-  // touched form ask « Abandonner les modifications ? ». The baseline is
-  // whatever the form held when the dialog last opened (a fresh dialog, or the
-  // planification being edited).
+  // touched form ask « Abandonner les modifications ? ». The baseline is the
+  // form the open-time hydrate below writes (a fresh dialog, or the
+  // planification being edited) — set in the same step. It used to be read
+  // one tick later from a stale closure, which held the pre-hydrate form once
+  // the dialog mounted on open (2026-10-15): an untouched dialog asked.
   const [baseline, setBaseline] = useState('');
   const isDirty = baseline !== '' && JSON.stringify(formData) !== baseline;
-  useEffect(() => {
-    if (!open) return;
-    // One frame after the hydrate effects have run.
-    const id = window.setTimeout(() => setBaseline(JSON.stringify(formData)), 0);
-    return () => window.clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initialData]);
 
   // No « ma position » control on the address field any more (QA bug 044):
   // the rendez-vous address is the INSURED's, typed by the gestionnaire; a
@@ -222,7 +220,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         dateRDV = d;
         timeRDV = format(d, 'HH:mm');
       }
-      setFormData({
+      const next = {
         agentTerrain: initialData.agentTerrain || '',
         typeMission: initialData.typeMission || 'Avant',
         dateRDV,
@@ -230,9 +228,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         adresse: initialData.adresse || '',
         observation: initialData.observation || '',
         observationCustomText: initialData?.observationCustomText || '',
-      });
+      };
+      setFormData(next);
+      setBaseline(JSON.stringify(next));
     } else if (open) {
-      setFormData({ agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationCustomText: initialData?.observationCustomText || '' });
+      const next = { agentTerrain: defaultAgentTerrain ?? '', typeMission: defaultTypeMission ?? 'Avant', dateRDV: null, timeRDV: '09:00', adresse: '', observation: '', observationCustomText: initialData?.observationCustomText || '' };
+      setFormData(next);
+      setBaseline(JSON.stringify(next));
     }
   }, [initialData, open, defaultTypeMission, defaultAgentTerrain]);
 
@@ -299,7 +301,8 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   // 2026-10-05): any other city or country — or a place Google cannot find —
   // is refused, and the planification is never saved with it. Checked while
   // typing, and again by the save itself (/api/check-address).
-  const addressCheck = useAddressCheck(formData.adresse);
+  // The account's sites settle an address that exists in both cities.
+  const addressCheck = useAddressCheck(formData.adresse, profile?.sites ?? []);
   const addressInside = addressCheck?.status === 'inside';
 
   /** Why an address cannot be saved; null when it can, or is not checked yet. */
@@ -331,7 +334,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     timeRDV: formData.timeRDV,
     // Only an address placed in Casablanca or Fès is routed: a typo Google
     // put in Italy made a 25-hour « conflit de planning » (QA bug 045).
-    adresse: addressInside ? formData.adresse : '',
+    adresse: addressCheck?.status === 'inside' ? addressCheck.completed : '',
     excludeId: initialData?.id ?? null,
     agentLiveLocation: effectiveLocation,
   });
@@ -376,10 +379,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       // Empty, then Casablanca or Fès: the save asks Google before it
       // validates, so the answer for the address as typed is known here.
       validate: (v) =>
-        v.adresse.trim() ? addressProblem(knownAddressCheck(v.adresse)) : t("Renseignez l'adresse du rendez-vous."),
+        v.adresse.trim() ? addressProblem(knownAddressCheck(v.adresse, profile?.sites ?? [])) : t("Renseignez l'adresse du rendez-vous."),
     });
     return list;
-  }, [defaultTypeMission, isCurrentUserAT, t, addressProblem]);
+  }, [defaultTypeMission, isCurrentUserAT, t, addressProblem, profile?.sites]);
   const formErrors = useFormErrors(formData, rules, { open });
 
   // The address verdict as soon as Google answers; after a failed save the
@@ -401,7 +404,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     // Casablanca or Fès only (owner ruling 2026-10-05): the answer for the
     // address as typed — known, or asked now — before anything is written. A
     // check that cannot run refuses the save too.
-    const addressAnswer = formData.adresse.trim() ? await checkAddress(formData.adresse) : null;
+    const addressAnswer = formData.adresse.trim() ? await checkAddress(formData.adresse, profile?.sites ?? []) : null;
     const valid = formErrors.validateAll();
     // The address written is the one checked (formData of this call), whatever
     // was typed during the check.
@@ -431,9 +434,9 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       // Resolve agent UID at write time so a future Cloud Function can address
       // the agent directly via FCM without having to re-derive the name→uid
       // mapping. Mirrors the lookup in use-agent-live-location.ts.
-      let agentTerrainUid: string | null = null;
+      let agentTerrainUid: string | null = selectedAgent?.uid ?? null;
       const trimmedAgentName = formData.agentTerrain.trim();
-      if (trimmedAgentName) {
+      if (trimmedAgentName && !agentTerrainUid) {
         try {
           const snap = await getDocs(
             query(collection(db, 'users'), where('nom', '==', trimmedAgentName), limit(1)),
@@ -454,7 +457,9 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         typeMission: normalizeTypeMission(formData.typeMission) ?? formData.typeMission,
         dateRDV: finalRDV,
         zone: derivedZone,
-        adresse: formData.adresse,
+        // With its city written out when it was typed without one (2026-10-15):
+        // the agent's itinerary and the arrival check need it.
+        adresse: addressAnswer?.status === 'inside' ? addressAnswer.completed : formData.adresse,
         observation: resolvedObservation,
         modifiedAt: serverTimestamp(),
         modifiedBy: auth?.currentUser?.uid || 'Admin',
@@ -659,6 +664,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                       <SelectItem key={agent.id} value={agent.label}>
                         <span className="flex items-center gap-2">
                           <span>{agent.label}</span>
+                          {agent.lead && <ResponsablePill />}
                           <span className="text-xs text-muted-foreground">
                             &mdash;{' '}
                             {zone

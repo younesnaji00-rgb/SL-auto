@@ -48,6 +48,7 @@ import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { isAtgCompletedStatus } from '@/lib/status-machine';
 import { BRAND } from '@/lib/brand';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { doesTeamWork } from '@/lib/role-access';
 import { usePersistedFilters } from '@/hooks/use-persisted-filters';
 import { SortableHeader, type SortDirection } from '@/components/ui/sortable-header';
 import { businessHoursBetween, formatBusinessLateness } from '@/lib/business-days';
@@ -624,14 +625,14 @@ export default function AssignationsATGPage() {
       // ATG users only see their own assignments
       if (profile?.role === 'Agent de Terrain' && profile?.nom) {
         const myName = profile.nom.toLowerCase().trim();
-        setPlanifications(items.filter(p => p.agentTerrain.toLowerCase().trim() === myName));
+        setPlanifications(items.filter(p => (!!p.agentTerrainUid && p.agentTerrainUid === profile.uid) || p.agentTerrain.toLowerCase().trim() === myName));
       } else {
         setPlanifications(items);
       }
       setLoading(false);
     }, (error) => { console.error('Planifications query error:', error); setLoading(false); });
     return () => unsub();
-  }, [db, profile?.role, profile?.nom]);
+  }, [db, profile?.role, profile?.nom, profile?.uid]);
 
   // Keep a sorted, stable string key of unique dossierIds so the realtime-listener
   // effect only re-subscribes when the actual set of dossiers changes.
@@ -970,6 +971,16 @@ export default function AssignationsATGPage() {
   };
 
   const isATG = profile?.role === 'Agent de Terrain';
+  // The Responsable des agents de terrain goes on site too (owner ruling
+  // 2026-10-14): on THEIR missions they get the agent's field actions (« En
+  // route », automatic arrival), on the others the dispatcher's view.
+  const doesFieldWork = doesTeamWork(profile, 'Agent de Terrain');
+  const isMyMission = (p: { agentTerrain?: string | null; agentTerrainUid?: string | null }) =>
+    !!profile &&
+    ((!!p.agentTerrainUid && p.agentTerrainUid === profile.uid) ||
+      (!!profile.nom && (p.agentTerrain || '').toLowerCase().trim() === profile.nom.toLowerCase().trim()));
+  const fieldActionsFor = (p: { agentTerrain?: string | null; agentTerrainUid?: string | null }) =>
+    isATG || (doesFieldWork && isMyMission(p));
   const canUseAtFlows = isATG || profile?.role === 'Admin';
   const canSeeNameFilter = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
   const canReassign = profile?.role === 'Admin' || profile?.role === 'Gestionnaire';
@@ -1338,7 +1349,7 @@ export default function AssignationsATGPage() {
           {/* Field-agent actions: on-the-way WhatsApp (ServiceM8's on-the-way
               pattern; 44 px targets). The arrival is stamped automatically
               at the address (owner ruling 2026-09-25) — no button. */}
-          {isATG && (
+          {fieldActionsFor(p) && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <EnRouteButton telephone={telephone} rdvTime={rdv ? format(rdv, 'HH:mm') : null} className="h-11" />
               {checkinTime && (
@@ -1392,11 +1403,11 @@ export default function AssignationsATGPage() {
   // address and no check-in yet — the banner suggests « Confirmer l'arrivée »
   // when the live position lands within ~150 m of the geocoded address.
   const geofenceCandidates = useMemo(
-    () => (isATG
+    () => (isATG || doesFieldWork
       ? groups
           .filter(g => g.key !== 'future')
           .flatMap(g => g.items)
-          .filter(p => p.adresse?.trim() && !p.checkinAt)
+          .filter(p => p.adresse?.trim() && !p.checkinAt && (isATG || isMyMission(p)))
           .map(p => ({
             key: `${p.dossierId}-${p.id}`,
             dossierId: p.dossierId,
@@ -1405,7 +1416,8 @@ export default function AssignationsATGPage() {
             adresse: p.adresse.trim(),
           }))
       : []),
-    [groups, isATG]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [groups, isATG, doesFieldWork, profile?.uid, profile?.nom]
   );
 
   // Live agent positions on the map lens (ServiceM8 staff map / ServiceTitan
@@ -1444,7 +1456,7 @@ export default function AssignationsATGPage() {
       photoItems={peekLive?.photoItems}
       deadlineChip={peekMission ? <DeadlineChip dateRDV={peekMission.dateRDV} createdAt={peekMission.createdAt} /> : null}
       canReassign={canReassign}
-      isATG={isATG}
+      isATG={!!peekMission && fieldActionsFor(peekMission)}
       onOpenDossier={(m) => {
         setPeekKey(null);
         router.push(`/assignations-atg/${m.dossierId}?mission=${encodeURIComponent(activeTab)}`);
@@ -1497,7 +1509,7 @@ export default function AssignationsATGPage() {
             emptyState={emptyState}
           />
           {/* Automatic arrival at the address (ATG only; a notice only when location is refused). */}
-          {isATG && <GeofenceAutoCheckin candidates={geofenceCandidates} className="fixed inset-x-3 bottom-20 z-40" />}
+          {(isATG || doesFieldWork) && <GeofenceAutoCheckin candidates={geofenceCandidates} className="fixed inset-x-3 bottom-20 z-40" />}
         </>
       );
     }
@@ -1680,7 +1692,7 @@ export default function AssignationsATGPage() {
         )}
 
         {/* Automatic arrival at the address (ATG only; a notice only when location is refused). */}
-        {isATG && <GeofenceAutoCheckin candidates={geofenceCandidates} className="fixed inset-x-3 bottom-20 z-40" />}
+        {(isATG || doesFieldWork) && <GeofenceAutoCheckin candidates={geofenceCandidates} className="fixed inset-x-3 bottom-20 z-40" />}
       </div>
     );
   }

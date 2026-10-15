@@ -110,6 +110,11 @@ export default function Step2Information({
         : [],
     [allDocs, importDocId],
   );
+  // No fiche, no editing (owner ruling 2026-10-15): the Informations can be
+  // changed only while the imported document they were read from is there.
+  // Its record is what counts — a file removed from Pièces leaves the
+  // dossier's `importDocId` behind. Unknown while the documents load.
+  const ficheMissing = !importDocId || (Array.isArray(allDocs) && scanDocs.length === 0);
 
   useEffect(() => {
     if (
@@ -174,6 +179,7 @@ export default function Step2Information({
         onEditPlanification={onEditPlanification}
         onNewPlanification={onNewPlanification}
         headerActions={toggleButton}
+        ficheMissing={ficheMissing}
       />
     </div>
   );

@@ -44,6 +44,7 @@ import { logHistorique, logWorkflow } from '../../dossiers/[id]/log-historique';
 import { restoreStatutAfterDocumentRemoval, restoreStatutAfterPhotoRemoval } from '@/lib/restore-statut';
 import { addObservation } from '../../dossiers/[id]/log-observation';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { doesTeamWork } from '@/lib/role-access';
 import { getStatusBadgeStyles, STATUS_BADGE_CLASS } from '@/lib/status-colors';
 import { assureName } from '@/lib/dossier-label';
 import ObservationsTab from '@/components/observations-tab';
@@ -242,6 +243,20 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
     () => (plans || []).filter((p: any) => normalizeType(p.typeMission) === activeTab),
     [plans, activeTab]
   );
+
+  // The Responsable des agents de terrain goes on site too (owner ruling
+  // 2026-10-14): on a mission of THEIRS they work like the agent — automatic
+  // arrival, « Proposer une réforme » — and keep their Admin rights.
+  const doesFieldWork = doesTeamWork(profile, 'Agent de Terrain');
+  const myPlanIds = new Set(
+    (filteredPlans as any[])
+      .filter((p) =>
+        doesFieldWork && !!profile &&
+        ((!!p.agentTerrainUid && p.agentTerrainUid === profile.uid) ||
+          (!!profile.nom && String(p.agentTerrain || '').toLowerCase().trim() === profile.nom.toLowerCase().trim())))
+      .map((p) => p.id as string),
+  );
+  const fieldWorkHere = isATG || myPlanIds.size > 0;
 
   // Current tab's photo category
   const currentCategory = MISSION_TABS.find(t => t.id === activeTab)?.category || 'avant';
@@ -749,7 +764,9 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
       {/* (1) Automatic arrival (owner ruling 2026-09-25): stamped when the
           agent's phone is at the address — no button. Shows a notice only
           when location is refused. */}
-      {isATG && <GeofenceAutoCheckin candidates={geofenceCandidates} />}
+      {fieldWorkHere && (
+        <GeofenceAutoCheckin candidates={isATG ? geofenceCandidates : geofenceCandidates.filter((c) => myPlanIds.has(c.planifId))} />
+      )}
 
       {/* PHONE (2): header card(s) + phases + photo grid + bottom bar (mobile
           redesign 2026-09-14). Rendered BEFORE the desktop header stack so the
@@ -765,7 +782,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
           phasePhotos={filteredPhotos}
           photoCap={photoCap}
           canEdit={canEdit}
-          isATG={isATG}
+          isATG={fieldWorkHere}
           isUploading={isUploading}
           propositionReforme={propositionReforme}
           reformeDisabled={!dossierRef}
@@ -967,7 +984,7 @@ export default function ATGDossierDetailPage({ params }: { params: Promise<{ dos
                     from 30 to 60 per section. Reversible → `outline` when off,
                     `tonal` (pressed) when on — never `destructive` (§8 GOV.UK:
                     warning buttons only for irreversible destruction). */}
-                {isATG && (
+                {fieldWorkHere && (
                   <Button
                     data-tour="atgd-reforme"
                     variant={propositionReforme ? 'tonal' : 'outline'}

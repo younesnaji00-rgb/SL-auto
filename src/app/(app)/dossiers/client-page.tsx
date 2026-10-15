@@ -51,6 +51,10 @@ import {
 import { useHotkeys } from '@/hooks/use-hotkeys';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DossierKpiStrip } from '@/components/dossiers/dossier-kpi-strip';
+import { CompagnieScopeNote } from '@/components/dossiers/compagnie-scope-note';
+import { ResponsablePill } from '@/components/ui/responsable-pill';
+import { isTeamLead, teamRoleOf } from '@/lib/role-access';
+import { isInactiveAccount } from '@/hooks/use-team-members';
 import { MoreHorizontal, ExternalLink } from 'lucide-react';
 import { getStatusDotColor } from '@/lib/status-colors';
 import { StatusChip } from '@/components/ui/status-chip';
@@ -75,7 +79,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { addDoc, collection, doc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { addDoc, collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { getDocs } from '@/lib/firestore-logged';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 // Mobile pass 2026-09-06 (docs/research/mobile-synthesis.md §4): below md the
@@ -225,7 +229,7 @@ export default function DossiersClientPage() {
     return allCompagnies.filter(c => allowed.includes(compagnieKey(c.label)));
   }, [allCompagnies, userCompagnies]);
 
-  const { dossiers: allDossiers, loading, error: fetchError, deleteDossier } = useDossiers(userCompagnies.length > 0 ? userCompagnies : undefined);
+  const { dossiers: allDossiers, outOfScope, loading, error: fetchError, deleteDossier } = useDossiers(userCompagnies.length > 0 ? userCompagnies : undefined);
 
   // Union the seeded option lists with any values present on real dossiers,
   // so the filter dropdowns include values that live data has but the seeded
@@ -234,14 +238,15 @@ export default function DossiersClientPage() {
   const augmentWithLiveValues = (
     seeded: { id: string; label: string; order: number; active: boolean }[],
     rawValues: (string | undefined)[],
+    keyOf: (label: string) => string = (label) => label,
   ) => {
-    const seen = new Set(seeded.map((o) => o.label));
+    const seen = new Set(seeded.map((o) => keyOf(o.label)));
     const extras: typeof seeded = [];
     for (const v of rawValues) {
       if (!v || typeof v !== 'string') continue;
       const trimmed = v.trim();
-      if (!trimmed || seen.has(trimmed)) continue;
-      seen.add(trimmed);
+      if (!trimmed || seen.has(keyOf(trimmed))) continue;
+      seen.add(keyOf(trimmed));
       extras.push({ id: `live-${trimmed}`, label: trimmed, order: 9999, active: true });
     }
     return extras.length === 0 ? seeded : [...seeded, ...extras];
@@ -264,8 +269,9 @@ export default function DossiersClientPage() {
     () => augmentWithLiveValues(natures, allDossiers.map((d) => d.nature)),
     [natures, allDossiers],
   );
+  // One entry per compagnie: « ALLIANZ » on a dossier is the list's « Allianz ».
   const filterCompagnies = useMemo(
-    () => augmentWithLiveValues(compagnies, allDossiers.map((d) => d.compagnie)),
+    () => augmentWithLiveValues(compagnies, allDossiers.map((d) => d.compagnie), compagnieKey),
     [compagnies, allDossiers],
   );
   const filterObservations = useMemo(
@@ -359,7 +365,7 @@ export default function DossiersClientPage() {
 
   // Mes rappels — sender-side dialog state
   const [isSendToOpen, setIsSendToOpen] = useState(false);
-  const [gestionnaires, setGestionnaires] = useState<Array<{ uid: string; nom: string; prenom: string }>>([]);
+  const [gestionnaires, setGestionnaires] = useState<Array<{ uid: string; nom: string; prenom: string; lead?: boolean }>>([]);
   const [gestLoading, setGestLoading] = useState(false);
   const [selectedGestUids, setSelectedGestUids] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
@@ -651,13 +657,20 @@ export default function DossiersClientPage() {
   useEffect(() => {
     if (!isSendToOpen || !db) return;
     setGestLoading(true);
-    getDocs(query(collection(db, 'users'), where('role', '==', 'Gestionnaire')))
+    // The gestionnaires and the Responsable des gestionnaires (owner ruling
+    // 2026-10-14), whatever the case of their role label; not the
+    // deactivated accounts.
+    getDocs(collection(db, 'users'))
       .then((snap) => {
-        const list = snap.docs.map((d) => ({
-          uid: d.id,
-          nom: (d.data() as any).nom || '',
-          prenom: (d.data() as any).prenom || '',
-        }));
+        const list: Array<{ uid: string; nom: string; prenom: string; lead?: boolean }> = snap.docs
+          .filter((d) => teamRoleOf((d.data() as any).role) === 'Gestionnaire' && !isInactiveAccount(d.data()))
+          .map((d) => ({
+            uid: d.id,
+            nom: (d.data() as any).nom || '',
+            prenom: (d.data() as any).prenom || '',
+            lead: isTeamLead((d.data() as any).role),
+          }))
+          .sort((a, b) => `${a.prenom} ${a.nom}`.trim().localeCompare(`${b.prenom} ${b.nom}`.trim(), 'fr'));
         // Tutorial mode: the user explores alone, so let them address a rappel
         // to THEMSELVES and play both sender and recipient in one browser.
         if (tutorialMode && profile?.uid && !list.some((g) => g.uid === profile.uid)) {
@@ -1256,6 +1269,10 @@ export default function DossiersClientPage() {
           <AlertDescription>{fetchError}</AlertDescription>
         </Alert>
       )}
+
+      {/* The account's compagnies: the one filter not chosen here (QA #003);
+          the dossiers it leaves out stay listed in Consultation (QA #054). */}
+      <CompagnieScopeNote compagnies={userCompagnies} outOfScope={outOfScope} loading={loading} inConsultation className="md:-mt-2" />
 
       {/* KPI strip — actionable counters (each tile SETS a view/filter). The
           « En retard » value is the page's only exception colour (§6).
@@ -2538,6 +2555,7 @@ export default function DossiersClientPage() {
                     {`${g.prenom} ${g.nom}`.trim() || '—'}
                     {g.uid === profile?.uid ? ` (${t('vous')})` : ''}
                   </span>
+                  {g.lead && <ResponsablePill />}
                 </label>
               ))}
             </div>

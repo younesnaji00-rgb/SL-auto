@@ -8,13 +8,17 @@ import { useNativeBgGeolocation } from '@/hooks/use-native-bg-geolocation';
 import { useFcmRegistration } from '@/hooks/use-fcm-registration';
 import { useNativePushRegistration } from '@/hooks/use-native-push-registration';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { doesTeamWork } from '@/lib/role-access';
 import { MapPin, Smartphone, X } from 'lucide-react';
 
 const IOS_HINT_DISMISSED_KEY = 'sl-auto-ios-install-hint-dismissed';
 
 export function GpsPublisherHost() {
   const { profile } = useCurrentUser();
-  if (profile?.role !== 'Agent de Terrain') return null;
+  // The agents and their Responsable, who goes on site too (owner ruling
+  // 2026-10-14): their position feeds the planning, their push token the
+  // « Nouvelle mission » notification.
+  if (!doesTeamWork(profile, 'Agent de Terrain')) return null;
   return <GpsPublisherHostInner />;
 }
 

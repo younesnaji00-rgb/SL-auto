@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, query, where } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import { onSnapshot } from '@/lib/firestore-logged';
 import { useFirestore } from '@/firebase';
+import { teamRoleOf } from '@/lib/role-access';
 
 /**
  * Live positions of every Agent de Terrain (users/{uid}.currentLocation —
@@ -37,13 +38,15 @@ export function useAgentsLivePositions(
       setPositions([]);
       return;
     }
-    const q = query(collection(db, 'users'), where('role', '==', 'Agent de Terrain'));
-    const unsub = onSnapshot(q, (snap) => {
+    // The agents and their Responsable, who goes on site too (owner ruling
+    // 2026-10-14), whatever the case of the role label.
+    const unsub = onSnapshot(collection(db, 'users'), (snap) => {
       const now = Date.now();
       const next: AgentLivePosition[] = [];
       snap.forEach((d) => {
         if (onlyUid && d.id !== onlyUid) return;
         const data = d.data() as any;
+        if (teamRoleOf(data?.role) !== 'Agent de Terrain') return;
         const loc = data?.currentLocation;
         const updatedAtMs: number | undefined =
           typeof loc?.updatedAt?.toMillis === 'function' ? loc.updatedAt.toMillis() : undefined;

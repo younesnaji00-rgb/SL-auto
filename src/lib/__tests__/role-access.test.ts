@@ -12,9 +12,12 @@ import {
   canOpenPath,
   describeRole,
   landingPathForAccess,
+  isTeamLead,
   resolveRoleAccess,
+  roleKey,
   roleOpensNavItem,
   scopeWritesSection,
+  teamRoleOf,
 } from '../role-access';
 
 const opens = (label: string) =>
@@ -48,14 +51,15 @@ test('Admin and the Directeurs: Admin rights on every page', () => {
   }
 });
 
-test('responsable des chiffreurs: the chiffrage pages and its dashboard, nothing else', () => {
+// 2026-10-14: and, like a chiffreur, the dossier of a chiffrage (« Ouvrir le dossier »).
+test('responsable des chiffreurs: the chiffrage pages, a dossier opened from a chiffrage, its dashboard', () => {
   const label = 'Responsable des chiffreurs';
   assert.deepEqual(resolveRoleAccess(label), { role: 'Admin', scope: 'chiffrage' });
   assert.deepEqual(opens(label), ['/dashboard', '/assignations-chiffrage']);
-  for (const path of ['/dashboard', '/assignations-chiffrage/abc', '/chiffrage/abc', '/devis-editor', '/signaler-bug']) {
+  for (const path of ['/dashboard', '/assignations-chiffrage/abc', '/chiffrage/abc', '/devis-editor', '/dossiers/abc', '/signaler-bug']) {
     assert.ok(canOpen(label, path), path);
   }
-  for (const path of ['/dossiers', '/dossiers/abc', '/mes-rappels', '/consultation', '/assignations-atg', '/assignations-atg/abc', '/utilisateurs', '/monitoring']) {
+  for (const path of ['/dossiers', '/mes-rappels', '/consultation', '/assignations-atg', '/assignations-atg/abc', '/utilisateurs', '/monitoring']) {
     assert.ok(!canOpen(label, path), path);
   }
   assert.ok(scopeWritesSection('chiffrage', 'assignations-chiffrage'));
@@ -75,12 +79,13 @@ test('responsable des agents de terrain: the missions and its dashboard, nothing
   assert.ok(!scopeWritesSection('terrain', 'dossiers'));
 });
 
-test('responsable des gestionnaires: the Opérations pages, nothing of chiffrage or terrain', () => {
+// 2026-10-14: and, like a gestionnaire, the devis editor its dossiers link to.
+test('responsable des gestionnaires: the Opérations pages and the devis editor, nothing of the chiffrage queue or terrain', () => {
   const label = 'Responsable des gestionnaires';
   assert.deepEqual(resolveRoleAccess(label), { role: 'Admin', scope: 'operations' });
   assert.deepEqual(opens(label), ['/dashboard', '/monitoring', '/dossiers', '/mes-rappels', '/consultation', '/compagnies']);
-  assert.ok(canOpen(label, '/dossiers/abc'));
-  for (const path of ['/assignations-chiffrage', '/chiffrage/abc', '/devis-editor', '/assignations-atg/abc', '/utilisateurs', '/tampons']) {
+  for (const path of ['/dossiers/abc', '/devis-editor', '/chiffrage/abc']) assert.ok(canOpen(label, path), path);
+  for (const path of ['/assignations-chiffrage', '/assignations-atg/abc', '/utilisateurs', '/tampons']) {
     assert.ok(!canOpen(label, path), path);
   }
   assert.ok(scopeWritesSection('operations', 'dossiers'));
@@ -169,7 +174,33 @@ test('captions under the Rôle field', () => {
   assert.equal(describeRole('Admin'), 'Accès complet : dossiers, assignations, utilisateurs et paramètres');
   assert.equal(
     describeRole('Responsable des chiffreurs'),
-    'Droits Admin sur le chiffrage uniquement, et le tableau de bord de l’équipe des chiffreurs',
+    'Droits Admin sur le chiffrage uniquement, et le tableau de bord de l’équipe des chiffreurs. Peut aussi recevoir des chiffrages comme un chiffreur',
   );
   for (const label of roles) assert.ok(describeRole(label), label);
+});
+
+// Owner ruling 2026-10-14: a « Responsable des … » also does the work of the
+// team they lead, and shows in that team's pickers with a « Responsable » pill.
+test('a responsable does the work of their team', () => {
+  assert.equal(teamRoleOf('Gestionnaire'), 'Gestionnaire');
+  assert.equal(teamRoleOf('Chiffreur'), 'Chiffreur');
+  assert.equal(teamRoleOf('Agent de Terrain'), 'Agent de Terrain');
+  assert.equal(teamRoleOf('Responsable des gestionnaires'), 'Gestionnaire');
+  assert.equal(teamRoleOf('Responsable des chiffreurs'), 'Chiffreur');
+  assert.equal(teamRoleOf('Responsable des agents de terrain'), 'Agent de Terrain');
+  assert.equal(teamRoleOf('reponsable des agents de terrain'), 'Agent de Terrain');
+  for (const label of ['Admin', 'Directeur', 'Directeur technique', "Responsable d'équipe", 'stagiaire', '', null]) {
+    assert.equal(teamRoleOf(label), null, String(label));
+  }
+  assert.ok(isTeamLead('Responsable des chiffreurs'));
+  assert.ok(!isTeamLead('Chiffreur'));
+  assert.ok(!isTeamLead('Directeur'));
+  assert.ok(!isTeamLead("Responsable d'équipe"));
+});
+
+// QA #058: « Directeur » in the role filter found no account saved as « directeur ».
+test('role labels compare whatever their case, accents and spacing', () => {
+  assert.equal(roleKey('directeur'), roleKey('Directeur'));
+  assert.equal(roleKey(' Directeur  des opérations'), roleKey('directeur des operations'));
+  assert.notEqual(roleKey('Directeur'), roleKey('Directeur technique'));
 });

@@ -400,8 +400,11 @@ function ReferencePane({
       {/* Full-height viewer — `bg-ink-solid` is the sanctioned functional
           backdrop for document media (Apple HIG materials: the content layer
           is not glass); the zoom pill inside ZoomableImage follows the owner's
-          zoom ruling (−/%/+, 25 % steps, wheel ≈ ×1.3). */}
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-ink-solid">
+          zoom ruling (−/%/+, 25 % steps, wheel ≈ ×1.3).
+          The viewer keeps at least 45 % of its pane: with the list unfolded in
+          a split pane on a 768 px screen it shrank to a dark strip under the
+          photo grid, and the list now scrolls instead (QA #004). */}
+      <div className="flex min-h-[45%] flex-1 items-center justify-center overflow-hidden bg-ink-solid">
         {!selectedId ? (
           <div className="p-6 text-center">
             <ChevronsUp className="mx-auto mb-2 h-6 w-6 text-on-ink/40" aria-hidden />

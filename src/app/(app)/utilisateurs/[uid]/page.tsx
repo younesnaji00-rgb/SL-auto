@@ -89,6 +89,7 @@ import { getDocs } from '@/lib/firestore-logged';
 import { isSingleSessionRole, type Role } from '@/lib/dossiers-data';
 import { isSessionStale, timestampToMillis } from '@/lib/session-meta';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { SitesPicker, normalizeSites } from '@/components/admin/sites-picker';
 import { useOptions } from '@/hooks/use-options';
 import { cn } from '@/lib/utils';
 import { IconChip } from '@/components/ui/icon-chip';
@@ -139,7 +140,7 @@ function formFromUser(userData: any): UserForm {
     role: userData.role || '',
     statut: userData.statut || 'Actif',
     compagnies: userData.compagnies || [],
-    sites: userData.sites || [],
+    sites: normalizeSites(userData.sites),
     zone: userData.zone || '',
   };
 }
@@ -263,11 +264,6 @@ function UserDetail({ params }: { params: Promise<{ uid: string }> }) {
   const { options: dbZones } = useOptions('options_zones');
   const zoneOptions = useMemo(() => dbZones.filter(o => o.active !== false), [dbZones]);
 
-  const { options: dbSites } = useOptions('options_sites');
-  const siteOptions = useMemo(
-    () => dbSites.filter(o => o.active !== false).map(s => ({ value: s.label, label: s.label })),
-    [dbSites],
-  );
 
   // The same role list as the creation form: Firestore `options_roles`, the
   // fixed list of dossiers-data.ts `roles` (owner 2026-10-01).
@@ -541,6 +537,8 @@ function UserDetail({ params }: { params: Promise<{ uid: string }> }) {
         previousRole !== formData.role || !isSingleSessionRole(formData.role);
       await updateDoc(userRef, {
         ...formData,
+        // Casablanca / Fès only: an older value typed elsewhere goes.
+        sites: normalizeSites(formData.sites),
         zone: nextZone,
         nomLowercase: (formData.nom || '').trim().toLowerCase(),
         ...(clearSession ? { currentSessionId: null, currentSessionSeenAt: null } : {}),
@@ -927,12 +925,7 @@ function UserDetail({ params }: { params: Promise<{ uid: string }> }) {
               <div className="space-y-1">
                 <Label>{t('Sites')} <span className="text-ink-4">({t('facultatif')})</span></Label>
                 <p className="t-caption">{t("Villes dans lesquelles l'utilisateur intervient, plusieurs choix possibles")}</p>
-                <MultiSelect
-                  options={siteOptions}
-                  selected={formData.sites}
-                  onChange={(vals) => setFormData(p => ({ ...p, sites: vals }))}
-                  className="w-full"
-                />
+                <SitesPicker value={formData.sites} onChange={(vals) => setFormData(p => ({ ...p, sites: vals }))} />
               </div>
               </div>
 

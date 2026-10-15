@@ -69,6 +69,48 @@ export function resolveRoleAccess(label: string | null | undefined): RoleAccess 
   return { role: null, scope: null };
 }
 
+/** The three teams whose hands-on work can be assigned to a person. */
+export type TeamRole = 'Gestionnaire' | 'Chiffreur' | 'Agent de Terrain';
+
+const TEAM_OF_SCOPE: Record<AccessScope, TeamRole> = {
+  operations: 'Gestionnaire',
+  chiffrage: 'Chiffreur',
+  terrain: 'Agent de Terrain',
+};
+
+/**
+ * The team whose work an account does: its own role, or the team a
+ * « Responsable des … » leads — a responsable also does the work of their
+ * team (owner ruling 2026-10-14: the Responsable des agents de terrain goes on
+ * site and takes the photos, the Responsable des chiffreurs chiffre, the
+ * Responsable des gestionnaires plans the visits). `null` = Admin, the
+ * Directeurs, a label that opens nothing.
+ */
+export function teamRoleOf(label: string | null | undefined): TeamRole | null {
+  const access = resolveRoleAccess(label);
+  if (!access.role) return null;
+  if (access.role !== 'Admin') return access.role;
+  return access.scope ? TEAM_OF_SCOPE[access.scope] : null;
+}
+
+/**
+ * Whether the signed-in account does this team's work (its member, or its
+ * Responsable). Reads the stored label (`roleLabel`) — the resolved `role`
+ * of a responsable is Admin.
+ */
+export function doesTeamWork(
+  profile: { role?: string | null; roleLabel?: string | null } | null | undefined,
+  team: TeamRole,
+): boolean {
+  return teamRoleOf(profile?.roleLabel ?? profile?.role) === team;
+}
+
+/** Whether the label is a « Responsable des … » of one team (the « Responsable » pill of the pickers). */
+export function isTeamLead(label: string | null | undefined): boolean {
+  const access = resolveRoleAccess(label);
+  return access.role === 'Admin' && !!access.scope;
+}
+
 /**
  * Sidebar pages of each side: its own pages and the Tableau de bord, which
  * shows that team only (dashboard/admin-dashboard.tsx). Opérations follows its
@@ -85,9 +127,13 @@ function scopeHrefs(scope: AccessScope): string[] {
   }
 }
 
-/** Pages outside the sidebar that a side opens (the chiffrage queue opens the devis editor). */
+/**
+ * Pages outside the sidebar that a side opens (the chiffrage queue opens the
+ * devis editor). Each responsable also opens what the work of their team
+ * links to (owner ruling 2026-10-14): the gestionnaire's devis editor.
+ */
 const SCOPE_EXTRA_ROUTES: Record<AccessScope, string[]> = {
-  operations: [],
+  operations: ['/devis-editor', '/chiffrage'],
   chiffrage: ['/chiffrage', '/devis-editor'],
   terrain: [],
 };
@@ -134,6 +180,13 @@ const ROLE_DETAIL_PREFIXES: Partial<Record<BaseRole, string[]>> = {
   Chiffreur: ['/dossiers/'],
 };
 
+/** The same for a side: the Responsable des chiffreurs opens the dossier of a chiffrage like a chiffreur (2026-10-14). */
+const SCOPE_DETAIL_PREFIXES: Record<AccessScope, string[]> = {
+  operations: [],
+  chiffrage: ['/dossiers/'],
+  terrain: [],
+};
+
 /**
  * Whether a page opens for this account — the shell's route guard
  * (layout.tsx). Admin and the Directeurs open everything. Every other account
@@ -156,7 +209,7 @@ export function canOpenPath(
   const extras = access.scope ? scopeExtraRoutes(access.scope) : ROLE_EXTRA_ROUTES[role] ?? [];
   const allowed = [...navHrefs, ...extras];
   if (allowed.some((h) => pathname === h || pathname.startsWith(`${h}/`))) return true;
-  const details = access.scope ? [] : ROLE_DETAIL_PREFIXES[role] ?? [];
+  const details = access.scope ? SCOPE_DETAIL_PREFIXES[access.scope] : ROLE_DETAIL_PREFIXES[role] ?? [];
   return details.some((prefix) => pathname.startsWith(prefix));
 }
 
@@ -180,9 +233,9 @@ const BASE_DESCRIPTIONS: Record<BaseRole, string> = {
 
 const SCOPE_DESCRIPTIONS: Record<AccessScope, string> = {
   operations:
-    'Droits Admin côté gestionnaires uniquement : dossiers, rappels, consultation, compagnies, suivi d’équipe et le tableau de bord de son équipe',
-  chiffrage: 'Droits Admin sur le chiffrage uniquement, et le tableau de bord de l’équipe des chiffreurs',
-  terrain: 'Droits Admin sur les missions terrain uniquement, et le tableau de bord de l’équipe terrain',
+    'Droits Admin côté gestionnaires uniquement : dossiers, rappels, consultation, compagnies, suivi d’équipe et le tableau de bord de son équipe. Reçoit aussi des rappels comme un gestionnaire',
+  chiffrage: 'Droits Admin sur le chiffrage uniquement, et le tableau de bord de l’équipe des chiffreurs. Peut aussi recevoir des chiffrages comme un chiffreur',
+  terrain: 'Droits Admin sur les missions terrain uniquement, et le tableau de bord de l’équipe terrain. Peut aussi recevoir des missions et prendre les photos comme un agent',
 };
 
 /**
