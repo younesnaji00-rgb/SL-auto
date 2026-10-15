@@ -1,120 +1,85 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, authErrorResponse } from '@/lib/require-auth';
-import {
-  COORDS_RE,
-  FIRM_CITIES,
-  anchorToMorocco,
-  firmCityNamedIn,
-  pickFirmPlace,
-  placeOfAddress,
-  withFirmCity,
-  type FirmCity,
-} from '@/lib/moroccan-address';
+import { COORDS_RE, anchorToMorocco, areaNamedIn, cityNamedIn, placeOfAddress } from '@/lib/moroccan-address';
+import { acceptedAreas } from '@/lib/accepted-areas-server';
 
 /**
- * Is a rendez-vous address in Casablanca or Fès? (owner ruling 2026-10-05:
- * the firm works in those two cities only; any other city or country is
- * invalid, and a planification is never saved with it — modal-planification
- * asks here before every save.)
+ * Is a rendez-vous address in one of the accepted areas? The admins list them
+ * on the « Sites » page (owner ruling 2026-10-16 — Casablanca, Fès, and the
+ * outskirts they add, Mohammedia…); any other place is invalid and a
+ * planification is never saved with it (modal-planification asks here before
+ * every save).
  *
- * Resolved with the Distance Matrix API — the only Maps API enabled on the
- * key, and the one the feasibility check routes with: one row per firm city
- * (« Casablanca, Maroc », « Fès, Maroc ») to the address returns Google's
+ * The city is mandatory (owner 2026-10-16): an address naming no accepted
+ * area is answered at once — 'no-city', or 'outside' when it names another
+ * city of Morocco — without asking Google.
+ *
+ * Otherwise resolved with the Distance Matrix API — the only Maps API enabled
+ * on the key: one row per accepted area to the address returns Google's
  * formatted destination, whose locality decides (lib/moroccan-address.ts
- * placeOfAddress), and the drive from each city.
+ * placeOfAddress), and the drive from each area.
  *
- * The city need not be typed (owner 2026-10-15). An address naming neither
- * firm city is looked up as « address, Casablanca » and « address, Fès » in
- * the same request; the one Google places inside a firm city wins — the
- * account's site (`sites`) when both do — and `completed` gives the address
- * with that city written out, which the planification stores. When neither
- * lands in a firm city, the address is looked up as typed so the answer says
- * where Google put it.
- *
- * `status`: 'inside' (+ `city`, `completed`), 'outside' (+ where Google
- * placed it), 'not-found' (nothing closer than the country or the region), or
+ * `status`: 'inside' (+ `city`), 'outside' (+ where it lies), 'no-city',
+ * 'not-found' (nothing closer than the country or the region), or
  * 'unavailable' when the check itself failed — the form then refuses to save
- * rather than let an unchecked address through.
+ * rather than let an unchecked address through. Every answer carries `areas`.
  */
+export async function POST(req: NextRequest) {
+  try {
+    await requireAuth(req);
+    const body = (await req.json().catch(() => null)) as { address?: unknown } | null;
+    const address = typeof body?.address === 'string' ? body.address.trim() : '';
+    const areas = await acceptedAreas();
+    if (!address || address.length > 300) return NextResponse.json({ status: 'not-found', formatted: '', areas });
 
-type Leg = { city: FirmCity; meters: number | null; seconds: number | null };
+    if (!COORDS_RE.test(address) && !areaNamedIn(address, areas)) {
+      const other = cityNamedIn(address);
+      return NextResponse.json(
+        other
+          ? { status: 'outside', locality: other, abroad: false, formatted: '', legs: [], areas }
+          : { status: 'no-city', areas },
+      );
+    }
 
-async function matrix(destinations: string[], apiKey: string): Promise<{ formatted: string[]; legs: Leg[][] } | null> {
-  const params = new URLSearchParams({
-    origins: FIRM_CITIES.map((c) => anchorToMorocco(c)).join('|'),
-    destinations: destinations.map(anchorToMorocco).join('|'),
-    mode: 'driving',
-    language: 'fr',
-    region: 'ma',
-    key: apiKey,
-  });
-  const res = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?${params.toString()}`);
-  if (!res.ok) {
-    console.error('[check-address] Google HTTP error', res.status);
-    return null;
-  }
-  const data = await res.json();
-  if (data.status !== 'OK' || !Array.isArray(data.rows)) {
-    console.error('[check-address] Google API status', data.status, data.error_message ?? '(no message)');
-    return null;
-  }
-  const formatted = destinations.map((_, j) => (typeof data.destination_addresses?.[j] === 'string' ? data.destination_addresses[j] : ''));
-  // legs[j] = the drive from each firm city to destination j.
-  const legs = destinations.map((_, j) =>
-    FIRM_CITIES.map((city, i) => {
-      const cell = data.rows?.[i]?.elements?.[j];
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.error('[check-address] GOOGLE_MAPS_API_KEY is not set in env');
+      return NextResponse.json({ status: 'unavailable', areas });
+    }
+
+    // Distance Matrix: at most 25 origins per request.
+    const origins = areas.slice(0, 25);
+    const params = new URLSearchParams({
+      origins: origins.map((a) => anchorToMorocco(a)).join('|'),
+      destinations: anchorToMorocco(address),
+      mode: 'driving',
+      language: 'fr',
+      region: 'ma',
+      key: apiKey,
+    });
+    const res = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?${params.toString()}`);
+    if (!res.ok) {
+      console.error('[check-address] Google HTTP error', res.status);
+      return NextResponse.json({ status: 'unavailable', areas });
+    }
+    const data = await res.json();
+    if (data.status !== 'OK' || !Array.isArray(data.rows)) {
+      console.error('[check-address] Google API status', data.status, data.error_message ?? '(no message)');
+      return NextResponse.json({ status: 'unavailable', areas });
+    }
+
+    const formatted: string = typeof data.destination_addresses?.[0] === 'string' ? data.destination_addresses[0] : '';
+    const legs = origins.map((city, i) => {
+      const cell = data.rows?.[i]?.elements?.[0];
       const ok = cell?.status === 'OK';
       return {
         city,
         meters: ok && typeof cell.distance?.value === 'number' ? cell.distance.value : null,
         seconds: ok && typeof cell.duration?.value === 'number' ? cell.duration.value : null,
       };
-    }),
-  );
-  return { formatted, legs };
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    await requireAuth(req);
-    const body = (await req.json().catch(() => null)) as { address?: unknown; sites?: unknown } | null;
-    const address = typeof body?.address === 'string' ? body.address.trim() : '';
-    if (!address || address.length > 300) return NextResponse.json({ status: 'not-found', formatted: '' });
-    const sites = Array.isArray(body?.sites) ? body.sites.filter((s): s is string => typeof s === 'string').slice(0, 5) : [];
-
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      console.error('[check-address] GOOGLE_MAPS_API_KEY is not set in env');
-      return NextResponse.json({ status: 'unavailable' });
-    }
-
-    // No city typed: try it in each firm city.
-    if (!COORDS_RE.test(address) && !firmCityNamedIn(address)) {
-      const variants = FIRM_CITIES.map((city) => withFirmCity(address, city));
-      const both = await matrix(variants, apiKey);
-      if (!both) return NextResponse.json({ status: 'unavailable' });
-      const candidates = FIRM_CITIES.map((city, j) => ({
-        city,
-        formatted: both.formatted[j],
-        legs: both.legs[j],
-        place: placeOfAddress(both.formatted[j]),
-      }));
-      const pick = pickFirmPlace(candidates, sites);
-      if (pick && pick.place.status === 'inside') {
-        return NextResponse.json({ ...pick.place, formatted: pick.formatted, legs: pick.legs, completed: withFirmCity(address, pick.place.city) });
-      }
-    }
-
-    const one = await matrix([address], apiKey);
-    if (!one) return NextResponse.json({ status: 'unavailable' });
-    const formatted = one.formatted[0];
-    const place = placeOfAddress(formatted);
-    return NextResponse.json({
-      ...place,
-      formatted,
-      legs: one.legs[0],
-      ...(place.status === 'inside' ? { completed: withFirmCity(address, place.city) } : {}),
     });
+
+    return NextResponse.json({ ...placeOfAddress(formatted, areas), formatted, legs, areas });
   } catch (error: any) {
     const authResp = authErrorResponse(error);
     if (authResp) return authResp;

@@ -83,89 +83,122 @@ export function samePlace(a: string, b: string): boolean {
 }
 
 /**
- * The firm works in two cities (owner ruling 2026-10-05): a rendez-vous
- * address anywhere else — another Moroccan city, another country, or a place
- * Google cannot pin down — is invalid, and no planification is saved with it.
+ * Where a rendez-vous is accepted. The admins keep the list on the « Sites »
+ * page (`options_sites`, owner ruling 2026-10-16: some visits happen on the
+ * outskirts of Casablanca — « I can go to Sites and add Mohammedia, then any
+ * planification there is accepted »). These two cities are its seed and the
+ * fallback when the list cannot be read (owner ruling 2026-10-05).
  */
-export const FIRM_CITIES = ['Casablanca', 'Fès'] as const;
-export type FirmCity = (typeof FIRM_CITIES)[number];
+export const DEFAULT_AREAS: readonly string[] = ['Casablanca', 'Fès'];
 
 /**
- * Where Google stops when it cannot place an address any closer than the
- * region of one of the firm's cities (« Casablanca-Settat, Maroc »): the city
- * itself, or any other town of the region — so it cannot be told.
+ * Morocco's twelve regions: where Google stops when it cannot place an
+ * address any closer (« Casablanca-Settat, Maroc ») — any town of the region,
+ * so it cannot be told.
  */
-const FIRM_REGIONS = new Set(['casablanca settat', 'fes meknes']);
+const REGIONS = new Set([
+  'tanger tetouan al hoceima', 'oriental', 'l oriental', 'fes meknes', 'rabat sale kenitra',
+  'beni mellal khenifra', 'casablanca settat', 'marrakech safi', 'draa tafilalet',
+  'souss massa', 'guelmim oued noun', 'laayoune sakia el hamra', 'dakhla oued ed dahab',
+]);
 
 export type AddressPlace =
-  /** In one of the firm's cities. */
-  | { status: 'inside'; city: FirmCity; locality: string }
-  /** Another city of Morocco, or another country (`abroad`, `locality` = the whole address). */
+  /** In one of the accepted areas (`city` = the area as the list writes it). */
+  | { status: 'inside'; city: string; locality: string }
+  /** Another place in Morocco, or another country (`abroad`, `locality` = the whole address). */
   | { status: 'outside'; locality: string; abroad: boolean }
   /** Nothing closer than the country or the region: Google did not find the place. */
   | { status: 'not-found' };
 
-function firmCityOf(place: string): FirmCity | null {
-  return FIRM_CITIES.find((c) => samePlace(c, place)) ?? null;
+function areaOf(place: string, areas: readonly string[]): string | null {
+  return areas.find((a) => samePlace(a, place)) ?? null;
 }
 
-/** Where a Google-formatted address lies against the firm's cities. */
-export function placeOfAddress(formatted: string): AddressPlace {
+/** Where a Google-formatted address lies against the accepted areas. */
+export function placeOfAddress(formatted: string, areas: readonly string[] = DEFAULT_AREAS): AddressPlace {
   const parts = (formatted || '').split(',').map((p) => p.trim()).filter(Boolean);
   if (parts.length === 0) return { status: 'not-found' };
   const last = parts[parts.length - 1];
   if (!COUNTRY.has(normalizePlace(last))) {
-    // No country written after a firm city (« Casablanca »): still that city.
-    const city = firmCityOf(last.replace(/\d+/g, ''));
-    if (city) return { status: 'inside', city, locality: city };
+    // No country written after an accepted area (« Casablanca »): still that area.
+    const area = areaOf(last.replace(/\d+/g, ''), areas);
+    if (area) return { status: 'inside', city: area, locality: area };
     // Another country: « 10050 Borgone Susa, Ville métropolitaine de Turin, Italie ».
     return { status: 'outside', locality: parts.join(', '), abroad: true };
   }
   const locality = localityOf(formatted);
   if (!locality) return { status: 'not-found' };
-  if (FIRM_REGIONS.has(canonicalPlace(locality).replace(/^region (?:de |d |du )?/, ''))) {
+  if (REGIONS.has(canonicalPlace(locality).replace(/^region (?:de |d |du )?/, ''))) {
     return { status: 'not-found' };
   }
-  const city = firmCityOf(locality);
-  return city ? { status: 'inside', city, locality } : { status: 'outside', locality, abroad: false };
+  const area = areaOf(locality, areas);
+  return area ? { status: 'inside', city: area, locality } : { status: 'outside', locality, abroad: false };
 }
 
-
 /**
- * The firm city a typed address already names — « …, Maarif, Casablanca »,
- * « Casa », « Fez » — else null. The firm works in these two cities only, so
- * nobody has to type the city (owner 2026-10-15): an address without one is
- * looked up in both (/api/check-address) and completed with the one found.
+ * Where a typed address names a place, as whole words whatever the accents,
+ * case or alias (« Casa », « Fez »): the position of its LAST mention, -1
+ * when absent.
  */
-export function firmCityNamedIn(address: string): FirmCity | null {
+function placeMention(address: string, place: string): number {
   const text = ` ${normalizePlace(address)} `;
-  for (const city of FIRM_CITIES) {
-    const key = normalizePlace(city);
-    const names = [key, ...Object.keys(ALIASES).filter((alias) => ALIASES[alias] === key)];
-    if (names.some((n) => text.includes(` ${n} `))) return city;
-  }
-  return null;
+  const key = canonicalPlace(place);
+  const variants = [normalizePlace(place), key, ...Object.keys(ALIASES).filter((alias) => ALIASES[alias] === key)];
+  const latin = Math.max(-1, ...variants.filter(Boolean).map((v) => text.lastIndexOf(` ${v} `)));
+  // Written in Arabic: « الدار البيضاء » is Casablanca.
+  const arabic = Math.max(-1, ...Object.entries(ARABIC_NAMES).filter(([, l]) => samePlace(l, place)).map(([ar]) => address.lastIndexOf(ar)));
+  return Math.max(latin, arabic);
 }
 
-/** The address with its city written out (for Google, the maps links, the agent's itinerary). */
-export function withFirmCity(address: string, city: FirmCity): string {
-  const trimmed = address.trim().replace(/[\s,;]+$/, '');
-  return firmCityNamedIn(trimmed) ? trimmed : `${trimmed}, ${city}`;
+/** Arabic names of the main cities (normalizePlace keeps Latin letters only). */
+const ARABIC_NAMES: Record<string, string> = {
+  'الدار البيضاء': 'Casablanca', 'فاس': 'Fès', 'الرباط': 'Rabat', 'سلا': 'Salé', 'تمارة': 'Témara',
+  'المحمدية': 'Mohammedia', 'مكناس': 'Meknès', 'مراكش': 'Marrakech', 'طنجة': 'Tanger', 'تطوان': 'Tétouan',
+  'أكادير': 'Agadir', 'وجدة': 'Oujda', 'القنيطرة': 'Kénitra', 'الجديدة': 'El Jadida', 'آسفي': 'Safi',
+  'سطات': 'Settat', 'برشيد': 'Berrechid', 'بوسكورة': 'Bouskoura', 'دار بوعزة': 'Dar Bouazza',
+  'النواصر': 'Nouaceur', 'مديونة': 'Médiouna', 'تيط مليل': 'Tit Mellil', 'عين حرودة': 'Aïn Harrouda',
+  'صفرو': 'Sefrou', 'إفران': 'Ifrane', 'الناظور': 'Nador', 'بني ملال': 'Béni Mellal', 'خريبكة': 'Khouribga',
+};
+
+/**
+ * The accepted area a typed address names — « 12 rue X, Maarif, Casablanca »,
+ * « Bd Hassan II, Mohammedia » — else null. Writing the city is mandatory
+ * (owner 2026-10-16): the planning refuses an address that names none.
+ */
+export function areaNamedIn(address: string, areas: readonly string[]): string | null {
+  // An address ends with its city: the name mentioned last wins (« Rte de
+  // Sefrou, Bhalil » is in Bhalil), then the longer one (« Dar Bouazza »).
+  let best: { area: string; at: number } | null = null;
+  for (const area of areas) {
+    const at = placeMention(address, area);
+    if (at < 0) continue;
+    if (!best || at > best.at || (at === best.at && area.length > best.area.length)) best = { area, at };
+  }
+  return best?.area ?? null;
 }
 
 /**
- * Of the places Google found for « address, Casablanca » and « address, Fès »,
- * the one to keep: a place inside a firm city — the one its own query named
- * first, then the account's site (`prefer`) when the address exists in both
- * cities, then the list order. Null when neither lands in a firm city.
+ * Cities and towns of Morocco an address may end with — for the Informations
+ * addresses (the assuré, the partie adverse, an intermédiaire), which can be
+ * anywhere in the country but must name their city. The accepted areas are
+ * added to it where it is checked.
  */
-export function pickFirmPlace<T extends { city: FirmCity; place: AddressPlace }>(
-  candidates: readonly T[],
-  prefer: readonly string[] = [],
-): T | null {
-  const inside = candidates.filter((c) => c.place.status === 'inside');
-  if (inside.length === 0) return null;
-  const faithful = inside.filter((c) => c.place.status === 'inside' && c.place.city === c.city);
-  const pool = faithful.length > 0 ? faithful : inside;
-  return pool.find((c) => prefer.some((p) => samePlace(p, c.city))) ?? pool[0];
+export const MOROCCAN_CITIES: readonly string[] = [
+  'Casablanca', 'Rabat', 'Salé', 'Témara', 'Skhirat', 'Kénitra', 'Mohammedia', 'Fès', 'Meknès',
+  'Marrakech', 'Agadir', 'Inezgane', 'Aït Melloul', 'Tanger', 'Tétouan', 'Fnideq', 'Martil',
+  'Larache', 'Ksar El Kébir', 'Chefchaouen', 'Ouazzane', 'Oujda', 'Nador', 'Berkane', 'Taourirt',
+  'Jerada', 'Guercif', 'Al Hoceïma', 'Taza', 'El Jadida', 'Azemmour', 'Sidi Bennour', 'Safi',
+  'Youssoufia', 'Essaouira', 'Settat', 'Berrechid', 'Ben Guerir', 'Kelaa des Sraghna', 'Khouribga',
+  'Oued Zem', 'Béni Mellal', 'Fquih Ben Salah', 'Khénifra', 'Azilal', 'Errachidia', 'Midelt',
+  'Ouarzazate', 'Zagora', 'Tinghir', 'Taroudant', 'Tiznit', 'Guelmim', 'Tan-Tan', 'Sidi Ifni',
+  'Laâyoune', 'Boujdour', 'Dakhla', 'Sefrou', 'Bhalil', 'Ifrane', 'Azrou', 'El Hajeb',
+  'Moulay Yacoub', 'Imouzzer Kandar', 'Aïn Taoujdate', 'Missour', 'Boulemane', 'Sidi Kacem',
+  'Sidi Slimane', 'Souk El Arbaa', 'Khémisset', 'Tiflet', 'Benslimane', 'Bouznika', 'Bouskoura',
+  'Dar Bouazza', 'Nouaceur', 'Médiouna', 'Tit Mellil', 'Aïn Harrouda', 'Had Soualem',
+  'Lahraouyine', 'Deroua', 'Sidi Rahal', 'Chichaoua', 'Figuig',
+];
+
+/** The city a typed address names: an accepted area or a city of Morocco, else null. */
+export function cityNamedIn(address: string, areas: readonly string[] = []): string | null {
+  return areaNamedIn(address, [...areas, ...MOROCCAN_CITIES]);
 }

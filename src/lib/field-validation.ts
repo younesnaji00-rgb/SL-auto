@@ -11,6 +11,7 @@
  * symbols (« @@@@ », « ---- ») or a run of symbols (« -- », « ,.; »).
  */
 import { normalizePlate } from './plate-match';
+import { cityNamedIn } from './moroccan-address';
 import { requiredFieldFilled, requiredFieldsFor } from './required-fields';
 
 export type ValidatedKind =
@@ -65,8 +66,9 @@ const MSG = {
   tel: 'Numéro marocain attendu : 06 12 34 56 78 ou +212 6 12 34 56 78.',
   email: 'Adresse e-mail invalide (ex. nom@domaine.ma).',
   plate: 'Immatriculation invalide (ex. 12345-A-6 ou WW-123456).',
-  // No city asked: the firm works in Casablanca and Fès only (owner 2026-10-15).
-  address: 'Adresse invalide : indiquez au moins la rue et le quartier, en lettres et chiffres (pas de symboles seuls). Inutile d’ajouter la ville.',
+  address: 'Adresse invalide : indiquez au moins la rue et la ville, en lettres et chiffres (pas de symboles seuls).',
+  // The city is mandatory (owner 2026-10-16).
+  addressCity: 'Ajoutez la ville à la fin de l’adresse (ex. 12 rue Ibn Battouta, Maarif, Casablanca).',
   name: 'Nom invalide : lettres uniquement (espace, tiret et apostrophe admis).',
   org: 'Nom invalide : lettres et chiffres, ponctuation simple admise (pas de symboles seuls).',
   cin: 'CIN invalide (ex. AB123456).',
@@ -115,7 +117,12 @@ function validateDate(kind: keyof typeof DATE_MIN_YEAR, raw: unknown, now: Date)
  * Returns a French message when `value` is filled but malformed, else null.
  * `now` only matters for the date kinds (no date in the future).
  */
-export function validateFieldValue(kind: ValidatedKind, raw: unknown, now: Date = new Date()): string | null {
+/** `areas`: the accepted areas (« Sites »), recognised as cities in addresses besides the cities of Morocco. */
+export interface ValidationContext {
+  areas?: readonly string[];
+}
+
+export function validateFieldValue(kind: ValidatedKind, raw: unknown, now: Date = new Date(), ctx: ValidationContext = {}): string | null {
   if (kind === 'pastDate' || kind === 'mecDate') return validateDate(kind, raw, now);
 
   const value = typeof raw === 'string' ? raw.trim() : raw == null ? '' : String(raw).trim();
@@ -174,7 +181,9 @@ export function validateFieldValue(kind: ValidatedKind, raw: unknown, now: Date 
         WORD.test(value) &&
         !SYMBOL_RUN.test(value) &&
         (letterCount(compact) + digitCount(compact)) / compact.length >= 0.6;
-      return ok ? null : MSG.address;
+      if (!ok) return MSG.address;
+      // The city must be written: a city of Morocco or an accepted area.
+      return cityNamedIn(value, ctx.areas ?? []) ? null : MSG.addressCity;
     }
     case 'name': {
       // « El-Alaoui », « O’Neil », « M. Karim » — never « A.-B » or « Karim- ».
@@ -298,10 +307,10 @@ export function blankRequiredPaths(form: any, expertRank?: string): string[] {
  * Validates every listed field against `form`. Returns `{ path → message }`
  * for the malformed ones only; an empty object means the form may be saved.
  */
-export function validateFields(form: any, fields: ReadonlyArray<ValidatedField>, now: Date = new Date()): Record<string, string> {
+export function validateFields(form: any, fields: ReadonlyArray<ValidatedField>, now: Date = new Date(), ctx: ValidationContext = {}): Record<string, string> {
   const errors: Record<string, string> = {};
   for (const f of fields) {
-    const msg = validateFieldValue(f.kind, readFieldPath(form, f.path), now);
+    const msg = validateFieldValue(f.kind, readFieldPath(form, f.path), now, ctx);
     if (msg) errors[f.path] = msg;
   }
   return errors;

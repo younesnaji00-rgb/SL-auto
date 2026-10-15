@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { SitesPicker, normalizeSites } from '@/components/admin/sites-picker';
+import { useAcceptedAreas } from '@/hooks/use-accepted-areas';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { describeRole, roleKey } from '@/lib/role-access';
@@ -144,6 +145,7 @@ export default function UtilisateursClientPage() {
   const { options: dbCompagnies } = useOptions('compagnies');
   const { options: dbAgentsRaw } = useOptions('options_agents');
   const { options: dbZones } = useOptions('options_zones');
+  const { areas: acceptedAreas } = useAcceptedAreas();
 
   const roles = useMemo(() => dbRoles.filter(o => o.active !== false), [dbRoles]);
   const compagniesOptions = useMemo(() => dbCompagnies.filter(o => o.active !== false), [dbCompagnies]);
@@ -253,7 +255,7 @@ export default function UtilisateursClientPage() {
         password: data.password, // stored so admin can see it
         role: data.role,
         compagnies: data.compagnies,
-        sites: normalizeSites(data.sites),
+        sites: normalizeSites(data.sites, acceptedAreas),
         zone: savedZone,
         statut: 'Actif',
         createdAt: serverTimestamp(),

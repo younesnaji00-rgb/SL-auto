@@ -54,6 +54,7 @@ import { useReplayHighlight, highlightClass, ChangeBadge } from '@/components/do
 import { usePrefillFlash } from '@/hooks/use-prefill-flash';
 import { BRAND } from '@/lib/brand';
 import { validateFields, dateCoherenceErrors, blankRequiredPaths, type ValidatedField } from '@/lib/field-validation';
+import { useAcceptedAreas } from '@/hooks/use-accepted-areas';
 import { requiredFieldsFor } from '@/lib/required-fields';
 import { compagnieInScope, compagnieKey } from '@/lib/compagnie-name';
 import { findDossierWithRefExpert, refExpertFields, DUPLICATE_REF_MESSAGE } from '@/lib/ref-expert-unique';
@@ -337,6 +338,7 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
   const t = useT();
   const { canWrite, profile } = useCurrentUser();
   const mayWrite = canWrite('dossiers');
+  const { areas: acceptedAreas } = useAcceptedAreas();
   const canEdit = mayWrite && !ficheMissing;
 
   // Single source of truth: Firestore. Filter inactive entries client-side.
@@ -609,7 +611,8 @@ export default function InformationTab({ dossier, dossierRef, dossierId, headerA
     const scopePaths = sheetSection ? new Set([...(SECTIONS_PATHS[sheetSection] ?? []), ...sheetExtraPaths]) : null;
     const inScope = (p: string) => !scopePaths || scopePaths.has(p);
     const toCheck = VALIDATED_FIELDS.filter((f) => inScope(f.path));
-    const errors = validateFields(form, toCheck);
+    // Addresses must name their city: a city of Morocco or an accepted area (2026-10-16).
+    const errors = validateFields(form, toCheck, new Date(), { areas: acceptedAreas });
     // The dates must also agree with each other: requête after the sinistre,
     // mise en circulation before it.
     for (const [p, msg] of Object.entries(dateCoherenceErrors(form))) {

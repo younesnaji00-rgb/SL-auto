@@ -297,24 +297,28 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     };
   }, [effectiveIsFresh, effectiveLocation?.lat, effectiveLocation?.lng]);
 
-  // The rendez-vous address must be in Casablanca or Fès (owner ruling
-  // 2026-10-05): any other city or country — or a place Google cannot find —
-  // is refused, and the planification is never saved with it. Checked while
-  // typing, and again by the save itself (/api/check-address).
-  // The account's sites settle an address that exists in both cities.
-  const addressCheck = useAddressCheck(formData.adresse, profile?.sites ?? []);
+  // The rendez-vous address must name, and lie in, one of the accepted areas
+  // the admins list on « Sites » (owner rulings 2026-10-05 and 2026-10-16:
+  // Casablanca, Fès, Mohammedia…): no city written, another city or country —
+  // or a place Google cannot find — is refused, and the planification is
+  // never saved with it. Checked while typing, and again by the save itself
+  // (/api/check-address).
+  const addressCheck = useAddressCheck(formData.adresse);
   const addressInside = addressCheck?.status === 'inside';
 
   /** Why an address cannot be saved; null when it can, or is not checked yet. */
   const addressProblem = React.useCallback(
     (check: AddressCheck | null): string | null => {
+      const areasOf = (c: { areas: string[] }) => (c.areas.length > 0 ? c.areas.join(', ') : 'Casablanca, Fès');
       switch (check?.status) {
+        case 'no-city':
+          return `${t('Écrivez la ville du rendez-vous à la fin de l’adresse (ex. 12 rue Ibn Battouta, Maarif, Casablanca). Zones acceptées :')} ${areasOf(check)}.`;
         case 'outside':
           return check.abroad
             ? `${t('Adresse hors du Maroc : Google la situe à')} « ${check.locality} ».`
-            : `${t('Adresse hors de Casablanca et de Fès : Google la situe à')} ${check.locality}.`;
+            : `${check.locality} ${t('n’est pas une zone acceptée')} (${areasOf(check)}). ${t('Un administrateur peut l’ajouter dans Sites.')}`;
         case 'not-found':
-          return t('Adresse introuvable : précisez le quartier ou la rue, à Casablanca ou à Fès.');
+          return `${t('Adresse introuvable : précisez le quartier ou la rue. Zones acceptées :')} ${areasOf(check)}.`;
         case 'unavailable':
           return t('Vérification de l’adresse impossible pour le moment : réessayez dans un instant.');
         default:
@@ -332,9 +336,9 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     agentName: formData.agentTerrain,
     dateRDV: formData.dateRDV,
     timeRDV: formData.timeRDV,
-    // Only an address placed in Casablanca or Fès is routed: a typo Google
+    // Only an address placed in an accepted area is routed: a typo Google
     // put in Italy made a 25-hour « conflit de planning » (QA bug 045).
-    adresse: addressCheck?.status === 'inside' ? addressCheck.completed : '',
+    adresse: addressInside ? formData.adresse : '',
     excludeId: initialData?.id ?? null,
     agentLiveLocation: effectiveLocation,
   });
@@ -376,13 +380,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
     list.push({
       id: 'plan-adresse',
       label: t('Adresse complète'),
-      // Empty, then Casablanca or Fès: the save asks Google before it
+      // Empty, then an accepted area: the save asks Google before it
       // validates, so the answer for the address as typed is known here.
       validate: (v) =>
-        v.adresse.trim() ? addressProblem(knownAddressCheck(v.adresse, profile?.sites ?? [])) : t("Renseignez l'adresse du rendez-vous."),
+        v.adresse.trim() ? addressProblem(knownAddressCheck(v.adresse)) : t("Renseignez l'adresse du rendez-vous."),
     });
     return list;
-  }, [defaultTypeMission, isCurrentUserAT, t, addressProblem, profile?.sites]);
+  }, [defaultTypeMission, isCurrentUserAT, t, addressProblem]);
   const formErrors = useFormErrors(formData, rules, { open });
 
   // The address verdict as soon as Google answers; after a failed save the
@@ -401,10 +405,10 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
   const handleSave = async () => {
     if (!db || loading) return;
     setLoading(true);
-    // Casablanca or Fès only (owner ruling 2026-10-05): the answer for the
+    // Accepted areas only (owner rulings 2026-10-05, 2026-10-16): the answer for the
     // address as typed — known, or asked now — before anything is written. A
     // check that cannot run refuses the save too.
-    const addressAnswer = formData.adresse.trim() ? await checkAddress(formData.adresse, profile?.sites ?? []) : null;
+    const addressAnswer = formData.adresse.trim() ? await checkAddress(formData.adresse) : null;
     const valid = formErrors.validateAll();
     // The address written is the one checked (formData of this call), whatever
     // was typed during the check.
@@ -457,9 +461,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         typeMission: normalizeTypeMission(formData.typeMission) ?? formData.typeMission,
         dateRDV: finalRDV,
         zone: derivedZone,
-        // With its city written out when it was typed without one (2026-10-15):
-        // the agent's itinerary and the arrival check need it.
-        adresse: addressAnswer?.status === 'inside' ? addressAnswer.completed : formData.adresse,
+        adresse: formData.adresse,
         observation: resolvedObservation,
         modifiedAt: serverTimestamp(),
         modifiedBy: auth?.currentUser?.uid || 'Admin',
@@ -763,7 +765,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
               id="plan-adresse"
               {...INPUT_ADDRESS}
               enterKeyHint="next"
-              placeholder={t('Adresse du rendez-vous...')}
+              placeholder={t('N°, rue, quartier, ville')}
               className="h-10 max-md:h-12 pr-11"
               value={formData.adresse}
               onChange={(e) => { const v = e.target.value; setFormData((prev) => ({ ...prev, adresse: v })); }}
@@ -810,7 +812,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
             </div>
             </div>
             {fieldError('plan-adresse')}
-            {/* Casablanca or Fès only (owner ruling 2026-10-05): said as soon
+            {/* Accepted areas only (owner rulings 2026-10-05, 2026-10-16): said as soon
                 as Google has placed the address, not only after « Enregistrer ». */}
             {addressLiveProblem && (
               <p id="plan-adresse-city" role="alert" className="flex items-start gap-1.5 text-[13px] font-medium leading-snug text-status-danger-fg">

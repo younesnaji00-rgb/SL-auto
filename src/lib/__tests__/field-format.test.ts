@@ -197,3 +197,15 @@ test('validateFields reports only the malformed paths', () => {
   ], new Date(2026, 9, 5));
   assert.deepEqual(Object.keys(errors).sort(), ['assure.adresse', 'vehicule.km']);
 });
+
+// Owner 2026-10-16: the city is mandatory in an address — a city of Morocco,
+// or an accepted area the admins added on « Sites ».
+test('an address names its city', () => {
+  const city = /ville/;
+  assert.match(validateFieldValue('address', '12 rue Ibn Battouta, Maarif') ?? '', city);
+  ok('address', '12 rue Ibn Battouta, Maarif, Casablanca');
+  ok('address', 'Av. Mohammed V, Rabat');
+  ok('address', 'Lot Al Amal, Lahraouyine');
+  assert.match(validateFieldValue('address', 'Douar Lahlou, Ain Chkef') ?? '', city);
+  assert.equal(validateFieldValue('address', 'Douar Lahlou, Ain Chkef', new Date(), { areas: ['Casablanca', 'Fès', 'Ain Chkef'] }), null);
+});

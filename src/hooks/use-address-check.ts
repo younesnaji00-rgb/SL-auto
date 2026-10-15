@@ -3,95 +3,109 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-fetch';
 import { logFrontend } from '@/lib/debug-log';
-import type { FirmCity } from '@/lib/moroccan-address';
 
-/** Drive from one of the firm's cities to the address, when Google routed it. */
+/** Drive from one of the accepted areas to the address, when Google routed it. */
 export interface CityLeg {
-  city: FirmCity;
+  city: string;
   meters: number | null;
   seconds: number | null;
 }
 
-/** /api/check-address: is the address in Casablanca or Fès (owner ruling 2026-10-05)? */
+/**
+ * /api/check-address: is the address in one of the accepted areas (the
+ * admins' « Sites » list, owner ruling 2026-10-16)? `areas` is that list, for
+ * the messages. `no-city`: the address names none of them — the city is
+ * mandatory.
+ */
 export type AddressCheck =
-  /** `completed`: the address with its city written out (the city need not be typed, 2026-10-15). */
-  | { status: 'inside'; city: FirmCity; locality: string; formatted: string; legs: CityLeg[]; completed: string }
-  | { status: 'outside'; locality: string; abroad: boolean; formatted: string; legs: CityLeg[] }
-  | { status: 'not-found'; formatted: string }
+  | { status: 'inside'; city: string; locality: string; formatted: string; legs: CityLeg[]; areas: string[] }
+  | { status: 'outside'; locality: string; abroad: boolean; formatted: string; legs: CityLeg[]; areas: string[] }
+  | { status: 'no-city'; areas: string[] }
+  | { status: 'not-found'; formatted: string; areas: string[] }
   | { status: 'unavailable' };
 
-/** The latest answer per address, for the page's lifetime. A failed check is asked again. */
-const answers = new Map<string, AddressCheck>();
+/**
+ * The latest answer per address. A refusal is asked again after a minute — an
+ * admin may have added the area meanwhile — and a failed check every time.
+ */
+const answers = new Map<string, { answer: AddressCheck; at: number }>();
+const REFUSAL_TTL_MS = 60_000;
 
-const keyOf = (address: string, sites: readonly string[] = []) =>
-  `${address.trim().replace(/\s+/g, ' ').toLowerCase()}|${[...sites].sort().join(',')}`;
+const keyOf = (address: string) => address.trim().replace(/\s+/g, ' ').toLowerCase();
 
-function parse(data: any, address: string): AddressCheck {
+function fresh(key: string): AddressCheck | null {
+  const hit = answers.get(key);
+  if (!hit || hit.answer.status === 'unavailable') return null;
+  if (hit.answer.status !== 'inside' && Date.now() - hit.at > REFUSAL_TTL_MS) return null;
+  return hit.answer;
+}
+
+function parse(data: any): AddressCheck {
   const legs: CityLeg[] = Array.isArray(data?.legs) ? data.legs : [];
   const formatted = typeof data?.formatted === 'string' ? data.formatted : '';
+  const areas: string[] = Array.isArray(data?.areas) ? data.areas.filter((a: unknown) => typeof a === 'string') : [];
   switch (data?.status) {
     case 'inside':
-      return { status: 'inside', city: data.city, locality: data.locality ?? data.city, formatted, legs, completed: typeof data.completed === 'string' && data.completed ? data.completed : address };
+      return { status: 'inside', city: data.city, locality: data.locality ?? data.city, formatted, legs, areas };
     case 'outside':
-      return { status: 'outside', locality: data.locality ?? formatted, abroad: data.abroad === true, formatted, legs };
+      return { status: 'outside', locality: data.locality ?? formatted, abroad: data.abroad === true, formatted, legs, areas };
+    case 'no-city':
+      return { status: 'no-city', areas };
     case 'not-found':
-      return { status: 'not-found', formatted };
+      return { status: 'not-found', formatted, areas };
     default:
       return { status: 'unavailable' };
   }
 }
 
-async function askServer(address: string, sites: readonly string[], signal?: AbortSignal): Promise<AddressCheck> {
+async function askServer(address: string, signal?: AbortSignal): Promise<AddressCheck> {
   let answer: AddressCheck;
   try {
     const res = await apiFetch('/api/check-address', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal,
-      body: JSON.stringify({ address, sites }),
+      body: JSON.stringify({ address }),
     });
-    answer = res.ok ? parse(await res.json(), address) : { status: 'unavailable' };
+    answer = res.ok ? parse(await res.json()) : { status: 'unavailable' };
   } catch (err: any) {
     if (err?.name === 'AbortError') throw err;
     console.warn('[use-address-check] error:', err);
     answer = { status: 'unavailable' };
   }
-  answers.set(keyOf(address, sites), answer);
+  answers.set(keyOf(address), { answer, at: Date.now() });
   logFrontend('use-address-check ← /api/check-address', { address, answer });
   return answer;
 }
 
-/** For the save: the known answer for this address, or a fresh one (a failed check is retried). */
-export async function checkAddress(address: string, sites: readonly string[] = []): Promise<AddressCheck> {
-  const known = answers.get(keyOf(address, sites));
-  if (known && known.status !== 'unavailable') return known;
-  return askServer(address.trim(), sites);
+/** For the save: the known answer for this address, or a fresh one. */
+export async function checkAddress(address: string): Promise<AddressCheck> {
+  return fresh(keyOf(address)) ?? askServer(address.trim());
 }
 
 /** The latest answer for an address, if it was checked (the form's validation rule reads it). */
-export function knownAddressCheck(address: string, sites: readonly string[] = []): AddressCheck | null {
-  return answers.get(keyOf(address, sites)) ?? null;
+export function knownAddressCheck(address: string): AddressCheck | null {
+  return answers.get(keyOf(address))?.answer ?? null;
 }
 
 /**
- * « Is this rendez-vous address in Casablanca or Fès? » while it is typed —
+ * « Is this rendez-vous address in an accepted area? » while it is typed —
  * debounced like the feasibility check. The answer belongs to the address as
  * it stands, never to the text it was about before.
  */
-export function useAddressCheck(adresse: string, sites: readonly string[] = []): AddressCheck | null {
-  const key = keyOf(adresse, sites);
-  const active = adresse.trim().length >= 3;
+export function useAddressCheck(adresse: string): AddressCheck | null {
+  const key = keyOf(adresse);
+  const active = key.length >= 3;
   // Bumped when an answer lands, to render it; the answer itself is read from
   // `answers`, where the save's own check may also have put a fresher one.
   const [, setAnswered] = useState(0);
 
   useEffect(() => {
     if (!active) return;
-    const known = answers.get(key);
-    if (known && known.status !== 'unavailable') return;
+    if (fresh(key)) return;
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
-      askServer(adresse.trim(), sites, ctrl.signal)
+      askServer(adresse.trim(), ctrl.signal)
         .then(() => {
           if (!ctrl.signal.aborted) setAnswered((n) => n + 1);
         })
@@ -107,5 +121,5 @@ export function useAddressCheck(adresse: string, sites: readonly string[] = []):
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, key]);
 
-  return active ? answers.get(key) ?? null : null;
+  return active ? answers.get(key)?.answer ?? null : null;
 }

@@ -2,6 +2,7 @@ import type React from 'react';
 import { BRAND } from '@/lib/brand';
 import {
   LayoutDashboard,
+  MapPin,
   FolderOpen,
   Users,
   Building2,
@@ -80,6 +81,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/utilisateurs', icon: Users, label: 'Utilisateurs', subtitle: 'Ajouter, gérer et assigner des rôles aux utilisateurs.', roles: ['Admin'], hotkey: 'g u' },
       { href: '/tampons', icon: Stamp, label: 'Tampons', subtitle: 'Gérez les tampons utilisés pour signer les devis et documents générés.', roles: ['Admin'] },
       { href: '/jours-feries', icon: CalendarDays, label: 'Jours fériés', subtitle: 'Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai).', roles: ['Admin', 'Directeur', 'Directeur des opérations', 'Directeur technique'], mobileOrder: { Directeur: 2, 'Directeur des opérations': 2, 'Directeur technique': 2 } },
+      { href: '/sites', icon: MapPin, label: 'Sites', subtitle: 'Zones où un rendez-vous peut être planifié : l’adresse doit nommer l’une d’elles.', roles: ['Admin', 'Directeur', 'Directeur des opérations', 'Directeur technique'] },
     ],
   },
   {
@@ -166,7 +168,7 @@ export const MOBILE_AREAS: MobileArea[] = [
   { key: 'travail', label: 'Travail', icon: FolderOpen, hrefs: ['/dossiers', '/mes-rappels', '/consultation'], sub: 'segments' },
   { key: 'chiffrage', label: 'Chiffrage', icon: Calculator, hrefs: ['/assignations-chiffrage'], sub: 'segments' },
   { key: 'terrain', label: 'Terrain', icon: UserCheck, hrefs: ['/assignations-atg'], sub: 'segments' },
-  { key: 'admin', label: 'Admin', icon: Settings, hrefs: ['/utilisateurs', '/compagnies', '/tampons', '/jours-feries'], sub: 'chips', title: 'Administration' },
+  { key: 'admin', label: 'Admin', icon: Settings, hrefs: ['/utilisateurs', '/compagnies', '/tampons', '/jours-feries', '/sites'], sub: 'chips', title: 'Administration' },
 ];
 
 export interface ResolvedMobileArea extends MobileArea {

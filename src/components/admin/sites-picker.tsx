@@ -1,23 +1,28 @@
 'use client';
 
 /**
- * « Sites » of an account — Casablanca and Fès, nothing else, nothing typed
- * (owner ruling 2026-10-15). The firm works in these two cities only
- * (moroccan-address.ts FIRM_CITIES, owner ruling 2026-10-05); the planning's
- * « hors de Casablanca / hors de Fès » warning compares against them. The
- * list used to come from the editable `options_sites` collection behind a
- * search field.
+ * « Sites » of an account — chosen among the accepted areas the admins list on
+ * the « Sites » page (owner rulings 2026-10-15: nothing typed here; 2026-10-16:
+ * the list is the admins'). The planning's « destination hors de vos sites »
+ * warning compares against them.
  */
 
 import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useAcceptedAreas } from '@/hooks/use-accepted-areas';
 import { useT } from '@/i18n';
-import { FIRM_CITIES, samePlace, type FirmCity } from '@/lib/moroccan-address';
+import { samePlace } from '@/lib/moroccan-address';
 import { cn } from '@/lib/utils';
 
-/** Stored values → the firm's cities, in list order; any other value is dropped. */
-export function normalizeSites(values: unknown): FirmCity[] {
-  const list = Array.isArray(values) ? values.map((v) => String(v ?? '')) : [];
-  return FIRM_CITIES.filter((city) => list.some((v) => samePlace(v, city)));
+/**
+ * Stored values → the listed areas, in list order; any other value is dropped.
+ * With no list yet (still loading), the values are kept as they are — a save
+ * must never wipe them for want of the list.
+ */
+export function normalizeSites(values: unknown, areas: readonly string[]): string[] {
+  const list = Array.isArray(values) ? values.map((v) => String(v ?? '').trim()).filter(Boolean) : [];
+  if (areas.length === 0) return list;
+  return areas.filter((area) => list.some((v) => samePlace(v, area)));
 }
 
 export function SitesPicker({
@@ -26,18 +31,20 @@ export function SitesPicker({
   className,
 }: {
   value: ReadonlyArray<string> | null | undefined;
-  onChange: (sites: FirmCity[]) => void;
+  onChange: (sites: string[]) => void;
   className?: string;
 }) {
   const t = useT();
-  const selected = normalizeSites(value);
+  const { areas, loading } = useAcceptedAreas();
+  if (loading) return <Skeleton className="h-10 w-48" />;
+  const selected = normalizeSites(value, areas);
   return (
     <div role="group" aria-label={t('Sites')} className={cn('flex flex-wrap gap-2', className)} data-testid="sites-picker">
-      {FIRM_CITIES.map((city) => {
-        const on = selected.includes(city);
+      {areas.map((area) => {
+        const on = selected.includes(area);
         return (
           <label
-            key={city}
+            key={area}
             className={cn(
               'flex h-10 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm transition-colors max-md:h-12',
               on ? 'border-primary/50 bg-accent text-ink' : 'border-input bg-card text-ink-2 hover:bg-surface-2',
@@ -45,10 +52,10 @@ export function SitesPicker({
           >
             <Checkbox
               checked={on}
-              onCheckedChange={(v) => onChange(FIRM_CITIES.filter((c) => (c === city ? v === true : selected.includes(c))))}
-              aria-label={city}
+              onCheckedChange={(v) => onChange(areas.filter((a) => (a === area ? v === true : selected.includes(a))))}
+              aria-label={area}
             />
-            {city}
+            {area}
           </label>
         );
       })}

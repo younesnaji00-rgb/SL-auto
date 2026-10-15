@@ -4,7 +4,7 @@
 // ruling 2026-10-05); the city is the locality of the address Google resolved.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { anchorToMorocco, firmCityNamedIn, localityOf, pickFirmPlace, placeOfAddress, samePlace, withFirmCity } from '../moroccan-address';
+import { anchorToMorocco, areaNamedIn, cityNamedIn, localityOf, placeOfAddress, samePlace } from '../moroccan-address';
 
 test('the locality is the component before the country, without postal or plus code', () => {
   assert.equal(localityOf('219 Bd Mohamed Zerktouni, Casablanca 20250, Maroc'), 'Casablanca');
@@ -79,27 +79,26 @@ test('addresses are tied to Morocco before they reach Google', () => {
   assert.equal(anchorToMorocco('33.5731,-7.5898'), '33.5731,-7.5898');
 });
 
-
-// Owner 2026-10-15: only Casablanca and Fès, so the city need not be typed.
-test('an address names a firm city, or is completed with one', () => {
-  assert.equal(firmCityNamedIn('12 rue Ibn Battouta, Maarif, Casablanca'), 'Casablanca');
-  assert.equal(firmCityNamedIn('Bd Zerktouni casa'), 'Casablanca');
-  assert.equal(firmCityNamedIn('Av. Hassan II, Fez'), 'Fès');
-  assert.equal(firmCityNamedIn('Av. Hassan II, Fès'), 'Fès');
-  assert.equal(firmCityNamedIn('12 rue Ibn Battouta, Maarif'), null);
-  assert.equal(firmCityNamedIn('Rue des Fesses'), null);
-  assert.equal(withFirmCity('12 rue Ibn Battouta, Maarif, ', 'Casablanca'), '12 rue Ibn Battouta, Maarif, Casablanca');
-  assert.equal(withFirmCity('Av. Hassan II, Fès', 'Casablanca'), 'Av. Hassan II, Fès');
+// Owner 2026-10-16: the admins list the accepted areas (« Sites »), and the
+// city must be written.
+test('an accepted area added by the admins is inside', () => {
+  const areas = ['Casablanca', 'Fès', 'Mohammedia'];
+  assert.deepEqual(placeOfAddress('Bd Hassan II, Mohammedia 28800, Maroc', areas), { status: 'inside', city: 'Mohammedia', locality: 'Mohammedia' });
+  assert.equal(placeOfAddress('Bd Hassan II, Mohammedia 28800, Maroc').status, 'outside');
+  assert.equal(placeOfAddress('Casablanca-Settat, Maroc', areas).status, 'not-found');
+  assert.equal(placeOfAddress('Rue 5, Bouskoura, Maroc', areas).status, 'outside');
 });
 
-test('of the two lookups, the place inside a firm city is kept', () => {
-  const at = (city: 'Casablanca' | 'Fès', formatted: string) => ({ city, place: placeOfAddress(formatted) });
-  // Only the Casablanca lookup lands in a firm city.
-  assert.equal(pickFirmPlace([at('Casablanca', 'Rue Ibn Battouta, Casablanca 20250, Maroc'), at('Fès', 'Fès, Maroc')])?.city, 'Casablanca');
-  // Both do: the account's site decides, else the list order.
-  const both = [at('Casablanca', 'Rue 5, Casablanca, Maroc'), at('Fès', 'Rue 5, Fès 30000, Maroc')];
-  assert.equal(pickFirmPlace(both, ['Fès'])?.city, 'Fès');
-  assert.equal(pickFirmPlace(both)?.city, 'Casablanca');
-  // Neither: no pick (the route then reports where Google put it).
-  assert.equal(pickFirmPlace([at('Casablanca', 'Rue X, Rabat, Maroc'), at('Fès', 'Rue X, Meknès, Maroc')]), null);
+test('the city of an address: an accepted area, or any city of Morocco', () => {
+  const areas = ['Casablanca', 'Fès', 'Mohammedia', 'Dar Bouazza'];
+  assert.equal(areaNamedIn('12 rue Ibn Battouta, Maarif, Casablanca', areas), 'Casablanca');
+  assert.equal(areaNamedIn('Bd Zerktouni casa', areas), 'Casablanca');
+  assert.equal(areaNamedIn('Av. Hassan II, Fez', areas), 'Fès');
+  assert.equal(areaNamedIn('Lot Tamaris, Dar Bouazza', areas), 'Dar Bouazza');
+  assert.equal(areaNamedIn('12 rue Ibn Battouta, Maarif', areas), null);
+  assert.equal(areaNamedIn('Rue des Fesses', areas), null);
+  assert.equal(areaNamedIn('Av. Mohammed V, Rabat', areas), null);
+  assert.equal(cityNamedIn('Av. Mohammed V, Rabat', areas), 'Rabat');
+  assert.equal(cityNamedIn('Rte de Sefrou, Bhalil'), 'Bhalil');
+  assert.equal(cityNamedIn('12 rue Ibn Battouta, Maarif'), null);
 });

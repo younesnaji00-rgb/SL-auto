@@ -90,6 +90,7 @@ import { isSingleSessionRole, type Role } from '@/lib/dossiers-data';
 import { isSessionStale, timestampToMillis } from '@/lib/session-meta';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { SitesPicker, normalizeSites } from '@/components/admin/sites-picker';
+import { useAcceptedAreas } from '@/hooks/use-accepted-areas';
 import { useOptions } from '@/hooks/use-options';
 import { cn } from '@/lib/utils';
 import { IconChip } from '@/components/ui/icon-chip';
@@ -140,7 +141,7 @@ function formFromUser(userData: any): UserForm {
     role: userData.role || '',
     statut: userData.statut || 'Actif',
     compagnies: userData.compagnies || [],
-    sites: normalizeSites(userData.sites),
+    sites: Array.isArray(userData.sites) ? userData.sites : [],
     zone: userData.zone || '',
   };
 }
@@ -262,6 +263,7 @@ function UserDetail({ params }: { params: Promise<{ uid: string }> }) {
   );
 
   const { options: dbZones } = useOptions('options_zones');
+  const { areas: acceptedAreas } = useAcceptedAreas();
   const zoneOptions = useMemo(() => dbZones.filter(o => o.active !== false), [dbZones]);
 
 
@@ -538,7 +540,7 @@ function UserDetail({ params }: { params: Promise<{ uid: string }> }) {
       await updateDoc(userRef, {
         ...formData,
         // Casablanca / Fès only: an older value typed elsewhere goes.
-        sites: normalizeSites(formData.sites),
+        sites: normalizeSites(formData.sites, acceptedAreas),
         zone: nextZone,
         nomLowercase: (formData.nom || '').trim().toLowerCase(),
         ...(clearSession ? { currentSessionId: null, currentSessionSeenAt: null } : {}),
