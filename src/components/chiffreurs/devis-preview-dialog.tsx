@@ -20,6 +20,7 @@ import {
 import { useStamps, loadStampImage } from '@/hooks/use-stamps';
 import { renderDevisPdf } from '@/lib/devis-pdf';
 import type { DevisSnapshot } from '@/lib/devis-schema';
+import { buildInkMap, coversPrint, keepOnPage, nearestFreeSpot, type InkMap } from '@/lib/stamp-placement';
 import { useFirestore } from '@/firebase';
 import { useT } from '@/i18n';
 import { tourDialogGuard } from '@/lib/tutorial/dialog-guard';
@@ -111,9 +112,15 @@ export function DevisPreviewDialog({
 
   // Click-to-place stamp state.
   const [stampPlacement, setStampPlacement] = useState<StampPlacement | null>(null);
+  const stampPlacementRef = useRef<StampPlacement | null>(null);
+  stampPlacementRef.current = stampPlacement;
   const [isPlacing, setIsPlacing] = useState(false);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [stampImage, setStampImage] = useState<StampImage | null>(null);
+  // Where each page has something printed (built from its canvas): the
+  // tampon may only rest where nothing is (QA Chiffreur #015).
+  const inkMaps = useRef<Map<number, InkMap>>(new Map());
+  const [stampNotice, setStampNotice] = useState<{ tone: 'info' | 'warning'; text: string } | null>(null);
 
   // pdf.js viewer state.
   const viewerContainerRef = useRef<HTMLDivElement | null>(null);
@@ -141,6 +148,7 @@ export function DevisPreviewDialog({
       setIsPlacing(false);
       setStampImage(null);
       setCursorPos(null);
+      setStampNotice(null);
     }
   }, [open]);
 
@@ -296,6 +304,16 @@ export function DevisPreviewDialog({
             if (cancelled || e?.name === 'RenderingCancelledException') return;
             throw e;
           }
+          // The page as printed, without the tampon: its ink map.
+          try {
+            const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            inkMaps.current.set(
+              meta.pageNumber,
+              buildInkMap(pixels.data, canvas.width, canvas.height, canvas.width / meta.pageWidthMm),
+            );
+          } catch {
+            inkMaps.current.delete(meta.pageNumber);
+          }
         }
         if (!cancelled) setViewerReady(true);
       } catch (err) {
@@ -321,6 +339,7 @@ export function DevisPreviewDialog({
       setPageMetas([]);
       setViewerReady(false);
       canvasRefs.current.clear();
+      inkMaps.current.clear();
     }
   }, [open]);
 
@@ -357,6 +376,35 @@ export function DevisPreviewDialog({
     return () => window.removeEventListener('mousemove', handler);
   }, [isPlacing]);
 
+  const stampAspect = stampImage && stampImage.width > 0 && stampImage.height > 0
+    ? stampImage.width / stampImage.height
+    : 1;
+  const stampHeightMm = (widthMm: number) => (stampAspect > 0 ? widthMm / stampAspect : widthMm);
+
+  /** Does this placement cover anything printed on its page? */
+  const placementCoversPrint = (p: StampPlacement): boolean =>
+    coversPrint(inkMaps.current.get(p.page), { ...p, heightMm: stampHeightMm(p.widthMm) });
+
+  /**
+   * A placement the PDF can print as seen: whole inside its page (QA
+   * Chiffreur #013 — a tampon hanging over the border was cut in the saved
+   * file) and off the printed parts (#015), moved to the nearest free spot if
+   * needed. Null when the page has no free room of that size.
+   */
+  const settlePlacement = (p: StampPlacement, meta: PageMeta): StampPlacement | null => {
+    const rect = keepOnPage({ ...p, heightMm: stampHeightMm(p.widthMm) }, meta);
+    const map = inkMaps.current.get(p.page);
+    const spot = map ? nearestFreeSpot(map, rect, meta) : rect;
+    if (!spot) return null;
+    return { page: p.page, xMm: spot.xMm, yMm: spot.yMm, widthMm: p.widthMm };
+  };
+
+  const movedNotice = () =>
+    setStampNotice({
+      tone: 'info',
+      text: t('Le tampon a été déplacé vers l’espace libre le plus proche : il ne peut pas couvrir les montants, références ou autres informations du document.'),
+    });
+
   const handleCanvasClick = (
     e: React.MouseEvent<HTMLCanvasElement>,
     meta: PageMeta,
@@ -371,24 +419,57 @@ export function DevisPreviewDialog({
     // The cursor preview shows the stamp CENTERED on the cursor (via
     // translate(-50%, -50%)). The PDF renderer paints at the top-left
     // corner, so shift the stored placement by half the stamp size to keep
-    // the stamp aligned with where the user clicked.
-    const widthMm = STAMP_DEFAULT_WIDTH_MM;
-    const aspect = stampImage && stampImage.height > 0
-      ? stampImage.width / stampImage.height
-      : 1;
-    const heightMm = aspect > 0 ? widthMm / aspect : widthMm;
-    setStampPlacement({
-      page: meta.pageNumber,
-      xMm: clickXMm - widthMm / 2,
-      yMm: clickYMm - heightMm / 2,
-      widthMm,
+    // the stamp aligned with where the user clicked. A page too full for the
+    // default size tries a smaller tampon before giving up.
+    for (const widthMm of [STAMP_DEFAULT_WIDTH_MM, 30, 22]) {
+      const wanted: StampPlacement = {
+        page: meta.pageNumber,
+        xMm: clickXMm - widthMm / 2,
+        yMm: clickYMm - stampHeightMm(widthMm) / 2,
+        widthMm,
+      };
+      const settled = settlePlacement(wanted, meta);
+      if (!settled) continue;
+      if (placementCoversPrint(wanted) || widthMm !== STAMP_DEFAULT_WIDTH_MM) movedNotice();
+      else setStampNotice(null);
+      setStampPlacement(settled);
+      setIsPlacing(false);
+      setCursorPos(null);
+      return;
+    }
+    setStampNotice({
+      tone: 'warning',
+      text: t('Pas d’espace libre assez grand sur cette page pour le tampon : cliquez sur une autre page.'),
     });
-    setIsPlacing(false);
-    setCursorPos(null);
+  };
+
+  // End of a drag or a resize: the tampon must still be whole on the page and
+  // off the printed parts — moved to the nearest free spot, or back where it
+  // was when there is none.
+  const commitPlacement = (previous: StampPlacement, meta: PageMeta) => {
+    const current = stampPlacementRef.current;
+    if (!current) return;
+    if (!placementCoversPrint(current)) {
+      setStampNotice(null);
+      return;
+    }
+    const settled = settlePlacement(current, meta);
+    if (settled) {
+      setStampPlacement(settled);
+      movedNotice();
+    } else {
+      setStampPlacement(previous);
+      setStampNotice({ tone: 'warning', text: t('Le tampon ne peut pas couvrir les informations du document : il a été remis à sa place.') });
+    }
   };
 
   const handleConfirm = async () => {
     if (!currentBlob || confirming) return;
+    // Last guard: never save a tampon over the document's information.
+    if (selectedStampId !== NONE_VALUE && stampPlacement && stampImage && placementCoversPrint(stampPlacement)) {
+      setStampNotice({ tone: 'warning', text: t('Le tampon couvre des informations du document : déplacez-le dans un espace libre.') });
+      return;
+    }
     setConfirming(true);
     try {
       let blobToSave: Blob = currentBlob;
@@ -475,8 +556,16 @@ export function DevisPreviewDialog({
                         meta={meta}
                         placement={stampPlacement}
                         stampImage={stampImage}
-                        onChange={setStampPlacement}
-                        onDelete={() => setStampPlacement(null)}
+                        onChange={(next) => {
+                          stampPlacementRef.current = next;
+                          setStampPlacement(next);
+                        }}
+                        onCommit={(previous) => commitPlacement(previous, meta)}
+                        coversPrint={placementCoversPrint(stampPlacement)}
+                        onDelete={() => {
+                          setStampPlacement(null);
+                          setStampNotice(null);
+                        }}
                         getCanvas={() => canvasRefs.current.get(meta.pageNumber) ?? null}
                       />
                     )}
@@ -546,6 +635,16 @@ export function DevisPreviewDialog({
         {stampWarning && (
           <p className="text-xs text-status-warning-fg">
             {stampWarning}
+          </p>
+        )}
+
+        {stampNotice && (
+          <p
+            role={stampNotice.tone === 'warning' ? 'alert' : 'status'}
+            data-testid="stamp-notice"
+            className={stampNotice.tone === 'warning' ? 't-caption text-status-warning-fg' : 't-caption'}
+          >
+            {stampNotice.text}
           </p>
         )}
 
@@ -626,6 +725,10 @@ interface StampOverlayProps {
   placement: StampPlacement;
   stampImage: StampImage;
   onChange: (next: StampPlacement) => void;
+  /** End of a drag / resize, with the placement it started from. */
+  onCommit: (previous: StampPlacement) => void;
+  /** The tampon currently covers printed information (red frame while dragging). */
+  coversPrint: boolean;
   onDelete: () => void;
   getCanvas: () => HTMLCanvasElement | null;
 }
@@ -635,6 +738,8 @@ function StampOverlay({
   placement,
   stampImage,
   onChange,
+  onCommit,
+  coversPrint: blocked,
   onDelete,
   getCanvas,
 }: StampOverlayProps) {
@@ -674,6 +779,7 @@ function StampOverlay({
     const startY = e.clientY;
     const startXMm = placement.xMm;
     const startYMm = placement.yMm;
+    const startPlacement = placement;
     setDragging(true);
 
     const onMove = (ev: MouseEvent) => {
@@ -694,6 +800,7 @@ function StampOverlay({
       setDragging(false);
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      onCommit(startPlacement);
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -710,6 +817,7 @@ function StampOverlay({
       e.stopPropagation();
       setResizing(true);
 
+      const startPlacement = placement;
       const startWidthMm = placement.widthMm;
       const startHeightMm = aspect > 0 ? startWidthMm / aspect : startWidthMm;
       let anchorXMm: number;
@@ -795,6 +903,7 @@ function StampOverlay({
         setResizing(false);
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
+        onCommit(startPlacement);
       };
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
@@ -837,10 +946,14 @@ function StampOverlay({
         // 2px of inner space. With border + box-sizing:border-box the inner
         // <img> would render 4px smaller than the wrapper, and the cursor
         // preview would no longer match the placed stamp's size. Outline
-        // is drawn outside the box and doesn't affect layout.
-        outline: '2px dashed hsl(var(--ring) / 0.7)',
+        // is drawn outside the box and doesn't affect layout. Red while the
+        // tampon covers printed information: released there, it moves away.
+        outline: blocked ? '2px solid hsl(var(--destructive))' : '2px dashed hsl(var(--ring) / 0.7)',
         outlineOffset: 0,
       }}
+      data-testid="stamp-overlay"
+      data-covers-print={blocked ? 'true' : 'false'}
+      title={blocked ? t('Le tampon couvre des informations du document') : undefined}
     >
       <img
         src={stampImage.dataUrl}

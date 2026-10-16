@@ -1384,15 +1384,17 @@ export default function AssignationsATGPage() {
     />
   );
 
+  // Every mission of the triage counts, address or not: the map shows each
+  // one or lists it as « non localisée », so its counts match the strip's
+  // (QA #061 — 21 late, 4 points, no word on the 17 others).
   const mapMissions = useMemo<MapMission[]>(
     () => filteredPlanifications
-      .filter(p => p.adresse?.trim())
       .map((p) => ({
         key: `${p.dossierId}-${p.id}`,
         dossierId: p.dossierId,
         refLabel: p.dossierNom || p.dossierId,
         assureNom: p.assureNom,
-        adresse: p.adresse.trim(),
+        adresse: (p.adresse ?? '').trim(),
         group: groupOfItem.get(`${p.dossierId}-${p.id}`) ?? 'future',
         rdvLabel: formatFullDate(p.dateRDV) ?? undefined,
       })),

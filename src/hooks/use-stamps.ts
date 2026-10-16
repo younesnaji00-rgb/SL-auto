@@ -20,6 +20,8 @@ export interface Stamp {
    * was added.
    */
   createdByName?: string;
+  /** SHA-256 of the image file, hex — an image imported twice is refused (QA #066). */
+  contentHash?: string;
 }
 
 /**

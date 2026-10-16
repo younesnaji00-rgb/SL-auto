@@ -5,6 +5,8 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { apiFetch } from '@/lib/api-fetch';
 import { t } from '@/i18n';
 import { logFrontend } from '@/lib/debug-log';
+import { deviceOpensNativeCamera } from '@/lib/native-camera';
+import { WebcamCaptureDialog } from '@/components/camera/webcam-capture-dialog';
 
 export interface PlateScanResult {
   /** Plate read off the photo (Latin letters, e.g. "12345-B-6"). */
@@ -16,19 +18,23 @@ export interface PlateScanResult {
  * "Photographier la plaque → Gemini lit le matricule" step shared by the two
  * AT self-service flows. `trigger()` opens the phone's native camera directly
  * (a `capture` file input — autofocus/flash/zoom, and no `position:fixed`
- * overlay that a transformed Radix DialogContent would clip). The caller
- * renders `inputNode` once anywhere in its tree and owns all result UI:
- * `scanning`/`error` here, dossier matching and navigation in the flow.
+ * overlay that a transformed Radix DialogContent would clip). On a computer,
+ * where browsers ignore `capture` and showed the file picker (QA #063), it
+ * opens the webcam dialog instead. The caller renders `inputNode` once
+ * anywhere in its tree and owns all result UI: `scanning`/`error` here,
+ * dossier matching and navigation in the flow.
  */
 export function usePlateScan(onPlate: (result: PlateScanResult) => void) {
   const inputRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [webcamOpen, setWebcamOpen] = useState(false);
 
   const trigger = useCallback(() => {
     setError(null);
-    inputRef.current?.click();
+    if (deviceOpensNativeCamera()) inputRef.current?.click();
+    else setWebcamOpen(true);
   }, []);
 
   /**
@@ -98,6 +104,15 @@ export function usePlateScan(onPlate: (result: PlateScanResult) => void) {
       <input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPick} />
       {/* Gallery / files — no `capture`, so the OS sheet keeps both. */}
       <input ref={importRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
+      {/* Computer: the webcam (a desktop browser opens files for `capture`). */}
+      <WebcamCaptureDialog
+        open={webcamOpen}
+        onOpenChange={setWebcamOpen}
+        title={t('Photographier la plaque')}
+        description={t('Placez la plaque bien en face de la caméra, lisible et nette, puis prenez la photo.')}
+        onCapture={(file) => void handleFile(file)}
+        onImport={() => importRef.current?.click()}
+      />
     </>
   );
 

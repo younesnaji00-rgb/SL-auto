@@ -35,6 +35,7 @@ import { useT, dateFnsLocale } from '@/i18n';
 import { useStamps, type Stamp } from '@/hooks/use-stamps';
 import { cn } from '@/lib/utils';
 import { teamRoleOf } from '@/lib/role-access';
+import { findStampDuplicate, sha256Hex, type StampDuplicate, type StampIdentity } from '@/lib/stamp-duplicates';
 import { TamponsSkeleton } from './loading';
 // Mobile redesign 2026-09-14 (Phone.dc.html 571–583): the stamp list is a
 // column of RecordCards under a dashed « + Nouveau tampon »; the import card
@@ -87,7 +88,9 @@ export default function TamponsSettingsPage() {
   const { stamps, loading: stampsLoading } = useStamps({ includeInactive: true });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [queued, setQueued] = useState<Array<{ id: string; file: File; derivedName: string }>>([]);
+  const [queued, setQueued] = useState<Array<{ id: string; file: File; derivedName: string; hash: string | null }>>([]);
+  // Images of tampons saved before the duplicate check, hashed once per visit.
+  const legacyHashes = useRef(new Map<string, string | null>());
   const [progress, setProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
   // Why an import failed, per file. The batch used to swallow every error into
   // a count, so "I can't import stamps" had no diagnosis anywhere in the UI
@@ -184,18 +187,66 @@ export default function TamponsSettingsPage() {
 
   if (profile?.role !== 'Admin') return null;
 
-  const enqueueFiles = (files: File[]) => {
+  // The saved tampons as name + image hash. Older ones carry no hash: their
+  // image is read once to get it (a failed read leaves the name check only).
+  const savedStampIdentities = async (): Promise<StampIdentity[]> =>
+    Promise.all(
+      stamps.map(async (s) => {
+        let hash = s.contentHash ?? null;
+        if (!hash && s.url) {
+          if (!legacyHashes.current.has(s.id)) {
+            try {
+              const res = await fetch(s.url);
+              legacyHashes.current.set(s.id, res.ok ? await sha256Hex(await res.arrayBuffer()) : null);
+            } catch {
+              legacyHashes.current.set(s.id, null);
+            }
+          }
+          hash = legacyHashes.current.get(s.id) ?? null;
+        }
+        return { name: s.name || '', hash };
+      }),
+    );
+
+  const duplicateReason = (dup: StampDuplicate) =>
+    dup.reason === 'same-image'
+      ? `${t('Ce tampon est déjà importé')} : « ${dup.of} »`
+      : `${t('Un tampon porte déjà ce nom')} : « ${dup.of} » — ${t('renommez le fichier pour l’importer')}`;
+
+  // A tampon already saved or already queued is refused here, with the reason
+  // on screen, instead of becoming one more « tampons » (QA #066).
+  const enqueueFiles = async (files: File[]) => {
     if (files.length === 0) return;
-    const next = files.map((f) => ({
-      id: newId(),
-      file: f,
-      derivedName: f.name.replace(/\.[^/.]+$/, '').trim() || f.name,
-    }));
-    setQueued((prev) => [...prev, ...next]);
+    const known: StampIdentity[] = [
+      ...(await savedStampIdentities()),
+      ...queued.map((q) => ({ name: q.derivedName, hash: q.hash })),
+    ];
+    const accepted: typeof queued = [];
+    const refused: Array<{ name: string; reason: string }> = [];
+    for (const f of files) {
+      const derivedName = f.name.replace(/\.[^/.]+$/, '').trim() || f.name;
+      const hash = await sha256Hex(await f.arrayBuffer());
+      const dup = findStampDuplicate({ name: derivedName, hash }, known);
+      if (dup) {
+        refused.push({ name: f.name, reason: duplicateReason(dup) });
+        continue;
+      }
+      known.push({ name: derivedName, hash });
+      accepted.push({ id: newId(), file: f, derivedName, hash });
+    }
+    if (accepted.length > 0) setQueued((prev) => [...prev, ...accepted]);
+    setImportErrors(refused);
+    if (refused.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: refused.length > 1 ? t('Tampons déjà importés') : t('Tampon déjà importé'),
+        description: refused.length > 1 ? `${refused.length} ${t('images refusées')} — ${refused[0].reason}` : refused[0].reason,
+      });
+    }
   };
 
   const handleFilesPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
-    enqueueFiles(Array.from(e.target.files ?? []));
+    void enqueueFiles(Array.from(e.target.files ?? []));
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -212,7 +263,7 @@ export default function TamponsSettingsPage() {
       e.preventDefault();
       setDragOver(false);
       if (isImporting) return;
-      enqueueFiles(Array.from(e.dataTransfer.files ?? []).filter((f) => f.type.startsWith('image/')));
+      void enqueueFiles(Array.from(e.dataTransfer.files ?? []).filter((f) => f.type.startsWith('image/')));
     },
   };
 
@@ -232,8 +283,14 @@ export default function TamponsSettingsPage() {
     const errors: Array<{ name: string; reason: string }> = [];
     let done = 0;
     let failed = 0;
+    // Checked again at the last moment: another admin may have imported the
+    // same tampon since these files were queued.
+    const known = await savedStampIdentities();
     for (const item of queued) {
       try {
+        const dup = findStampDuplicate({ name: item.derivedName, hash: item.hash }, known);
+        if (dup) throw new Error(duplicateReason(dup));
+        known.push({ name: item.derivedName, hash: item.hash });
         const uuid = newId();
         const ext = extensionFromFile(item.file);
         const storagePath = `stamps/${uuid}.${ext}`;
@@ -248,6 +305,7 @@ export default function TamponsSettingsPage() {
           createdAt: serverTimestamp(),
           createdBy: profile.uid,
           createdByName,
+          ...(item.hash ? { contentHash: item.hash } : {}),
         });
         done += 1;
       } catch (err) {

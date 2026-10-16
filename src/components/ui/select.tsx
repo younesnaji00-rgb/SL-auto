@@ -54,7 +54,7 @@ const SelectTrigger = React.forwardRef<
       // Field, not button (element-specs §9): solid `bg-card`, hairline
       // `input` border, no rim — identical to Input / Textarea. 40 px on a
       // mouse, 48 px on a phone (density §7), like every other control.
-      "flex h-10 max-md:h-12 w-full items-center justify-between rounded-md border border-input bg-card px-3 py-2 text-base text-ink md:text-sm ring-offset-background placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+      "flex h-10 max-md:h-12 w-full items-center justify-between rounded-md border border-input bg-card px-3 py-2 text-base text-ink md:text-sm ring-offset-background placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 text-left [&>span]:line-clamp-1 [&>span]:min-w-0",
       className
     )}
     {...props}
@@ -156,12 +156,20 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName
 
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item> & {
+    /**
+     * Shown after the label in the list only. The closed field repeats just
+     * the label (`children`): a long detail there wrapped the field over
+     * several lines (QA #064, « Agent de Terrain » in Nouvelle planification).
+     */
+    aside?: React.ReactNode
+  }
+>(({ className, children, aside, ...props }, ref) => (
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
       "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      aside != null && "gap-2",
       className
     )}
     {...props}
@@ -173,6 +181,7 @@ const SelectItem = React.forwardRef<
     </span>
 
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    {aside != null && aside}
   </SelectPrimitive.Item>
 ))
 SelectItem.displayName = SelectPrimitive.Item.displayName
@@ -210,13 +219,21 @@ function collectItems(node: React.ReactNode, out: PhoneSelectOption[]): void {
       value?: string
       disabled?: boolean
       children?: React.ReactNode
+      aside?: React.ReactNode
     }
     if (child.type === SelectItem) {
       if (typeof props.value === "string") {
+        // The sheet rows have room for the detail; the field keeps the label.
+        const label = props.aside != null
+          ? <span className="flex flex-wrap items-center gap-x-2">{props.children}{props.aside}</span>
+          : props.children
         out.push({
           value: props.value,
-          label: props.children,
-          labelText: nodeText(props.children).replace(/\s+/g, " ").trim(),
+          label,
+          ...(props.aside != null ? { fieldLabel: props.children } : {}),
+          // With the detail: it sizes the touch shape (a long row gets the
+          // sheet, not segments that would drop the detail) and is searchable.
+          labelText: `${nodeText(props.children)} ${nodeText(props.aside)}`.replace(/\s+/g, " ").trim(),
           disabled: props.disabled,
         })
       }

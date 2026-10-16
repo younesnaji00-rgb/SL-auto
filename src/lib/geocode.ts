@@ -168,3 +168,34 @@ export async function geocodeAddress(
   inFlight.set(key, promise);
   return promise;
 }
+
+/**
+ * The neighbourhood part of an address — « Maarif, Casablanca » for « 12 rue
+ * Ibn Battouta, Maarif, Casablanca » — tried when the street itself is not on
+ * the map (most Moroccan street addresses are not in OpenStreetMap). Only when
+ * a quartier is written: the city alone would pile every mission on its
+ * centre. Null when there is nothing shorter to try.
+ */
+export function neighbourhoodOf(adresse: string): string | null {
+  const parts = adresse.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 3) return null;
+  return parts.slice(-2).join(', ');
+}
+
+export interface MapPosition {
+  point: GeoPoint;
+  /** `exact`: the address itself; `approx`: its neighbourhood (see neighbourhoodOf). */
+  precision: 'exact' | 'approx';
+  /** What was found on the map. */
+  matched: string;
+}
+
+/** The address on the map, else its neighbourhood (approximate); null when neither is found. */
+export async function locateAddress(adresse: string): Promise<MapPosition | null> {
+  const exact = await geocodeAddress(adresse);
+  if (exact) return { point: exact, precision: 'exact', matched: adresse.trim() };
+  const near = neighbourhoodOf(adresse);
+  if (!near) return null;
+  const approx = await geocodeAddress(near);
+  return approx ? { point: approx, precision: 'approx', matched: near } : null;
+}

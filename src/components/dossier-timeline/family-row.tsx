@@ -130,8 +130,21 @@ export function FamilyRow({
   // On the « 2ème accord » step, a family whose first round is still open has
   // no later round to show yet.
   if (blocks.length === 0) return null;
-  const visibleSlots = blocks.map((b) => b.slot);
   const stateOf = new Map(blocks.map((b) => [b.slot, b.state]));
+  // One row per kind (QA #065 / Chiffreur #014): in a single flowing grid the
+  // propositions wrapped in right after « Devis 5ème accord », so the cards
+  // seemed to start over at « 1ère proposition » once four rounds were done.
+  // Each kind now starts its own row under its own heading, rounds in order,
+  // the optional next round last.
+  const kindOf = (slot: string) => parseAccordDocType(slot)?.kind;
+  const sourceSlots = blocks.filter((b) => b.round === null).map((b) => b.slot);
+  const accordSlots = blocks.filter((b) => b.round !== null && kindOf(b.slot) === 'accord').map((b) => b.slot);
+  const propositionSlots = blocks.filter((b) => b.round !== null && kindOf(b.slot) !== 'accord').map((b) => b.slot);
+  const rowsOfSlots: Array<{ key: string; heading: string | null; slots: string[] }> = [
+    { key: 'source', heading: null, slots: sourceSlots },
+    { key: 'accords', heading: t('Accords'), slots: accordSlots },
+    { key: 'propositions', heading: t('Propositions d’accord'), slots: propositionSlots },
+  ].filter((r) => r.slots.length > 0);
 
   // « n/m reçus » — one answer per round, not one per block.
   const progress = bandProgress(blocks);
@@ -205,38 +218,46 @@ export function FamilyRow({
           </div>
         )}
       </div>
-      {!collapsed && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {visibleSlots.map((slot) => (
-            <SlotCard
-              key={slot}
-              slot={slot}
-              docs={docsByType[slot] || []}
-              canEdit={canEdit}
-              canDeleteDoc={canDeleteDoc}
-              userRole={userRole}
-              isUploading={isUploading(slot)}
-              deletingId={deletingId}
-              extraSlotKind={extraSlotKindForSlot(slot)}
-              canManageExtraSlots={canManageExtraSlots}
-              onUpload={(files) => onUpload(slot, files)}
-              onDelete={onDelete}
-              onCreateNextCardinal={() => onCreateNextCardinal(slot)}
-              onCreateExtraSlot={onCreateExtraSlot}
-              onRenameExtraSlot={() => onRenameExtraSlot(slot)}
-              onPreview={onPreview}
-              hideCardinalPlus={hideCardinalPlus}
-              hideExtraSlotPlus={hideExtraSlotPlus}
-              // No « Éditer » on a round the other kind answered: a proposition
-              // filed for a closed round would turn « Actuel » over later accords.
-              onEdit={onEditSlot && stateOf.get(slot) !== 'other' ? () => onEditSlot(slot) : undefined}
-              onDocDrop={onDocDrop ? (payload) => onDocDrop(slot, payload) : undefined}
-              versionChip={versionChip(slot)}
-              emptyNote={emptyNoteFor(stateOf.get(slot), slot)}
-            />
-          ))}
+      {!collapsed && rowsOfSlots.map((row) => (
+        <div key={row.key} className="space-y-2" data-testid={`band-${row.key}`}>
+          {row.heading && (
+            <h4 className="t-label flex items-center gap-2 pt-1">
+              {row.heading}
+              <span className="h-px flex-1 bg-hairline" aria-hidden />
+            </h4>
+          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {row.slots.map((slot) => (
+              <SlotCard
+                key={slot}
+                slot={slot}
+                docs={docsByType[slot] || []}
+                canEdit={canEdit}
+                canDeleteDoc={canDeleteDoc}
+                userRole={userRole}
+                isUploading={isUploading(slot)}
+                deletingId={deletingId}
+                extraSlotKind={extraSlotKindForSlot(slot)}
+                canManageExtraSlots={canManageExtraSlots}
+                onUpload={(files) => onUpload(slot, files)}
+                onDelete={onDelete}
+                onCreateNextCardinal={() => onCreateNextCardinal(slot)}
+                onCreateExtraSlot={onCreateExtraSlot}
+                onRenameExtraSlot={() => onRenameExtraSlot(slot)}
+                onPreview={onPreview}
+                hideCardinalPlus={hideCardinalPlus}
+                hideExtraSlotPlus={hideExtraSlotPlus}
+                // No « Éditer » on a round the other kind answered: a proposition
+                // filed for a closed round would turn « Actuel » over later accords.
+                onEdit={onEditSlot && stateOf.get(slot) !== 'other' ? () => onEditSlot(slot) : undefined}
+                onDocDrop={onDocDrop ? (payload) => onDocDrop(slot, payload) : undefined}
+                versionChip={versionChip(slot)}
+                emptyNote={emptyNoteFor(stateOf.get(slot), slot)}
+              />
+            ))}
+          </div>
         </div>
-      )}
+      ))}
     </section>
   );
 }

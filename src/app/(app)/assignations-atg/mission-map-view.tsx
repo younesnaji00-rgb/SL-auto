@@ -3,11 +3,15 @@
 import 'leaflet/dist/leaflet.css';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { LayerGroup, Map as LeafletMap } from 'leaflet';
-import { geocodeAddress } from '@/lib/geocode';
+import type { LayerGroup, Map as LeafletMap, Marker } from 'leaflet';
+import { MapPinOff } from 'lucide-react';
+import { locateAddress } from '@/lib/geocode';
+import { positionKey, ringOffsets, tallyMap, type MapGroup, type MapLocateState } from '@/lib/map-tally';
 // `useT` drives the React chrome; `tGlobal` the imperatively-built Leaflet
 // popups, which live outside the render tree.
 import { useT, t as tGlobal } from '@/i18n';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 export interface MapMission {
@@ -15,8 +19,9 @@ export interface MapMission {
   dossierId: string;
   refLabel: string; // dossier ref, mono
   assureNom?: string;
-  adresse: string; // caller guarantees non-empty
-  group: 'today' | 'expired' | 'future';
+  /** Empty when the planification has no address: counted as « non localisée ». */
+  adresse: string;
+  group: MapGroup;
   rdvLabel?: string; // e.g. « 3 sept. 14:30 »
 }
 
@@ -35,11 +40,14 @@ interface MissionMapViewProps {
   agents?: MapAgent[];
   /** Dispatcher-only: ping an agent's device for a fresh position. */
   onRequestPosition?: (uid: string) => void;
-  className?: string; // caller sets the height (e.g. h-[560px])
+  className?: string; // caller sets the map height (e.g. h-[560px])
 }
 
 /** Freshness window — mirrors use-agent-live-location.ts. */
 const AGENT_FRESH_MS = 10 * 60 * 1000;
+
+/** Mission marker diameter, px. */
+const MARKER_PX = 18;
 
 function agentInitials(name: string): string {
   return name
@@ -71,11 +79,26 @@ function cssHsl(varName: string): string {
   return `hsl(${raw})`;
 }
 
-const GROUP_VAR: Record<MapMission['group'], string> = {
+const GROUP_VAR: Record<MapGroup, string> = {
   expired: '--status-danger-fg',
   today: '--tertiary',
   future: '--ink-3',
 };
+
+const GROUP_LABEL: Record<MapGroup, string> = {
+  expired: 'En retard',
+  today: "Aujourd'hui",
+  future: 'À venir',
+};
+
+/** Draw order: the most urgent on top where markers come close. */
+const GROUP_Z: Record<MapGroup, number> = { expired: 300, today: 200, future: 100 };
+
+interface Located {
+  state: MapLocateState;
+  /** What the map found (the address or its neighbourhood). */
+  matched?: string;
+}
 
 export default function MissionMapView({
   missions,
@@ -100,9 +123,7 @@ export default function MissionMapView({
   onRequestPositionRef.current = onRequestPosition;
 
   const [ready, setReady] = useState(false);
-  const [pinCount, setPinCount] = useState(0);
-  const [failedCount, setFailedCount] = useState(0);
-  const [pending, setPending] = useState(false);
+  const [located, setLocated] = useState<Record<string, Located>>({});
   const [agentCount, setAgentCount] = useState(0);
 
   // Stable signature so unrelated parent re-renders don't clear/re-add markers.
@@ -111,10 +132,10 @@ export default function MissionMapView({
       missions
         .map((m) =>
           [m.key, m.adresse, m.group, m.refLabel, m.assureNom, m.rdvLabel].join(
-            ''
+            ''
           )
         )
-        .join(''),
+        .join(''),
     [missions]
   );
 
@@ -149,7 +170,7 @@ export default function MissionMapView({
     };
   }, []);
 
-  // Markers: geocode progressively, add as results arrive, fit bounds once.
+  // Markers: locate progressively, add as results arrive, fit bounds once.
   useEffect(() => {
     if (!ready) return;
     const L = leafletRef.current;
@@ -161,15 +182,38 @@ export default function MissionMapView({
     let cancelled = false;
     let didFit = false;
     let settled = 0;
-    let failed = 0;
     const points: [number, number][] = [];
+    // Markers sharing a position, spread around it (QA #062: a mission of
+    // today drawn under a late one at the same address was invisible).
+    const atPosition = new Map<string, Array<{ marker: Marker; m: MapMission; approx: boolean }>>();
 
     layer.clearLayers();
-    setPinCount(0);
-    setFailedCount(0);
-    setPending(current.length > 0);
+    const initial: Record<string, Located> = {};
+    for (const m of current) initial[m.key] = { state: m.adresse.trim() ? 'pending' : 'missing' };
+    setLocated(initial);
 
     const stroke = cssHsl('--card');
+    const fills: Record<MapGroup, string> = {
+      expired: cssHsl(GROUP_VAR.expired),
+      today: cssHsl(GROUP_VAR.today),
+      future: cssHsl(GROUP_VAR.future),
+    };
+
+    const iconFor = (m: MapMission, approx: boolean, [dx, dy]: [number, number]) =>
+      L.divIcon({
+        className: '',
+        iconSize: [MARKER_PX, MARKER_PX],
+        iconAnchor: [MARKER_PX / 2 - dx, MARKER_PX / 2 - dy],
+        popupAnchor: [dx, dy - MARKER_PX / 2],
+        // Approximate position (neighbourhood): a ring in the group colour.
+        html: `<div data-map-group="${m.group}" data-map-precision="${approx ? 'approx' : 'exact'}" style="width:${MARKER_PX}px;height:${MARKER_PX}px;box-sizing:border-box;border-radius:9999px;background:${approx ? stroke : fills[m.group]};border:${approx ? `4px solid ${fills[m.group]}` : `2px solid ${stroke}`};box-shadow:0 1px 3px rgba(0,0,0,.35);opacity:${approx ? 0.9 : 1};"></div>`,
+      });
+
+    const layoutPosition = (key: string) => {
+      const entries = atPosition.get(key) ?? [];
+      const offsets = ringOffsets(entries.length, MARKER_PX);
+      entries.forEach((e, i) => e.marker.setIcon(iconFor(e.m, e.approx, offsets[i])));
+    };
 
     const fitOnce = () => {
       if (didFit || points.length === 0) return;
@@ -180,7 +224,7 @@ export default function MissionMapView({
       });
     };
 
-    const buildPopup = (m: MapMission): HTMLElement => {
+    const buildPopup = (m: MapMission, approxOf: string | null): HTMLElement => {
       const root = document.createElement('div');
       root.className = 'space-y-1 py-0.5';
 
@@ -206,6 +250,14 @@ export default function MissionMapView({
         root.appendChild(rdv);
       }
 
+      if (approxOf) {
+        const approx = document.createElement('div');
+        approx.textContent = `${tGlobal('Position approximative')} : ${approxOf}`;
+        approx.className = 'text-xs italic';
+        approx.style.color = 'hsl(var(--ink-3))';
+        root.appendChild(approx);
+      }
+
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.textContent = tGlobal('Ouvrir');
@@ -220,28 +272,34 @@ export default function MissionMapView({
       return root;
     };
 
-    for (const m of current) {
-      geocodeAddress(m.adresse).then((point) => {
+    const withAddress = current.filter((m) => m.adresse.trim());
+    if (withAddress.length === 0) return () => { cancelled = true; };
+
+    for (const m of withAddress) {
+      locateAddress(m.adresse).then((pos) => {
         if (cancelled) return;
         settled += 1;
-        if (point) {
-          const marker = L.circleMarker([point.lat, point.lon], {
-            radius: 9,
-            weight: 2,
-            color: stroke,
-            fillColor: cssHsl(GROUP_VAR[m.group]),
-            fillOpacity: 0.85,
+        if (pos) {
+          const approx = pos.precision === 'approx';
+          const key = positionKey(pos.point.lat, pos.point.lon);
+          const marker = L.marker([pos.point.lat, pos.point.lon], {
+            icon: iconFor(m, approx, [0, 0]),
+            zIndexOffset: GROUP_Z[m.group],
+            keyboard: true,
+            title: `${m.refLabel} — ${tGlobal(GROUP_LABEL[m.group])}`,
           });
-          marker.bindPopup(buildPopup(m));
+          marker.bindPopup(buildPopup(m, approx ? pos.matched : null));
           marker.addTo(layer);
-          points.push([point.lat, point.lon]);
-          setPinCount(points.length);
+          const entries = atPosition.get(key) ?? [];
+          entries.push({ marker, m, approx });
+          atPosition.set(key, entries);
+          if (entries.length > 1) layoutPosition(key);
+          points.push([pos.point.lat, pos.point.lon]);
+          setLocated((prev) => ({ ...prev, [m.key]: { state: approx ? 'approx' : 'exact', matched: pos.matched } }));
         } else {
-          failed += 1;
-          setFailedCount(failed);
+          setLocated((prev) => ({ ...prev, [m.key]: { state: 'not-found' } }));
         }
-        if (settled === current.length) {
-          setPending(false);
+        if (settled === withAddress.length) {
           fitOnce();
         } else if (points.length >= 3) {
           // Early fit once a few pins exist; never re-fit afterwards so the
@@ -335,54 +393,129 @@ export default function MissionMapView({
     }
   }, [ready, agentsSignature]);
 
-  return (
-    <div
-      className={cn(
-        'relative z-0 overflow-hidden rounded-lg border border-hairline bg-card shadow-rim',
-        className
-      )}
-      style={{ isolation: 'isolate' }}
-    >
-      <div ref={containerRef} className="h-full w-full" />
+  // What the map shows against the lists' counts (QA #061): per category,
+  // the missions on the map out of its total, and the ones it cannot place.
+  const tally = useMemo(
+    () => tallyMap(missions.map((m) => ({ group: m.group, state: located[m.key]?.state ?? (m.adresse.trim() ? 'pending' : 'missing') }))),
+    [missions, located],
+  );
+  const unlocated = useMemo(
+    () => missions.filter((m) => {
+      const s = located[m.key]?.state ?? (m.adresse.trim() ? 'pending' : 'missing');
+      return s === 'missing' || s === 'not-found';
+    }),
+    [missions, located],
+  );
+  const onMapCount = tally.expired.onMap + tally.today.onMap + tally.future.onMap;
+  const locatedSoFar = missions.length - tally.pending;
 
-      {/* Legend */}
-      <div className="pointer-events-none absolute right-2 top-2 z-[600] flex items-center gap-3 rounded-md border border-hairline bg-card/95 px-2.5 py-1.5 text-xs text-ink-3">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-[hsl(var(--status-danger-fg))]" />
-          {t('En retard')}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-[hsl(var(--tertiary))]" />
-          {t("Aujourd'hui")}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-[hsl(var(--ink-3))]" />
-          {t('À venir')}
-        </span>
-        {agentCount > 0 && (
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-[hsl(var(--primary))]" />
-            {agentCount > 1 ? t('Agents') : t('Agent')}
+  return (
+    <div className="space-y-2">
+      {/* Summary strip — above the map, never under it: the old « N adresses
+          non localisables » caption sat at the map's bottom edge, off screen
+          on a short window. */}
+      <div
+        data-testid="map-summary"
+        className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-hairline bg-card px-3 py-2 text-sm shadow-rim"
+      >
+        <span className="t-label">{t('Sur la carte')}</span>
+        {(['expired', 'today', 'future'] as MapGroup[]).map((g) => (
+          <span key={g} className="flex items-center gap-1.5 text-ink-2" data-testid={`map-count-${g}`}>
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: `hsl(var(${GROUP_VAR[g]}))` }} aria-hidden />
+            {t(GROUP_LABEL[g])}
+            <span className="tabular-nums">
+              <span className="font-semibold text-ink">{tally[g].onMap}</span> {t('sur')} {tally[g].total}
+            </span>
+          </span>
+        ))}
+        {tally.approx > 0 && (
+          <span className="flex items-center gap-1.5 text-ink-3" data-testid="map-approx">
+            <span className="h-2.5 w-2.5 rounded-full border-[3px] border-ink-3 bg-card" aria-hidden />
+            {tally.approx}{' '}
+            {tally.approx > 1 ? t('positions approximatives (quartier)') : t('position approximative (quartier)')}
           </span>
         )}
+        <span className="ml-auto flex items-center gap-3">
+          {tally.pending > 0 && (
+            <span className="t-caption tabular-nums" aria-live="polite" data-testid="map-pending">
+              {t('Localisation des adresses…')} {locatedSoFar}/{missions.length}
+            </span>
+          )}
+          {unlocated.length > 0 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" data-testid="map-unlocated">
+                  <MapPinOff className="h-3.5 w-3.5" aria-hidden />
+                  <span className="tabular-nums">{unlocated.length}</span>
+                  {unlocated.length > 1 ? t('missions non localisées') : t('mission non localisée')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] bg-card p-0">
+                <p className="t-caption border-b border-hairline px-3 py-2">
+                  {t('Ces missions ne sont pas sur la carte : leur adresse manque ou la carte ne la connaît pas. Elles restent dans la liste.')}
+                </p>
+                <ul className="max-h-72 divide-y divide-hairline overflow-y-auto" data-testid="map-unlocated-list">
+                  {unlocated.map((m) => {
+                    const missing = !m.adresse.trim();
+                    return (
+                      <li key={m.key} className="flex items-start gap-3 px-3 py-2">
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: `hsl(var(${GROUP_VAR[m.group]}))` }} title={t(GROUP_LABEL[m.group])} aria-hidden />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-mono text-xs font-medium text-ink">
+                            {m.refLabel}
+                            {m.assureNom ? <span className="font-sans font-normal text-ink-2"> · {m.assureNom}</span> : null}
+                          </span>
+                          <span className="t-caption block truncate" title={missing ? undefined : m.adresse}>
+                            {missing ? t('Adresse manquante') : `${t('Adresse introuvable')} : ${m.adresse}`}
+                          </span>
+                        </span>
+                        <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={() => onSelect(m.key)}>
+                          {t('Ouvrir')}
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </PopoverContent>
+            </Popover>
+          )}
+        </span>
       </div>
 
-      {/* Progress note while nothing is on the map yet */}
-      {pending && pinCount === 0 && (
-        <div className="pointer-events-none absolute inset-0 z-[600] flex items-center justify-center">
-          <span className="rounded-md border border-hairline bg-card/95 px-3 py-1.5 text-sm text-ink-3">
-            {t('Localisation des adresses…')}
-          </span>
-        </div>
-      )}
+      <div
+        className={cn(
+          'relative z-0 overflow-hidden rounded-lg border border-hairline bg-card shadow-rim',
+          className
+        )}
+        style={{ isolation: 'isolate' }}
+      >
+        <div ref={containerRef} className="h-full w-full" />
 
-      {/* Failed-geocoding caption */}
-      {failedCount > 0 && (
-        <div className="absolute bottom-1.5 left-2 z-[600] rounded bg-card/90 px-1.5 py-0.5 text-xs text-ink-3">
-          {failedCount}{' '}
-          {failedCount > 1 ? t('adresses non localisables') : t('adresse non localisable')}
+        {/* Legend */}
+        <div className="pointer-events-none absolute right-2 top-2 z-[600] flex items-center gap-3 rounded-md border border-hairline bg-card/95 px-2.5 py-1.5 text-xs text-ink-3">
+          {(['expired', 'today', 'future'] as MapGroup[]).map((g) => (
+            <span key={g} className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full" style={{ background: `hsl(var(${GROUP_VAR[g]}))` }} />
+              {t(GROUP_LABEL[g])}
+            </span>
+          ))}
+          {agentCount > 0 && (
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[hsl(var(--primary))]" />
+              {agentCount > 1 ? t('Agents') : t('Agent')}
+            </span>
+          )}
         </div>
-      )}
+
+        {/* Progress note while nothing is on the map yet */}
+        {tally.pending > 0 && onMapCount === 0 && (
+          <div className="pointer-events-none absolute inset-0 z-[600] flex items-center justify-center">
+            <span className="rounded-md border border-hairline bg-card/95 px-3 py-1.5 text-sm text-ink-3">
+              {t('Localisation des adresses…')}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

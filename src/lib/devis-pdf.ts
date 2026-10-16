@@ -420,7 +420,13 @@ export function renderDevisPdf(
       ? opts.stampImage.width / opts.stampImage.height
       : 1;
     const heightMm = aspect > 0 ? widthMm / aspect : widthMm;
-    pdf.addImage(dataUrl, format, xMm, yMm, widthMm, heightMm);
+    // Whole inside the page: a tampon past the border was cut in the saved
+    // PDF, only its top showing (QA Chiffreur #013).
+    const pageWmm = pdf.internal.pageSize.getWidth();
+    const pageHmm = pdf.internal.pageSize.getHeight();
+    const x = Math.min(Math.max(xMm, 0), Math.max(0, pageWmm - widthMm));
+    const y = Math.min(Math.max(yMm, 0), Math.max(0, pageHmm - heightMm));
+    pdf.addImage(dataUrl, format, x, y, widthMm, heightMm);
   }
 
   return pdf.output('blob');

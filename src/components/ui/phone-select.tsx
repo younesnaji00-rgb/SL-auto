@@ -55,6 +55,8 @@ export interface PhoneSelectOption {
   label: React.ReactNode;
   /** Plain text: the native `<option>`, the search index, the trigger value. */
   labelText: string;
+  /** What the closed field shows when it differs from the row (no workload caption…). */
+  fieldLabel?: React.ReactNode;
   disabled?: boolean;
 }
 
@@ -211,7 +213,7 @@ export function PhoneSelect({
       .join(' ');
     const segments: SegmentedOption[] = options.map((o) => ({
       value: o.value,
-      label: o.label,
+      label: o.fieldLabel ?? o.label,
       labelText: o.labelText,
       disabled: o.disabled,
     }));
@@ -286,7 +288,7 @@ export function PhoneSelect({
         className={cn(TRIGGER_CLASS, className, triggerProps?.className)}
       >
         <span className={cn('min-w-0 flex-1 truncate', !selected && 'text-ink-3')}>
-          {selected ? selected.label : (placeholder ?? 'Choisir')}
+          {selected ? (selected.fieldLabel ?? selected.label) : (placeholder ?? 'Choisir')}
         </span>
         <ChevronDown aria-hidden className="h-4 w-4 shrink-0 text-ink-3" />
       </button>

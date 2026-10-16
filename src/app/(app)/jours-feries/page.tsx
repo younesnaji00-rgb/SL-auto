@@ -26,6 +26,7 @@ import {
   addDoc, collection, deleteDoc, doc, serverTimestamp, writeBatch,
 } from 'firebase/firestore';
 import { HOLIDAYS_CATALOG, getHolidayCountry } from '@/lib/holidays-catalog';
+import { holidayLines, planHolidayImport } from '@/lib/holidays-import';
 import { BRAND } from '@/lib/brand';
 import { apiFetch } from '@/lib/api-fetch';
 import {
@@ -153,10 +154,18 @@ export default function JoursFeriesSettingsPage() {
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const sorted = useMemo(
-    () => [...options].sort((a, b) => a.label.localeCompare(b.label)),
-    [options],
-  );
+  // One entry per date: copies saved before imports skipped repeats (QA #067)
+  // show once, and deleting the date removes every copy.
+  const sorted = useMemo(() => {
+    const byLabel = new Map<string, (typeof options)[number] & { ids: string[] }>();
+    for (const o of options) {
+      const label = o.label.trim();
+      const known = byLabel.get(label);
+      if (known) known.ids.push(o.id);
+      else byLabel.set(label, { ...o, label, ids: [o.id] });
+    }
+    return Array.from(byLabel.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [options]);
 
   // ISO labels as a set for the calendar's holiday fills (§17).
   const holidaySet = useMemo(() => new Set(options.map((o) => o.label)), [options]);
@@ -295,7 +304,15 @@ export default function JoursFeriesSettingsPage() {
     const target = options.find((o) => o.id === id);
     setDeletingId(id);
     try {
-      await deleteDoc(doc(db, 'options_holidays', id));
+      // Every saved copy of the date goes (the list shows a date once).
+      const copies = target ? options.filter((o) => o.label.trim() === target.label.trim()) : [];
+      if (copies.length > 1) {
+        const batch = writeBatch(db);
+        copies.forEach((o) => batch.delete(doc(db, 'options_holidays', o.id)));
+        await batch.commit();
+      } else {
+        await deleteDoc(doc(db, 'options_holidays', id));
+      }
       const d = target && ISO_DATE.test(target.label) ? parseISO(target.label) : null;
       toast({
         title: t('Jour férié supprimé'),
@@ -329,13 +346,14 @@ export default function JoursFeriesSettingsPage() {
     if (!db || !importText.trim()) return;
     setIsImporting(true);
     try {
-      const lines = importText.split(/[\n,;]/).map((l) => l.trim()).filter(Boolean);
-      const validLines = lines.filter((l) => ISO_DATE.test(l));
-      const skipped = lines.length - validLines.length;
-      const existing = new Set(options.map((o) => o.label));
-      const fresh = validLines.filter((l) => !existing.has(l));
+      // Repeats and dates already listed are added once (QA #067).
+      const { fresh, invalid, alreadyListed, repeated } = planHolidayImport(holidayLines(importText), options.map((o) => o.label));
+      const ignored = [
+        invalid > 0 ? `${invalid} ${t('ligne(s) ignorée(s) (format invalide).')}` : '',
+        alreadyListed + repeated > 0 ? `${alreadyListed + repeated} ${t('doublon(s) ignoré(s).')}` : '',
+      ].filter(Boolean).join(' ');
       if (fresh.length === 0) {
-        toast({ title: t('Rien à importer'), description: t('Toutes les dates étaient déjà présentes ou invalides.') });
+        toast({ title: t('Rien à importer'), description: ignored || t('Toutes les dates étaient déjà présentes ou invalides.') });
         return;
       }
       const batch = writeBatch(db);
@@ -348,7 +366,7 @@ export default function JoursFeriesSettingsPage() {
       setImportText('');
       toast({
         title: `${fresh.length} ${t('date(s) importée(s)')}`,
-        description: skipped > 0 ? `${skipped} ${t('ligne(s) ignorée(s) (format invalide).')}` : undefined,
+        description: ignored || undefined,
       });
     } catch (err: any) {
       toast({ variant: 'destructive', title: t('Erreur'), description: err.message });
@@ -403,8 +421,7 @@ export default function JoursFeriesSettingsPage() {
         });
         return;
       }
-      const existing = new Set(options.map((o) => o.label));
-      const fresh = dates.filter((d) => ISO_DATE.test(d) && !existing.has(d));
+      const { fresh } = planHolidayImport(dates, options.map((o) => o.label));
       const skipped = dates.length - fresh.length;
       logFrontend('jours-feries ← /api/scan-holidays', { dates, fresh, skipped });
       if (fresh.length === 0) {
@@ -444,8 +461,7 @@ export default function JoursFeriesSettingsPage() {
     if (!country) return;
     setIsImporting(true);
     try {
-      const existing = new Set(options.map((o) => o.label));
-      const fresh = country.dates.filter((d) => !existing.has(d));
+      const { fresh } = planHolidayImport(country.dates, options.map((o) => o.label));
       if (fresh.length === 0) {
         toast({ title: t('Liste déjà complète') });
         return;
@@ -484,7 +500,7 @@ export default function JoursFeriesSettingsPage() {
       <PageHeader
         title={t('Jours fériés')}
         subtitle={t('Dates pendant lesquelles les délais ne sont pas comptés (compteur hors délai).')}
-        count={loading ? undefined : options.length}
+        count={loading ? undefined : sorted.length}
       />
 
       {/* PHONE — cards 1–3 (ajouter · importer depuis une image · importer des
@@ -620,7 +636,7 @@ export default function JoursFeriesSettingsPage() {
             {t('Liste actuelle')}
             {/* Count pill — §11: neutral surface-3 / ink-2, tabular digits. */}
             <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-surface-3 px-1.5 text-[11px] font-medium tabular-nums text-ink-2">
-              {options.length}
+              {sorted.length}
             </span>
           </CardTitle>
         </CardHeader>

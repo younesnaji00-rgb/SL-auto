@@ -662,12 +662,16 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                       (selectedDayStartMs == null || editedPlanifOnSelectedDay);
                     const count = isEditingThisAgent && rawCount > 0 ? rawCount - 1 : rawCount;
                     const zone = agent.zone?.trim();
+                    // The field shows the name (and the pill) on one line; the
+                    // zone and the day's load stay in the list only (QA #064:
+                    // the whole row in the field wrapped « Agent / de / Terrain »
+                    // out of its box).
                     return (
-                      <SelectItem key={agent.id} value={agent.label}>
-                        <span className="flex items-center gap-2">
-                          <span>{agent.label}</span>
-                          {agent.lead && <ResponsablePill />}
-                          <span className="text-xs text-muted-foreground">
+                      <SelectItem
+                        key={agent.id}
+                        value={agent.label}
+                        aside={
+                          <span className="whitespace-nowrap text-xs text-muted-foreground">
                             &mdash;{' '}
                             {zone
                               ? zone
@@ -681,6 +685,11 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
                               <span className="italic">{t('sélectionnez une date')}</span>
                             )}
                           </span>
+                        }
+                      >
+                        <span className="flex min-w-0 items-center gap-2" data-testid="plan-agent-value">
+                          <span className="truncate">{agent.label}</span>
+                          {agent.lead && <ResponsablePill />}
                         </span>
                       </SelectItem>
                     );
