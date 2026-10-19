@@ -89,6 +89,71 @@ test('an accepted area added by the admins is inside', () => {
   assert.equal(placeOfAddress('Rue 5, Bouskoura, Maroc', areas).status, 'outside');
 });
 
+// Owner 2026-10-19: « casablanca, anfa » was accepted and « anfa, casablanca »
+// refused. Google may answer the second with the district or the prefecture,
+// not the city: the order of the words must not decide.
+test('the word order typed does not decide: a quartier Google names is judged by where it lies', () => {
+  const areas = ['Casablanca', 'Fès'];
+  for (const typed of ['anfa, casablanca', 'casablanca, anfa', 'Anfa Casablanca']) {
+    const named = areaNamedIn(typed, areas);
+    assert.equal(named, 'Casablanca', typed);
+    const legs = [{ city: 'Casablanca', meters: 5_200 }, { city: 'Fès', meters: 296_000 }];
+    for (const formatted of [
+      'Anfa, Casablanca, Maroc',
+      'Casablanca, Maroc',
+      'Anfa, Maroc',
+      "Préfecture d'arrondissements de Casablanca-Anfa, Maroc",
+      'Casablanca-Anfa, Maroc',
+      "Bd d'Anfa, Maroc",
+    ]) {
+      const place = placeOfAddress(formatted, areas, { named, legs });
+      assert.equal(place.status, 'inside', `${typed} → ${formatted}`);
+      assert.equal(place.status === 'inside' && place.city, 'Casablanca');
+    }
+  }
+});
+
+test('without the drive, an accepted area in Google’s own answer still counts', () => {
+  const areas = ['Casablanca', 'Fès'];
+  assert.equal(placeOfAddress("Préfecture d'arrondissements de Casablanca-Anfa, Maroc", areas).status, 'inside');
+  assert.equal(placeOfAddress('Casablanca-Anfa, Maroc', areas, { named: 'Casablanca', legs: [] }).status, 'inside');
+  // A street or a region naming the city does not.
+  assert.equal(placeOfAddress('Rte de Casablanca, Ouled Hamid, Maroc', areas).status, 'outside');
+  assert.equal(placeOfAddress('Autoroute Casablanca-Rabat, Maroc', areas).status, 'not-found');
+});
+
+test('a neighbouring town stays refused by its name, however close', () => {
+  const areas = ['Casablanca', 'Fès'];
+  const named = 'Casablanca';
+  assert.deepEqual(placeOfAddress('Bouskoura, Maroc', areas, { named, legs: [{ city: 'Casablanca', meters: 14_000 }] }), {
+    status: 'outside',
+    locality: 'Bouskoura',
+    abroad: false,
+  });
+  assert.equal(placeOfAddress('Tit Mellil, Maroc', areas, { named, legs: [{ city: 'Casablanca', meters: 12_000 }] }).status, 'outside');
+  assert.equal(
+    placeOfAddress('Sidi Harazem, Maroc', areas, { named: 'Fès', legs: [{ city: 'Fès', meters: 13_000 }] }).status,
+    'outside',
+  );
+  // Added to « Sites », it is accepted.
+  assert.equal(placeOfAddress('Bouskoura, Maroc', [...areas, 'Bouskoura'], { named }).status, 'inside');
+});
+
+test('a quartier far from the city typed is refused, a street near it accepted', () => {
+  const areas = ['Casablanca', 'Fès'];
+  const far = { named: 'Casablanca', legs: [{ city: 'Casablanca', meters: 48_000 }] };
+  assert.deepEqual(placeOfAddress('Douar Lahlalfa, Maroc', areas, far), { status: 'outside', locality: 'Douar Lahlalfa', abroad: false });
+  assert.deepEqual(placeOfAddress('Bd Zerktouni, Maroc', areas, far), { status: 'not-found' });
+  const close = { named: 'Casablanca', legs: [{ city: 'Casablanca', meters: 2_400 }] };
+  assert.deepEqual(placeOfAddress('Bd Zerktouni, Maroc', areas, close), { status: 'inside', city: 'Casablanca', locality: 'Casablanca' });
+  // Nothing closer than the country or the region stays not found.
+  assert.deepEqual(placeOfAddress('Maroc', areas, close), { status: 'not-found' });
+  assert.deepEqual(placeOfAddress('Casablanca-Settat, Maroc', areas, close), { status: 'not-found' });
+  // Coordinates name no area: measured from the nearest one.
+  const gps = { named: null, legs: [{ city: 'Casablanca', meters: 310_000 }, { city: 'Fès', meters: 3_100 }] };
+  assert.deepEqual(placeOfAddress('Saïss, Maroc', areas, gps), { status: 'inside', city: 'Fès', locality: 'Saïss' });
+});
+
 test('the city of an address: an accepted area, or any city of Morocco', () => {
   const areas = ['Casablanca', 'Fès', 'Mohammedia', 'Dar Bouazza'];
   assert.equal(areaNamedIn('12 rue Ibn Battouta, Maarif, Casablanca', areas), 'Casablanca');

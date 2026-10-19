@@ -16,8 +16,9 @@ import { acceptedAreas } from '@/lib/accepted-areas-server';
  *
  * Otherwise resolved with the Distance Matrix API — the only Maps API enabled
  * on the key: one row per accepted area to the address returns Google's
- * formatted destination, whose locality decides (lib/moroccan-address.ts
- * placeOfAddress), and the drive from each area.
+ * formatted destination and the drive from each area. A town in Google's
+ * answer decides by its name; a quartier or a prefecture by its drive from the
+ * area typed (lib/moroccan-address.ts placeOfAddress).
  *
  * `status`: 'inside' (+ `city`), 'outside' (+ where it lies), 'no-city',
  * 'not-found' (nothing closer than the country or the region), or
@@ -79,7 +80,10 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ ...placeOfAddress(formatted, areas), formatted, legs, areas });
+    // The area typed and the drives decide when Google answers with a quartier
+    // or a prefecture rather than the city (« anfa, casablanca »).
+    const named = COORDS_RE.test(address) ? null : areaNamedIn(address, areas);
+    return NextResponse.json({ ...placeOfAddress(formatted, areas, { named, legs }), formatted, legs, areas });
   } catch (error: any) {
     const authResp = authErrorResponse(error);
     if (authResp) return authResp;

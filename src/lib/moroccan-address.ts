@@ -56,7 +56,7 @@ const COUNTRY = new Set(['maroc', 'morocco', 'marruecos']);
 /** Open Location Code (« 8V6V+2Q »), which Google may put before a locality. */
 const PLUS_CODE = /\b[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}\b/gi;
 /** A street, not a city: Google resolved a road without its locality. */
-const STREET = /^(?:rue|bd|boulevard|av|avenue|route|rte|place|pl|impasse|lot|lotissement|residence|res|km)\b/;
+const STREET = /^(?:rue|bd|boulevard|av|avenue|route|rte|place|pl|impasse|lot|lotissement|residence|res|km|autoroute|rocade|chemin|allee)\b/;
 
 /**
  * Locality of a Google-formatted Moroccan address: the component before the
@@ -114,8 +114,62 @@ function areaOf(place: string, areas: readonly string[]): string | null {
   return areas.find((a) => samePlace(a, place)) ?? null;
 }
 
-/** Where a Google-formatted address lies against the accepted areas. */
-export function placeOfAddress(formatted: string, areas: readonly string[] = DEFAULT_AREAS): AddressPlace {
+function isRegion(place: string): boolean {
+  return REGIONS.has(canonicalPlace(place).replace(/^region (?:de |d |du )?/, ''));
+}
+
+/** A town of Morocco by its name (« Bouskoura », « Préfecture de Mohammedia »). */
+function isTown(place: string): boolean {
+  return MOROCCAN_CITIES.some((c) => samePlace(c, place));
+}
+
+/**
+ * A place Google names that is not a town — a quartier, an arrondissement, a
+ * prefecture (« Anfa, Maroc », « Préfecture d'arrondissements de
+ * Casablanca-Anfa ») — is in the accepted area the address names when it lies
+ * within this drive of that area's centre. Casablanca's and Fès's own
+ * quartiers are closer; their neighbouring towns are refused by name.
+ */
+export const QUARTIER_DRIVE_M = 15_000;
+
+/** What the route knows besides Google's formatted address. */
+export interface PlaceHints {
+  /** The accepted area the typed address names (areaNamedIn); none for coordinates. */
+  named?: string | null;
+  /** The drive from each accepted area to the address, as Distance Matrix gave it. */
+  legs?: readonly { city: string; meters: number | null }[];
+}
+
+function driveFrom(area: string, legs: PlaceHints['legs']): number | null {
+  const leg = legs?.find((l) => samePlace(l.city, area));
+  return typeof leg?.meters === 'number' ? leg.meters : null;
+}
+
+/** The accepted area to measure from: the one the address names, else the nearest. */
+function referenceArea(hints: PlaceHints, areas: readonly string[]): string | null {
+  if (hints.named) return areaOf(hints.named, areas);
+  let best: { area: string; meters: number } | null = null;
+  for (const area of areas) {
+    const meters = driveFrom(area, hints.legs);
+    if (meters !== null && (!best || meters < best.meters)) best = { area, meters };
+  }
+  return best?.area ?? null;
+}
+
+/**
+ * Where a Google-formatted address lies against the accepted areas.
+ *
+ * Google does not always end its answer with the city: for « anfa,
+ * casablanca » it may answer with the district or the prefecture, while
+ * « casablanca, anfa » comes back as « …, Casablanca, Maroc ». So only a TOWN
+ * is judged by its name; any other place is judged by where it lies, and the
+ * order of the words typed no longer decides (owner 2026-10-19).
+ */
+export function placeOfAddress(
+  formatted: string,
+  areas: readonly string[] = DEFAULT_AREAS,
+  hints: PlaceHints = {},
+): AddressPlace {
   const parts = (formatted || '').split(',').map((p) => p.trim()).filter(Boolean);
   if (parts.length === 0) return { status: 'not-found' };
   const last = parts[parts.length - 1];
@@ -126,13 +180,36 @@ export function placeOfAddress(formatted: string, areas: readonly string[] = DEF
     // Another country: « 10050 Borgone Susa, Ville métropolitaine de Turin, Italie ».
     return { status: 'outside', locality: parts.join(', '), abroad: true };
   }
+
+  const reference = referenceArea(hints, areas);
+  const drive = reference ? driveFrom(reference, hints.legs) : null;
+  const near = reference !== null && drive !== null && drive <= QUARTIER_DRIVE_M;
+
   const locality = localityOf(formatted);
-  if (!locality) return { status: 'not-found' };
-  if (REGIONS.has(canonicalPlace(locality).replace(/^region (?:de |d |du )?/, ''))) {
-    return { status: 'not-found' };
+  if (!locality) {
+    // A street with no city (« Bd Zerktouni, Maroc »), a short drive from the
+    // area; the country alone means Google found nothing.
+    const street = parts.some((p) => !COUNTRY.has(normalizePlace(p)));
+    return near && street ? { status: 'inside', city: reference!, locality: reference! } : { status: 'not-found' };
   }
+  if (isRegion(locality)) return { status: 'not-found' };
   const area = areaOf(locality, areas);
-  return area ? { status: 'inside', city: area, locality } : { status: 'outside', locality, abroad: false };
+  if (area) return { status: 'inside', city: area, locality };
+  // Another town, however close: an outskirt is accepted once the admins add it to « Sites ».
+  if (isTown(locality)) return { status: 'outside', locality, abroad: false };
+  // A quartier, an arrondissement or a prefecture written in place of the city.
+  if (near) return { status: 'inside', city: reference!, locality };
+  // Drive unknown: an accepted area written in Google's own answer
+  // (« Préfecture d'arrondissements de Casablanca-Anfa »), streets and regions aside.
+  if (drive === null) {
+    for (const part of parts) {
+      const n = normalizePlace(part);
+      if (COUNTRY.has(n) || STREET.test(n) || isRegion(part)) continue;
+      const written = areaNamedIn(part, areas);
+      if (written) return { status: 'inside', city: written, locality };
+    }
+  }
+  return { status: 'outside', locality, abroad: false };
 }
 
 /**
@@ -196,6 +273,12 @@ export const MOROCCAN_CITIES: readonly string[] = [
   'Sidi Slimane', 'Souk El Arbaa', 'Khémisset', 'Tiflet', 'Benslimane', 'Bouznika', 'Bouskoura',
   'Dar Bouazza', 'Nouaceur', 'Médiouna', 'Tit Mellil', 'Aïn Harrouda', 'Had Soualem',
   'Lahraouyine', 'Deroua', 'Sidi Rahal', 'Chichaoua', 'Figuig',
+  // Communes around Casablanca and Fès: close enough to pass for a quartier,
+  // so they are told apart by name (placeOfAddress).
+  'Ouled Saleh', 'Oulad Saleh', 'Oulad Azzouz', 'Sidi Hajjaj Oued Hassar', 'Mejjatia Ouled Taleb',
+  'Lamkansa', 'Ech-Challalate', 'Bni Yakhlef', 'El Mansouria', 'Sidi Moussa Ben Ali',
+  'Sidi Harazem', 'Sidi Hrazem', 'Aïn Chkef', 'Ouled Tayeb', 'Oulad Tayeb', 'Ras El Ma', 'Aïn Bida',
+  'Sebaa Rouadi', 'Aïn Cheggag',
 ];
 
 /** The city a typed address names: an accepted area or a city of Morocco, else null. */

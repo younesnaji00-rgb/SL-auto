@@ -373,7 +373,13 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
       list.push({ id: 'plan-type', label: t('Type de RDV'), validate: (v) => (v.typeMission ? null : t('Choisissez un type de RDV.')) });
     }
     if (!isCurrentUserAT) {
-      list.push({ id: 'plan-agent-select', label: t('Agent de Terrain'), validate: (v) => (v.agentTerrain ? null : t('Choisissez un agent de terrain.')) });
+      // A visit given earlier to a name with no account (« Agent de terrain 1 »)
+      // is not saved again with it: the agent must be one of the list.
+      list.push({
+        id: 'plan-agent-select',
+        label: t('Agent de Terrain'),
+        validate: (v) => (v.agentTerrain && agents.some((a) => a.label === v.agentTerrain) ? null : t('Choisissez un agent de terrain.')),
+      });
     }
     list.push({ id: 'plan-date-field', label: t('Date RDV'), validate: (v) => (v.dateRDV ? null : t('Choisissez la date du rendez-vous.')) });
     list.push({ id: 'plan-heure', label: t('Heure RDV'), validate: (v) => (v.timeRDV ? null : t("Renseignez l'heure du rendez-vous.")) });
@@ -386,7 +392,7 @@ export default function ModalPlanification({ open, onOpenChange, initialData, do
         v.adresse.trim() ? addressProblem(knownAddressCheck(v.adresse)) : t("Renseignez l'adresse du rendez-vous."),
     });
     return list;
-  }, [defaultTypeMission, isCurrentUserAT, t, addressProblem]);
+  }, [defaultTypeMission, isCurrentUserAT, t, addressProblem, agents]);
   const formErrors = useFormErrors(formData, rules, { open });
 
   // The address verdict as soon as Google answers; after a failed save the

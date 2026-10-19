@@ -3,7 +3,8 @@
 /**
  * The agents a mission can be given to: the `options_agents` list (one entry
  * per Agent de Terrain account, written by Utilisateurs) joined with the
- * accounts, plus the Responsable des agents de terrain, who goes on site too
+ * accounts — an entry with no account is left out — plus the Responsable des
+ * agents de terrain, who goes on site too
  * (owner ruling 2026-10-14) and has no entry there. Each agent says whether
  * it is the team's Responsable (« Responsable » pill) and carries its uid when
  * an account bears its name.
@@ -38,8 +39,12 @@ export function useAssignableAgents({ includeInactive = false }: { includeInacti
       if (!includeInactive && o.active === false) continue;
       const key = nameKey(o.label);
       const m = byName.get(key);
+      // An entry no account bears (« Agent de terrain 1 », typed when the
+      // list had a gear): a visit given to it reaches nobody (owner
+      // 2026-10-19). Every account is listed below anyway.
+      if (!m) continue;
       seen.add(key);
-      out.push({ ...o, zone: o.zone || m?.zone || undefined, uid: m?.uid, lead: m?.lead ?? false });
+      out.push({ ...o, zone: o.zone || m.zone || undefined, uid: m.uid, lead: m.lead });
     }
     // Accounts with no entry: the Responsable, or an agent created before the
     // list was kept in sync — listed after the others.

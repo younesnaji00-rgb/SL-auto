@@ -206,6 +206,8 @@ test('an address names its city', () => {
   ok('address', '12 rue Ibn Battouta, Maarif, Casablanca');
   ok('address', 'Av. Mohammed V, Rabat');
   ok('address', 'Lot Al Amal, Lahraouyine');
-  assert.match(validateFieldValue('address', 'Douar Lahlou, Ain Chkef') ?? '', city);
-  assert.equal(validateFieldValue('address', 'Douar Lahlou, Ain Chkef', new Date(), { areas: ['Casablanca', 'Fès', 'Ain Chkef'] }), null);
+  assert.match(validateFieldValue('address', 'Douar Lahlou, Sidi Abdelkhalek') ?? '', city);
+  assert.equal(validateFieldValue('address', 'Douar Lahlou, Sidi Abdelkhalek', new Date(), { areas: ['Casablanca', 'Fès', 'Sidi Abdelkhalek'] }), null);
+  // A commune next to Fès is a city of Morocco.
+  ok('address', 'Douar Lahlou, Ain Chkef');
 });
