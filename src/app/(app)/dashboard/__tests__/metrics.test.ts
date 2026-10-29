@@ -58,9 +58,10 @@ test('gestionnaire: à traiter vs en attente, tiles and stale', () => {
     dossier('a', { ...READY, createdAt: T(9), dateRequete: T(8) }),
     // Visit planned yesterday, photos awaited → waiting on the agent.
     dossier('b', { ...READY, dateDemandeExpertiseAvant: T(10, -1) }),
-    // Closed last week (rapport déposé 3 days ago) and one 10 days ago.
-    dossier('c', { datePhotosAvant: T(9, -6), dateRapportDepose: T(9, -3) }),
-    dossier('d', { datePhotosAvant: T(9, -12), dateRapportDepose: T(9, -10) }),
+    // Finished last week (note d'honoraire 3 days ago) and one 10 days ago —
+    // a dossier ends with its note, not its rapport (owner ruling 2026-10-29).
+    dossier('c', { datePhotosAvant: T(9, -6), dateRapportDepose: T(9, -3), dateNoteHonoraire: T(9, -3) }),
+    dossier('d', { datePhotosAvant: T(9, -12), dateRapportDepose: T(9, -10), dateNoteHonoraire: T(9, -10) }),
     // Another compagnie's dossier — invisible to g1 (their portfolio is their
     // compagnies, owner ruling 2026-10-14).
     dossier('e', { compagnie: 'Wafa' }),

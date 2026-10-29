@@ -6,7 +6,11 @@
  * §3 (catalogue). Conventions shared by every function:
  *   • `now` is always passed in; a window is `[now − days, now]`;
  *   • the "closed cohort" is the set of dossiers whose `dateRapportDepose`
- *     falls in the window;
+ *     falls in the window — the lead-time measures (requête → rapport);
+ *   • a dossier is « terminé / clôturé » once its note d'honoraire is in
+ *     (owner ruling 2026-10-29, lib/dossier-finished.ts): the weekly
+ *     closings, « Clôturés » and « en cours » count by that, not by the
+ *     rapport;
  *   • every rate is `{ pct, num, den }` (pct rounded to an integer, null when
  *     den === 0);
  *   • durations are CALENDAR DAYS as floats unless the name says `Hours`, in
@@ -119,6 +123,12 @@ export const noteAt = (d: FunnelDossier): Date | null => toDate(d.dateNoteHonora
 export function closedCohort(dossiers: FunnelDossier[], now: Date, days: number): FunnelDossier[] {
   const { from, to } = windowOf(now, days);
   return dossiers.filter((d) => inWindow(depositAt(d), from, to));
+}
+
+/** Dossiers finished in the window: their note d'honoraire added then. */
+export function finishedCohort(dossiers: FunnelDossier[], now: Date, days: number): FunnelDossier[] {
+  const { from, to } = windowOf(now, days);
+  return dossiers.filter((d) => inWindow(noteAt(d), from, to));
 }
 
 /** Dossiers created in the window. */
@@ -345,11 +355,14 @@ export interface WeekFlow {
   termines: number;
 }
 
-/** Weekly intake / closings, oldest first; the last entry is the current (incomplete) week. */
+/**
+ * Weekly intake / closings, oldest first; the last entry is the current
+ * (incomplete) week. A closing = the note d'honoraire added that week.
+ */
 export function weeklyFlow(dossiers: FunnelDossier[], now: Date, weeks = 13): WeekFlow[] {
   const current = startOfWeek(now, { weekStartsOn: 1 });
   const created = dossiers.map((d) => toDate(d.createdAt)).filter((x): x is Date => !!x);
-  const deposited = dossiers.map(depositAt).filter((x): x is Date => !!x);
+  const finished = dossiers.map(noteAt).filter((x): x is Date => !!x);
   const out: WeekFlow[] = [];
   for (let i = weeks - 1; i >= 0; i--) {
     const weekStart = addWeeks(current, -i);
@@ -359,7 +372,7 @@ export function weeklyFlow(dossiers: FunnelDossier[], now: Date, weeks = 13): We
       weekStart,
       label: format(weekStart, 'd MMM', { locale: fr }),
       recus: created.filter(within).length,
-      termines: deposited.filter(within).length,
+      termines: finished.filter(within).length,
     });
   }
   return out;
@@ -1131,8 +1144,8 @@ export function computeDirectionView(input: DirectionInput, now: Date, days: num
     slaOnTime: slaOnTimeRate(sla, now, days),
     enCours: dossiers.filter(isOpenDossier).length,
     recus: createdCohort(dossiers, now, days).length,
-    termines: closedCohort(dossiers, now, days).length,
+    termines: finishedCohort(dossiers, now, days).length,
     recusPrev: createdCohort(dossiers, prevNow, days).length,
-    terminesPrev: closedCohort(dossiers, prevNow, days).length,
+    terminesPrev: finishedCohort(dossiers, prevNow, days).length,
   };
 }

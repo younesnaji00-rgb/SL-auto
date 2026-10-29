@@ -38,15 +38,18 @@ test('« En retard » counts the dossiers the list calls late (≥ 7 j, still to
     dossier('late', { createdAt: T(9, -8) }),
     dossier('edge', { createdAt: T(9, -7) }),
     dossier('young', { createdAt: T(9, -6) }),
-    // Accord envoyé is the list's terminal statut: not « à traiter », not late.
+    // « Accord envoyé » no longer ends a dossier: only its note d'honoraire
+    // does (owner ruling 2026-10-29) — so « sent » is still late, « paid » not.
     dossier('sent', { createdAt: T(9, -20), statut: 'Accord envoyé' }),
+    dossier('paid', { createdAt: T(9, -25), statut: 'Accord envoyé', dateNoteHonoraire: T(9, -2) }),
     // Another compagnie's dossier stays off this dashboard…
     dossier('other', { createdAt: T(9, -30), compagnie: 'Wafa' }),
     // …a colleague's dossier of the same compagnie is on it.
     dossier('colleague', { createdAt: T(9, -9), createdBy: 'uid-other' }),
   ]);
-  assert.equal(v.tiles.enRetard, 3);
-  assert.deepEqual(v.lateDossiers.map((d) => d.id), ['colleague', 'late', 'edge'], 'oldest first');
+  assert.equal(v.tiles.enRetard, 4);
+  assert.deepEqual(v.lateDossiers.map((d) => d.id), ['sent', 'colleague', 'late', 'edge'], 'oldest first');
+  assert.equal(v.tiles.enCours, 5, 'every dossier of the portfolio but the one with its note');
 });
 
 test('« Par étape » marks the same late dossiers in red', () => {

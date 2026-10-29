@@ -28,6 +28,11 @@ export type Dossier = {
   authorFactureValide?: string;
   dateRapportDepose?: any;
   authorRapportDepose?: string;
+  /** The note d'honoraire is in: the dossier is finished (lib/dossier-finished.ts). */
+  dateNoteHonoraire?: any;
+  /** Legacy name of `dateNoteHonoraire`. */
+  noteHonoraireAt?: any;
+  authorNoteHonoraire?: string;
   // Structured objects
   assure: { nom: string; prenom: string; telephone: string; whatsapp: string; telephone2: string; email: string; adresse: string; cin: string } | string;
   vehicule: { marque: string; modele: string; immatriculation: string; immatriculationAnterieur?: string; serie: string; energie: string; puissance: string; mec: any; km: string };

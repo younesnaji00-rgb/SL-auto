@@ -13,6 +13,8 @@ import {
   statutBeforeChiffrage,
 } from './status-machine';
 import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
+import { NOTE_HONORAIRE_TYPE } from './dossier-finished';
+import { syncNoteHonoraireStamp } from './note-honoraire-stamp';
 
 const toMillis = (v: unknown): number => {
   const ts = v as { toMillis?: () => number } | null | undefined;
@@ -239,6 +241,12 @@ export async function restoreStatutAfterDocumentRemoval(
   user: RemovalUser,
 ): Promise<string | null> {
   const type = String(removedType ?? '').trim();
+  // The last note d'honoraire gone: the dossier is « en cours » again
+  // (owner ruling 2026-10-29). The statut itself does not move.
+  if (type === NOTE_HONORAIRE_TYPE) {
+    await syncNoteHonoraireStamp(db, dossierId, user);
+    return null;
+  }
   if (isEditableDocType(type)) {
     // The tables follow: the removed devis / facture's rows leave the
     // dossier's table and the chiffreur's (tester 2026-10-14).

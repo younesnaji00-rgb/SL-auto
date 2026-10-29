@@ -40,6 +40,7 @@ import { fr } from 'date-fns/locale';
 import { businessHoursBetween } from '@/lib/business-days';
 import { getLocale, t } from '@/i18n';
 import { compagnieKey } from '@/lib/compagnie-name';
+import { isDossierOpen, noteHonoraireAt } from '@/lib/dossier-finished';
 import {
   STEP_DEFS,
   STEP_KEYS,
@@ -334,7 +335,7 @@ export interface Headline {
   respectLate: number;
   /** Open clocks still inside their window (not decided yet). */
   respectPending: number;
-  /** Open backlog: dossiers in scope with no rapport deposited (now, not period). */
+  /** Open backlog: dossiers in scope with no note d'honoraire yet (now, not period). */
   enAttente: number;
   /** Dossiers with at least one clock past SLA right now (leading). */
   enRetard: number;
@@ -346,9 +347,10 @@ export function computeHeadline(dossiers: FunnelDossier[], range: FunnelRange, n
   let enAttente = 0;
   for (const d of dossiers) {
     if (inRange(toDate(d.createdAt), range)) crees += 1;
-    const deposed = STEP_DEFS.rapport.doneAt(d);
-    if (inRange(deposed, range)) traites += 1;
-    if (!deposed) enAttente += 1;
+    // Traité = finished = the note d'honoraire is in (owner ruling 2026-10-29).
+    const finished = noteHonoraireAt(d);
+    if (inRange(finished, range)) traites += 1;
+    if (!finished) enAttente += 1;
   }
   let onTime = 0;
   let late = 0;
@@ -513,7 +515,7 @@ export function computePerCompagnieMeasures(dossiers: FunnelDossier[], range: Fu
         enDelai,
         horsDelai,
         respectPct: respectFrom(enDelai, horsDelai),
-        enAttente: arr.filter((d) => !STEP_DEFS.rapport.doneAt(d)).length,
+        enAttente: arr.filter((d) => isDossierOpen(d)).length,
         totalEnDelai: STEP_KEYS.reduce((acc, k) => acc + enDelai[k], 0),
       };
     });
@@ -541,7 +543,7 @@ export function computePerUserMeasures(dossiers: FunnelDossier[], logs: Workflow
     }
     return r;
   };
-  const isOpen = (d: FunnelDossier) => !STEP_DEFS.rapport.doneAt(d);
+  const isOpen = (d: FunnelDossier) => isDossierOpen(d);
   const covered = new Map<StepKey, Set<string>>();
   for (const key of STEP_KEYS) covered.set(key, new Set());
 

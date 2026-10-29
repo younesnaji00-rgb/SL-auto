@@ -26,6 +26,8 @@ import { useRequiredDocsStatus } from '@/hooks/use-required-docs-status';
 import { chiffrageGateReason, isChiffrageGateClosed } from '@/lib/required-docs';
 import { getMissingRequiredFields } from '@/lib/required-fields';
 import { readDossierOrigin, type DossierOrigin } from '@/lib/dossier-origin';
+import { NOTE_HONORAIRE_TYPE, isDossierFinished } from '@/lib/dossier-finished';
+import { syncNoteHonoraireStamp } from '@/lib/note-honoraire-stamp';
 import { mapToAccorde, parseAccordeParent } from '@/lib/docType-accorde';
 import { useFocusMode } from '@/hooks/use-focus-mode';
 import {
@@ -467,6 +469,18 @@ function DossierDetail({ id }: { id: string }) {
     updateDoc(dossierRef, { firstAccordReachedAt: Timestamp.fromDate(accordState.at ?? new Date()) })
       .catch((e) => console.warn('[dossier] firstAccordReachedAt backfill failed:', e));
   }, [readOnly, dossier, accordState, dossierRef]);
+  // The note d'honoraire stamp finishes a dossier everywhere (owner ruling
+  // 2026-10-29). Checked once per opening against the documents, for notes
+  // filed by the drop box, or removed, before the stamp followed them.
+  const noteStampChecked = useRef(false);
+  useEffect(() => {
+    if (readOnly || !db || !dossier || !accordDocs || noteStampChecked.current) return;
+    noteStampChecked.current = true;
+    const hasNote = accordDocs.some((d: any) => String(d?.type || d?.typeDocument || '').trim() === NOTE_HONORAIRE_TYPE);
+    if (hasNote !== isDossierFinished(dossier as any)) {
+      void syncNoteHonoraireStamp(db, id, { email: profile?.email, nom: profile?.nom });
+    }
+  }, [readOnly, db, dossier, accordDocs, id, profile?.email, profile?.nom]);
 
   // Modal states
   const [isPlanificationModalOpen, setPlanificationModalOpen] = useState(false);

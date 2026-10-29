@@ -75,7 +75,7 @@ const TEAM_LABEL: Record<Vue, string> = {
 
 /** Vocabulary of the per-role tiles and columns (same measures, role words). */
 const WORDS: Record<DashboardRole, { enCours: string; enCoursCaption: string; termines: string; sla: string; queueHref: string }> = {
-  Gestionnaire: { enCours: 'Dossiers ouverts', enCoursCaption: 'sans rapport déposé', termines: 'Rapports déposés', sla: 'Ouverture ≤ 24 h', queueHref: '/dossiers' },
+  Gestionnaire: { enCours: 'Dossiers ouverts', enCoursCaption: 'sans note d’honoraire', termines: 'Dossiers terminés', sla: 'Ouverture ≤ 24 h', queueHref: '/dossiers' },
   Chiffreur: { enCours: 'Chiffrages en attente', enCoursCaption: 'assignés, non terminés', termines: 'Chiffrages terminés', sla: 'Chiffrage ≤ 24 h', queueHref: '/assignations-chiffrage' },
   'Agent de Terrain': { enCours: 'Missions ouvertes', enCoursCaption: 'sans photos', termines: 'Missions faites', sla: 'Photos ≤ 24 h', queueHref: '/assignations-atg' },
 };

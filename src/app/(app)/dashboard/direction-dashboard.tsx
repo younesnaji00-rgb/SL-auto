@@ -297,7 +297,7 @@ export function DirectionDashboard({ dossiers, chiffrages, missions, workflowLog
           label={t('Dossiers en cours')}
           value={view.enCours}
           loading={loading}
-          caption={<span>{t('sans rapport déposé')} · {t('maintenant')}</span>}
+          caption={<span>{t('sans note d’honoraire')} · {t('maintenant')}</span>}
           href="/dossiers"
         />
       </div>

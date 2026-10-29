@@ -65,7 +65,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { SlidingThumb } from '@/components/ui/sliding-thumb';
 import { type ExportColumn } from '@/lib/export-excel';
 import { CANONICAL_STATUTS } from '@/lib/dossiers-data';
-import { isActionNeeded, LATE_AFTER_DAYS } from '@/lib/dossier-late';
+import { LATE_AFTER_DAYS } from '@/lib/dossier-late';
+import { isDossierOpen } from '@/lib/dossier-finished';
 import { clearDossierOrigin } from '@/lib/dossier-origin';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
@@ -170,9 +171,10 @@ const WIDE_MENU_CLASS: Record<string, string> = {
   policeNumber: 'max-[1919px]:hidden',
 };
 
-// « À traiter » scope (`isActionNeeded`) and the « En retard » age threshold
-// live in lib/dossier-late.ts, shared with the gestionnaire dashboard so both
-// pages count the same late dossiers (QA GE-006). Lateness uses the DANGER
+// « À traiter » scope (`isDossierOpen`: no note d'honoraire yet, owner ruling
+// 2026-10-29, lib/dossier-finished.ts) and the « En retard » age threshold
+// (lib/dossier-late.ts) are shared with the dashboards so every page counts
+// the same open and late dossiers (QA GE-006). Lateness uses the DANGER
 // pair, never terracotta (addendum 2026-09-02: terracotta marks
 // aujourd'hui/prochain, "lateness belongs to the danger pair").
 
@@ -393,11 +395,11 @@ export default function DossiersClientPage() {
     // reference wants the dossier whatever its statut (the scope segment is
     // still honoured for browsing).
     const searching = !!filters.search.trim();
-    if (except !== 'scope' && filters.scope !== 'tous' && !searching) results = results.filter(d => isActionNeeded(d.statut));
+    if (except !== 'scope' && filters.scope !== 'tous' && !searching) results = results.filter(d => isDossierOpen(d));
     if (except !== 'scope' && filters.lateOnly) {
       results = results.filter(d => {
         const age = ageDays((d as any).createdAt);
-        return isActionNeeded(d.statut) && age !== null && age >= LATE_AFTER_DAYS;
+        return isDossierOpen(d) && age !== null && age >= LATE_AFTER_DAYS;
       });
     }
     if (except !== 'nature' && filters.nature !== 'Toutes') results = results.filter(d => d.nature === filters.nature);
@@ -491,7 +493,7 @@ export default function DossiersClientPage() {
     if (filters.lateFirst) {
       const rank = (d: any) => {
         const age = ageDays(d?.createdAt);
-        return isActionNeeded(d?.statut) && age !== null && age >= LATE_AFTER_DAYS ? 0 : 1;
+        return isDossierOpen(d) && age !== null && age >= LATE_AFTER_DAYS ? 0 : 1;
       };
       results.sort((a, b) => rank(a) - rank(b));
     }
@@ -526,7 +528,7 @@ export default function DossiersClientPage() {
   const kpi = useMemo(() => {
     let aTraiter = 0, enRetard = 0, aujourdHui = 0;
     for (const d of allDossiers) {
-      const action = isActionNeeded(d.statut);
+      const action = isDossierOpen(d);
       if (action) aTraiter++;
       const age = ageDays((d as any).createdAt);
       if (action && age !== null && age >= LATE_AFTER_DAYS) enRetard++;
@@ -814,7 +816,7 @@ export default function DossiersClientPage() {
   }, [facetCounts.compagnie, filters.compagnie]);
   const phoneIsLate = (d: any) => {
     const age = ageDays(d?.createdAt);
-    return isActionNeeded(d?.statut) && age !== null && age >= LATE_AFTER_DAYS;
+    return isDossierOpen(d) && age !== null && age >= LATE_AFTER_DAYS;
   };
 
   // Card bell → the page's « Envoyer à » rappel flow for ONE dossier: the
@@ -1017,7 +1019,7 @@ export default function DossiersClientPage() {
         // only while the dossier still needs action — a rare, lawful alarm.
         const age = ageDays((d as any).createdAt);
         if (age === null) return <TableCell key={key}><EmptyCell /></TableCell>;
-        const late = isActionNeeded(d.statut) && age >= LATE_AFTER_DAYS;
+        const late = isDossierOpen(d) && age >= LATE_AFTER_DAYS;
         return (
           <TableCell key={key} className="tabular-nums" title={relativeDate((d as any).createdAt)}>
             {late ? (
@@ -1291,7 +1293,7 @@ export default function DossiersClientPage() {
             key: 'a-traiter',
             label: t('À traiter'),
             value: kpi.aTraiter,
-            caption: t('statut non terminé'),
+            caption: t('sans note d’honoraire'),
             active: filters.scope === 'a-traiter' && !filters.lateOnly && !narrowing && !dated,
             onClick: () => { setFilters({ ...TILE_RESET, scope: 'a-traiter' }); setPage(1); },
           },

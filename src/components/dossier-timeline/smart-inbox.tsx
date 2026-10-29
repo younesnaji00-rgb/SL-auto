@@ -40,6 +40,8 @@ import { extractAndPersistChiffrageDevis, extractAndPersistDossierDoc } from '@/
 import { scanAndPersistCarteGrise } from '@/lib/scan-carte-grise';
 import { scanAndPersistVehicleIds, vehicleIdHintForSlot } from '@/lib/scan-vehicle-ids';
 import { isEditableDocType } from '@/lib/devis-schema';
+import { NOTE_HONORAIRE_TYPE } from '@/lib/dossier-finished';
+import { syncNoteHonoraireStamp } from '@/lib/note-honoraire-stamp';
 import { logHistorique, logWorkflow } from '@/app/(app)/dossiers/[id]/log-historique';
 import { DOC_CLASSES, DOC_CLASS_LABELS, UNCLASSIFIED_LABEL, confidenceBand, prefillSources } from '@/lib/doc-classes';
 import { useTutorialMode } from '@/lib/tutorial/use-tutorial-mode';
@@ -231,8 +233,13 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
       if (idHint) {
         void scanAndPersistVehicleIds({ db, storage, dossierId, sources: [{ blob: file, name: file.name }], hint: idHint });
       }
+      // A note d'honoraire filed here finishes the dossier, like one dropped
+      // in its own slot (owner ruling 2026-10-29).
+      if (type === NOTE_HONORAIRE_TYPE) {
+        void syncNoteHonoraireStamp(db, dossierId, { email: userEmail, nom: profile?.nom });
+      }
     },
-    [db, storage, dossierId],
+    [db, storage, dossierId, userEmail, profile?.nom],
   );
 
   const sendFeedback = useCallback(
@@ -415,11 +422,13 @@ export default function SmartInbox({ dossierId, dossier, readOnly, onPrefill, pr
         patch(it.id, { type: newType, corrected: true, confirmed: false });
         void sendFeedback(it, newType, 'correction');
         if (it.storagePath && newType !== UNCLASSIFIED_LABEL) await postProcess(newType, it.storagePath, it.file);
+        // Taken out of « Note d'honoraire »: maybe the dossier's last one.
+        if (it.type === NOTE_HONORAIRE_TYPE) void syncNoteHonoraireStamp(db, dossierId, { email: userEmail, nom: profile?.nom });
       } catch (err: any) {
         toast({ variant: 'destructive', title: t('Correction impossible'), description: err?.message });
       }
     },
-    [db, dossierId, patch, sendFeedback, postProcess, toast, t],
+    [db, dossierId, patch, sendFeedback, postProcess, toast, t, userEmail, profile?.nom],
   );
 
   const validateAll = useCallback(async () => {

@@ -23,12 +23,13 @@ import { businessHoursBetween, addBusinessHours } from '@/lib/business-days';
 import { DOSSIER_STEP_DEFS, getStepStatuses, type StepState } from '@/lib/dossier-steps';
 import { actionableStep, getDossierTodos, type DossierTodo } from '@/lib/dossier-todos';
 import type { Rappel } from '@/hooks/use-rappels';
-import { STEP_DEFS, type FunnelDossier } from '../monitoring/funnel';
+import type { FunnelDossier } from '../monitoring/funnel';
 import { buildSlaItems, normalizeMissionType, SLA_BUSINESS_HOURS, type SlaItem } from '../monitoring/metrics';
 import type { DashboardChiffrage, DashboardMission, DashboardUser } from './use-dashboard-data';
 import { isChiffrageMine, isChiffrageUnowned, type ChiffreurAccountRef } from '@/lib/chiffreur-identity';
 import { isValidPhotosSentAt, missionPhotoAnchor, type PhasePhotoTimes } from '@/lib/mission-photos';
 import { isDossierLate } from '@/lib/dossier-late';
+import { isDossierOpen, noteHonoraireAt } from '@/lib/dossier-finished';
 import { compagnieInScope } from '@/lib/compagnie-name';
 import { isTeamLead, teamRoleOf } from '@/lib/role-access';
 
@@ -119,8 +120,12 @@ export function missionOwnedBy(m: DashboardMission, p: PersonRef): boolean {
   return candidates.includes(agent);
 }
 
-/** Open = no rapport déposé (the same "en attente" definition as Suivi d'équipe). */
-export const isOpenDossier = (d: FunnelDossier): boolean => !STEP_DEFS.rapport.doneAt(d);
+/**
+ * Open = no note d'honoraire yet (owner ruling 2026-10-29, lib/dossier-finished.ts):
+ * the same rule as the Dossiers list and Suivi d'équipe. It was « no rapport
+ * déposé », which any rapport generated — a préliminaire too — satisfied.
+ */
+export const isOpenDossier = (d: FunnelDossier): boolean => isDossierOpen(d);
 
 /** The Chiffrage queue ignores assignments without files; so does the dashboard. */
 export const isQueueChiffrage = (c: DashboardChiffrage): boolean => Array.isArray(c.files) && c.files.length > 0;
@@ -379,8 +384,9 @@ export function computeGestionnaireView(
   });
 
   const { cur, prev } = weekWindows(now);
-  const termines7 = mine.filter((d) => inWindow(STEP_DEFS.rapport.doneAt(d), cur[0], cur[1])).length;
-  const termines7Prev = mine.filter((d) => inWindow(STEP_DEFS.rapport.doneAt(d), prev[0], prev[1])).length;
+  // Terminés = the note d'honoraire added in the window (lib/dossier-finished.ts).
+  const termines7 = mine.filter((d) => inWindow(noteHonoraireAt(d), cur[0], cur[1])).length;
+  const termines7Prev = mine.filter((d) => inWindow(noteHonoraireAt(d), prev[0], prev[1])).length;
   const crees7 = mine.filter((d) => inWindow(toDate(d.createdAt), cur[0], cur[1])).length;
   const unread = rappelsRecus.filter((r) => !r.read && !r.resolvedAt);
   const rappelOldest = unread
@@ -903,8 +909,8 @@ export function computeTeamView(
       enRetard: openAll.filter((d) => isDossierLate(d as any, now)).length,
       third: stale,
       thirdLabel: 'Sans mouvement',
-      termines7: data.dossiers.filter((d) => inWindow(STEP_DEFS.rapport.doneAt(d), cur[0], cur[1])).length,
-      termines7Prev: data.dossiers.filter((d) => inWindow(STEP_DEFS.rapport.doneAt(d), prev[0], prev[1])).length,
+      termines7: data.dossiers.filter((d) => inWindow(noteHonoraireAt(d), cur[0], cur[1])).length,
+      termines7Prev: data.dossiers.filter((d) => inWindow(noteHonoraireAt(d), prev[0], prev[1])).length,
     };
     return finishTeam(role, tiles, exceptions, perPerson);
   }

@@ -1028,7 +1028,7 @@ function HeadlineRow({
   const t = useT();
   return (
     <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
-      <HeadlineTile label={t('Dossiers traités')} value={headline.traites} caption={`${t('rapport déposé')} · ${periodLabel}`} />
+      <HeadlineTile label={t('Dossiers traités')} value={headline.traites} caption={`${t('note d’honoraire déposée')} · ${periodLabel}`} />
       <HeadlineTile
         label={t('Respect des délais')}
         value={headline.respectPct == null ? '—' : `${headline.respectPct} %`}
@@ -1039,7 +1039,7 @@ function HeadlineRow({
             : `${headline.respectOnTime} ${t('en délai')} · ${headline.respectLate} ${t('hors délai')}${headline.respectPending > 0 ? ` · ${headline.respectPending} ${t('en attente')}` : ''} · ${periodLabel}`
         }
       />
-      <HeadlineTile label={t('En attente')} value={headline.enAttente} caption={`${t('sans rapport déposé')} · ${t("aujourd'hui")}`} />
+      <HeadlineTile label={t('En attente')} value={headline.enAttente} caption={`${t('sans note d’honoraire')} · ${t("aujourd'hui")}`} />
       {/* Exception tile — the status colour only when there IS an exception (Few:
           bright colour for highlighting only; no red/green pair). The late list
           itself now lives on the role dashboards (owner 2026-09-06). */}
@@ -1341,7 +1341,7 @@ function CompagnieView({
                 </TableHead>
               )}
               {shown('enAttente') && (
-                <TableHead className="text-right" title={t('Dossiers sans rapport déposé · à ce jour')}>
+                <TableHead className="text-right" title={t('Dossiers sans note d’honoraire · à ce jour')}>
                   {t('En attente')}
                 </TableHead>
               )}

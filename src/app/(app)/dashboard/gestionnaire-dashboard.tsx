@@ -209,7 +209,7 @@ export function GestionnaireDashboard({ dossiers, chiffrages = [], sla, rappelsR
             <Delta cur={tiles.termines7} prev={tiles.termines7Prev} suffix={t('vs 7 j préc.')} />
           </div>
           <p className="t-caption mt-0.5">
-            {t('rapport déposé')} · {week}
+            {t('note d’honoraire déposée')} · {week}
           </p>
         </StatTile>
       </div>

@@ -9,7 +9,9 @@
  *
  * One field: the name. A name already in the list — whatever its case, accents
  * or spacing — is refused, since « ALLIANZ » next to « Allianz » would split a
- * compagnie's dossiers between two scopes.
+ * compagnie's dossiers between two scopes. A name that only resembles one
+ * (« ALLIANZ ASSURANCES MAROC ») is allowed, with a warning: it is usually
+ * the same compagnie, to correct on the dossiers rather than add.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -27,7 +29,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/i18n';
 import { INPUT_TEXT } from '@/lib/input-attrs';
-import { compagnieKey } from '@/lib/compagnie-name';
+import { canonicalCompagnie, compagnieKey } from '@/lib/compagnie-name';
 
 /** Card edge colours handed out in turn to new compagnies (per-company data). */
 const PALETTE = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#64748b'];
@@ -64,6 +66,13 @@ export function NewCompagnieDialog({
     setNom('');
     setError(null);
   };
+
+  const names = existing.map((c) => c.nom);
+  const close = (() => {
+    const key = compagnieKey(nom);
+    if (!key || names.some((n) => compagnieKey(n) === key)) return null;
+    return canonicalCompagnie(nom, names);
+  })();
 
   const handleOpenChange = (next: boolean) => {
     if (!next) reset();
@@ -137,6 +146,11 @@ export function NewCompagnieDialog({
           {error && (
             <p id="new-compagnie-error" role="alert" className="t-caption text-status-danger-fg">
               {error}
+            </p>
+          )}
+          {!error && close && (
+            <p role="note" className="t-caption text-status-warning-fg" data-testid="new-compagnie-close">
+              {`${t('Proche de')} « ${close} » : ${t('si c’est la même compagnie, corrigez plutôt le nom sur ses dossiers : deux entrées partageraient ses dossiers entre deux noms.')}`}
             </p>
           )}
         </form>

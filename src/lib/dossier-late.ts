@@ -4,29 +4,18 @@
  * by the gestionnaire dashboard tile (QA GE-006, 2026-10-05: the two pages
  * printed two different « En retard » numbers for the same dossiers).
  *
- * A dossier is late when it is still to be treated (its statut is not
- * terminal) and it was created at least `LATE_AFTER_DAYS` calendar days ago.
- * The 24 h ouvrées assignment clocks (chiffrage / terrain) are a different
- * signal — « hors délai » — and keep their own name on the queues and rows.
+ * A dossier is late when it is still to be treated (no note d'honoraire yet,
+ * lib/dossier-finished.ts) and it was created at least `LATE_AFTER_DAYS`
+ * calendar days ago. The 24 h ouvrées assignment clocks (chiffrage / terrain)
+ * are a different signal — « hors délai » — and keep their own name on the
+ * queues and rows.
  */
 
 import { differenceInCalendarDays } from 'date-fns';
+import { isDossierOpen } from './dossier-finished';
 
 /** Age alarm threshold in calendar days (SLA aging — attention research 2026-09-03). */
 export const LATE_AFTER_DAYS = 7;
-
-/**
- * « À traiter » scope: every status that still needs work. Only « Accord
- * envoyé » is terminal in the canonical status machine today — a Réforme
- * still moves through rapport/honoraires. Extend this set if a new terminal
- * status appears.
- */
-export const TERMINAL_STATUTS: ReadonlySet<string> = new Set(['Accord envoyé']);
-
-export const isActionNeeded = (statut: unknown): boolean =>
-  // Coerce: a legacy or malformed dossier can carry a non-string statut, and
-  // `(42).trim()` would white-screen every page that filters the list.
-  !TERMINAL_STATUTS.has(String(statut ?? '').trim());
 
 function toDate(v: any): Date | null {
   if (!v) return null;
@@ -46,8 +35,11 @@ export function dossierAgeDays(createdAt: any, now: Date = new Date()): number |
 }
 
 /** Still to treat and created at least `LATE_AFTER_DAYS` days ago. */
-export function isDossierLate(d: { statut?: string | null; createdAt?: any } | null | undefined, now: Date = new Date()): boolean {
-  if (!d || !isActionNeeded(d.statut)) return false;
+export function isDossierLate(
+  d: { createdAt?: any; dateNoteHonoraire?: unknown; noteHonoraireAt?: unknown } | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!d || !isDossierOpen(d)) return false;
   const age = dossierAgeDays(d.createdAt, now);
   return age !== null && age >= LATE_AFTER_DAYS;
 }

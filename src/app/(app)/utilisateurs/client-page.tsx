@@ -57,7 +57,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MultiSelect } from '@/components/ui/multi-select';
+import { CompagniesPicker } from '@/components/admin/compagnies-picker';
 import { SitesPicker, normalizeSites } from '@/components/admin/sites-picker';
 import { useAcceptedAreas } from '@/hooks/use-accepted-areas';
 import { useToast } from '@/hooks/use-toast';
@@ -97,7 +97,10 @@ const makeUserFormSchema = () => z.object({
   password: z.string().min(6, translate("Le mot de passe doit contenir au moins 6 caractères.")),
   confirmPassword: z.string(),
   role: z.string().min(1, translate("Le rôle est requis.")),
-  compagnies: z.array(z.string()).min(1, translate("Veuillez sélectionner au moins une compagnie.")),
+  compagnies: z.array(z.string()),
+  // « Toutes les compagnies » = saved as an empty list, so the compagnies
+  // added later are seen too (CompagniesPicker).
+  toutesCompagnies: z.boolean(),
   zone: z.string().optional(),
   // Item 024 — cities the user covers. Multi-select (a user can be in
   // charge of multiple cities at once). Optional: empty = no site restriction.
@@ -106,6 +109,13 @@ const makeUserFormSchema = () => z.object({
   message: translate("Les mots de passe ne correspondent pas."),
   path: ["confirmPassword"],
 }).superRefine((data, ctx) => {
+  if (!data.toutesCompagnies && data.compagnies.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: translate('Choisissez au moins une compagnie, ou cochez « Toutes les compagnies ».'),
+      path: ['compagnies'],
+    });
+  }
   if (data.role === 'Agent de Terrain' && (!data.zone || data.zone.trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -192,6 +202,7 @@ export default function UtilisateursClientPage() {
       confirmPassword: '',
       role: '',
       compagnies: [],
+      toutesCompagnies: false,
       zone: '',
       sites: [],
     },
@@ -254,7 +265,7 @@ export default function UtilisateursClientPage() {
         email: email,
         password: data.password, // stored so admin can see it
         role: data.role,
-        compagnies: data.compagnies,
+        compagnies: data.toutesCompagnies ? [] : data.compagnies,
         sites: normalizeSites(data.sites, acceptedAreas),
         zone: savedZone,
         statut: 'Actif',
@@ -552,11 +563,15 @@ export default function UtilisateursClientPage() {
                     render={({ field }) => (
                       <FormItem className="space-y-1">
                         <FormLabel>{t("Compagnies d'assurance")}</FormLabel>
-                        <MultiSelect
-                          options={companyOptions}
-                          selected={field.value}
+                        <CompagniesPicker
+                          all={form.watch('toutesCompagnies')}
+                          onAllChange={(all) => {
+                            form.setValue('toutesCompagnies', all);
+                            form.clearErrors('compagnies');
+                          }}
+                          value={field.value}
                           onChange={field.onChange}
-                          className="w-full"
+                          options={companyOptions}
                         />
                         <FormMessage />
                       </FormItem>

@@ -8,13 +8,19 @@
  * (the roles that create compagnies) use it.
  *
  * An account's `compagnies` limit the dossiers it sees; an EMPTY list means no
- * limit (« Vide = accès à tous les dossiers », Utilisateurs). Hence two locks:
+ * limit (« Toutes les compagnies » in Utilisateurs). Hence two locks:
  * - an account with no compagnies already sees this one — ticking it would
  *   shrink its view to this compagnie alone;
  * - a compagnie that is an account's only one cannot be taken away here —
  *   the account would fall back to seeing every compagnie.
  * The Responsable des gestionnaires does not change accounts with Admin
  * rights (firestore.rules allows them the `compagnies` field of the others).
+ *
+ * An account that has every OTHER compagnie of the list was meant to see them
+ * all: ticked one by one, its list stops at the day it was saved, and a new
+ * compagnie's dossiers leave it (owner report 2026-10-27). Such accounts say
+ * « A toutes les autres compagnies », and right after « Nouvelle compagnie »
+ * they start ticked.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -34,6 +40,7 @@ import {
 } from '@/components/ui/dialog';
 import { useFirestore } from '@/firebase';
 import { useCurrentUser } from '@/hooks/use-current-user';
+import { useOptions } from '@/hooks/use-options';
 import { isInactiveAccount } from '@/hooks/use-team-members';
 import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/i18n';
@@ -65,11 +72,14 @@ export function CompagnieAccessDialog({
   open,
   onOpenChange,
   compagnie,
+  isNew = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The list entry being given: its name is what accounts store. */
   compagnie: { id: string; nom: string } | null;
+  /** Just created: the accounts that had every other compagnie start ticked. */
+  isNew?: boolean;
 }) {
   const t = useT();
   const db = useFirestore();
@@ -86,6 +96,14 @@ export function CompagnieAccessDialog({
   const seededFor = useRef<string | null>(null);
 
   const key = compagnieKey(compagnie?.nom);
+
+  // The other compagnies an account can be given (the account forms offer
+  // the active ones).
+  const { options: listOptions, loading: listLoading } = useOptions('compagnies');
+  const otherKeys = useMemo(
+    () => Array.from(new Set(listOptions.filter((o) => o.active !== false).map((o) => compagnieKey(o.label)))).filter((k) => k && k !== key),
+    [listOptions, key],
+  );
 
   useEffect(() => {
     if (!open || !db) return;
@@ -119,19 +137,8 @@ export function CompagnieAccessDialog({
   }, [open, db]);
 
   const has = (a: Account) => a.compagnies.some((c) => compagnieKey(c) === key);
-
-  // The ticks start from who has the compagnie now, once per opening.
-  useEffect(() => {
-    if (!open) {
-      seededFor.current = null;
-      setQuery('');
-      return;
-    }
-    if (!accounts || !compagnie || seededFor.current === compagnie.id) return;
-    seededFor.current = compagnie.id;
-    setSelected(new Set(accounts.filter((a) => a.compagnies.length > 0 && has(a)).map((a) => a.uid)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, accounts, compagnie]);
+  const hasAllOthers = (a: Account) =>
+    a.compagnies.length > 0 && otherKeys.length > 0 && !has(a) && otherKeys.every((k) => a.compagnies.some((c) => compagnieKey(c) === k));
 
   const lockOf = (a: Account): Lock => {
     if (a.compagnies.length === 0) return 'all';
@@ -140,6 +147,29 @@ export function CompagnieAccessDialog({
     if (has(a) && distinct.size === 1) return 'only';
     return null;
   };
+
+  // The ticks start from who has the compagnie now, once per opening — plus,
+  // for a new compagnie, the accounts that had all the others.
+  useEffect(() => {
+    if (!open) {
+      seededFor.current = null;
+      setQuery('');
+      return;
+    }
+    if (!accounts || !compagnie || seededFor.current === compagnie.id) return;
+    if (isNew && listLoading) return;
+    seededFor.current = compagnie.id;
+    setSelected(
+      new Set(
+        accounts
+          .filter((a) => (a.compagnies.length > 0 && has(a)) || (isNew && !lockOf(a) && hasAllOthers(a)))
+          .map((a) => a.uid),
+      ),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, accounts, compagnie, isNew, listLoading]);
+
+  const preTicked = isNew ? (accounts ?? []).filter((a) => !lockOf(a) && hasAllOthers(a)).length : 0;
 
   const shown = useMemo(() => {
     const q = compagnieKey(query);
@@ -213,6 +243,7 @@ export function CompagnieAccessDialog({
           </DialogTitle>
           <DialogDescription>
             {t('Les comptes cochés voient les dossiers de cette compagnie. Cochez-en autant que nécessaire, puis enregistrez.')}
+            {preTicked > 0 && ` ${t('Les comptes qui avaient toutes les autres compagnies sont cochés d’avance.')}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -282,7 +313,12 @@ export function CompagnieAccessDialog({
                     <span className="min-w-0 flex-1">
                       <span className="t-body-sm block truncate font-medium text-ink">{a.name}</span>
                       <span className="t-caption block truncate">
-                        {[t(a.roleLabel) || null, lock ? lockCaption[lock] : others.length ? others.join(', ') : null].filter(Boolean).join(' · ')}
+                        {[
+                          t(a.roleLabel) || null,
+                          lock ? lockCaption[lock] : hasAllOthers(a) ? t('A toutes les autres compagnies') : others.length ? others.join(', ') : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </span>
                     </span>
                     <Checkbox

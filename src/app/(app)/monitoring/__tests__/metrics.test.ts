@@ -113,7 +113,7 @@ test('tiles: SLA steps measured on assignments, uncovered completions still coun
 });
 
 test('headline: respect % over clocks started in range (a breached open one is late), backlog and late-now', () => {
-  const ok = base('ok', { dateRapportDepose: T(9, 3) });
+  const ok = base('ok', { dateRapportDepose: T(9, 3), dateNoteHonoraire: T(9, 3) });
   const stuck = base('st');
   const sla = buildSlaItems(
     [ok, stuck],
@@ -205,7 +205,7 @@ test('weekly trend: one point per week, created vs deposited', () => {
 
 test('per-compagnie measures respect the range; per-user credits the clock owner', () => {
   const axa = base('i', { compagnie: 'AXA', datePhotosAvant: T(12) });
-  const old = base('o', { compagnie: 'AXA', createdAt: new Date(2026, 0, 5), dateRequete: new Date(2026, 0, 5), dateRapportDepose: new Date(2026, 0, 20) });
+  const old = base('o', { compagnie: 'AXA', createdAt: new Date(2026, 0, 5), dateRequete: new Date(2026, 0, 5), dateRapportDepose: new Date(2026, 0, 20), dateNoteHonoraire: new Date(2026, 0, 20) });
   const sla = buildSlaItems(
     [axa, old],
     [{ id: 'c', dossierId: 'i', createdAt: T(10), completedAt: T(12), assignedChiffreurNom: 'Sara' }],

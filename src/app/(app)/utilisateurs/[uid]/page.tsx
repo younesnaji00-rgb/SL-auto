@@ -88,7 +88,7 @@ import {
 import { getDocs } from '@/lib/firestore-logged';
 import { isSingleSessionRole, type Role } from '@/lib/dossiers-data';
 import { isSessionStale, timestampToMillis } from '@/lib/session-meta';
-import { MultiSelect } from '@/components/ui/multi-select';
+import { CompagniesPicker } from '@/components/admin/compagnies-picker';
 import { SitesPicker, normalizeSites } from '@/components/admin/sites-picker';
 import { useAcceptedAreas } from '@/hooks/use-accepted-areas';
 import { useOptions } from '@/hooks/use-options';
@@ -114,6 +114,8 @@ type UserForm = {
   role: Role | '';
   statut: 'Actif' | 'Inactif' | '';
   compagnies: string[];
+  /** « Toutes les compagnies » — saved as an empty `compagnies` list (CompagniesPicker). */
+  toutesCompagnies: boolean;
   sites: string[];
   zone: string;
 };
@@ -127,6 +129,7 @@ const EMPTY_FORM: UserForm = {
   role: '',
   statut: '',
   compagnies: [],
+  toutesCompagnies: true,
   sites: [],
   zone: '',
 };
@@ -141,6 +144,7 @@ function formFromUser(userData: any): UserForm {
     role: userData.role || '',
     statut: userData.statut || 'Actif',
     compagnies: userData.compagnies || [],
+    toutesCompagnies: !(Array.isArray(userData.compagnies) && userData.compagnies.length > 0),
     sites: Array.isArray(userData.sites) ? userData.sites : [],
     zone: userData.zone || '',
   };
@@ -510,6 +514,16 @@ function UserDetail({ params }: { params: Promise<{ uid: string }> }) {
       });
       return;
     }
+    // An empty list would read « toutes » once saved: say it with the box.
+    const { toutesCompagnies, ...fields } = formData;
+    if (!toutesCompagnies && fields.compagnies.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: t('Compagnies requises'),
+        description: t('Choisissez au moins une compagnie, ou cochez « Toutes les compagnies ».'),
+      });
+      return;
+    }
     setIsSaving(true);
     try {
       const previousRole = userData?.role;
@@ -538,7 +552,8 @@ function UserDetail({ params }: { params: Promise<{ uid: string }> }) {
       const clearSession =
         previousRole !== formData.role || !isSingleSessionRole(formData.role);
       await updateDoc(userRef, {
-        ...formData,
+        ...fields,
+        compagnies: toutesCompagnies ? [] : fields.compagnies,
         // Casablanca / Fès only: an older value typed elsewhere goes.
         sites: normalizeSites(formData.sites, acceptedAreas),
         zone: nextZone,
@@ -915,12 +930,12 @@ function UserDetail({ params }: { params: Promise<{ uid: string }> }) {
 
               <div className="space-y-1">
                 <Label>{t("Compagnies d'assurance affiliées")}</Label>
-                <p className="t-caption">{t('Vide = accès à tous les dossiers ; sinon uniquement ceux des compagnies choisies')}</p>
-                <MultiSelect
-                  options={companyOptions}
-                  selected={formData.compagnies}
+                <CompagniesPicker
+                  all={formData.toutesCompagnies}
+                  onAllChange={(all) => setFormData(p => ({ ...p, toutesCompagnies: all }))}
+                  value={formData.compagnies}
                   onChange={(vals) => setFormData(p => ({ ...p, compagnies: vals }))}
-                  className="w-full"
+                  options={companyOptions}
                 />
               </div>
 

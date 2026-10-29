@@ -201,8 +201,10 @@ test('weeklyFlow: 13 Monday weeks ending on the current one; closingRatio exclud
   const dossiers: FunnelDossier[] = [
     dossier('a', { createdAt: T(9) }),
     dossier('b', { createdAt: T(9, -3) }), // Saturday 7 mars → week of 2 mars
-    dossier('c', { createdAt: T(9, -8), dateRapportDepose: T(9, -8) }), // Monday 2 mars
+    dossier('c', { createdAt: T(9, -8), dateRapportDepose: T(9, -8), dateNoteHonoraire: T(9, -8) }), // Monday 2 mars
     dossier('d', { createdAt: 'garbage' }),
+    // A rapport without its note d'honoraire is not a closing (owner ruling 2026-10-29).
+    dossier('e', { createdAt: 'garbage', dateRapportDepose: T(9, -8) }),
   ];
   const flow = weeklyFlow(dossiers, NOW);
   assert.equal(flow.length, 13);
@@ -457,8 +459,8 @@ test('reformeStats by age band and marque; EAD and contradictoire shares', () =>
 test('compagnieTable: volume, en cours, délais, SLA, first pass, sorted by volume', () => {
   const dossiers: FunnelDossier[] = [
     dossier('a', { compagnie: 'RMA', createdAt: T(9, -5), dateRequete: T(8, -5) }),
-    dossier('b', { compagnie: 'RMA', createdAt: T(9, -20), dateRequete: T(8, -20), dateRapportDepose: T(8, -10) }),
-    dossier('c', { compagnie: 'RMA', createdAt: T(9, -60), dateRequete: T(8, -60), dateRapportDepose: T(9, -50) }),
+    dossier('b', { compagnie: 'RMA', createdAt: T(9, -20), dateRequete: T(8, -20), dateRapportDepose: T(8, -10), dateNoteHonoraire: T(8, -10) }),
+    dossier('c', { compagnie: 'RMA', createdAt: T(9, -60), dateRequete: T(8, -60), dateRapportDepose: T(9, -50), dateNoteHonoraire: T(9, -50) }),
     dossier('d', { compagnie: 'Wafa', createdAt: T(9, -3), dateRequete: T(8, -3), nature: 'EAD' }),
     dossier('e', { compagnie: '', createdAt: T(9, -2), dateRequete: T(8, -2) }),
   ];
@@ -554,7 +556,7 @@ test('photosToChiffrageOpen and creationToPlanif24, with and without a person', 
     // Another compagnie: off g1's portfolio (owner ruling 2026-10-14).
     dossier('b', { datePhotosAvant: T(9), compagnie: 'Wafa', createdAt: T(9, -4) }),
     dossier('c', { datePhotosAvant: T(9, -1) }),
-    dossier('d', { datePhotosAvant: T(9, -3), dateRapportDepose: T(9, -1) }),
+    dossier('d', { datePhotosAvant: T(9, -3), dateRapportDepose: T(9, -1), dateNoteHonoraire: T(9, -1) }),
     dossier('e'),
   ];
   const chiffrages: DashboardChiffrage[] = [{ id: 'c1', dossierId: 'c', createdAt: T(10, -1), files: [1] }];
@@ -605,8 +607,8 @@ test('computeDirectionView: empty and garbage input never throw', () => {
   const garbage = computeDirectionView(
     {
       dossiers: [
-        dossier('a', { createdAt: 'garbage', vehicule: { mec: {} }, dateSinistre: 42, dateRapportDepose: T(9, -1) }),
-        dossier('b', { createdAt: T(9, -45), dateRapportDepose: T(9, -35) }),
+        dossier('a', { createdAt: 'garbage', vehicule: { mec: {} }, dateSinistre: 42, dateRapportDepose: T(9, -1), dateNoteHonoraire: T(9, -1) }),
+        dossier('b', { createdAt: T(9, -45), dateRapportDepose: T(9, -35), dateNoteHonoraire: T(9, -35) }),
         null as any,
       ],
       chiffrages: [

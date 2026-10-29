@@ -3,17 +3,27 @@
 import { PageHeader } from '@/components/layout/page-header';
 import React, { useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Building2, ChevronRight, FileText, FolderOpen, Forward, Inbox, Plus, Upload, Users } from 'lucide-react';
+import { Building2, Check, ChevronRight, FileText, FolderOpen, Forward, Inbox, Plus, Upload, Users } from 'lucide-react';
 import { useCompagnies, type Compagnie } from '@/hooks/use-compagnies';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { hasPermission } from '@/lib/permissions';
 import { useDossiers } from '@/hooks/use-dossiers';
 import { useStorage, useFirestore } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Table,
   TableBody,
@@ -32,12 +42,13 @@ import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconChip } from '@/components/ui/icon-chip';
 import { Skeleton, SkeletonRow } from '@/components/ui/skeleton';
-import { isClosedStatus } from '@/lib/status-machine';
+import { isDossierFinished, isDossierOpen } from '@/lib/dossier-finished';
 import { cn } from '@/lib/utils';
 import { CreateDossierDialog } from '@/components/dossiers/create-dossier-dialog';
 import { NewCompagnieDialog } from '@/components/compagnies/new-compagnie-dialog';
 import { CompagnieAccessDialog } from '@/components/compagnies/compagnie-access-dialog';
 import { canonicalCompagnie, compagnieKey } from '@/lib/compagnie-name';
+import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 // Mobile pass 2026-09-06 (mobile-synthesis §4): the compagnie CARDS stay (they
 // are heterogeneous browsing tiles — NN/g) but go 1-up with 16 px padding; the
 // « Portefeuille dossiers » table is a RECORD QUEUE, so below md it becomes a
@@ -63,11 +74,6 @@ function statusVariant(status: string): 'info' | 'warning' | 'success' | 'neutra
   if (s === 'Chiffrage en cours') return 'warning';
   if (/accord/i.test(s)) return 'success';
   return 'neutral';
-}
-
-function isEnCours(statut?: string): boolean {
-  const s = statut?.toLowerCase() ?? '';
-  return s.includes('cours') || s.includes('programmée');
 }
 
 /** `yyyy-MM-dd` (the persisted filter value) → `dd/MM/yyyy` for captions. */
@@ -172,9 +178,9 @@ export default function CompagniesClientPage() {
   // « Qui voit cette compagnie ? » — the same roles give a compagnie to
   // several accounts at once (owner 2026-10-15), from its card, its page, or
   // right after creating it.
-  const [accessFor, setAccessFor] = useState<{ id: string; nom: string } | null>(null);
+  const [accessFor, setAccessFor] = useState<{ id: string; nom: string; isNew?: boolean } | null>(null);
   const accessDialog = canAddCompagnie ? (
-    <CompagnieAccessDialog open={!!accessFor} onOpenChange={(o) => { if (!o) setAccessFor(null); }} compagnie={accessFor} />
+    <CompagnieAccessDialog open={!!accessFor} onOpenChange={(o) => { if (!o) setAccessFor(null); }} compagnie={accessFor} isNew={!!accessFor?.isNew} />
   ) : null;
   // Filter out compagnies the current user has been denied access to via
   // the per-user permissions. Applied across the entire page (cards grid,
@@ -247,6 +253,51 @@ export default function CompagniesClientPage() {
       .sort((a, b) => b.count - a.count || a.nom.localeCompare(b.nom, 'fr'));
   }, [scopedDossiers, allCompagnies]);
   const [newCompagnieName, setNewCompagnieName] = useState('');
+
+  // « Corriger en « Allianz » » — a spelling of a listed compagnie (« ALLIANZ
+  // ASSURANCES MAROC ») is the same compagnie: adding it to the list would make
+  // a twin that no account has, so its dossiers would leave every account
+  // limited to compagnies (owner report 2026-10-27). The correction writes the
+  // list's name on those dossiers instead.
+  const [fixTarget, setFixTarget] = useState<{ key: string; nom: string; close: string; count: number } | null>(null);
+  const [fixing, setFixing] = useState(false);
+  const fixUnlisted = async () => {
+    if (!db || !fixTarget) return;
+    const target = fixTarget;
+    const rows = scopedDossiers.filter((d) => compagnieKey(d.compagnie) === target.key);
+    setFixing(true);
+    try {
+      // A Firestore batch takes at most 500 writes.
+      for (let i = 0; i < rows.length; i += 400) {
+        const batch = writeBatch(db);
+        for (const d of rows.slice(i, i + 400)) batch.update(doc(db, 'dossiers', d.id), { compagnie: target.close });
+        await batch.commit();
+      }
+      await Promise.all(
+        rows.map((d) =>
+          logHistorique(
+            db,
+            d.id,
+            'Compagnie corrigée',
+            profile?.email || '',
+            `Compagnie « ${target.nom} » remplacée par « ${target.close} » (liste des compagnies).`,
+            'autre',
+            profile?.nom,
+          ),
+        ),
+      );
+      toast({
+        title: t('Compagnie corrigée'),
+        description: `${rows.length} ${rows.length > 1 ? t('dossiers') : t('dossier')} · « ${target.nom} » → « ${target.close} »`,
+      });
+      setFixTarget(null);
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: t('Erreur'), description: String(e?.message ?? e) });
+    } finally {
+      setFixing(false);
+    }
+  };
+
   const filterDefaults = { dateFrom: '', dateTo: '' };
   const [filters, setFilters] = usePersistedFilters('compagnies', filterDefaults);
   const { dateFrom, dateTo } = filters;
@@ -273,13 +324,17 @@ export default function CompagniesClientPage() {
     return results;
   }, [allDossiers, dateFrom, dateTo]);
 
+  // Terminés = the note d'honoraire is in (owner ruling 2026-10-29,
+  // lib/dossier-finished.ts); En cours = every other dossier past creation,
+  // so the three figures add up to the total.
   const stats = useMemo(() => {
     if (!dossiers) return { total: 0, nouveau: 0, enCours: 0, clos: 0 };
+    const isNouveau = (d: (typeof dossiers)[number]) => d.statut === 'Nouveau' || d.statut === 'Création dossier';
     return {
       total: dossiers.length,
-      nouveau: dossiers.filter(d => d.statut === 'Nouveau' || d.statut === 'Création dossier').length,
-      enCours: dossiers.filter(d => isEnCours(d.statut)).length,
-      clos: dossiers.filter(d => isClosedStatus(d.statut || '')).length,
+      nouveau: dossiers.filter(d => isDossierOpen(d) && isNouveau(d)).length,
+      enCours: dossiers.filter(d => isDossierOpen(d) && !isNouveau(d)).length,
+      clos: dossiers.filter(d => isDossierFinished(d)).length,
     };
   }, [dossiers]);
 
@@ -370,7 +425,7 @@ export default function CompagniesClientPage() {
             existing={allCompagnies}
             onCreate={addCompagnie}
             initialNom={newCompagnieName}
-            onCreated={(id, nom) => setAccessFor({ id, nom })}
+            onCreated={(id, nom) => setAccessFor({ id, nom, isNew: true })}
           />
         )}
         {accessDialog}
@@ -510,7 +565,7 @@ export default function CompagniesClientPage() {
               <h2 id="cie-unlisted-title" className="t-heading">{t('Compagnies des dossiers absentes de la liste')}</h2>
               <p className="t-caption mt-1">
                 {canAddCompagnie
-                  ? t('Ajoutez-les pour les retrouver dans les filtres et pouvoir les attribuer aux comptes.')
+                  ? t('Corrigez celles qui sont une autre écriture d’une compagnie de la liste ; ajoutez les autres pour les retrouver dans les filtres et pouvoir les attribuer aux comptes.')
                   : t('Un administrateur peut les ajouter à la liste.')}
               </p>
             </div>
@@ -525,10 +580,21 @@ export default function CompagniesClientPage() {
                       {u.close ? ` · ${t('proche de')} « ${u.close} »` : ''}
                     </p>
                   </div>
-                  {canAddCompagnie && (
+                  {canAddCompagnie && u.close && (
                     <Button
                       size="sm"
                       variant="outline"
+                      data-testid="cie-unlisted-fix"
+                      onClick={() => setFixTarget({ key: u.key, nom: u.nom, close: u.close!, count: u.count })}
+                    >
+                      <Check aria-hidden />
+                      {t('Corriger en')} « {u.close} »
+                    </Button>
+                  )}
+                  {canAddCompagnie && (
+                    <Button
+                      size="sm"
+                      variant={u.close ? 'ghost' : 'outline'}
                       onClick={() => {
                         setNewCompagnieName(u.nom);
                         setNewCompagnieOpen(true);
@@ -543,6 +609,33 @@ export default function CompagniesClientPage() {
             </ul>
           </section>
         )}
+
+        <AlertDialog open={!!fixTarget} onOpenChange={(o) => { if (!o && !fixing) setFixTarget(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t('Corriger en')} « {fixTarget?.close} » ?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {fixTarget?.count} {fixTarget && fixTarget.count > 1 ? t('dossiers portent') : t('dossier porte')} « {fixTarget?.nom} ».{' '}
+                {t('Ils prennent le nom de la liste : les comptes qui ont cette compagnie, ou toutes, les voient. La correction est notée dans l’historique de chaque dossier.')}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={fixing}>{t('Annuler')}</AlertDialogCancel>
+              <AlertDialogAction
+                className={buttonVariants()}
+                disabled={fixing}
+                onClick={(e) => {
+                  e.preventDefault();
+                  void fixUnlisted();
+                }}
+              >
+                {fixing ? t('Correction…') : t('Corriger')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }

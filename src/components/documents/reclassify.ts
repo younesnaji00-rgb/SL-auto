@@ -23,6 +23,8 @@ import { logHistorique } from '@/app/(app)/dossiers/[id]/log-historique';
 import { isEditableDocType } from '@/lib/devis-schema';
 import { restoreStatutAfterAccordRemoval, restoreStatutWithoutGarageDocs } from '@/lib/restore-statut';
 import { parseAccordDocType } from '@/lib/docType-accorde';
+import { NOTE_HONORAIRE_TYPE } from '@/lib/dossier-finished';
+import { syncNoteHonoraireStamp } from '@/lib/note-honoraire-stamp';
 import { docDisplayName, type TypedDoc } from './typed-doc';
 
 export interface ReclassifyArgs {
@@ -117,6 +119,11 @@ export async function reclassifyDocuments(args: ReclassifyArgs): Promise<Reclass
   // An accord moved out of its slot is gone as such too (owner, 2026-10-13).
   if (!swap && sourceType !== targetType && parseAccordDocType(sourceType)) {
     await restoreStatutAfterAccordRemoval(db, dossierId, sourceType, { email: userEmail, nom: userName });
+  }
+  // A note d'honoraire moved in or out: the dossier is finished, or « en
+  // cours » again (owner ruling 2026-10-29).
+  if (sourceType === NOTE_HONORAIRE_TYPE || targetType === NOTE_HONORAIRE_TYPE) {
+    await syncNoteHonoraireStamp(db, dossierId, { email: userEmail, nom: userName });
   }
 
   // A garage devis / facture moved in or out of a slot: the dossier's table
