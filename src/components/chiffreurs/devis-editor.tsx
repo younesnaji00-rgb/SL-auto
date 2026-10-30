@@ -519,6 +519,41 @@ export function DevisEditor({
     }
   }, [db, storage, chiffrageId, docType, dossierPrefill, toast, devisFileNames.length, typeLabel.lower, t]);
 
+  // The dossier's files of this type, watched while the editor is open (QA
+  // Chiffreur #012): a facture that arrives later — dropped by an admin, or
+  // queued on a device and sent afterwards — or one replaced is read without
+  // « Ré-extraire ». A table still as it was loaded takes the new lines on
+  // screen; one with unsaved edits keeps them, and the stored table is re-read
+  // so the notice above the table offers it (sourceChangedWhileOpen).
+  const runExtractionRef = useRef(runExtraction);
+  runExtractionRef.current = runExtraction;
+  const persistedRef = useRef<StructuredDevis | null>(null);
+  persistedRef.current = persisted;
+  useEffect(() => {
+    if (!db || !storage || isGestionnaire || !chiffrageId || !dossierId) return;
+    let previous: string | null = null;
+    const unsub = onSnapshot(
+      query(collection(db, 'dossiers', dossierId, 'documents'), where('type', '==', docType)),
+      (snap: any) => {
+        const key = snap.docs
+          .map((d: any) => d.data() as { url?: unknown; pendingUpload?: unknown; storagePath?: unknown })
+          .filter((x: any) => !!x.url && !x.pendingUpload && typeof x.storagePath === 'string')
+          .map((x: any) => x.storagePath as string)
+          .sort()
+          .join('|');
+        const before = previous;
+        previous = key;
+        if (before === null || before === key || !initializedRef.current) return;
+        const blank = rowsRef.current.every((r) => !(r.designation || '').trim() && !Number(r.puHT));
+        const asStored = JSON.stringify(rowsRef.current) === JSON.stringify(persistedRef.current?.rows ?? []);
+        if (blank || asStored) void runExtractionRef.current(false);
+        else void extractAndPersistChiffrageDevis({ db, storage, chiffrageId, docType }).catch(() => {});
+      },
+      (err: unknown) => console.warn('[devis-editor] documents listener failed', err),
+    );
+    return () => unsub();
+  }, [db, storage, isGestionnaire, chiffrageId, dossierId, docType]);
+
   // Always keep an accord column in the chiffreur's table. Default kind is
   // 'accord'; the lightbox / column popover can flip to 'proposition-accord'.
   // Skip for the gestionnaire path (their editor is the source devis).

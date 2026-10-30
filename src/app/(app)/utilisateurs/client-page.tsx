@@ -62,7 +62,7 @@ import { SitesPicker, normalizeSites } from '@/components/admin/sites-picker';
 import { useAcceptedAreas } from '@/hooks/use-accepted-areas';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { describeRole, roleKey } from '@/lib/role-access';
+import { canonicalRoleLabel, describeRole, roleKey, sameRole } from '@/lib/role-access';
 import { useFirestore, useCollection, useFirebaseApp } from '@/firebase';
 import { collection, setDoc, serverTimestamp, doc, deleteDoc, query, where, addDoc } from 'firebase/firestore';
 import { getDocs } from '@/lib/firestore-logged';
@@ -169,6 +169,19 @@ export default function UtilisateursClientPage() {
 
   const usersQuery = useMemo(() => collection(db, 'users'), [db]);
   const { data: userList, loading } = useCollection<any>(usersQuery);
+  // The role filter's options: the Firestore list, then any other role an
+  // account carries — each role once, whatever its spelling (QA #058).
+  const roleFilterLabels = useMemo(() => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const label of [...roles.map((r) => r.label), ...(userList ?? []).map((u: any) => u.role)]) {
+      const canonical = canonicalRoleLabel(label);
+      if (!canonical || seen.has(roleKey(canonical))) continue;
+      seen.add(roleKey(canonical));
+      out.push(String(label).trim());
+    }
+    return out;
+  }, [roles, userList]);
 
   const filterDefaults = { search: '', role: 'Tous' };
   const [filters, setFilters, clearFilter] = usePersistedFilters('utilisateurs', filterDefaults);
@@ -390,9 +403,9 @@ export default function UtilisateursClientPage() {
         (user.nom || '').toLowerCase().includes(searchLower) ||
         (user.prenom || '').toLowerCase().includes(searchLower) ||
         (user.email || '').toLowerCase().includes(searchLower);
-      // Case, accents and spacing ignored (roleKey): an account saved as
-      // « directeur » is a Directeur (QA #058).
-      const roleMatch = filters.role === 'Tous' || roleKey(user.role) === roleKey(filters.role);
+      // Same role whatever its spelling (canonicalRoleLabel): an account
+      // saved as « directeur » is a Directeur (QA #058).
+      const roleMatch = filters.role === 'Tous' || sameRole(user.role, filters.role);
       return nameMatch && roleMatch;
     });
   }, [userList, filters]);
@@ -419,7 +432,7 @@ export default function UtilisateursClientPage() {
         (user.nom || '').toLowerCase().includes(s) ||
         (user.prenom || '').toLowerCase().includes(s) ||
         (user.email || '').toLowerCase().includes(s);
-      return nameMatch && (f.role === 'Tous' || roleKey(user.role) === roleKey(f.role));
+      return nameMatch && (f.role === 'Tous' || sameRole(user.role, f.role));
     }).length;
 
   // PHONE top bar (design 845–850): count on the « Utilisateurs » chip, the
@@ -542,7 +555,7 @@ export default function UtilisateursClientPage() {
                             <SelectTrigger className="max-w-[16rem]" data-tour="usr-role"><SelectValue placeholder={t('Sélectionnez un rôle')} /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {roles.map(role => <SelectItem key={role.id} value={role.label}>{t(role.label)}</SelectItem>)}
+                            {roleFilterLabels.map(label => <SelectItem key={label} value={label}>{t(label)}</SelectItem>)}
                           </SelectContent>
                         </Select>
                         {/* What the chosen role can do, in plain French, right
@@ -753,7 +766,7 @@ export default function UtilisateursClientPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Tous">{t('Tous les rôles')}</SelectItem>
-                    {roles.map(role => <SelectItem key={role.id} value={role.label}>{t(role.label)}</SelectItem>)}
+                    {roleFilterLabels.map(label => <SelectItem key={label} value={label}>{t(label)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -1016,7 +1029,7 @@ export default function UtilisateursClientPage() {
                 onChange={(v) => set({ role: v })}
                 options={[
                   { value: 'Tous', label: t('Tous les rôles') },
-                  ...roles.map((r) => ({ value: r.label, label: t(r.label) })),
+                  ...roleFilterLabels.map((label) => ({ value: label, label: t(label) })),
                 ]}
               />
             </FilterSection>

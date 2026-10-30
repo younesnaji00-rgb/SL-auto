@@ -60,8 +60,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { roles } from '@/lib/dossiers-data';
-import { roleKey } from '@/lib/role-access';
+import { roleFilterOptions, sameRole } from '@/lib/role-access';
 import { CompagnieScopeNote } from '@/components/dossiers/compagnie-scope-note';
 // Mobile pass 2026-09-06 (mobile-synthesis §4 / research §2): the two wide
 // stat tables are FIGURE COMPARISON, so they keep a real `<table>` — frozen
@@ -432,6 +431,7 @@ export default function MonitoringPage() {
         if (name) byKey.set(u.id, name);
         if (role) roleByKey.set(u.id, role);
       }
+      if (name && role) roleByKey.set(`nom:${name.toLowerCase()}`, role);
       if (u.email) {
         if (name) {
           byKey.set(u.email, name);
@@ -529,9 +529,13 @@ export default function MonitoringPage() {
     for (const r of perUser) {
       const name = resolveUserName(r.group, userLookup);
       const trimmed = (r.group || '').trim();
+      // By uid / e-mail, else by the name the row resolved to (a workflow
+      // entry signed with the nom only) — a row without its role escaped every
+      // role filter (QA #058).
       const role =
         userLookup.roleByKey.get(trimmed) ??
         userLookup.roleByKey.get(trimmed.toLowerCase()) ??
+        userLookup.roleByKey.get(`nom:${name.toLowerCase()}`) ??
         undefined;
       const existing = merged.get(name);
       if (existing) {
@@ -580,12 +584,15 @@ export default function MonitoringPage() {
     return Array.from(merged.values()).sort((a, b) => b.totalEnDelai - a.totalEnDelai);
   }, [perUser, userLookup, users]);
 
+  // The list's roles, plus any other label the accounts carry (QA #058).
+  const roleOptions = useMemo(() => roleFilterOptions(users.map((u) => u.role)), [users]);
   const filteredPerUser = useMemo(() => {
     let rows = dedupedPerUser;
     if (roleFilter !== ROLE_FILTER_ALL) {
-      // Same label whatever its case, accents or spacing: accounts saved as
-      // « directeur » vanished under « Directeur » (QA #058).
-      rows = rows.filter((r) => roleKey(r.role) === roleKey(roleFilter));
+      // Same role whatever its spelling (canonicalRoleLabel): accounts saved
+      // as « directeur » or « Responsable agents de terrain » vanished under
+      // the list's labels (QA #058, retest 2026-10-26).
+      rows = rows.filter((r) => sameRole(r.role, roleFilter));
     }
     const q = userSearch.toLowerCase().trim();
     if (q) {
@@ -830,7 +837,7 @@ export default function MonitoringPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ROLE_FILTER_ALL}>{t('Tous les rôles')}</SelectItem>
-                  {roles.map((r) => (
+                  {roleOptions.map((r) => (
                     <SelectItem key={r} value={r}>
                       {t(r)}
                     </SelectItem>

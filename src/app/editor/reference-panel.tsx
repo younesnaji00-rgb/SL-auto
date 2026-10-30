@@ -139,6 +139,9 @@ function PaneTab({
 const PANE_TABLIST_CLASS =
   'relative isolate flex shrink-0 items-end gap-4 rounded-lg border border-hairline bg-surface-2 px-2 pt-1';
 
+/** Pane height (CSS px) from which the list and the viewer show together. */
+const PANE_ROOM_FOR_BOTH = 560;
+
 function ReferencePane({
   dossierId,
   label,
@@ -163,6 +166,21 @@ function ReferencePane({
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const [listOpen, setListOpen] = useState(true);
+  // The pane's height (CSS px). The list and the viewer share a pane only when
+  // it has room for both; otherwise it shows one at a time, whole. Split in two
+  // on a 1080p laptop at 150 %, each view was ~260 px tall: the viewer's dark
+  // block cut the photo grid to a strip and read as laid over it (QA Chiffreur
+  // #004, retest 2026-10-27).
+  const paneRef = useRef<HTMLDivElement>(null);
+  const [paneHeight, setPaneHeight] = useState(0);
+  useEffect(() => {
+    const el = paneRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setPaneHeight(el.clientHeight));
+    ro.observe(el);
+    setPaneHeight(el.clientHeight);
+    return () => ro.disconnect();
+  }, []);
   const [photoSubTab, setPhotoSubTab] = useState<'avant' | 'en_cours' | 'apres'>('avant');
   // Lightbox: the eye icon is the only way in (clicking the media does nothing).
   const [preview, setPreview] = useState<{ url: string; nom: string } | null>(null);
@@ -258,13 +276,18 @@ function ReferencePane({
   // anything else keeps the iframe (unchanged behavior).
   const isPdfFile = (name: string) => /\.pdf$/i.test(name || '');
   const selectedName: string = selectedItem?.name || selectedItem?.nom || '';
+  // Room for the list (tabs + one row of thumbnails) above a usable viewer.
+  const roomy = paneHeight >= PANE_ROOM_FOR_BOTH;
+  const showViewer = !listOpen || (roomy && !!selectedId);
+  // The list alone: it takes the whole pane and scrolls inside it.
+  const listFills = listOpen && !showViewer;
 
   // overflow-hidden: in split mode (Vue 1 / Vue 2) each pane gets half the
   // panel. Without it, a pane's photo grid spilled into the other pane, and
   // its thumbnails (positioned) painted over that pane's document viewer and
   // zoom pill (QA Chiffreur 004).
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div ref={paneRef} className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Pane mini-header: `t-label` (pane name · selected file) · eye button
           opening the DocumentPreviewLightbox (net-new, kept) · list toggle —
           `ghost` icon buttons with aria-pressed on the toggle (§18). */}
@@ -315,7 +338,7 @@ function ReferencePane({
       {/* Compact item selector — may shrink (min-h-0): the grid then scrolls
           inside the pane instead of pushing past it. */}
       {listOpen && mode === 'photos' && (
-        <div className="flex min-h-0 flex-col border-b border-hairline">
+        <div className={cn('flex min-h-0 flex-col', listFills ? 'flex-1' : 'border-b border-hairline')}>
           <div ref={subTabMorphRef} className={cn(PANE_TABLIST_CLASS, 'mx-2 mb-2')} role="tablist">
             {(['avant', 'en_cours', 'apres'] as const).map((key) => (
               <PaneTab
@@ -328,11 +351,13 @@ function ReferencePane({
               </PaneTab>
             ))}
           </div>
-          <div className="max-h-[220px] overflow-y-auto">
+          <div className={cn('overflow-y-auto', listFills ? 'min-h-0 flex-1' : 'max-h-[220px]')}>
             {groupedPhotos[photoSubTab].length === 0 ? (
               <div className="t-caption px-3 py-8 text-center">{t("Aucune photo")}</div>
             ) : (
-              <div className="grid grid-cols-2 gap-1.5 p-2 sm:grid-cols-3">
+              // A short view takes smaller thumbnails, so its first row shows
+              // whole instead of running into the next view's header.
+              <div className={cn('grid gap-1.5 p-2', roomy ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))]')}>
                 {groupedPhotos[photoSubTab].map((p: any) => (
                   <PhotoThumb
                     key={p.id}
@@ -351,7 +376,7 @@ function ReferencePane({
       )}
 
       {listOpen && mode === 'documents' && (
-        <div className="max-h-[260px] overflow-auto border-b border-hairline">
+        <div className={cn('overflow-auto', listFills ? 'min-h-0 flex-1' : 'max-h-[260px] border-b border-hairline')}>
           {(() => {
             if (!documents || documents.length === 0) {
               return <div className="t-caption px-3 py-4 text-center">{t("Aucun document")}</div>;
@@ -403,15 +428,21 @@ function ReferencePane({
           zoom ruling (−/%/+, 25 % steps, wheel ≈ ×1.3).
           The viewer keeps at least 45 % of its pane: with the list unfolded in
           a split pane on a 768 px screen it shrank to a dark strip under the
-          photo grid, and the list now scrolls instead (QA #004). */}
-      <div className="flex min-h-[45%] flex-1 items-center justify-center overflow-hidden bg-ink-solid">
+          photo grid, and the list now scrolls instead (QA #004). A pane too
+          short for both shows the list OR the viewer (`showViewer`). */}
+      {showViewer && (
+      <div className={cn('flex flex-1 items-center justify-center overflow-hidden bg-ink-solid', listOpen && 'min-h-[45%]')}>
         {!selectedId ? (
-          <div className="p-6 text-center">
-            <ChevronsUp className="mx-auto mb-2 h-6 w-6 text-on-ink/40" aria-hidden />
-            <p className="text-xs text-on-ink/70">
-              {t("Sélectionnez un élément ci-dessus pour le visualiser")}
-            </p>
-          </div>
+          <button
+            type="button"
+            onClick={() => setListOpen(true)}
+            className="rounded-md p-6 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronsDown className="mx-auto mb-2 h-6 w-6 text-on-ink/40" aria-hidden />
+            <span className="block text-xs text-on-ink/70">
+              {t('Choisissez une photo ou un document à afficher')}
+            </span>
+          </button>
         ) : isLoadingUrl ? (
           <div className="animate-pulse text-xs text-on-ink/70">{t("Chargement...")}</div>
         ) : viewerUrl ? (
@@ -444,6 +475,7 @@ function ReferencePane({
           <p className="text-xs text-on-ink/70">{t("Impossible de charger le fichier")}</p>
         )}
       </div>
+      )}
 
       <DocumentPreviewLightbox doc={preview} onClose={() => setPreview(null)} />
     </div>

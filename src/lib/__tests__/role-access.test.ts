@@ -9,6 +9,9 @@ import assert from 'node:assert/strict';
 import { NAV_ITEMS } from '../nav-groups';
 import { roles } from '../dossiers-data';
 import {
+  canonicalRoleLabel,
+  roleFilterOptions,
+  sameRole,
   canOpenPath,
   describeRole,
   landingPathForAccess,
@@ -203,4 +206,32 @@ test('role labels compare whatever their case, accents and spacing', () => {
   assert.equal(roleKey('directeur'), roleKey('Directeur'));
   assert.equal(roleKey(' Directeur  des opérations'), roleKey('directeur des operations'));
   assert.notEqual(roleKey('Directeur'), roleKey('Directeur technique'));
+});
+
+// QA #058 (retest 2026-10-26): the role filters of Suivi d’équipe and
+// Utilisateurs found nobody for « Directeur » or « Responsable des agents de
+// terrain », the accounts' labels being spelt otherwise.
+test('a stored label means the role of the list, whatever its spelling', () => {
+  assert.equal(canonicalRoleLabel('directeur'), 'Directeur');
+  assert.equal(canonicalRoleLabel('DIRECTEUR GÉNÉRAL'), 'Directeur');
+  assert.equal(canonicalRoleLabel('directeur des operations'), 'Directeur des opérations');
+  assert.equal(canonicalRoleLabel('Directeur Technique '), 'Directeur technique');
+  assert.equal(canonicalRoleLabel('Reponsable agents terrain'), 'Responsable des agents de terrain');
+  assert.equal(canonicalRoleLabel('responsable des chiffreurs'), 'Responsable des chiffreurs');
+  assert.equal(canonicalRoleLabel('Responsable gestionnaire'), 'Responsable des gestionnaires');
+  assert.equal(canonicalRoleLabel('agent de terrain'), 'Agent de Terrain');
+  assert.equal(canonicalRoleLabel('Stagiaire'), 'Stagiaire');
+  assert.equal(canonicalRoleLabel(''), '');
+  assert.equal(canonicalRoleLabel(undefined), '');
+  for (const r of roles) assert.equal(canonicalRoleLabel(r), r);
+});
+
+test('the role filters match by role and list every label an account carries', () => {
+  assert.ok(sameRole('DIRECTEUR GÉNÉRAL', 'Directeur'));
+  assert.ok(sameRole('Reponsable agents terrain', 'Responsable des agents de terrain'));
+  assert.ok(!sameRole('Directeur des opérations', 'Directeur'));
+  assert.ok(!sameRole('', 'Directeur'));
+  const options = roleFilterOptions(['directeur', 'Stagiaire', 'stagiaire', undefined]);
+  assert.deepEqual(options.slice(0, roles.length), [...roles]);
+  assert.deepEqual(options.slice(roles.length), ['Stagiaire']);
 });

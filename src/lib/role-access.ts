@@ -22,6 +22,7 @@
  */
 
 import { NAV_GROUPS, isItemVisibleToRole, type NavItem } from '@/lib/nav-groups';
+import { roles as ROLE_LIST } from '@/lib/dossiers-data';
 
 /** The roles the code's checks know: every label resolves to one of them. */
 export type BaseRole = 'Admin' | 'Gestionnaire' | 'Chiffreur' | 'Agent de Terrain';
@@ -250,4 +251,61 @@ export function describeRole(label: string | null | undefined): string | null {
   if (access.scope) return SCOPE_DESCRIPTIONS[access.scope];
   if (access.role === 'Admin' && roleKey(label) !== 'admin') return 'Mêmes droits que l’Admin';
   return BASE_DESCRIPTIONS[access.role];
+}
+
+// ── Role filters ────────────────────────────────────────────────────────────
+
+/** The fixed list's label of each « Responsable des … » side. */
+const SCOPE_ROLE_LABEL: Record<AccessScope, string> = {
+  operations: 'Responsable des gestionnaires',
+  chiffrage: 'Responsable des chiffreurs',
+  terrain: 'Responsable des agents de terrain',
+};
+
+/**
+ * The label of the fixed list (`roles` in dossiers-data.ts) a stored role
+ * means, whatever its spelling — « directeur », « DIRECTEUR GÉNÉRAL »,
+ * « Reponsable agents de terrain » — or the trimmed label itself when it
+ * means none of them. The role filters compare these (QA #058: filtering on
+ * « Directeur » or « Responsable des agents de terrain » in Suivi d'équipe
+ * found nobody, the accounts' labels being spelt otherwise). '' when empty.
+ */
+export function canonicalRoleLabel(label: string | null | undefined): string {
+  const raw = String(label ?? '').trim();
+  const key = roleKey(raw);
+  if (!key) return '';
+  const listed = ROLE_LIST.find((r) => roleKey(r) === key);
+  if (listed) return listed;
+  const access = resolveRoleAccess(raw);
+  if (access.role === 'Admin' && access.scope) return SCOPE_ROLE_LABEL[access.scope];
+  if (/^directeur\b/.test(key)) {
+    if (key.includes('operation')) return 'Directeur des opérations';
+    if (key.includes('technique')) return 'Directeur technique';
+    return 'Directeur';
+  }
+  if (access.role && access.role !== 'Admin') return access.role;
+  return raw;
+}
+
+/** Same role for a filter: both labels mean the same role of the list. */
+export function sameRole(a: string | null | undefined, b: string | null | undefined): boolean {
+  const ca = canonicalRoleLabel(a);
+  return !!ca && ca === canonicalRoleLabel(b);
+}
+
+/**
+ * A role filter's options: the fixed list, then any label found on the
+ * accounts that means none of its roles, so no account is out of reach of
+ * the filter.
+ */
+export function roleFilterOptions(accountRoles: ReadonlyArray<string | null | undefined>): string[] {
+  const out = [...ROLE_LIST] as string[];
+  const seen = new Set(out.map((r) => roleKey(r)));
+  for (const r of accountRoles) {
+    const label = canonicalRoleLabel(r);
+    if (!label || seen.has(roleKey(label))) continue;
+    seen.add(roleKey(label));
+    out.push(label);
+  }
+  return out;
 }

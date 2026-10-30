@@ -8,8 +8,10 @@
  *   2. Set it from their `onOpenDocument` handler (instead of `window.open`).
  *   3. Render `<DocumentPreviewLightbox doc={state} onClose={...} onDownload={...} />`.
  *
- * On md and up: images are rendered with `<img>`, everything else with an
- * `<iframe>` so the browser's native PDF viewer takes over.
+ * On md and up: images are rendered with `<img>`, PDFs with pdf.js pages in
+ * one scroll (`PdfPagesViewer`, fitted to the window's width — QA Chiffreur
+ * #016: the browser's own viewer in an `<iframe>` repainted badly under the
+ * app's density zoom), anything else with an `<iframe>`.
  *
  * BELOW md the component is a different thing entirely — a full-screen VIEW
  * (`PhoneLightbox` below, docs/research/mobile-record-pages.md §E8): black
@@ -123,15 +125,6 @@ function isPdfName(name: string): boolean {
 /** How long the window waits for a PDF's page shape before opening as A4. */
 const PDF_MEASURE_TIMEOUT_MS = 1500;
 
-/**
- * The iframe source of a PDF: « view=Fit » (PDF open parameters, honoured by
- * the Chrome / Edge viewer) shows the WHOLE page on open. Without it the
- * viewer kept its own zoom and a landscape devis accordé was cut on the right
- * (QA Chiffreur 007).
- */
-function pdfFrameSrc(url: string): string {
-  return url.includes('#') ? url : `${url}#view=Fit`;
-}
 
 /**
  * The name used for TYPE detection. `doc.nom` is a human label ("Devis
@@ -580,8 +573,14 @@ export function DocumentPreviewLightbox({ doc, onClose, onDownload: onDownloadPr
                 />
               </TransformComponent>
             </TransformWrapper>
+          ) : isPdf ? (
+            // pdf.js pages in one scroll, not the browser's own PDF viewer in
+            // an iframe: under the app's density zoom Chrome's viewer repainted
+            // on scroll with an element left frozen, rows drawn twice and the
+            // end of the document cut (QA Chiffreur #016).
+            <PdfPagesViewer url={doc.url} className="bg-ink-solid" />
           ) : (
-            <iframe src={isPdf ? pdfFrameSrc(doc.url) : doc.url} className="h-full w-full border-none" title={doc.nom} />
+            <iframe src={doc.url} className="h-full w-full border-none" title={doc.nom} />
           )}
         </div>
       </DialogContent>

@@ -5,6 +5,8 @@ import type { Firestore } from 'firebase/firestore';
 import { getAllPending, dequeueUpload, updateQueueItem, type PendingUpload } from './upload-queue';
 import { MAX_UPLOAD_ATTEMPTS, dossierIdOfPath, hasGivenUp, retryDelayMs } from './upload-status';
 import { scanAndPersistVehicleIds, vehicleIdHintForSlot } from '@/lib/scan-vehicle-ids';
+import { syncGarageDocs } from '@/lib/devis-extract';
+import { isEditableDocType } from '@/lib/devis-schema';
 import { clearUploadFailure, reportUploadFailure, type UploadReporter } from './upload-failure-report';
 
 type SyncListener = () => void;
@@ -158,6 +160,12 @@ class UploadProcessor {
           const idDossier = dossierIdOfPath(item.firestoreDocPath);
           if (idHint && idDossier) {
             void scanAndPersistVehicleIds({ db, storage, dossierId: idDossier, sources: [{ blob: item.fileBlob, name: item.fileName }], hint: idHint });
+          }
+          // A garage devis / facture sent late is read like one sent at once
+          // (QA Chiffreur #012): into the dossier's table and its chiffrage's.
+          const slotType = item.firestoreMetadata?.type;
+          if (idDossier && typeof slotType === 'string' && isEditableDocType(slotType)) {
+            void syncGarageDocs({ db, storage, dossierId: idDossier, docType: slotType, added: [{ storagePath: item.storagePath, name: item.fileName }] });
           }
         } catch (err) {
           console.warn(`[UploadProcessor] Failed to process ${item.fileName}:`, err);
