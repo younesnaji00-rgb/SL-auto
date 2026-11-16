@@ -62,6 +62,10 @@ export function OptionsManagerModal({
   const [isSyncing, setIsSyncing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+  // No rename (gear) on document types (owner request 2026-11-16): a file is
+  // matched to its slot by the type's label, so a renamed type would cut every
+  // existing file off from its slot. Add or delete only.
+  const canRename = collectionName !== 'options_types_documents';
 
   const handleAdd = async () => {
     if (!newOption.trim()) return;
@@ -214,17 +218,19 @@ export function OptionsManagerModal({
                     <>
                       <span className="flex-1 text-sm font-medium px-2">{opt.label}</span>
                       <div className="flex items-center gap-1">
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          // Hover-revealed on a mouse, always visible on touch
-                        // (D 3: no hover-only affordance on a phone).
-                        className="h-8 w-8 max-md:h-11 max-md:w-11 text-muted-foreground hover:text-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity"
-                          onClick={() => { setEditingId(opt.id); setEditLabel(opt.label); }}
-                        >
-                          <Settings className="h-3.5 w-3.5" />
-                        </Button>
+                        {canRename && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            // Hover-revealed on a mouse, always visible on touch
+                            // (D 3: no hover-only affordance on a phone).
+                            className="h-8 w-8 max-md:h-11 max-md:w-11 text-muted-foreground hover:text-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity"
+                            onClick={() => { setEditingId(opt.id); setEditLabel(opt.label); }}
+                          >
+                            <Settings className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         {canDelete && (
                           <Button
                             type="button"
