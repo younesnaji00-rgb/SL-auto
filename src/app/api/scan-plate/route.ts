@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ai } from '@/ai/genkit';
 import { parseAiJson } from '@/lib/ai-json';
 import { withAiRetry } from '@/lib/ai-retry';
+import { PLATE_SCAN_MESSAGES, classifyAiError } from '@/lib/ai-error';
 import { transliterateArabic } from '@/lib/transliterate-arabic';
 import { requireAuth, authErrorResponse } from '@/lib/require-auth';
 import { BRAND } from '@/lib/brand';
@@ -92,11 +93,9 @@ RÈGLES STRICTES:
 
     const parsed = parseAiJson<any>(text || '');
     if (!parsed.ok) {
-      console.error('[scan-plate] Failed to parse AI response');
-      return NextResponse.json(
-        { error: `Impossible de parser la réponse AI. Début: ${parsed.snippet}`, raw: parsed.cleaned },
-        { status: 422 },
-      );
+      // The model's raw answer stays in the log, never on the agent's screen.
+      console.error('[scan-plate] Failed to parse AI response. Start:', parsed.snippet);
+      return NextResponse.json({ error: PLATE_SCAN_MESSAGES.failed, code: 'failed' }, { status: 422 });
     }
 
     const data = parsed.data || {};
@@ -112,6 +111,12 @@ RÈGLES STRICTES:
     const authResp = authErrorResponse(error);
     if (authResp) return authResp;
     console.error('[/api/scan-plate] Error:', error?.message ?? 'unknown', error?.code ?? '');
-    return NextResponse.json({ error: error.message || 'Erreur interne.' }, { status: 500 });
+    // QA bug 070: Google's raw error (« 402 Payment Required ») reached the
+    // screen. One French sentence instead; the detail stays in the log.
+    const kind = classifyAiError(error);
+    return NextResponse.json(
+      { error: PLATE_SCAN_MESSAGES[kind], code: kind },
+      { status: kind === 'unavailable' ? 503 : 500 },
+    );
   }
 }

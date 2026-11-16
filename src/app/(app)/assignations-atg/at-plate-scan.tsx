@@ -5,6 +5,7 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { apiFetch } from '@/lib/api-fetch';
 import { t } from '@/i18n';
 import { logFrontend } from '@/lib/debug-log';
+import { PLATE_SCAN_MESSAGES } from '@/lib/ai-error';
 import { deviceOpensNativeCamera } from '@/lib/native-camera';
 import { WebcamCaptureDialog } from '@/components/camera/webcam-capture-dialog';
 
@@ -63,14 +64,26 @@ export function usePlateScan(onPlate: (result: PlateScanResult) => void) {
         reader.onerror = () => reject(reader.error);
         reader.readAsDataURL(file);
       });
-      const res = await apiFetch('/api/scan-plate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileBase64, contentType: file.type || 'image/jpeg' }),
-      });
+      let res: Response;
+      try {
+        res = await apiFetch('/api/scan-plate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileBase64, contentType: file.type || 'image/jpeg' }),
+        });
+      } catch (netErr) {
+        // No network / server unreachable: same message as an AI outage.
+        console.warn('[at-plate-scan] request failed', netErr);
+        setError(t(PLATE_SCAN_MESSAGES.unavailable));
+        return;
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || `${t('Erreur serveur')} (${res.status})`);
+        // The route answers one French sentence (QA bug 070) — never the
+        // provider's raw error. Anything else falls back to ours.
+        const fallback = res.status === 503 || res.status === 429 ? PLATE_SCAN_MESSAGES.unavailable : PLATE_SCAN_MESSAGES.failed;
+        setError(typeof data?.code === 'string' && typeof data?.error === 'string' ? data.error : t(fallback));
+        return;
       }
       if (!data?.registration) {
         setError(t('Plaque illisible sur la photo. Rapprochez-vous et réessayez.'));
@@ -83,8 +96,9 @@ export function usePlateScan(onPlate: (result: PlateScanResult) => void) {
       logFrontend('at-plate-scan ← /api/scan-plate', mapped);
       onPlate(mapped);
     } catch (err: any) {
+      // Reading the file failed (never a server message): no raw text either.
       console.warn('[at-plate-scan] scan failed', err);
-      setError(err?.message || t('Échec de l’analyse de la photo. Réessayez.'));
+      setError(t(PLATE_SCAN_MESSAGES.failed));
     } finally {
       setScanning(false);
     }

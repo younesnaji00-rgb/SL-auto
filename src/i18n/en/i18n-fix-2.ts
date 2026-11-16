@@ -55,6 +55,7 @@ export const I18N_FIX_2_EN: Record<string, string> = {
   " m de l'adresse": ' m from the address',
   'Ignorer la suggestion': 'Dismiss the suggestion',
   "Confirmer l'arrivée": 'Confirm the arrival',
+  'Confirmer l’arrivée de l’agent': 'Confirm the agent’s arrival',
 
   // ── Peek panel ───────────────────────────────────────────────────────
   // « Mission » (peek badge) is already keyed in i18n-fix-1.ts.

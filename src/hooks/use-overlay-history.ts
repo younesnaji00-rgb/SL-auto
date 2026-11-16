@@ -20,6 +20,32 @@
 
 import * as React from 'react';
 
+/**
+ * Run `fn` once the overlay that is closing has popped its history entry:
+ * on the next `popstate`, or after `fallbackMs` when the overlay had no entry.
+ *
+ * Call it in the same handler that closes the overlay. Running the follow-up
+ * at once raced the overlay's `history.back()` (QA 2026-11-16):
+ *  - a `router.push` from a sheet row was cancelled by the back that followed
+ *    it (« Signaler un bug » in the phone « ⋯ » did nothing, bug 013);
+ *  - a `window.confirm` opened during that back could be dismissed by the
+ *    browser as « Annuler », so « Supprimer » on a photo did nothing (bugs
+ *    012 / 017).
+ */
+export function runAfterOverlayClose(fn: () => void, fallbackMs = 250): void {
+  if (typeof window === 'undefined') return;
+  let done = false;
+  const go = () => {
+    if (done) return;
+    done = true;
+    window.removeEventListener('popstate', go);
+    window.clearTimeout(timer);
+    fn();
+  };
+  const timer = window.setTimeout(go, fallbackMs);
+  window.addEventListener('popstate', go);
+}
+
 const KEY = '__overlay';
 let seq = 0;
 

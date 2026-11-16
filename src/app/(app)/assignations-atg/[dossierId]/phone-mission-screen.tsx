@@ -11,18 +11,21 @@
  *   header card       [11:00 / mar. 16]  Casablanca · Maârif  (Prochain)
  *                                        Garage Atlas, 182 bd Al Massira
  *                     [ ⇗ Itinéraire ]  [ ☏ 06 61 23 45 67 ]  [ ✉ ]
+ *                     [ ⌖ Confirmer l’arrivée de l’agent ]   (editors, not the agent)
  *   phases            ( Avant 12 | En cours 0 | Après 0 )          Segmented xs
  *   counter           12/40 photos                    ⇡ Importer   Réforme
  *   grid              3 columns · 1:1 tiles · dashed « + Ajouter » tile
- *   bottom bar        [ ⇗ ] [ ⌖ ]  [ ◉ Prendre des photos ]
+ *   bottom bar        [ ⇗ ]  [ ◉ Prendre des photos ]
  *
  * One header card per planification of the phase (usually one); the
  * contact row (Itinéraire · téléphone · WhatsApp) sits on the primary card
  * only — the next upcoming RDV, else the most recent plan. The agent's
  * arrival is stamped automatically at the address (GeofenceAutoCheckin, owner
- * ruling 2026-09-25); only another editor (Admin) still has the bottom bar's
- * « Confirmer l’arrivée » (useMissionCheckin), until the plan carries
- * `checkinAt`.
+ * ruling 2026-09-25); only another editor (Admin, a Directeur, the
+ * Responsable des agents de terrain) still has « Confirmer l’arrivée de
+ * l’agent » (useMissionCheckin), a labelled button on the primary card until
+ * the plan carries `checkinAt`. It used to be a bare pin icon in the bottom
+ * bar, which testers never recognised (QA bug 073).
  *
  * Photos: « Par date / Par localisation » over one disclosure row per day or
  * place — the same gallery as the dossier's Photos on a phone (owner request
@@ -221,18 +224,10 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
     ...(primaryPlan?.adresse?.trim()
       ? [{ label: t('Itinéraire'), icon: <Navigation />, href: mapsSearchUrl(primaryPlan.adresse.trim()), external: true }]
       : []),
-    // The check-in write stays an editor's action (the bar itself always
-    // shows) — never the agent's: their arrival is detected automatically.
-    ...(canEdit && !isATG && primaryPlan && !primaryPlan.checkinAt
-      ? [{
-          label: t('Confirmer l’arrivée'),
-          icon: <MapPin />,
-          onClick: () => void checkin(dossierId, primaryPlan.id),
-          disabled: checkinSaving,
-          dataTour: 'atg-checkin',
-        }]
-      : []),
   ];
+  // The check-in write stays an editor's action — never the agent's: their
+  // arrival is detected automatically. Shown on the primary card, in words.
+  const canConfirmArrival = canEdit && !isATG && !!primaryPlan && !primaryPlan.checkinAt;
 
   return (
     <div className="flex flex-col gap-3">
@@ -308,6 +303,21 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
                     </a>
                   )}
                 </div>
+              )}
+
+              {/* Arrival on the agent's behalf (Admin, Directeurs, Responsable
+                  des agents de terrain) — a full-width labelled button. */}
+              {primary && canConfirmArrival && (
+                <button
+                  type="button"
+                  data-tour="atg-checkin"
+                  onClick={() => void checkin(dossierId, plan.id)}
+                  disabled={checkinSaving}
+                  className={cn(RIM_BTN, 'h-11 w-full disabled:opacity-50')}
+                >
+                  <MapPin aria-hidden />
+                  <span className="truncate">{t('Confirmer l’arrivée de l’agent')}</span>
+                </button>
               )}
             </div>
           );
@@ -415,7 +425,7 @@ export default function PhoneMissionScreen<TPhoto extends PhonePhoto>({
         )}
       </section>
 
-      {/* ── Bottom bar: Itinéraire · Confirmer l’arrivée · Prendre des photos ──
+      {/* ── Bottom bar: Itinéraire · Prendre des photos ──
           Always painted: on a record screen it REPLACES the nav. A viewer who
           cannot edit gets the same bar with the primary closed. */}
       <BottomActionBar

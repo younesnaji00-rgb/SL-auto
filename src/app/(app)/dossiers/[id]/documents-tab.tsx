@@ -6,7 +6,7 @@
  * one visual language.
  *
  * Reading order, top → bottom:
- *   1. Toolbar: t-heading "Documents" + count pill · search ·
+ *   1. Toolbar: t-heading "Documents" + count pill ·
  *      Sélectionner (ghost) · types settings · the ONE filled primary passed
  *      by the caller. No "Importer" here — the SmartInbox « Ajouter des
  *      pièces » above the tab is the picker; empty sockets cover typed
@@ -29,7 +29,6 @@ import {
   Download,
   Loader2,
   Plus,
-  Search,
   Settings,
 } from 'lucide-react';
 import { RequiredSummaryLine } from '@/components/dossier-timeline/required-summary-line';
@@ -88,7 +87,6 @@ import {
 } from '@/lib/required-docs';
 import { SlotCard, SOCKET_BASE_CLASS, SOCKET_OPEN_CLASS } from '@/components/dossier-timeline/slot-card';
 import {
-  docDisplayName,
   downloadFileFromUrl,
   toLightboxDoc,
   type DocDragPayload,
@@ -157,7 +155,6 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
   // "Autre type…" socket → native picker → typed dialog.
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [search, setSearch] = useState('');
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
@@ -257,25 +254,11 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     return { required: [...required, ...garage], others };
   }, [docsByType, requiredStatus, showRequirements]);
 
-  // ── Search (type OR file name) ─────────────────────────────────────────────
-  // Required sockets always show (their state must stay truthful): a type
-  // match shows every file; otherwise only matching files — and when nothing
-  // matches inside a filled socket, all its files stay so it never reads as
-  // empty. The Autres group is filtered to matching sockets.
-
-  const q = search.trim().toLowerCase();
-  const isSearching = q.length > 0;
-  const matchDocs = (s: SocketSpec): TypedDoc[] => {
-    if (!q) return s.docs;
-    if (s.type.toLowerCase().includes(q)) return s.docs;
-    const matched = s.docs.filter((d) => docDisplayName(d).toLowerCase().includes(q));
-    return matched.length > 0 ? matched : s.docs;
-  };
-  const socketMatches = (s: SocketSpec): boolean =>
-    !q || s.type.toLowerCase().includes(q) || s.docs.some((d) => docDisplayName(d).toLowerCase().includes(q));
-
-  const visRequired = sockets.required.map((s) => ({ spec: s, docs: matchDocs(s) }));
-  const visOthers = sockets.others.filter(socketMatches).map((s) => ({ spec: s, docs: matchDocs(s) }));
+  // No search field on this tab (QA bug 071, owner ruling 2026-11-16): it
+  // kept the required sockets and their files on screen whatever was typed,
+  // so it read as broken. Every socket shows all its files.
+  const visRequired = sockets.required.map((s) => ({ spec: s, docs: s.docs }));
+  const visOthers = sockets.others.map((s) => ({ spec: s, docs: s.docs }));
   const visibleDocsFlat = [...visRequired, ...visOthers].flatMap((x) => x.docs);
   const selectableVisible = visibleDocsFlat.filter((d) => d.url && !d.pendingUpload);
 
@@ -720,8 +703,6 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
   const socketId = (t: string) => `docslot-${dossierId}-${t.replace(/[^a-zA-Z0-9]+/g, '-')}`;
   const focusSocket = (missingLabel: string) => {
     const target = missingLabel === GARAGE_PAIR_LABEL ? GARAGE_DOC_SLOTS[0] : missingLabel;
-    if (search) setSearch('');
-    // Let a cleared search re-render first.
     window.setTimeout(() => {
       const el = document.getElementById(socketId(target));
       if (!el) return;
@@ -788,7 +769,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
     />
   );
 
-  const showOthersGroup = visOthers.length > 0 || (canEdit && !isSearching);
+  const showOthersGroup = visOthers.length > 0 || canEdit;
 
   return (
     <div className="space-y-4">
@@ -802,23 +783,13 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
         onChange={handleFileSelect}
       />
 
-      {/* Toolbar: title · count · search ─ Sélectionner · types · primary */}
+      {/* Toolbar: title · count ─ Sélectionner · types · primary */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <h3 className="t-heading">{t(title)}</h3>
           <span className="inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded-full bg-surface-2 px-2 text-xs font-medium tabular-nums text-ink-2">
             {sortedDocs.length}
           </span>
-        </div>
-        <div className="relative min-w-[11rem] flex-1 sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('Rechercher un fichier ou un type…')}
-            aria-label={t('Rechercher un fichier ou un type de document')}
-            className="h-9 border-hairline bg-card pl-8 md:text-[13px]"
-          />
         </div>
         {!selectionMode && (
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
@@ -929,9 +900,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
             {sectionTitle(
               'Pièces requises',
               visRequired,
-              isSearching
-                ? undefined
-                : { received: REQUIRED_SOURCE_SLOTS.length + 1 - requiredStatus.missingLabels.length, total: REQUIRED_SOURCE_SLOTS.length + 1 },
+              { received: REQUIRED_SOURCE_SLOTS.length + 1 - requiredStatus.missingLabels.length, total: REQUIRED_SOURCE_SLOTS.length + 1 },
             )}
             <div className={SOCKET_GRID_CLASS}>
               {visRequired.map((x) => renderSocket(x.spec, x.docs))}
@@ -944,7 +913,7 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
               {sectionTitle('Autres documents', visOthers)}
               <div className={SOCKET_GRID_CLASS}>
                 {visOthers.map((x) => renderSocket(x.spec, x.docs))}
-                {canEdit && !isSearching && (
+                {canEdit && (
                   <button
                     type="button"
                     onClick={() => openImport('Autre', true)}
@@ -960,12 +929,6 @@ export default function DocumentsTab({ dossierId, title = 'Documents', primaryAc
                 )}
               </div>
             </section>
-          )}
-
-          {isSearching && visOthers.length === 0 && (
-            <p className="t-caption">
-              {t('Aucun autre document ne correspond à')} «&nbsp;{search.trim()}&nbsp;».
-            </p>
           )}
         </div>
       )}

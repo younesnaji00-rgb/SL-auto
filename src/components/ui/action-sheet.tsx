@@ -7,12 +7,16 @@
  * hairline dividers, destructive rows LAST and separated, ≤ 6 rows (no
  * scrolling), no « Annuler » row — the handle, scrim, × and platform back
  * close it. Choosing a row closes the sheet first, then runs the action
- * (Apple: close before presenting anything else).
+ * (Apple: close before presenting anything else) — once the sheet's history
+ * entry is popped (`runAfterOverlayClose`), so neither an in-app link nor a
+ * confirm dialog races that `history.back()`.
  */
 
 import * as React from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { runAfterOverlayClose } from '@/hooks/use-overlay-history';
 import { BottomSheet } from './bottom-sheet';
 
 export interface ActionItem {
@@ -48,12 +52,23 @@ export function ActionSheet({ open, onOpenChange, title, description, items, det
   const regular = visible.filter((i) => !i.destructive);
   const destructive = visible.filter((i) => i.destructive);
 
+  const router = useRouter();
+  const pathname = usePathname() || '';
+
   const run = (item: ActionItem) => {
+    // The action waits for the sheet's history entry to be popped: a
+    // `window.confirm` opened during that back could be dismissed (QA 012 / 017).
+    if (item.onSelect) runAfterOverlayClose(item.onSelect);
     onOpenChange(false);
-    if (item.onSelect) {
-      // Let the sheet's exit start before the action opens anything else.
-      window.setTimeout(item.onSelect, 0);
-    }
+  };
+
+  /** In-app link: close, then navigate once the sheet's back is done (QA 013). */
+  const follow = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    // New tab / window: the browser's own behaviour, nothing to race.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    if (href !== pathname) runAfterOverlayClose(() => router.push(href));
+    onOpenChange(false);
   };
 
   const Row = ({ item }: { item: ActionItem }) => {
@@ -78,7 +93,7 @@ export function ActionSheet({ open, onOpenChange, title, description, items, det
           {inner}
         </a>
       ) : (
-        <Link href={item.href} className={cls} onClick={() => onOpenChange(false)}>
+        <Link href={item.href} className={cls} onClick={(e) => follow(e, item.href!)}>
           {inner}
         </Link>
       );
